@@ -46,21 +46,38 @@ class Client:
         }
         if force_json:
             body["response_format"] = {"type": "json_object"}
-        for attempt in range(3):
+        last_err = None
+        for attempt in range(6):
             try:
                 r = requests.post(
                     f"{self.base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     json=body, timeout=600)
-                if r.status_code == 400 and force_json and "response_format" in body:
-                    body.pop("response_format")  # endpoint lacks JSON mode; prompt still demands JSON
-                    continue
+                if r.status_code == 400:
+                    # adapt to per-model parameter dialects, one change per pass
+                    err = (r.json().get("error") or {}) if r.headers.get(
+                        "content-type", "").startswith("application/json") else {}
+                    param, msg = err.get("param"), err.get("message", r.text[:300])
+                    last_err = f"400: {msg}"
+                    if param == "max_tokens" and "max_tokens" in body:
+                        body["max_completion_tokens"] = body.pop("max_tokens")
+                        continue
+                    if param == "temperature" and "temperature" in body:
+                        body.pop("temperature")  # some models accept only the default
+                        continue
+                    if "response_format" in body:
+                        body.pop("response_format")  # no JSON mode; prompt still demands JSON
+                        continue
+                    raise LLMError(f"LLM request rejected: {msg}")
                 r.raise_for_status()
                 return r.json()["choices"][0]["message"]["content"]
             except requests.RequestException as e:
-                if attempt == 2:
-                    raise LLMError(f"LLM call failed: {e}") from e
+                detail = getattr(getattr(e, "response", None), "text", "")[:300]
+                last_err = f"{e} {detail}"
+                if attempt == 5:
+                    raise LLMError(f"LLM call failed: {last_err}") from e
                 time.sleep(5 * (attempt + 1))
+        raise LLMError(f"LLM call failed: {last_err}")
 
     def json(self, system, user, validate, repair_retries=2):
         """Call, parse JSON, run `validate(obj) -> list[str] of errors`.
