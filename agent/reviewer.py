@@ -33,7 +33,7 @@ def column_dump(wb, spec, col_key="_target_cols"):
                 rows.append({"row": r, "col": col, "label": label,
                              "value": c.value if not isinstance(c.value, str) else None,
                              "formula": c.value if isinstance(c.value, str) else None,
-                             "flag": c.fill.start_color.rgb if c.fill and c.fill.fill_type else None,
+                             "flag": str(c.fill.start_color.rgb) if c.fill and c.fill.fill_type else None,
                              "note": c.comment.text if c.comment else None})
         out[sheet] = rows
     return out

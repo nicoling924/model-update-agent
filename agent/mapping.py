@@ -75,6 +75,24 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
             it = dict(neg[0])
             it["value"] = -it["value"]
             return _accept(it, row, "triangulated (sign-flipped)")
+    # 2c. exact-label candidates with graduated prior tolerance: model priors are
+    # sometimes DERIVED (formulas), not disclosed actuals — allow a near match on
+    # the closest prior, unflagged when tight, red-flagged when loose
+    exact = [it for it in staging["items"] if norm(it["label"]) == norm(row["label"])
+             and isinstance(it.get("value"), (int, float))
+             and isinstance(it.get("prior"), (int, float))]
+    if exact and isinstance(pv, (int, float)) and pv:
+        best = min(exact, key=lambda it: abs(it["prior"] - pv))
+        d = abs(best["prior"] - pv)
+        if d <= max(1.0, 0.02 * abs(pv)):
+            return _accept(best, row, "label+prior-nearest")
+        if d <= 0.15 * abs(pv):
+            entry = _accept(best, row, "label+prior-near (loose)")
+            entry["flag"] = "red"
+            entry["note"] = (f"NEAR-MATCH: disclosure prior {best['prior']} vs model prior "
+                             f"{round(pv,1)} ({d/abs(pv)*100:.1f}% off — model prior may be "
+                             "derived); verify. ") + (entry["note"] or "")
+            return entry
     # 2b. last resort before LLM: a lone label match WITHOUT corroboration is
     # usable but must be flagged for analyst review, never silently accepted
     if len(cands) == 1 and _plausible(cands[0], row):
@@ -86,23 +104,33 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
     # 3. back-out rule
     rule = row.get("backout_rule")
     if rule and rule.get("components"):
-        # composition by disclosure label: resolve each component fresh each period
-        parts, pages = [], []
+        # composition by disclosure label, with optional '-'/'+' sign prefix.
+        # Accepted ONLY if the same composition over PRIOR values reproduces the
+        # model's stored prior — self-corroboration against sign/label surprises.
+        parts, prior_sum, pages, ok = [], 0.0, [], True
         for comp in rule["components"]:
-            cn = norm(comp)
+            sign = -1.0 if comp.startswith("-") else 1.0
+            cn = norm(comp.lstrip("+-"))
             hits = [it for it in staging["items"]
                     if cn in norm(it["label"]) and isinstance(it.get("value"), (int, float))]
             vals = sorted({round(h["value"], 1) for h in hits})
             if not vals or len(vals) > 1:
-                parts = None
+                ok = False
                 break
-            parts.append(vals[0])
+            parts.append(sign * vals[0])
+            pr = next((h.get("prior") for h in hits if isinstance(h.get("prior"), (int, float))), None)
+            prior_sum = prior_sum + sign * pr if pr is not None and prior_sum is not None else None
             pages.append(hits[0].get("page"))
-        if parts:
-            f = "=" + "+".join(str(int(p) if p == int(p) else p) for p in parts)
+        pv = row.get("prior_value")
+        corroborated = (prior_sum is not None and isinstance(pv, (int, float))
+                        and abs(prior_sum - pv) <= 1.0)
+        if ok and (corroborated or not isinstance(pv, (int, float))):
+            f = "".join(("+" if p >= 0 else "-") + (str(int(abs(p))) if p == int(p) else str(abs(p)))
+                        for p in parts)
+            f = "=" + (f[1:] if f.startswith("+") else f)
             return {"formula": f, "source": "backout-components", "flag": None,
-                    "note": f"Composition per spec: {' + '.join(rule['components'])} "
-                            f"(pages {pages})", "page": pages[0]}
+                    "note": f"Composition per spec: {' '.join(rule['components'])} "
+                            f"(pages {pages}; prior corroborated {prior_sum})", "page": pages[0]}
     if rule and rule.get("method"):
         return {"formula": rule["method"], "source": "backout", "flag": "orange",
                 "note": f"Backed out: {rule['method']} (per spec back-out rule)", "page": None}

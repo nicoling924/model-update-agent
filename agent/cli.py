@@ -168,13 +168,13 @@ def cmd_update(company_dir, period):
                        "prior_value": ws_prior[f"{s_prior}{r}"].value,
                        "prior_formula": prior_cell.value if isinstance(prior_cell.value, str) else None,
                        "backout_rule": backout_rules.get(f"{sheet}!{r}")}
-            # walk-away: past 75% of the time budget, stop consulting the LLM —
-            # unresolved rows degrade to estimate + red flag instead of stalling
-            consult = map_client if time.time() < deadline else None
-            entry = mapping.resolve_row(row_ctx, staging, glossary, consult, system,
+            # pass 1 is deterministic-only (fast); LLM help comes later in
+            # priority order: targeted rescue first, per-row consults last
+            entry = mapping.resolve_row(row_ctx, staging, glossary, None, system,
                                         _prompt("mapping"), cfg, maplog)
+            entry["_ctx"] = row_ctx
             rows_done += 1
-            if rows_done % 25 == 0:
+            if rows_done % 50 == 0:
                 print(f"    [4] {rows_done} rows mapped ({sheet})", flush=True)
             value = entry.get("formula", entry.get("value"))
             if value is None:
@@ -199,7 +199,8 @@ def cmd_update(company_dir, period):
                              workbook.shift_formula(pv, s_prior, s_target),
                              prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
-    # targeted second pass: rescue unresolved rows by landmark-page re-reads
+    # [4a] targeted rescue FIRST (few batched calls, high yield)
+    rescued_keys = set()
     if rescue_candidates and time.time() < deadline:
         from . import targeted
         rescued = targeted.rescue(map_client, system, disclosures,
@@ -210,8 +211,28 @@ def cmd_update(company_dir, period):
             writer.write(rs, cand["coord"], res["value"],
                          prior_coord=cand["prior_coord"], note=res["note"])
             flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
-        print(f"[4b] targeted rescue: {len(rescued)}/{len(rescue_candidates)} "
-              "flagged rows recovered with prior-corroborated re-reads")
+            rescued_keys.add((rs, rr))
+        print(f"[4a] targeted rescue: {len(rescued)}/{len(rescue_candidates)} "
+              "flagged rows recovered with prior-corroborated re-reads", flush=True)
+
+    # [4b] per-row LLM consults LAST, only for unrescued rows, within time budget
+    consults = 0
+    for cand in rescue_candidates:
+        if (cand["sheet"], cand["row"]) in rescued_keys:
+            continue
+        if time.time() >= deadline:
+            maplog.append(f"time budget: {cand['sheet']}!r{cand['row']} left as flagged estimate")
+            continue
+        entry = mapping._llm_map(cand, staging, map_client,
+                                 system, _prompt("mapping"), cfg, maplog)
+        if entry and (entry.get("value") is not None or entry.get("formula")):
+            v = entry.get("formula", entry.get("value"))
+            writer.write(cand["sheet"], cand["coord"], v,
+                         prior_coord=cand["prior_coord"],
+                         note=entry.get("note"), flag="red")
+            consults += 1
+    if consults:
+        print(f"[4b] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
 
     # per-company confirmed corrections (machine-actionable MODEL_SPEC landmines)
     for fx in spec.get("analyst_fixes") or []:

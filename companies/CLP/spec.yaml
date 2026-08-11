@@ -497,6 +497,8 @@ aliases:
   electricity sales:
   - sales of electricity
 backout_rules:
+- row_ref: Final!21
+  components: ['-finance costs', '+finance income']
 - row_ref: Final!97
   components: ['perpetual capital securities', 'other non-controlling interests']
 - row_ref: SOC Accounts!58
