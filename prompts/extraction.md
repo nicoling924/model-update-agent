@@ -18,6 +18,10 @@ Fill the staging schema below. Rules:
   (subtotals, BS balance, segment sums, EPS × shares ≈ attributable profit). The
   harness verifies these; extraction is rejected if they fail — so extract subtotals
   too, and be exact.
+- **Self-check every tie before returning**: sum(lhs values) must literally equal
+  sum(rhs values) using the SIGNED values exactly as you recorded them. If a
+  component is stored negative (e.g. NCI shown as a deduction), place it so the
+  arithmetic works — do not assume the harness will interpret signs for you.
 - Negative numbers: preserve the disclosure's sign as printed, and set
   `sign_convention` per statement ("expenses_negative" | "expenses_positive_labeled").
 - If a standard statement is absent (e.g. no CF in a short announcement), set the
