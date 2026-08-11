@@ -34,21 +34,55 @@ def build_glossary(cfg, spec):
 def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log):
     """row: {sheet, row, label, prior_value, prior_formula, kind}
     Returns worklist entry: {value|formula, source, flag, note, page}."""
-    # 1. direct find
+    # 1. direct find — accepted ONLY with prior-year corroboration (an uncorroborated
+    # label match is the classic definition-mismatch trap: plausible, wrong, unflagged)
     target = glossary.get(norm(row["label"]), norm(row["label"]))
     cands = [it for it in staging["items"]
              if glossary.get(norm(it["label"]), norm(it["label"])) == target]
-    if len(cands) == 1 and _plausible(cands[0], row):
-        return _accept(cands[0], row, "direct")
+    pv = row.get("prior_value")
+    if len(cands) == 1 and isinstance(pv, (int, float)) and \
+            isinstance(cands[0].get("prior"), (int, float)) and \
+            abs(abs(cands[0]["prior"]) - abs(pv)) <= 1.0:
+        it = cands[0]
+        if (it["prior"] < 0) != (pv < 0) and pv != 0:
+            it = dict(it, value=-it["value"])
+        return _accept(it, row, "direct+prior-corroborated")
+    # 1b. constant-composition prior formula: structure-preserving, self-validating
+    comp = _recompose(row.get("prior_formula"), staging)
+    if comp:
+        return {"formula": comp, "source": "recomposed",
+                "flag": None, "note": f"components triangulated from prior constants "
+                f"in {row.get('prior_formula')}", "page": None}
     # 2. triangulation on prior-year number
     from .extraction import find_by_prior
     tri = find_by_prior(staging, row.get("prior_value"))
     if len(tri) == 1:
         return _accept(tri[0], row, "triangulated")
-    if len(tri) > 1:  # disambiguate by label similarity, else fall through
+    if len(tri) > 1:
+        # same figure quoted in several places (statement + note + summary):
+        # if every candidate agrees on the current value, they are duplicates
+        vals = [t.get("value") for t in tri if isinstance(t.get("value"), (int, float))]
+        if vals and max(vals) - min(vals) <= 1.0 and len(vals) == len(tri):
+            return _accept(tri[0], row, "triangulated (multi-source consensus)")
         same = [t for t in tri if glossary.get(norm(t["label"]), norm(t["label"])) == target]
         if len(same) == 1:
             return _accept(same[0], row, "triangulated+label")
+    if not tri and isinstance(row.get("prior_value"), (int, float)) and row["prior_value"]:
+        # sign convention: model stores deductions negative, disclosures print positive
+        neg = find_by_prior(staging, -row["prior_value"])
+        nvals = [t.get("value") for t in neg if isinstance(t.get("value"), (int, float))]
+        if nvals and (len(neg) == 1 or max(nvals) - min(nvals) <= 1.0):
+            it = dict(neg[0])
+            it["value"] = -it["value"]
+            return _accept(it, row, "triangulated (sign-flipped)")
+    # 2b. last resort before LLM: a lone label match WITHOUT corroboration is
+    # usable but must be flagged for analyst review, never silently accepted
+    if len(cands) == 1 and _plausible(cands[0], row):
+        entry = _accept(cands[0], row, "label-only (uncorroborated)")
+        entry["flag"] = "red"
+        entry["note"] = ("UNCORROBORATED label match — prior-year value did not "
+                         "confirm it; verify definition. ") + (entry["note"] or "")
+        return entry
     # 3. back-out rule
     rule = row.get("backout_rule")
     if rule:
@@ -65,6 +99,34 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
             "note": ("ESTIMATE: held at prior-period value; figure not located in "
                      "disclosure (searched: statements, notes, segment tables, KPIs)."),
             "page": None}
+
+
+_CONSTS = re.compile(r"^=\s*[+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)+\s*$")
+_TERM = re.compile(r"([+-]?)\s*(\d+(?:\.\d+)?)")
+
+
+def _recompose(prior_formula, staging):
+    """=166094+10034 -> =<current fixed assets>+<current ROU>, by triangulating
+    each constant on its own prior value. All components must resolve uniquely
+    (or by consensus) or we return None and the row falls through the cascade."""
+    if not (isinstance(prior_formula, str) and _CONSTS.match(prior_formula)):
+        return None
+    from .extraction import find_by_prior
+    out = []
+    for sign, num in _TERM.findall(prior_formula.lstrip("=")):
+        c = float(num)
+        if c < 10:  # tiny constants (adjustment plugs) rarely appear as lines
+            return None
+        signed = -c if sign == "-" else c
+        hits = find_by_prior(staging, signed) or \
+            [dict(h, value=-h["value"]) for h in find_by_prior(staging, -signed)]
+        vals = [h.get("value") for h in hits if isinstance(h.get("value"), (int, float))]
+        if not vals or max(vals) - min(vals) > 1.0:
+            return None
+        cur = vals[0]
+        out.append(f"{'+' if cur >= 0 else '-'}{abs(int(cur)) if cur == int(cur) else abs(cur)}")
+    s = "".join(out)
+    return "=" + (s[1:] if s.startswith("+") else s)
 
 
 def _plausible(item, row):

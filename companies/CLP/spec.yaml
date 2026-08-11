@@ -527,3 +527,8 @@ tie_out_anchors:
   cell: AI31
   expected: 0
   source: internal
+analyst_fixes:
+- sheet: ROAFNA
+  cell: AH19
+  value: '=36+5487'
+  why: 'Known mis-built FY24 hardcode (MODEL_SPEC 5): SoC combined BS other assets = non-current 36 + current 5,487 (AR p260); zeroes the FY24 ROAFNA!AH31 check'

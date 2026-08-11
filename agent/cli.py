@@ -156,7 +156,10 @@ def cmd_update(company_dir, period):
         s_prior = s_axis["columns"].get(last_actual, prior_col)
         s_target = s_axis["columns"].get(target_year, target_col)
         ws_prior = pre_values[sheet]
+        header_r = s_axis.get("header_row", 1)
         for r in iv.get("input_rows", []):
+            if r == header_r:
+                continue  # year headers are written separately, never mapped
             label = next((ws_prior[f"{lc}{r}"].value for lc in "ABCDEF"
                           if isinstance(ws_prior[f"{lc}{r}"].value, str)), f"row {r}")
             prior_cell = pre_wb[sheet][f"{s_prior}{r}"]
@@ -190,6 +193,10 @@ def cmd_update(company_dir, period):
                              workbook.shift_formula(pv, s_prior, s_target),
                              prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
+    # per-company confirmed corrections (machine-actionable MODEL_SPEC landmines)
+    for fx in spec.get("analyst_fixes") or []:
+        writer.restate(fx["sheet"], fx["cell"], fx["value"], fx["why"])
+        restatements.append(f"{fx['sheet']}!{fx['cell']} -> {fx['value']} ({fx['why']})")
     print(f"[4] applied: {len(writer.log['written'])} cells "
           f"({len(flags)} red, {len(backouts)} orange). {len(maplog)} mapping notes.")
 
