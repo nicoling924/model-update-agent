@@ -1,0 +1,529 @@
+draft: false
+model_file: CLP Model.xlsx
+units: HK$ millions
+currency: HKD
+fiscal_year_end: 31 Dec
+sheets:
+  VA-Disclaimer:
+    role: untouched
+  DCF:
+    role: valuation
+  Final:
+    role: statements
+  Driver:
+    role: drivers
+  SOC:
+    role: segment
+  HK Sales:
+    role: segment
+  SOC Accounts:
+    role: segment
+  ROAFNA:
+    role: segment
+  CN:
+    role: segment
+  Aus:
+    role: segment
+  India:
+    role: segment
+  SEA:
+    role: segment
+year_axis:
+  Final: &id002
+    header_row: 2
+    columns: &id001
+      '2019': AC
+      '2020': AD
+      '2021': AE
+      '2022': AF
+      '2023': AG
+      '2024': AH
+      '2025': AI
+      '2026': AJ
+      '2027': AK
+      '2028': AL
+      '2029': AM
+      '2030': AN
+    last_actual: '2024'
+    header_type: number
+  Driver: &id003
+    header_row: 1
+    columns: *id001
+    last_actual: '2024'
+    header_type: number
+  SOC: *id002
+  HK Sales: *id002
+  SOC Accounts: *id003
+  ROAFNA: *id002
+  CN: *id003
+  Aus: *id003
+  India: *id003
+  SEA: *id003
+statement_rows:
+  revenue:
+    sheet: Final
+    row: 7
+    label_seen: Total revenue
+  d_and_a:
+    sheet: Final
+    row: 12
+    label_seen: Depreciation and amortisation
+  pretax_profit:
+    sheet: Final
+    row: 22
+    label_seen: Pretax profits
+  net_profit_reported:
+    sheet: Final
+    row: 27
+    label_seen: Net profits (reported)
+  net_profit_recurring:
+    sheet: Final
+    row: 31
+    label_seen: Net profits (recurring)
+  eps_reported:
+    sheet: Final
+    row: 35
+    label_seen: EPS (reported)
+  total_dividend:
+    sheet: Final
+    row: 41
+    label_seen: Total dividend
+  dps:
+    sheet: Final
+    row: 48
+    label_seen: Total DPS (HK$)
+check_rows:
+- sheet: Final
+  row: 99
+  expect: 0
+  note: balance sheet check — primary integrity gate
+- sheet: ROAFNA
+  row: 31
+  expect: 0
+  note: SoC ROAFNA check
+input_vs_formula:
+  Final:
+    input_rows:
+    - 2
+    - 7
+    - 12
+    - 14
+    - 16
+    - 18
+    - 19
+    - 23
+    - 25
+    - 26
+    - 38
+    - 39
+    - 59
+    - 62
+    - 63
+    - 66
+    - 67
+    - 68
+    - 70
+    - 73
+    - 76
+    - 78
+    - 79
+    - 82
+    - 83
+    - 85
+    - 88
+    - 89
+    - 90
+    - 94
+    - 95
+    - 97
+    - 104
+    - 107
+    - 110
+    - 111
+    - 114
+    - 116
+    - 120
+    - 128
+    - 139
+    formula_rows:
+    - 9
+    - 10
+    - 15
+    - 20
+    - 21
+    - 22
+    - 24
+    - 27
+    - 30
+    - 31
+    - 41
+    - 48
+    - 49
+    - 57
+    - 60
+    - 65
+    - 74
+    - 91
+    - 103
+    - 106
+    - 108
+    - 118
+    - 119
+    - 124
+    - 125
+    - 126
+    - 127
+    - 131
+    - 135
+    - 136
+  Driver:
+    input_rows:
+    - 5
+    - 17
+    - 37
+    - 74
+    - 90
+    - 103
+    - 104
+    - 119
+    formula_rows:
+    - 10
+    - 11
+    - 19
+    - 20
+    - 26
+    - 36
+    - 38
+    - 39
+    - 47
+    - 48
+    - 57
+    - 58
+    - 70
+    - 71
+    - 81
+    - 89
+    - 93
+    - 106
+    - 112
+    - 117
+    - 120
+    - 121
+    - 127
+    - 128
+    - 129
+    - 130
+  SOC:
+    input_rows:
+    - 4
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 14
+    - 17
+    - 18
+    - 19
+    - 30
+    - 32
+    - 39
+    - 40
+    - 44
+    - 45
+    formula_rows:
+    - 15
+    - 23
+    - 36
+    - 43
+  HK Sales:
+    input_rows:
+    - 6
+    - 13
+    - 16
+    - 22
+    - 32
+    - 33
+    - 34
+    - 35
+    formula_rows:
+    - 5
+    - 7
+    - 8
+    - 14
+    - 15
+  SOC Accounts:
+    input_rows:
+    - 7
+    - 33
+    - 40
+    - 57
+    - 76
+    - 78
+    - 91
+    formula_rows:
+    - 5
+    - 13
+    - 14
+    - 21
+    - 31
+    - 38
+    - 45
+    - 46
+    - 48
+    - 49
+    - 50
+    - 54
+    - 55
+    - 56
+    - 58
+    - 59
+    - 62
+    - 69
+    - 77
+    - 79
+    - 80
+    - 82
+    - 83
+    - 92
+    - 96
+    - 97
+    - 98
+    - 100
+    - 101
+    - 102
+  ROAFNA:
+    input_rows:
+    - 14
+    - 18
+    - 22
+    - 23
+    - 24
+    - 25
+    - 29
+    - 35
+    - 53
+    - 54
+    - 56
+    - 77
+    - 78
+    - 83
+    formula_rows:
+    - 19
+    - 36
+    - 38
+    - 41
+    - 42
+    - 49
+    - 50
+    - 55
+    - 57
+    - 59
+    - 81
+  CN:
+    input_rows:
+    - 2
+    - 4
+    - 6
+    - 7
+    - 9
+    - 10
+    - 16
+    - 17
+    - 19
+    - 26
+    - 27
+    - 28
+    - 30
+    - 31
+    - 32
+    - 33
+    - 34
+    - 39
+    - 41
+    - 73
+    - 125
+    - 157
+    - 160
+    - 163
+    formula_rows:
+    - 5
+    - 14
+    - 36
+    - 128
+    - 132
+    - 135
+    - 136
+    - 158
+    - 159
+    - 164
+  Aus:
+    input_rows:
+    - 5
+    - 11
+    - 13
+    - 14
+    - 22
+    - 25
+    - 26
+    - 27
+    - 30
+    - 31
+    - 38
+    - 40
+    - 46
+    - 48
+    - 60
+    - 62
+    - 63
+    - 64
+    - 65
+    - 69
+    - 70
+    - 71
+    - 72
+    - 73
+    - 74
+    - 84
+    - 88
+    - 91
+    - 93
+    formula_rows:
+    - 7
+    - 8
+    - 15
+    - 16
+    - 17
+    - 18
+    - 19
+    - 20
+    - 21
+    - 28
+    - 39
+    - 41
+    - 42
+    - 45
+    - 47
+    - 49
+    - 50
+    - 52
+    - 53
+    - 54
+    - 76
+    - 77
+    - 79
+    - 80
+    - 81
+    - 85
+    - 89
+    - 90
+    - 97
+  India:
+    input_rows:
+    - 2
+    - 3
+    - 5
+    - 7
+    - 8
+    - 14
+    - 15
+    - 17
+    - 18
+    - 20
+    - 21
+    - 22
+    - 24
+    - 50
+    - 51
+    - 53
+    - 59
+    formula_rows:
+    - 16
+    - 19
+    - 23
+    - 29
+    - 30
+    - 31
+    - 37
+    - 60
+  SEA:
+    input_rows:
+    - 6
+    - 7
+    - 11
+    - 12
+    - 14
+    - 17
+    - 19
+    - 20
+    - 21
+    - 22
+    - 23
+    - 36
+    - 37
+    - 51
+    - 52
+    formula_rows:
+    - 2
+    - 3
+    - 8
+    - 29
+    - 30
+    - 31
+    - 32
+roll_forward_bases:
+- sheet: Driver
+  cell: AI70
+  what: NFA gross base
+  re_anchor_rule: FA gross cost + ROU net + FiT adj from AR fixed-asset note
+- sheet: Driver
+  cell: AI71
+  what: accumulated depreciation base
+  re_anchor_rule: accumulated depreciation from AR fixed-asset note (negative)
+calc_mode: manual
+quirks:
+- Final BS stores liabilities as POSITIVE numbers
+- 'DCF is calculation-only; pre-existing #REF! at DCF row 130 and HK Sales rows 6/29
+  historic columns — leave'
+- Year headers are plain numbers (2025, never '2025A' text) — DCF reads them numerically
+- India!AI60 deliberately references AF column — never re-pattern
+- One-off gains at Final row 16 DO propagate to forecasts; hedging row 107 must NOT
+  (reset AJ107 to 0)
+aliases:
+  revenue:
+  - turnover
+  - total revenue
+  electricity sales:
+  - sales of electricity
+backout_rules:
+- row_ref: SOC Accounts!58
+  method: prior-year value / prior-year group gas consumed TJ * current-year group
+    gas consumed TJ (AR SoC statistics)
+- row_ref: HK Sales!7
+  method: = SoC total revenue - total electricity sales (2023 pattern)
+analyst_rulings:
+- 'Aus!AI2 / CN!AI2 FX: KEEP model''s stored assumption; never repoint to disclosed
+  average'
+- 'India avg FX row 3: analyst hand-set; India YE FX row 2: hand-set + red flag'
+- 'SEA FX rows 2-3: carry prior year via formula (=prior col)'
+- 'CN capacity bottom-up rows: 125/132/135 only; 128/136 carry prior year; 143/147
+  stay 0'
+- 'Driver!127 dividends-from-associates: map from disclosure (reference model''s -1,674
+  was an analyst mistake; FY25 correct = -1,762)'
+- 'CF allocation: perpetual/NCI dividend terms in Final row 135; small adjustments
+  (-4 type) in row 124'
+carried_flags:
+- Aus!AI71:AI74 generation GWh (carried FY24 level)
+- India!AI2 YE FX 0.09401
+tie_out_anchors:
+- name: balance check current actual
+  sheet: Final
+  cell: AI99
+  expected: 0
+  source: internal
+- name: ROAFNA check
+  sheet: ROAFNA
+  cell: AI31
+  expected: 0
+  source: internal
