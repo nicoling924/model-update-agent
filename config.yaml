@@ -1,0 +1,34 @@
+# Engine configuration. Model endpoints come from .env (see .env.example).
+updater:
+  temperature: 0.1
+  max_output_tokens: 8000
+
+reviewer:
+  enabled: true          # blind adversarial pass after every update
+  temperature: 0.2
+  max_output_tokens: 6000
+
+budgets:
+  # ONE pass through the mapping cascade per missing figure; these cap the LLM side.
+  llm_calls_per_figure: 1        # ambiguous-mapping calls per unresolved row
+  extraction_retries: 1          # re-ask with quoted errors if staging fails validation
+  json_repair_retries: 2         # malformed-JSON retries per call
+  max_run_minutes: 60            # hard stop -> deliver with flags rather than stall
+
+conventions:
+  flag_uncertain_fill: "FFC7CE"  # light red: uncertain / needs analyst review
+  flag_backedout_fill: "FFC000"  # orange: backed-out / derived, awaiting true-up
+  big_move_threshold: 0.5        # >50% YoY on P&L/BS lines goes in _REPORT QC scan
+  rounding_tolerance: 1.0        # HK$m-style unit tolerance for tie checks
+
+# House synonym glossary (starter — per-company aliases belong in that company's spec.yaml)
+glossary:
+  revenue: [turnover, sales, total revenue, operating revenue]
+  finance costs: [interest expense, borrowing costs]
+  finance income: [interest income]
+  "PP&E": [fixed assets, "property, plant and equipment"]
+  profit attributable to shareholders:
+    [net profit attributable to owners, profit attributable to equity holders]
+  "D&A": [depreciation and amortisation, depreciation & amortization]
+  # core/underlying/adjusted profit: NEVER a bare synonym — resolve via the company's
+  # reported->underlying bridge (see prompts/mapping.md)

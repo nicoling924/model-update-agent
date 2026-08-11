@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.cache/
+companies/*/model/*.xlsx
+companies/*/model/*.xlsm
+companies/*/model-archive/
+companies/*/disclosures/
+companies/*/transcripts/
+!companies/_TEMPLATE/**

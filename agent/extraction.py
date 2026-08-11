@@ -1,0 +1,90 @@
+"""Stage 1: disclosure -> validated staging JSON.
+
+The LLM extracts; code validates the arithmetic. Extraction that doesn't tie is
+rejected with the failures quoted back (one retry), then the run hard-stops:
+nothing downstream may consume unvalidated numbers.
+"""
+from pathlib import Path
+
+from . import pdfs
+
+SCHEMA_HINT = """
+Schema:
+{
+ "units": "...", "currency": "...", "sign_convention": {"pl": "...", "cf": "..."},
+ "items": [
+   {"id": "pl_1", "stmt": "pl|bs|cf|segment|soc|kpi|other", "label": "<exact>",
+    "value": 0, "prior": 0, "page": 0, "segment": null, "units": null}
+ ],
+ "ties": [
+   {"desc": "total assets = liabilities + equity",
+    "lhs": ["bs_12"], "rhs": ["bs_30", "bs_44"], "tolerance": 1.0}
+ ],
+ "missing": ["cash_flow_statement"],
+ "bridge": [{"label": "...", "value": 0, "page": 0}]
+}
+Each tie: sum(values of lhs ids) must equal sum(values of rhs ids) within tolerance.
+"""
+
+
+def extract(client, system, disclosure_paths, extraction_prompt, cfg):
+    all_items, all_ties, meta = [], [], {}
+    for path in disclosure_paths:
+        page_texts = pdfs.pages(path)
+        for win in pdfs.windows(page_texts):
+            doc = pdfs.render(win)
+            user = (f"{extraction_prompt}\n{SCHEMA_HINT}\n"
+                    f"Document: {Path(path).name} (window pages "
+                    f"{win[0][0]}-{win[-1][0]} of the full document)\n\n{doc}")
+            obj = client.json(system, user, _validator,
+                              repair_retries=cfg["budgets"]["extraction_retries"])
+            offset = len(all_items)
+            remap = {}
+            for it in obj.get("items", []):
+                new_id = f"{it['id']}_{offset}"
+                remap[it["id"]] = new_id
+                it["id"] = new_id
+                it["doc"] = Path(path).name
+                all_items.append(it)
+            for tie in obj.get("ties", []):
+                tie["lhs"] = [remap.get(i, i) for i in tie["lhs"]]
+                tie["rhs"] = [remap.get(i, i) for i in tie["rhs"]]
+                all_ties.append(tie)
+            meta.setdefault(Path(path).name, {}).update(
+                {k: obj.get(k) for k in ("units", "currency", "sign_convention", "missing")})
+    return {"items": all_items, "ties": all_ties, "meta": meta}
+
+
+def _validator(obj):
+    errs = []
+    items = {it.get("id"): it for it in obj.get("items", [])}
+    if not items:
+        errs.append("no items extracted")
+    for it in items.values():
+        for k in ("id", "stmt", "label", "value", "page"):
+            if it.get(k) in (None, "") and not (k == "value" and it.get(k) == 0):
+                errs.append(f"item {it.get('id')} missing {k}")
+    for tie in obj.get("ties", []):
+        try:
+            lhs = sum(items[i]["value"] for i in tie["lhs"])
+            rhs = sum(items[i]["value"] for i in tie["rhs"])
+        except KeyError as e:
+            errs.append(f"tie '{tie.get('desc')}' references unknown item {e}")
+            continue
+        tol = tie.get("tolerance", 1.0)
+        if abs(lhs - rhs) > tol:
+            errs.append(f"tie FAILED '{tie.get('desc')}': lhs {lhs} vs rhs {rhs} (tol {tol}) — "
+                        "re-check the extracted values on the cited pages")
+    if not obj.get("ties"):
+        errs.append("no ties provided — emit the arithmetic relations that validate your extraction")
+    return errs
+
+
+def find_by_prior(staging, prior_value, tolerance=0.6):
+    """Triangulation: locate items whose comparative equals the model's stored
+    prior-year value. Number-based, so immune to labels/synonyms/translation."""
+    if prior_value is None or not isinstance(prior_value, (int, float)):
+        return []
+    return [it for it in staging["items"]
+            if isinstance(it.get("prior"), (int, float))
+            and abs(it["prior"] - prior_value) <= tolerance]
