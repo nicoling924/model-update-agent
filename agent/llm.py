@@ -62,15 +62,28 @@ class Client:
                     if param == "max_tokens" and "max_tokens" in body:
                         body["max_completion_tokens"] = body.pop("max_tokens")
                         continue
-                    if param == "temperature" and "temperature" in body:
-                        body.pop("temperature")  # some models accept only the default
+                    if param and param in body:
+                        body.pop(param)  # model dialect rejects it; drop and retry
                         continue
                     if "response_format" in body:
                         body.pop("response_format")  # no JSON mode; prompt still demands JSON
                         continue
                     raise LLMError(f"LLM request rejected: {msg}")
                 r.raise_for_status()
-                return r.json()["choices"][0]["message"]["content"]
+                data = r.json()
+                choice = data["choices"][0]
+                content = choice["message"].get("content") or ""
+                if not content.strip():
+                    # reasoning models can burn the whole budget thinking; escalate once per pass
+                    cap = body.get("max_completion_tokens") or body.get("max_tokens") or 0
+                    if cap and cap < 64000:
+                        key = "max_completion_tokens" if "max_completion_tokens" in body else "max_tokens"
+                        body[key] = min(cap * 2, 64000)
+                        last_err = (f"empty content (finish={choice.get('finish_reason')}); "
+                                    f"raising output budget to {body[key]}")
+                        continue
+                    raise LLMError(f"empty content at max budget (finish={choice.get('finish_reason')})")
+                return content
             except requests.RequestException as e:
                 detail = getattr(getattr(e, "response", None), "text", "")[:300]
                 last_err = f"{e} {detail}"

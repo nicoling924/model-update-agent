@@ -1,0 +1,44 @@
+/private/tmp/claude-501/-Users-lingling-Project-M/44033076-6b68-44cd-bdbe-7d7cee0d7e55/scratchpad/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+Cannot set gray non-stroke color because /'P0' is an invalid float value
+Cannot set gray non-stroke color because /'P1' is an invalid float value
+Cannot set gray non-stroke color because /'P2' is an invalid float value
+Cannot set gray non-stroke color because /'P3' is an invalid float value
+Cannot set gray non-stroke color because /'P4' is an invalid float value
+Cannot set gray non-stroke color because /'P5' is an invalid float value
+Cannot set gray non-stroke color because /'P0' is an invalid float value
+Cannot set gray non-stroke color because /'P1' is an invalid float value
+Cannot set gray non-stroke color because /'P2' is an invalid float value
+Cannot set gray non-stroke color because /'P3' is an invalid float value
+Cannot set gray non-stroke color because /'P4' is an invalid float value
+Cannot set gray non-stroke color because /'P5' is an invalid float value
+Cannot set gray non-stroke color because /'P6' is an invalid float value
+Cannot set gray non-stroke color because /'P7' is an invalid float value
+Cannot set gray non-stroke color because /'P0' is an invalid float value
+Cannot set gray non-stroke color because /'P1' is an invalid float value
+[1] archived -> CLP_FY25_pre.xlsx
+[1] target: 2025 (col AI); prior actual: 2024 (AH)
+Traceback (most recent call last):
+  File "/Users/lingling/Project M/model-update-agent/agent/llm.py", line 58, in chat
+    r.raise_for_status()
+  File "/private/tmp/claude-501/-Users-lingling-Project-M/44033076-6b68-44cd-bdbe-7d7cee0d7e55/scratchpad/venv/lib/python3.9/site-packages/requests/models.py", line 1026, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: https://api.openai.com/v1/chat/completions
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/lingling/Project M/model-update-agent/run.py", line 17, in <module>
+    main()
+  File "/Users/lingling/Project M/model-update-agent/agent/cli.py", line 265, in main
+    cmd_update(sys.argv[2], sys.argv[3])
+  File "/Users/lingling/Project M/model-update-agent/agent/cli.py", line 106, in cmd_update
+    staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
+  File "/Users/lingling/Project M/model-update-agent/agent/extraction.py", line 39, in extract
+    obj = client.json(system, user, _validator,
+  File "/Users/lingling/Project M/model-update-agent/agent/llm.py", line 70, in json
+    raw = self.chat(system, prompt)
+  File "/Users/lingling/Project M/model-update-agent/agent/llm.py", line 62, in chat
+    raise LLMError(f"LLM call failed: {e}") from e
+agent.llm.LLMError: LLM call failed: 400 Client Error: Bad Request for url: https://api.openai.com/v1/chat/completions
+exit 1

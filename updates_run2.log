@@ -1,0 +1,17 @@
+/private/tmp/claude-501/-Users-lingling-Project-M/44033076-6b68-44cd-bdbe-7d7cee0d7e55/scratchpad/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[1] archived -> CLP_FY25_pre.xlsx
+[1] target: 2025 (col AI); prior actual: 2024 (AH)
+Traceback (most recent call last):
+  File "/Users/lingling/Project M/model-update-agent/run.py", line 17, in <module>
+    main()
+  File "/Users/lingling/Project M/model-update-agent/agent/cli.py", line 265, in main
+    cmd_update(sys.argv[2], sys.argv[3])
+  File "/Users/lingling/Project M/model-update-agent/agent/cli.py", line 106, in cmd_update
+    staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
+  File "/Users/lingling/Project M/model-update-agent/agent/extraction.py", line 39, in extract
+    obj = client.json(system, user, _validator,
+  File "/Users/lingling/Project M/model-update-agent/agent/llm.py", line 100, in json
+    raise LLMError("LLM output failed validation after retries: " + "; ".join(errs[:5]))
+agent.llm.LLMError: LLM output failed validation after retries: Response was not valid JSON: Expecting value: line 1 column 1 (char 0)
+exit 1
