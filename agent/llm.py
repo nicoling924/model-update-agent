@@ -24,6 +24,8 @@ class Client:
         self.model = model or os.environ["LLM_MODEL"]
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        # provenance: every call's model + token usage, surfaced in the run report
+        self.usage = {"model": self.model, "calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
     @classmethod
     def reviewer(cls, cfg):
@@ -71,6 +73,11 @@ class Client:
                     raise LLMError(f"LLM request rejected: {msg}")
                 r.raise_for_status()
                 data = r.json()
+                u = data.get("usage") or {}
+                self.usage["calls"] += 1
+                self.usage["prompt_tokens"] += u.get("prompt_tokens", 0)
+                self.usage["completion_tokens"] += u.get("completion_tokens", 0)
+                self.usage["model"] = data.get("model", self.model)  # server-reported model id
                 choice = data["choices"][0]
                 content = choice["message"].get("content") or ""
                 if not content.strip():

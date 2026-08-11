@@ -11,7 +11,8 @@ reviewer:
 budgets:
   # ONE pass through the mapping cascade per missing figure; these cap the LLM side.
   llm_calls_per_figure: 1        # ambiguous-mapping calls per unresolved row
-  extraction_retries: 1          # re-ask with quoted errors if staging fails validation
+  extraction_retries: 2          # re-ask with quoted errors if staging fails validation
+  extraction_window_chars: 35000 # smaller windows = simpler task for weaker models
   json_repair_retries: 2         # malformed-JSON retries per call
   max_run_minutes: 60            # hard stop -> deliver with flags rather than stall
 

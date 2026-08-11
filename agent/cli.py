@@ -222,8 +222,14 @@ def cmd_update(company_dir, period):
     workbook.save(wb, model_path)
     md = company_dir / "updates" / f"{period}_update_report.md"
     md.parent.mkdir(exist_ok=True)
+    provenance = [f"- updater: {client.usage}"]
+    if cfg["reviewer"]["enabled"]:
+        provenance.append(f"- reviewer: {rc.usage}")
     md.write_text(_markdown_report(name, period, results, restatements, flags, backouts,
-                                   moves, core, findings, maplog))
+                                   moves, core, findings, maplog)
+                  + "\n## LLM provenance (server-reported model + token usage)\n"
+                  + "\n".join(provenance) + "\n")
+    print("LLM provenance:", "; ".join(provenance))
     print(f"[7] report: _REPORT tab + {md}")
     print(f"DONE in {(time.time()-t0)/60:.1f} min. Deliverable: {model_path}")
 

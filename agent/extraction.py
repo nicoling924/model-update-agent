@@ -29,15 +29,21 @@ Each tie: sum(values of lhs ids) must equal sum(values of rhs ids) within tolera
 
 def extract(client, system, disclosure_paths, extraction_prompt, cfg):
     all_items, all_ties, meta = [], [], {}
+    window_chars = cfg["budgets"].get("extraction_window_chars", 35000)
     for path in disclosure_paths:
         page_texts = pdfs.pages(path)
-        for win in pdfs.windows(page_texts):
+        for win in pdfs.windows(page_texts, chars_per_window=window_chars):
             doc = pdfs.render(win)
             user = (f"{extraction_prompt}\n{SCHEMA_HINT}\n"
                     f"Document: {Path(path).name} (window pages "
                     f"{win[0][0]}-{win[-1][0]} of the full document)\n\n{doc}")
             obj = client.json(system, user, _validator,
                               repair_retries=cfg["budgets"]["extraction_retries"])
+            # drop incomplete stragglers the validator tolerated (few, not tie-referenced)
+            dropped = [it.get("id") for it in obj.get("items", []) if not _complete(it)]
+            if dropped:
+                obj["items"] = [it for it in obj["items"] if _complete(it)]
+                meta.setdefault(Path(path).name, {}).setdefault("dropped_items", []).extend(dropped)
             offset = len(all_items)
             remap = {}
             for it in obj.get("items", []):
@@ -55,15 +61,25 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
     return {"items": all_items, "ties": all_ties, "meta": meta}
 
 
+def _complete(it):
+    return all(it.get(k) not in (None, "") or (k == "value" and it.get(k) == 0)
+               for k in ("id", "stmt", "label", "value", "page"))
+
+
 def _validator(obj):
     errs = []
     items = {it.get("id"): it for it in obj.get("items", [])}
     if not items:
         errs.append("no items extracted")
-    for it in items.values():
-        for k in ("id", "stmt", "label", "value", "page"):
-            if it.get(k) in (None, "") and not (k == "value" and it.get(k) == 0):
-                errs.append(f"item {it.get('id')} missing {k}")
+    incomplete = [i for i, it in items.items() if not _complete(it)]
+    # tolerate a few incomplete items (weak models drop fields) UNLESS a tie needs them
+    if len(incomplete) > max(3, len(items) // 10):
+        errs.append(f"{len(incomplete)} items missing required fields "
+                    f"(id/stmt/label/value/page), e.g. {incomplete[:5]} — every item "
+                    "MUST carry all five fields")
+    tie_refs = {i for tie in obj.get("ties", []) for i in tie.get("lhs", []) + tie.get("rhs", [])}
+    for i in set(incomplete) & tie_refs:
+        errs.append(f"item {i} is used in a tie but missing required fields")
     for tie in obj.get("ties", []):
         try:
             lhs = sum(items[i]["value"] for i in tie["lhs"])
