@@ -34,6 +34,12 @@ def build_glossary(cfg, spec):
 def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log):
     """row: {sheet, row, label, prior_value, prior_formula, kind}
     Returns worklist entry: {value|formula, source, flag, note, page}."""
+    # 0. spec-declared rules FIRST — analyst knowledge outranks all automation
+    rule0 = row.get("backout_rule")
+    if rule0:
+        entry = _apply_rule(rule0, row, staging)
+        if entry:
+            return entry
     # 1. direct find — accepted ONLY with prior-year corroboration (an uncorroborated
     # label match is the classic definition-mismatch trap: plausible, wrong, unflagged)
     target = glossary.get(norm(row["label"]), norm(row["label"]))
@@ -108,8 +114,20 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
         entry["note"] = ("UNCORROBORATED label match — prior-year value did not "
                          "confirm it; verify definition. ") + (entry["note"] or "")
         return entry
-    # 3. back-out rule
-    rule = row.get("backout_rule")
+    # 4. one LLM call
+    if client is not None:
+        entry = _llm_map(row, staging, client, system, mapping_prompt, cfg, log)
+        if entry:
+            return entry
+    # 5. estimate + flag
+    log.append(f"NOT FOUND {row['sheet']}!r{row['row']} '{row['label']}' — estimate flagged")
+    return {"value": row.get("prior_value"), "source": "estimate", "flag": "red",
+            "note": ("ESTIMATE: held at prior-period value; figure not located in "
+                     "disclosure (searched: statements, notes, segment tables, KPIs)."),
+            "page": None}
+
+
+def _apply_rule(rule, row, staging):
     if rule and rule.get("components"):
         # composition by disclosure label, with optional '-'/'+' sign prefix.
         # Accepted ONLY if the same composition over PRIOR values reproduces the
@@ -147,17 +165,7 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
     if rule and rule.get("method"):
         return {"formula": rule["method"], "source": "backout", "flag": "orange",
                 "note": f"Backed out: {rule['method']} (per spec back-out rule)", "page": None}
-    # 4. one LLM call
-    if client is not None:
-        entry = _llm_map(row, staging, client, system, mapping_prompt, cfg, log)
-        if entry:
-            return entry
-    # 5. estimate + flag
-    log.append(f"NOT FOUND {row['sheet']}!r{row['row']} '{row['label']}' — estimate flagged")
-    return {"value": row.get("prior_value"), "source": "estimate", "flag": "red",
-            "note": ("ESTIMATE: held at prior-period value; figure not located in "
-                     "disclosure (searched: statements, notes, segment tables, KPIs)."),
-            "page": None}
+    return None
 
 
 _CONSTS = re.compile(r"^=\s*\+?[+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)+\s*$")

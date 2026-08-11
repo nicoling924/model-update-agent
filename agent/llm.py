@@ -49,7 +49,7 @@ class Client:
         if force_json:
             body["response_format"] = {"type": "json_object"}
         last_err = None
-        for attempt in range(6):
+        for attempt in range(10):
             try:
                 r = requests.post(
                     f"{self.base_url}/chat/completions",
@@ -92,8 +92,13 @@ class Client:
                     raise LLMError(f"empty content at max budget (finish={choice.get('finish_reason')})")
                 return content
             except requests.RequestException as e:
-                detail = getattr(getattr(e, "response", None), "text", "")[:300]
+                resp = getattr(e, "response", None)
+                detail = getattr(resp, "text", "")[:300]
                 last_err = f"{e} {detail}"
+                if resp is not None and resp.status_code == 429:
+                    # tokens-per-minute window: wait it out patiently
+                    time.sleep(min(30 * (attempt + 1), 120))
+                    continue
                 if attempt == 5:
                     raise LLMError(f"LLM call failed: {last_err}") from e
                 time.sleep(5 * (attempt + 1))
