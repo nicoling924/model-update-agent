@@ -497,6 +497,8 @@ aliases:
   electricity sales:
   - sales of electricity
 backout_rules:
+- row_ref: Final!97
+  components: ['perpetual capital securities', 'other non-controlling interests']
 - row_ref: SOC Accounts!58
   method: prior-year value / prior-year group gas consumed TJ * current-year group
     gas consumed TJ (AR SoC statistics)

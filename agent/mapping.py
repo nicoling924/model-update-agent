@@ -85,7 +85,25 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
         return entry
     # 3. back-out rule
     rule = row.get("backout_rule")
-    if rule:
+    if rule and rule.get("components"):
+        # composition by disclosure label: resolve each component fresh each period
+        parts, pages = [], []
+        for comp in rule["components"]:
+            cn = norm(comp)
+            hits = [it for it in staging["items"]
+                    if cn in norm(it["label"]) and isinstance(it.get("value"), (int, float))]
+            vals = sorted({round(h["value"], 1) for h in hits})
+            if not vals or len(vals) > 1:
+                parts = None
+                break
+            parts.append(vals[0])
+            pages.append(hits[0].get("page"))
+        if parts:
+            f = "=" + "+".join(str(int(p) if p == int(p) else p) for p in parts)
+            return {"formula": f, "source": "backout-components", "flag": None,
+                    "note": f"Composition per spec: {' + '.join(rule['components'])} "
+                            f"(pages {pages})", "page": pages[0]}
+    if rule and rule.get("method"):
         return {"formula": rule["method"], "source": "backout", "flag": "orange",
                 "note": f"Backed out: {rule['method']} (per spec back-out rule)", "page": None}
     # 4. one LLM call
@@ -183,7 +201,8 @@ def _llm_map(row, staging, client, system, mapping_prompt, cfg, log):
             log.append(f"unparseable composition '{expr}' for {row['sheet']}!r{row['row']}")
             return None
         entry = {"formula": "=" + subbed, "value_check": value, "page": None}
-    flag = None if obj["confidence"] == "high" else "red"
-    entry.update({"source": "llm", "flag": flag,
-                  "note": f"LLM-mapped ({obj['confidence']}): {expr}. Tie: {obj['tie']}"})
+    # LLM self-reported confidence is not corroboration — always flag for review
+    entry.update({"source": "llm", "flag": "red",
+                  "note": f"LLM-mapped ({obj['confidence']}, uncorroborated — verify): "
+                          f"{expr}. Tie: {obj['tie']}"})
     return entry

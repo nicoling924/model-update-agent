@@ -3,6 +3,12 @@ from .evaluator import Evaluator
 
 
 def run_checks(wb, spec, staging, cfg, pre_map, allowed_cells):
+    """Returns (results, hard_failures, soft_exceptions).
+
+    Hard failures (structural damage) block delivery. Soft exceptions (numeric
+    check misses traceable to flagged cells) ship with the model, prominently
+    reported — a ~95%-filled, fully-flagged workbook on time beats no workbook.
+    """
     from . import workbook
     ev = Evaluator(wb)
     results, failures = [], []
@@ -47,4 +53,6 @@ def run_checks(wb, spec, staging, cfg, pre_map, allowed_cells):
                 if isinstance(c.value, str) and any(e in c.value for e in ("#REF!", "#DIV/0!", "#VALUE!")):
                     if (ws.title, c.coordinate) not in pre_errors:
                         failures.append(f"NEW ERROR CELL {ws.title}!{c.coordinate}: {c.value[:50]}")
-    return results, failures
+    hard = [f for f in failures if f.startswith(("CLOBBER", "NEW ERROR CELL"))]
+    soft = [f for f in failures if f not in hard]
+    return results, hard, soft

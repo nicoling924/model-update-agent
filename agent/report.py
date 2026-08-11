@@ -3,7 +3,7 @@ from openpyxl.styles import Font, PatternFill
 
 
 def write_report_tab(wb, cfg, flags, backouts, big_moves, core_rows, reviewer_findings,
-                     restatements, title):
+                     restatements, title, exceptions=None):
     if "_REPORT" in wb.sheetnames:
         del wb["_REPORT"]
     r = wb.create_sheet("_REPORT", 0)
@@ -18,6 +18,17 @@ def write_report_tab(wb, cfg, flags, backouts, big_moves, core_rows, reviewer_fi
         r.column_dimensions[col].width = w
     r["A1"], r["A1"].font = title, big
     row = 3
+    if exceptions:
+        c = r[f"A{row}"]
+        c.value = ("⚠ DELIVERED WITH EXCEPTIONS — integrity checks not fully passed; "
+                   "resolve the red-flagged cells below, then re-verify:")
+        c.font = bold
+        c.fill = red
+        row += 1
+        for e in exceptions:
+            r[f"A{row}"], r[f"A{row}"].font = f"  {e}", grey
+            row += 1
+        row += 1
 
     def section(header):
         nonlocal row

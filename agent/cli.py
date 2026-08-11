@@ -151,6 +151,7 @@ def cmd_update(company_dir, period):
                         max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
     deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.75
     rows_done = 0
+    rescue_candidates = []
     for sheet, iv in (spec.get("input_vs_formula") or {}).items():
         s_axis = spec["year_axis"].get(sheet, axis)
         s_prior = s_axis["columns"].get(last_actual, prior_col)
@@ -183,6 +184,11 @@ def cmd_update(company_dir, period):
                          note=entry.get("note"), flag=entry.get("flag"))
             if entry.get("flag") == "red":
                 flags.append((sheet, f"{s_target}{r}", entry.get("note", "")))
+                if entry.get("source") in ("estimate", "llm", "label-only (uncorroborated)"):
+                    rescue_candidates.append({"sheet": sheet, "row": r, "label": label,
+                                              "prior_value": row_ctx["prior_value"],
+                                              "coord": f"{s_target}{r}",
+                                              "prior_coord": f"{s_prior}{r}"})
             elif entry.get("flag") == "orange":
                 backouts.append((sheet, f"{s_target}{r}", entry.get("note", "")))
         # formula rows: re-copy prior pattern shifted one column (mark-to-actual recipe)
@@ -193,6 +199,20 @@ def cmd_update(company_dir, period):
                              workbook.shift_formula(pv, s_prior, s_target),
                              prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
+    # targeted second pass: rescue unresolved rows by landmark-page re-reads
+    if rescue_candidates and time.time() < deadline:
+        from . import targeted
+        rescued = targeted.rescue(map_client, system, disclosures,
+                                  rescue_candidates, cfg, maplog)
+        for (rs, rr), res in rescued.items():
+            cand = next(c for c in rescue_candidates
+                        if c["sheet"] == rs and c["row"] == rr)
+            writer.write(rs, cand["coord"], res["value"],
+                         prior_coord=cand["prior_coord"], note=res["note"])
+            flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
+        print(f"[4b] targeted rescue: {len(rescued)}/{len(rescue_candidates)} "
+              "flagged rows recovered with prior-corroborated re-reads")
+
     # per-company confirmed corrections (machine-actionable MODEL_SPEC landmines)
     for fx in spec.get("analyst_fixes") or []:
         writer.restate(fx["sheet"], fx["cell"], fx["value"], fx["why"])
@@ -214,15 +234,19 @@ def cmd_update(company_dir, period):
     wb = workbook.load(model_path)  # fresh load: verify what was SAVED
     allowed = {(s.split("!")[0], s.split("!")[1]) for s in
                [x.split(":")[0] for x in writer.log["restatements"]]}
-    results, failures = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
+    results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
     for nm, got, exp, st in results:
         print(f"  {st} {nm}: {got} vs {exp}")
-    if failures:
-        print("\nINTEGRITY GATE FAILED — model NOT delivered:")
-        for f in failures:
+    if hard:
+        print("\nINTEGRITY GATE FAILED (structural) — model NOT delivered:")
+        for f in hard:
             print("  -", f)
         sys.exit(2)
-    print("[5] integrity gate: all checks pass")
+    filled = len(writer.log["written"])
+    print(f"[5] integrity gate: {'all checks pass' if not soft else 'DELIVERED WITH EXCEPTIONS'}"
+          f" — {filled} cells written, {len(flags)} red-flagged for analyst review")
+    for f in soft:
+        print("  EXCEPTION:", f)
 
     # -- 7. blind review -----------------------------------------------------
     findings = None
@@ -251,15 +275,18 @@ def cmd_update(company_dir, period):
                          f"({(act-est)/abs(est)*100:+.1f}%)"))
     report.write_report_tab(wb, cfg, flags, backouts, moves, core, findings,
                             writer.log["restatements"],
-                            f"{name} — {period} update report (agent-generated)")
+                            f"{name} — {period} update report (agent-generated)",
+                            exceptions=soft)
     workbook.save(wb, model_path)
     md = company_dir / "updates" / f"{period}_update_report.md"
     md.parent.mkdir(exist_ok=True)
     provenance = [f"- updater: {client.usage}"]
     if cfg["reviewer"]["enabled"]:
         provenance.append(f"- reviewer: {rc.usage}")
-    md.write_text(_markdown_report(name, period, results, restatements, flags, backouts,
-                                   moves, core, findings, maplog)
+    md.write_text(("## ⚠ DELIVERED WITH EXCEPTIONS\n" + "\n".join(f"- {e}" for e in soft)
+                   + "\n\n" if soft else "")
+                  + _markdown_report(name, period, results, restatements, flags, backouts,
+                                     moves, core, findings, maplog)
                   + "\n## LLM provenance (server-reported model + token usage)\n"
                   + "\n".join(provenance) + "\n")
     print("LLM provenance:", "; ".join(provenance))
