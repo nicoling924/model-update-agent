@@ -135,9 +135,14 @@ def _apply_rule(rule, row, staging):
         parts, prior_sum, pages, ok = [], 0.0, [], True
         for comp in rule["components"]:
             sign = -1.0 if comp.startswith("-") else 1.0
-            cn = norm(comp.lstrip("+-"))
+            spec_part = comp.lstrip("+-")
+            stmt = None
+            if ":" in spec_part:  # optional statement qualifier, e.g. 'bs:trade payables'
+                stmt, spec_part = spec_part.split(":", 1)
+            cn = norm(spec_part)
             hits = [it for it in staging["items"]
-                    if cn in norm(it["label"]) and isinstance(it.get("value"), (int, float))]
+                    if cn in norm(it["label"]) and isinstance(it.get("value"), (int, float))
+                    and (stmt is None or it.get("stmt") == stmt)]
             vals = sorted({round(h["value"], 1) for h in hits})
             if not vals or len(vals) > 1:
                 ok = False
