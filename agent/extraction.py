@@ -40,6 +40,8 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
             doc = pdfs.render(win)
             if len(_NUMTOKEN.findall(doc)) < 30:
                 continue  # boilerplate window; no financial tables to extract
+            print(f"    [2] {Path(path).name} pages {win[0][0]}-{win[-1][0]} "
+                  f"(total items so far: {len(all_items)})", flush=True)
             user = (f"{extraction_prompt}\n{SCHEMA_HINT}\n"
                     f"Document: {Path(path).name} (window pages "
                     f"{win[0][0]}-{win[-1][0]} of the full document)\n\n{doc}")

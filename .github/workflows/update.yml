@@ -27,8 +27,25 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - name: Restore extraction cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .cache
+            companies/${{ inputs.company }}/updates/${{ inputs.period }}_staging.json
+          key: staging-${{ inputs.company }}-${{ inputs.period }}-${{ hashFiles(format('companies/{0}/disclosures/**', inputs.company), 'prompts/extraction.md', 'prompts/system.md') }}
+          restore-keys: |
+            staging-${{ inputs.company }}-${{ inputs.period }}-${{ hashFiles(format('companies/{0}/disclosures/**', inputs.company), 'prompts/extraction.md', 'prompts/system.md') }}
       - name: Run model update
         run: python run.py update "companies/${{ inputs.company }}" "${{ inputs.period }}"
+      - name: Save extraction cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .cache
+            companies/${{ inputs.company }}/updates/${{ inputs.period }}_staging.json
+          key: staging-${{ inputs.company }}-${{ inputs.period }}-${{ hashFiles(format('companies/{0}/disclosures/**', inputs.company), 'prompts/extraction.md', 'prompts/system.md') }}-${{ github.run_id }}
       - name: Upload results (model + reports + staging)
         if: always()
         uses: actions/upload-artifact@v4

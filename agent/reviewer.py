@@ -41,15 +41,16 @@ def column_dump(wb, spec, col_key="_target_cols"):
 
 def review(client, reviewer_prompt, conventions_md, disclosure_paths,
            updated_dump, pre_dump, cfg):
+    # Scope for time (house rule): headline pages + the changed columns only.
     doc_text = []
     for p in disclosure_paths:
-        for win in pdfs.windows(pdfs.pages(p), chars_per_window=150000):
+        for win in pdfs.windows(pdfs.pages(p), chars_per_window=80000):
             doc_text.append(f"--- {p} ---\n{pdfs.render(win)}")
             break  # headline statements live early; reviewer scope is headline + flags
-    user = (f"{reviewer_prompt}\n\n## Per-company conventions\n{conventions_md}\n\n"
-            f"## Updated column\n{json.dumps(updated_dump)[:400000]}\n\n"
-            f"## Pre-update column\n{json.dumps(pre_dump)[:200000]}\n\n"
-            f"## Disclosure text\n{chr(10).join(doc_text)[:500000]}\n\n"
+    user = (f"{reviewer_prompt}\n\n## Per-company conventions\n{conventions_md[:20000]}\n\n"
+            f"## Updated column\n{json.dumps(updated_dump)[:150000]}\n\n"
+            f"## Pre-update column\n{json.dumps(pre_dump)[:80000]}\n\n"
+            f"## Disclosure text\n{chr(10).join(doc_text)[:200000]}\n\n"
             'Return JSON: {"findings": [{"severity": "genuine_error|needs_analyst_ruling|confirmed_ok",'
             ' "cell": "...", "model_holds": "...", "disclosure_says": "...", "page": 0,'
             ' "evidence": "..."}], "verdict": "..."}')

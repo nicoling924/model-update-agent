@@ -102,10 +102,25 @@ def cmd_update(company_dir, period):
     est_snapshot = workbook.snapshot_column(pre_values, stmts_sheet, cols[target_year])
     print(f"[1] target: {target_year} (col {target_col}); prior actual: {last_actual} ({prior_col})")
 
-    # -- 2/3. ingest + extract (validated) ----------------------------------
-    staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
-    workbook.dump_json(staging, company_dir / "updates" / f"{period}_staging.json")
-    print(f"[2] extracted {len(staging['items'])} items, {len(staging['ties'])} ties validated")
+    # -- 2/3. ingest + extract (validated), cached by content signature ------
+    import hashlib
+    import json as _json
+    sig_src = _prompt("extraction") + system + client.model + "".join(
+        hashlib.sha256(p.read_bytes()).hexdigest() for p in disclosures)
+    sig = hashlib.sha256(sig_src.encode()).hexdigest()[:16]
+    staging_path = company_dir / "updates" / f"{period}_staging.json"
+    staging = None
+    if staging_path.exists():
+        cached = _json.loads(staging_path.read_text())
+        if cached.get("_sig") == sig:
+            staging = cached
+            print(f"[2] reusing cached extraction ({len(staging['items'])} items) — "
+                  "PDFs, prompts, and model unchanged")
+    if staging is None:
+        staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
+        staging["_sig"] = sig
+        workbook.dump_json(staging, staging_path)
+        print(f"[2] extracted {len(staging['items'])} items, {len(staging['ties'])} ties validated")
 
     # -- 4. restatement scan ------------------------------------------------
     wb = workbook.load(model_path)
@@ -131,6 +146,11 @@ def cmd_update(company_dir, period):
     glossary = mapping.build_glossary(cfg, spec)
     maplog, backouts, flags = [], [], []
     backout_rules = {str(b.get("row_ref")): b for b in spec.get("backout_rules") or []}
+    # mapping consultations are small questions — small fast budget, no escalation needed
+    map_client = Client(temperature=cfg["updater"]["temperature"],
+                        max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
+    deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.75
+    rows_done = 0
     for sheet, iv in (spec.get("input_vs_formula") or {}).items():
         s_axis = spec["year_axis"].get(sheet, axis)
         s_prior = s_axis["columns"].get(last_actual, prior_col)
@@ -144,8 +164,14 @@ def cmd_update(company_dir, period):
                        "prior_value": ws_prior[f"{s_prior}{r}"].value,
                        "prior_formula": prior_cell.value if isinstance(prior_cell.value, str) else None,
                        "backout_rule": backout_rules.get(f"{sheet}!{r}")}
-            entry = mapping.resolve_row(row_ctx, staging, glossary, client, system,
+            # walk-away: past 75% of the time budget, stop consulting the LLM —
+            # unresolved rows degrade to estimate + red flag instead of stalling
+            consult = map_client if time.time() < deadline else None
+            entry = mapping.resolve_row(row_ctx, staging, glossary, consult, system,
                                         _prompt("mapping"), cfg, maplog)
+            rows_done += 1
+            if rows_done % 25 == 0:
+                print(f"    [4] {rows_done} rows mapped ({sheet})", flush=True)
             value = entry.get("formula", entry.get("value"))
             if value is None:
                 continue

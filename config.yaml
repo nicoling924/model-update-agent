@@ -14,7 +14,8 @@ budgets:
   extraction_retries: 2          # re-ask with quoted errors if staging fails validation
   extraction_window_chars: 35000 # smaller windows = simpler task for weaker models
   json_repair_retries: 2         # malformed-JSON retries per call
-  max_run_minutes: 60            # hard stop -> deliver with flags rather than stall
+  max_run_minutes: 60            # past 75% of this, mapping stops consulting the LLM (estimate+flag)
+  mapping_output_tokens: 3000    # mapping consultations are small; keep them fast
 
 conventions:
   flag_uncertain_fill: "FFC7CE"  # light red: uncertain / needs analyst review
