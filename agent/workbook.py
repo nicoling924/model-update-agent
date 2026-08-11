@@ -106,7 +106,7 @@ class Writer:
                 continue
             src = ws[f"{from_col}{r}"]
             keep = f"{sheet}!{to_col}{r}" in flagged
-            fill = cell.fill if keep else None
+            fill = copy.copy(cell.fill) if keep else None
             cell._style = copy.copy(src._style)
             cell.number_format = src.number_format
             if keep:
