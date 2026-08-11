@@ -1,0 +1,41 @@
+name: Model update
+
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: "Company folder (under companies/)"
+        default: "CLP"
+        required: true
+      period:
+        description: "Fiscal period (e.g. FY25, 1H26)"
+        default: "FY25"
+        required: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.6-luna' }}
+      REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'gpt-5.6-luna' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run model update
+        run: python run.py update "companies/${{ inputs.company }}" "${{ inputs.period }}"
+      - name: Upload results (model + reports + staging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.company }}-${{ inputs.period }}-update
+          path: |
+            companies/${{ inputs.company }}/model/
+            companies/${{ inputs.company }}/model-archive/
+            companies/${{ inputs.company }}/updates/
+          if-no-files-found: warn

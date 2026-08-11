@@ -117,7 +117,12 @@ class Client:
                 prompt = (user + "\n\nYour previous answer failed validation:\n- "
                           + "\n- ".join(errs[:20])
                           + "\nReturn corrected JSON only.")
-        raise LLMError("LLM output failed validation after retries: " + "; ".join(errs[:5]))
+        from pathlib import Path
+        dbg = Path(".cache/last_failed_response.txt")
+        dbg.parent.mkdir(parents=True, exist_ok=True)
+        dbg.write_text(raw)
+        raise LLMError("LLM output failed validation after retries: " + "; ".join(errs[:5])
+                       + f" (raw response saved to {dbg})")
 
 
 def _strip_fences(s):

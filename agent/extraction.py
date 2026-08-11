@@ -24,6 +24,9 @@ Schema:
  "bridge": [{"label": "...", "value": 0, "page": 0}]
 }
 Each tie: sum(values of lhs ids) must equal sum(values of rhs ids) within tolerance.
+STRICT: every object in "items" must contain ALL SIX keys id, stmt, label, value,
+prior, page ("prior" may be null; the other five may never be null or omitted).
+Do not group items under sub-objects; "items" is one flat list.
 """
 
 
@@ -78,8 +81,11 @@ def _validator(obj):
                     f"(id/stmt/label/value/page), e.g. {incomplete[:5]} — every item "
                     "MUST carry all five fields")
     tie_refs = {i for tie in obj.get("ties", []) for i in tie.get("lhs", []) + tie.get("rhs", [])}
-    for i in set(incomplete) & tie_refs:
-        errs.append(f"item {i} is used in a tie but missing required fields")
+    for i in sorted(set(incomplete) & tie_refs):
+        missing = [k for k in ("id", "stmt", "label", "value", "page")
+                   if items[i].get(k) in (None, "") and not (k == "value" and items[i].get(k) == 0)]
+        errs.append(f"item {i} is used in a tie but is missing {missing} — "
+                    f"add the missing key(s) to this exact item")
     for tie in obj.get("ties", []):
         try:
             lhs = sum(items[i]["value"] for i in tie["lhs"])

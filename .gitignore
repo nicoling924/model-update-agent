@@ -8,3 +8,7 @@ companies/*/model-archive/
 companies/*/disclosures/
 companies/*/transcripts/
 !companies/_TEMPLATE/**
+# CLP test fixture: committed so GitHub Actions runs can access it (private repo)
+!companies/CLP/model/CLP Model.xlsx
+!companies/CLP/disclosures/
+!companies/CLP/disclosures/**
