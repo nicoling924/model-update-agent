@@ -38,6 +38,8 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
         page_texts = pdfs.pages(path)
         for win in pdfs.windows(page_texts, chars_per_window=window_chars):
             doc = pdfs.render(win)
+            if len(_NUMTOKEN.findall(doc)) < 30:
+                continue  # boilerplate window; no financial tables to extract
             user = (f"{extraction_prompt}\n{SCHEMA_HINT}\n"
                     f"Document: {Path(path).name} (window pages "
                     f"{win[0][0]}-{win[-1][0]} of the full document)\n\n{doc}")
@@ -72,6 +74,9 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
                 all_ties.append(tie)
             meta.setdefault(Path(path).name, {}).update(
                 {k: obj.get(k) for k in ("units", "currency", "sign_convention", "missing")})
+    if len(all_items) < 30:
+        raise LLMError(f"extraction produced only {len(all_items)} items across all "
+                       "documents — too sparse to update a model; aborting before any edit")
     return {"items": all_items, "ties": all_ties, "meta": meta}
 
 
@@ -80,11 +85,14 @@ def _complete(it):
                for k in ("id", "stmt", "label", "value", "page"))
 
 
+_NUMTOKEN = __import__("re").compile(r"\d[\d,]{2,}")
+
+
 def _validator(obj):
     errs = []
     items = {it.get("id"): it for it in obj.get("items", [])}
     if not items:
-        errs.append("no items extracted")
+        return errs  # a window may legitimately hold no financial tables
     incomplete = [i for i, it in items.items() if not _complete(it)]
     # tolerate a few incomplete items (weak models drop fields) UNLESS a tie needs them
     if len(incomplete) > max(3, len(items) // 10):
@@ -119,8 +127,6 @@ def _validator(obj):
 
 def _shape_validator(obj):
     errs = []
-    if not obj.get("items"):
-        errs.append("no items extracted")
     for it in obj.get("items", []):
         if not it.get("id"):
             errs.append("every item needs an id")
