@@ -7,6 +7,7 @@ nothing downstream may consume unvalidated numbers.
 from pathlib import Path
 
 from . import pdfs
+from .llm import LLMError
 
 SCHEMA_HINT = """
 Schema:
@@ -40,8 +41,18 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
             user = (f"{extraction_prompt}\n{SCHEMA_HINT}\n"
                     f"Document: {Path(path).name} (window pages "
                     f"{win[0][0]}-{win[-1][0]} of the full document)\n\n{doc}")
-            obj = client.json(system, user, _validator,
-                              repair_retries=cfg["budgets"]["extraction_retries"])
+            try:
+                obj = client.json(system, user, _validator,
+                                  repair_retries=cfg["budgets"]["extraction_retries"])
+            except LLMError:
+                # Walk-away rule: don't stall the run on one untied table. Re-fetch
+                # with shape-only validation, then QUARANTINE items in failing ties —
+                # their model rows will fall back to estimate + red flag downstream.
+                obj = client.json(system, user, _shape_validator, repair_retries=1)
+                obj, quarantined = _quarantine(obj)
+                if quarantined:
+                    meta.setdefault(Path(path).name, {}).setdefault(
+                        "quarantined", []).extend(quarantined)
             # drop incomplete stragglers the validator tolerated (few, not tie-referenced)
             dropped = [it.get("id") for it in obj.get("items", []) if not _complete(it)]
             if dropped:
@@ -104,6 +115,42 @@ def _validator(obj):
     if not obj.get("ties"):
         errs.append("no ties provided — emit the arithmetic relations that validate your extraction")
     return errs
+
+
+def _shape_validator(obj):
+    errs = []
+    if not obj.get("items"):
+        errs.append("no items extracted")
+    for it in obj.get("items", []):
+        if not it.get("id"):
+            errs.append("every item needs an id")
+            break
+    return errs
+
+
+def _quarantine(obj):
+    """Remove items that participate in FAILING ties (keeping any item that a
+    passing tie also vouches for). Returns (obj, quarantined_descriptions)."""
+    items = {it.get("id"): it for it in obj.get("items", []) if it.get("id")}
+    failing_ids, passing_ids = set(), set()
+    for tie in obj.get("ties", []):
+        try:
+            lhs = sum(items[i].get("value", 0) for i in tie.get("lhs", []))
+            rhs = sum(items[i].get("value", 0) for i in tie.get("rhs", []))
+        except KeyError:
+            continue
+        refs = set(tie.get("lhs", []) + tie.get("rhs", []))
+        if abs(lhs - rhs) > max(tie.get("tolerance", 1.0), 1.0):
+            failing_ids |= refs
+        else:
+            passing_ids |= refs
+    bad = failing_ids - passing_ids
+    quarantined = [f"{i} '{items[i].get('label', '?')}'={items[i].get('value', '?')}"
+                   for i in sorted(bad)]
+    obj["items"] = [it for it in obj.get("items", []) if it.get("id") not in bad]
+    obj["ties"] = [t for t in obj.get("ties", [])
+                   if not (set(t.get("lhs", []) + t.get("rhs", [])) & bad)]
+    return obj, quarantined
 
 
 def find_by_prior(staging, prior_value, tolerance=0.6):
