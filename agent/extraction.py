@@ -32,6 +32,44 @@ Do not group items under sub-objects; "items" is one flat list.
 
 
 def extract(client, system, disclosure_paths, extraction_prompt, cfg):
+    """Optionally double-extract and keep the consensus (budgets.extraction_votes: 2).
+    Misreads rarely repeat identically; agreement filters them at the source."""
+    votes = cfg["budgets"].get("extraction_votes", 1)
+    passes = [_extract_once(client, system, disclosure_paths, extraction_prompt, cfg)
+              for _ in range(votes)]
+    if len(passes) == 1:
+        return passes[0]
+    merged = _consensus(passes[0], passes[1])
+    print(f"    [2] consensus: {len(merged['items'])} items agreed "
+          f"(pass1 {len(passes[0]['items'])}, pass2 {len(passes[1]['items'])})", flush=True)
+    return merged
+
+
+def _consensus(a, b):
+    def key(it):
+        return (it.get("stmt"), __import__("re").sub(r"[^a-z0-9]+", " ",
+                str(it.get("label", "")).lower()).strip())
+    bmap = {}
+    for it in b["items"]:
+        bmap.setdefault(key(it), []).append(it)
+    items = []
+    for it in a["items"]:
+        for cand in bmap.get(key(it), []):
+            va, vb = it.get("value"), cand.get("value")
+            if isinstance(va, (int, float)) and isinstance(vb, (int, float)) \
+                    and abs(va - vb) <= 1.0 and abs(int(it.get("page", 0)) - int(cand.get("page", 0))) <= 2:
+                pa, pb = it.get("prior"), cand.get("prior")
+                if isinstance(pa, (int, float)) and isinstance(pb, (int, float)) and abs(pa - pb) > 1.0:
+                    it = dict(it, prior=None)  # values agree, priors don't — keep value only
+                items.append(it)
+                break
+    ids = {it["id"] for it in items}
+    ties = [t for t in a["ties"]
+            if all(i in ids for i in t.get("lhs", []) + t.get("rhs", []))]
+    return {"items": items, "ties": ties, "meta": {**a.get("meta", {}), "consensus": True}}
+
+
+def _extract_once(client, system, disclosure_paths, extraction_prompt, cfg):
     all_items, all_ties, meta = [], [], {}
     window_chars = cfg["budgets"].get("extraction_window_chars", 35000)
     for path in disclosure_paths:
