@@ -513,13 +513,13 @@ analyst_rulings:
 - 'SEA FX rows 2-3: carry prior year via formula (=prior col)'
 - 'CN capacity bottom-up rows: 125/132/135 only; 128/136 carry prior year; 143/147
   stay 0'
-- 'Driver!127 dividends-from-associates: map from disclosure (reference model''s -1,674
-  was an analyst mistake; FY25 correct = -1,762)'
-- 'CF allocation: perpetual/NCI dividend terms in Final row 135; small adjustments
-  (-4 type) in row 124'
+- 'Driver!127 dividends-from-associates: map from the CF statement normally (a prior
+  reference model held a transcription error on this line)'
+- 'CF allocation: perpetual/NCI dividend terms in Final row 135; small adjustment
+  plugs in row 124'
 carried_flags:
 - Aus!AI71:AI74 generation GWh (carried FY24 level)
-- India!AI2 YE FX 0.09401
+- India!AI2 YE FX (hand-set, red-flag)
 tie_out_anchors:
 - name: balance check current actual
   sheet: Final

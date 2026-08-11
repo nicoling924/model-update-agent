@@ -109,6 +109,14 @@ Set `reviewer.model` to a different (ideally stronger) model than `updater.model
 responses are requested where supported and fall back to prompt-enforced JSON
 with code-side validation + retry.
 
+## Benchmark fairness policy
+
+Per-company files (`MODEL_SPEC.md`, `spec.yaml`) must hold STRUCTURAL knowledge
+only — layouts, conventions, composition rules, prior-period corrections — never
+current-period disclosed figures. The LLM's context per call is: generic prompts +
+scrubbed MODEL_SPEC + the model's own stored priors + disclosure text. Run logs,
+scoring tools, and any reference/ground-truth workbook stay outside every prompt.
+
 ## Honest limitations
 
 - First run on a new company is a **calibration run**: expect the analyst to

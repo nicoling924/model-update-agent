@@ -10,7 +10,18 @@ max(1.0, 0.5%). Criteria: balanced (Final!AI99=0) · full rollover · ≥90% cor
 | 12 (baseline) | 08-11 12:15 | 45m | 68.8% | 250 | 172 (mostly propagation from ~15 root inputs) | 43 | Gate blocked delivery. Roots: BS composite rows misread, cash column-misread, MI composition missed, SoC 5-yr table gaps, net finance costs LLM-mapped wrong. |
 | 13 | 08-11 13:08 | 46m | 68.3% | 130 | 171 | 48 | First DELIVERED workbook (with exceptions). Major errors: rescue pass skipped (mapping consults ate the time budget — reordered for r14); post-gate crash in reviewer dump (RGB serialization — fixed); P&L composition roots persist (net finance costs, NCI split, one-offs bridge). |
 | 14 | 08-11 13:59 | 47m ✓ | 69.4% | 130 | 175 | 36 | First GREEN end-to-end run (reviewer + provenance + report). Rescue 13/80, consults 24. Major find in autopsy: formula-pattern copy carries STALE 2024 CONSTANTS into 2025 (root of most unflagged errors); also prior-value collisions (D&A line matched as Minority Interests). |
-| 15 | — | — | — | — | — | — | Constants-rewrite in formula rows (recompose + mixed-formula rewrite with sign/ratio plausibility guards); collision guard on triangulation; components accept-with-flag. |
+| 15 | 08-11 14:54 | 46.5m ✓ | **75.7%** | -5,986 (honest — prior small gaps were offsetting stale values) | 111 | 57 | Constants-rewrite worked (+6.3pp, best jump). Job red: OpenAI 429 rate limit during reviewer call (fixed: patient backoff). MI captured by wrong-line consensus before spec rule (fixed: spec rules first, stmt-qualified components). |
+| 16 | — | cancelled ×2 | — | — | — | — | Cancelled pre-completion: first for a half-landed cascade fix, then for the fairness scrub (leaky MODEL_SPEC). |
+| 17 | — | — | — | — | — | — | CLEAN BENCHMARK: scrubbed spec, fresh extraction, 429 backoff, spec-rules-first, stmt-qualified compositions. |
+
+**FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
+original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
+rulings) — deterministic mapping was unaffected but LLM consults could in
+principle have seen answers for a handful of headline cells. Both per-company
+files are now scrubbed to structural knowledge only; the extraction cache was
+invalidated by the scrub, so the clean benchmark starts at run 17 with a fresh,
+uncontaminated extraction. Treat pre-17 accuracy as indicative, run 17+ as the
+fair benchmark.
 
 ## Fix history feeding these runs
 - r1–r2: API dialect + reasoning-budget escalation (plumbing)
