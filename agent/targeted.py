@@ -94,8 +94,14 @@ def rescue(client, system, disclosure_paths, unresolved, cfg, log):
             cur = res["current"]
             if (ps < 0) != (pv < 0) and pv != 0:
                 cur = -cur  # disclosure prints positive where model stores negative
+            flipped = False
+            if pv != 0 and cur != 0 and (cur < 0) != (pv < 0):
+                # model's stored sign convention wins over the LLM's transcription;
+                # genuine year-over-year sign changes surface as flagged cells
+                cur, flipped = -cur, True
             accepted[(u["sheet"], u["row"])] = {
-                "value": cur, "page": res.get("page"),
-                "note": f"targeted re-read: '{res.get('label_seen', '?')}' p{res.get('page')}"
+                "value": cur, "page": res.get("page"), "flag": "red" if flipped else None,
+                "note": ("SIGN HARMONIZED to model convention — verify. " if flipped else "")
+                        + f"targeted re-read: '{res.get('label_seen', '?')}' p{res.get('page')}"
                         f" (prior corroborated {ps})"}
     return accepted

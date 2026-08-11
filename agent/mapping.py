@@ -140,9 +140,12 @@ def _apply_rule(rule, row, staging):
             if ":" in spec_part:  # optional statement qualifier, e.g. 'bs:trade payables'
                 stmt, spec_part = spec_part.split(":", 1)
             cn = norm(spec_part)
-            hits = [it for it in staging["items"]
-                    if cn in norm(it["label"]) and isinstance(it.get("value"), (int, float))
+            pool = [it for it in staging["items"]
+                    if isinstance(it.get("value"), (int, float))
                     and (stmt is None or it.get("stmt") == stmt)]
+            hits = [it for it in pool if norm(it["label"]) == cn]  # exact label first
+            if not hits:
+                hits = [it for it in pool if cn in norm(it["label"])]
             vals = sorted({round(h["value"], 1) for h in hits})
             if not vals or len(vals) > 1:
                 ok = False
@@ -191,10 +194,12 @@ def rewrite_constants(formula, staging):
     from .extraction import find_by_prior
     all_ok = True
 
+    SCALARS = {10, 12, 52, 100, 365, 1000, 8760, 10000}  # unit/time scalars, never data
+
     def sub(m):
         nonlocal all_ok
         c = float(m.group(0))
-        if abs(c) < 100:
+        if abs(c) < 10 or c in SCALARS:
             return m.group(0)
         hits = find_by_prior(staging, c) or \
             [dict(h, value=-h["value"]) for h in find_by_prior(staging, -c)]

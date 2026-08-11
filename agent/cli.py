@@ -206,7 +206,7 @@ def cmd_update(company_dir, period):
                         new_f = comp
                     else:
                         flag_row = "red"
-                elif re.search(r"(?<![A-Za-z0-9_.])\d{3,}(?![A-Za-z0-9_.])", pv):
+                elif re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", pv):
                     new_f, ok = mapping.rewrite_constants(shifted, staging)
                     if not ok:
                         flag_row = "red"
@@ -229,8 +229,13 @@ def cmd_update(company_dir, period):
             cand = next(c for c in rescue_candidates
                         if c["sheet"] == rs and c["row"] == rr)
             writer.write(rs, cand["coord"], res["value"],
-                         prior_coord=cand["prior_coord"], note=res["note"])
-            flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
+                         prior_coord=cand["prior_coord"], note=res["note"],
+                         flag=res.get("flag"))
+            if not res.get("flag"):
+                flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
+            else:
+                flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
+                flags.append((rs, cand["coord"], res["note"]))
             rescued_keys.add((rs, rr))
         print(f"[4a] targeted rescue: {len(rescued)}/{len(rescue_candidates)} "
               "flagged rows recovered with prior-corroborated re-reads", flush=True)

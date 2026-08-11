@@ -22,6 +22,8 @@ cannot reach the 90% bar unassisted — extraction completeness on dense
 statistics tables and definition-sensitive rows are the binding constraints.
 Escalating the model tier from run 18: **gpt-5.6-terra** (updater + reviewer).
 
+| 18 (Terra) | 08-11 17:02 | 42.1m ✓ | **82.0% (clean, cold)** | -5,986 | 91 | 33 | **Terra baseline: +12pp over Luna clean — model tier closed half the gap.** Reviewer sharper (REJECT verdict, caught NCI sign + cash). Remaining roots: components matcher tripped by zero-value note rows (fixed: exact-label first), rescue accepted sign-flipped NCI (fixed: harmonize to model sign + flag), 2-digit stale constants unflagged (fixed: lower rewrite gate). |
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
