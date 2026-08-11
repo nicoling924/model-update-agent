@@ -1,4 +1,4 @@
-# Overnight tuning log — CLP FY25 on gpt-5.6-luna (pure Luna, updater + reviewer)
+# Run log — CLP FY25 benchmark (runs 12-17: gpt-5.6-luna; runs 18+: gpt-5.6-terra)
 
 Scoring vs the Fable-verified ground truth (`CLP Model FY25 (Updated).xlsx`, 690
 evaluated cells in the 2025 column). "Correct" = evaluated value within
@@ -13,6 +13,14 @@ max(1.0, 0.5%). Criteria: balanced (Final!AI99=0) · full rollover · ≥90% cor
 | 15 | 08-11 14:54 | 46.5m ✓ | **75.7%** | -5,986 (honest — prior small gaps were offsetting stale values) | 111 | 57 | Constants-rewrite worked (+6.3pp, best jump). Job red: OpenAI 429 rate limit during reviewer call (fixed: patient backoff). MI captured by wrong-line consensus before spec rule (fixed: spec rules first, stmt-qualified components). |
 | 16 | — | cancelled ×2 | — | — | — | — | Cancelled pre-completion: first for a half-landed cascade fix, then for the fairness scrub (leaky MODEL_SPEC). |
 | 17 | 08-11 15:51 | 46.9m ✓ | **70.1% (clean)** | -2,114 | 139 | 67 | **First fair-benchmark run, job green.** Fresh uncontaminated extraction (1,486 items/163 ties — leaner than the cached 1,694); rescue 17/91; consults 15; MI composition rule worked (row no longer wrong). New issues: forecast-year balance rows blew out (~71k — a roll-forward base row mapped badly) and ROAFNA worse (-66.9k — SoC statistics tables under-extracted in the fresh pass). Clean 70.1% vs contaminated 75.7% suggests leak+extraction-variance was worth ~5pp. |
+
+**LUNA VERDICT (after 6 scored runs):** on a complicated multi-sheet model
+(CLP: 10 data sheets, SoC regulatory block, 5 regional segments), **gpt-5.6-luna
+plateaus at ~70% first-run cell accuracy** (clean benchmark 70.1%; best
+contaminated 75.7%). It delivers on time with everything uncertain flagged, but
+cannot reach the 90% bar unassisted — extraction completeness on dense
+statistics tables and definition-sensitive rows are the binding constraints.
+Escalating the model tier from run 18: **gpt-5.6-terra** (updater + reviewer).
 
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
