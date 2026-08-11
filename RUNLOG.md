@@ -26,6 +26,22 @@ Escalating the model tier from run 18: **gpt-5.6-terra** (updater + reviewer).
 
 | 19 (Terra) | 08-11 17:49 | 45.2m ✓ | 75.8% | -2,114 | 110 | 57 | MI/NCI fixes landed (gone from wrong list), but -6pp vs r18: **cold-run extraction variance (~±5pp) now dominates** — this pass misallocated the revenue split (sum right, split wrong) where r18's extraction had it right. Countermeasure for r20: double-extraction consensus voting (agreement filters misreads at the source). |
 
+| 20 (Terra) | 08-11 18:38 | 46.9m ✓ | 76.5% | -2,114 | 104 | 58 | Consensus double-extraction: stabilized the floor (no r19-style split misread) but also shrank coverage (agreement filter drops items where passes differ), so the score settled mid-band rather than lifting. |
+
+**TERRA VERDICT (3 cold scored runs: 82.0 / 75.8 / 76.5):** on the same
+complicated model under strict cold-context rules, **gpt-5.6-terra plateaus at
+~78% ±4pp first-run cell accuracy** — a clear tier gain over Luna's ~70%, with
+faster convergence (fewer retries), a genuinely useful adversarial reviewer, and
+the same guarantees (on time, ~100% filled, all uncertainty flagged, structural
+damage impossible). The remaining gap to 90% is dominated by single-pass
+extraction variance on dense tables and definition-sensitive CF/split rows;
+within-run engineering has hit diminishing returns. Paths that would close it,
+in order of leverage: (1) per-company spec accumulation across periods (the
+compounding design — structural rules only, fairness-compatible), (2) letting
+the blind reviewer's incontrovertible catches auto-apply with read-back (max 2
+iterations, per the original Project M workflow), (3) a stronger/cross-provider
+reviewer model.
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
