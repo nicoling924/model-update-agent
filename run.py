@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Entry point. Loads .env if present, then dispatches to agent.cli."""
 import os
+import sys
 from pathlib import Path
+
+sys.stdout.reconfigure(line_buffering=True)  # milestones stream live when logging to a file
+sys.stderr.reconfigure(line_buffering=True)
 
 env = Path(__file__).parent / ".env"
 if env.exists():
