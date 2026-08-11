@@ -95,8 +95,9 @@ def _validator(obj):
             continue
         tol = tie.get("tolerance", 1.0)
         if abs(lhs - rhs) > tol:
-            detail = ", ".join(f"{i}='{items[i]['label']}'={items[i]['value']}"
-                               for i in tie["lhs"] + tie["rhs"])
+            detail = ", ".join(
+                f"{i}='{items[i].get('label', '?')}'={items[i].get('value', '?')}"
+                for i in tie["lhs"] + tie["rhs"])
             errs.append(f"tie FAILED '{tie.get('desc')}': lhs {lhs} vs rhs {rhs} (tol {tol}). "
                         f"Components: {detail}. Fix the wrong value(s) against the cited pages, "
                         "or fix the tie's sides to match the signs you recorded")
