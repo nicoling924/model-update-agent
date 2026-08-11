@@ -12,7 +12,7 @@ max(1.0, 0.5%). Criteria: balanced (Final!AI99=0) · full rollover · ≥90% cor
 | 14 | 08-11 13:59 | 47m ✓ | 69.4% | 130 | 175 | 36 | First GREEN end-to-end run (reviewer + provenance + report). Rescue 13/80, consults 24. Major find in autopsy: formula-pattern copy carries STALE 2024 CONSTANTS into 2025 (root of most unflagged errors); also prior-value collisions (D&A line matched as Minority Interests). |
 | 15 | 08-11 14:54 | 46.5m ✓ | **75.7%** | -5,986 (honest — prior small gaps were offsetting stale values) | 111 | 57 | Constants-rewrite worked (+6.3pp, best jump). Job red: OpenAI 429 rate limit during reviewer call (fixed: patient backoff). MI captured by wrong-line consensus before spec rule (fixed: spec rules first, stmt-qualified components). |
 | 16 | — | cancelled ×2 | — | — | — | — | Cancelled pre-completion: first for a half-landed cascade fix, then for the fairness scrub (leaky MODEL_SPEC). |
-| 17 | — | — | — | — | — | — | CLEAN BENCHMARK: scrubbed spec, fresh extraction, 429 backoff, spec-rules-first, stmt-qualified compositions. |
+| 17 | 08-11 15:51 | 46.9m ✓ | **70.1% (clean)** | -2,114 | 139 | 67 | **First fair-benchmark run, job green.** Fresh uncontaminated extraction (1,486 items/163 ties — leaner than the cached 1,694); rescue 17/91; consults 15; MI composition rule worked (row no longer wrong). New issues: forecast-year balance rows blew out (~71k — a roll-forward base row mapped badly) and ROAFNA worse (-66.9k — SoC statistics tables under-extracted in the fresh pass). Clean 70.1% vs contaminated 75.7% suggests leak+extraction-variance was worth ~5pp. |
 
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
