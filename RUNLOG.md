@@ -9,7 +9,8 @@ max(1.0, 0.5%). Criteria: balanced (Final!AI99=0) · full rollover · ≥90% cor
 |---|---|---|---|---|---|---|---|
 | 12 (baseline) | 08-11 12:15 | 45m | 68.8% | 250 | 172 (mostly propagation from ~15 root inputs) | 43 | Gate blocked delivery. Roots: BS composite rows misread, cash column-misread, MI composition missed, SoC 5-yr table gaps, net finance costs LLM-mapped wrong. |
 | 13 | 08-11 13:08 | 46m | 68.3% | 130 | 171 | 48 | First DELIVERED workbook (with exceptions). Major errors: rescue pass skipped (mapping consults ate the time budget — reordered for r14); post-gate crash in reviewer dump (RGB serialization — fixed); P&L composition roots persist (net finance costs, NCI split, one-offs bridge). |
-| 14 | — | — | — | — | — | — | Rescue-first ordering; graduated label+prior matching (fixes net finance costs); signed self-corroborating composition rules; reviewer crash fix. |
+| 14 | 08-11 13:59 | 47m ✓ | 69.4% | 130 | 175 | 36 | First GREEN end-to-end run (reviewer + provenance + report). Rescue 13/80, consults 24. Major find in autopsy: formula-pattern copy carries STALE 2024 CONSTANTS into 2025 (root of most unflagged errors); also prior-value collisions (D&A line matched as Minority Interests). |
+| 15 | — | — | — | — | — | — | Constants-rewrite in formula rows (recompose + mixed-formula rewrite with sign/ratio plausibility guards); collision guard on triangulation; components accept-with-flag. |
 
 ## Fix history feeding these runs
 - r1–r2: API dialect + reasoning-budget escalation (plumbing)

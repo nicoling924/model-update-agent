@@ -57,7 +57,14 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
     from .extraction import find_by_prior
     tri = find_by_prior(staging, row.get("prior_value"))
     if len(tri) == 1:
-        return _accept(tri[0], row, "triangulated")
+        # guard against coincidental prior collisions: unrelated label -> flag
+        if _overlap(row["label"], tri[0]["label"]):
+            return _accept(tri[0], row, "triangulated")
+        entry = _accept(tri[0], row, "triangulated (label mismatch)")
+        entry["flag"] = "red"
+        entry["note"] = (f"PRIOR-COLLISION RISK: matched '{tri[0]['label']}' by prior "
+                         "value only, labels unrelated — verify. ") + (entry["note"] or "")
+        return entry
     if len(tri) > 1:
         # same figure quoted in several places (statement + note + summary):
         # if every candidate agrees on the current value, they are duplicates
@@ -124,13 +131,19 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
         pv = row.get("prior_value")
         corroborated = (prior_sum is not None and isinstance(pv, (int, float))
                         and abs(prior_sum - pv) <= 1.0)
-        if ok and (corroborated or not isinstance(pv, (int, float))):
+        if ok:
             f = "".join(("+" if p >= 0 else "-") + (str(int(abs(p))) if p == int(p) else str(abs(p)))
                         for p in parts)
             f = "=" + (f[1:] if f.startswith("+") else f)
-            return {"formula": f, "source": "backout-components", "flag": None,
-                    "note": f"Composition per spec: {' '.join(rule['components'])} "
-                            f"(pages {pages}; prior corroborated {prior_sum})", "page": pages[0]}
+            # analyst DECLARED this composition; uncorroborated -> deliver flagged,
+            # never silently drop it (definition may have changed vs prior year)
+            return {"formula": f, "source": "backout-components",
+                    "flag": None if corroborated else "red",
+                    "note": (f"Composition per spec: {' '.join(rule['components'])} "
+                             f"(pages {pages}; "
+                             + (f"prior corroborated {prior_sum})" if corroborated else
+                                f"PRIOR MISMATCH {prior_sum} vs model {pv} — definition "
+                                "may have changed, verify)")), "page": pages[0]}
     if rule and rule.get("method"):
         return {"formula": rule["method"], "source": "backout", "flag": "orange",
                 "note": f"Backed out: {rule['method']} (per spec back-out rule)", "page": None}
@@ -147,8 +160,45 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
             "page": None}
 
 
-_CONSTS = re.compile(r"^=\s*[+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)+\s*$")
+_CONSTS = re.compile(r"^=\s*\+?[+-]?\d+(?:\.\d+)?(?:\s*[+-]\s*\d+(?:\.\d+)?)+\s*$")
 _TERM = re.compile(r"([+-]?)\s*(\d+(?:\.\d+)?)")
+_STOP = {"and", "of", "in", "the", "net", "total", "other", "for"}
+
+
+def _overlap(a, b):
+    wa = {w for w in norm(a).split() if w not in _STOP and len(w) > 2}
+    wb = {w for w in norm(b).split() if w not in _STOP and len(w) > 2}
+    return bool(wa & wb) or not wa
+
+
+def rewrite_constants(formula, staging):
+    """Rewrite prior-year constants embedded in a MIXED formula (refs + constants).
+    Each constant >=100 must triangulate (consensus) prior->current; returns
+    (new_formula, all_resolved). Constants <100 are kept as-is (plugs/adjustments)."""
+    from .extraction import find_by_prior
+    all_ok = True
+
+    def sub(m):
+        nonlocal all_ok
+        c = float(m.group(0))
+        if abs(c) < 100:
+            return m.group(0)
+        hits = find_by_prior(staging, c) or \
+            [dict(h, value=-h["value"]) for h in find_by_prior(staging, -c)]
+        vals = [h.get("value") for h in hits if isinstance(h.get("value"), (int, float))]
+        if not vals or max(vals) - min(vals) > 1.0:
+            all_ok = False
+            return m.group(0)
+        v = vals[0]
+        # plausibility: same sign, sane YoY ratio — else likely a prior collision
+        if v * c < 0 or not (0.4 <= abs(v) / abs(c) <= 2.5):
+            all_ok = False
+            return m.group(0)
+        return str(int(v)) if v == int(v) else str(v)
+
+    # match standalone numeric literals not part of cell refs (AH69) or row digits
+    new = re.sub(r"(?<![A-Za-z0-9_.])\d+(?:\.\d+)?(?![A-Za-z0-9_.])", sub, formula)
+    return new, all_ok
 
 
 def _recompose(prior_formula, staging):
@@ -170,6 +220,8 @@ def _recompose(prior_formula, staging):
         if not vals or max(vals) - min(vals) > 1.0:
             return None
         cur = vals[0]
+        if cur * signed < 0 or not (0.4 <= abs(cur) / abs(signed) <= 2.5):
+            return None  # prior collision — implausible YoY move for a component
         out.append(f"{'+' if cur >= 0 else '-'}{abs(int(cur)) if cur == int(cur) else abs(cur)}")
     s = "".join(out)
     return "=" + (s[1:] if s.startswith("+") else s)

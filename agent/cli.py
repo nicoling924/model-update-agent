@@ -6,6 +6,7 @@
 The LLM never controls sequencing. Steps, budgets, and gates all live here, so a
 weaker model cannot loop, stall, or skip verification.
 """
+import re
 import shutil
 import sys
 import time
@@ -191,13 +192,32 @@ def cmd_update(company_dir, period):
                                               "prior_coord": f"{s_prior}{r}"})
             elif entry.get("flag") == "orange":
                 backouts.append((sheet, f"{s_target}{r}", entry.get("note", "")))
-        # formula rows: re-copy prior pattern shifted one column (mark-to-actual recipe)
+        # formula rows: re-copy prior pattern shifted one column (mark-to-actual
+        # recipe) — but REWRITE any embedded prior-year constants (MODEL_SPEC rule);
+        # a copied constant is a stale 2024 number wearing a 2025 costume
         for r in iv.get("formula_rows", []):
             pv = pre_wb[sheet][f"{s_prior}{r}"].value
             if isinstance(pv, str) and pv.startswith("="):
-                writer.write(sheet, f"{s_target}{r}",
-                             workbook.shift_formula(pv, s_prior, s_target),
-                             prior_coord=f"{s_prior}{r}")
+                shifted = workbook.shift_formula(pv, s_prior, s_target)
+                new_f, flag_row = shifted, None
+                if mapping._CONSTS.match(pv):
+                    comp = mapping._recompose(pv, staging)
+                    if comp:
+                        new_f = comp
+                    else:
+                        flag_row = "red"
+                elif re.search(r"(?<![A-Za-z0-9_.])\d{3,}(?![A-Za-z0-9_.])", pv):
+                    new_f, ok = mapping.rewrite_constants(shifted, staging)
+                    if not ok:
+                        flag_row = "red"
+                writer.write(sheet, f"{s_target}{r}", new_f,
+                             prior_coord=f"{s_prior}{r}",
+                             note=("CONSTANTS NOT FULLY REWRITTEN from prior formula "
+                                   f"{pv} — verify each embedded number" if flag_row else None),
+                             flag=flag_row)
+                if flag_row:
+                    flags.append((sheet, f"{s_target}{r}",
+                                  f"prior formula {pv}: embedded constants unresolved"))
         writer.format_rollover(sheet, s_prior, s_target)
     # [4a] targeted rescue FIRST (few batched calls, high yield)
     rescued_keys = set()
