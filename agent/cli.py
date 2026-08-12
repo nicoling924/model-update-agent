@@ -427,6 +427,43 @@ def cmd_update(company_dir, period):
                          flag="red")
             flags.append((cs, pc["coord"], "embedded constants unresolved (time budget)"))
 
+    # [4c-pre] memory-guided page reads: identity known but label absent from this
+    # extraction — read the remembered page area directly (page drift tolerated)
+    mem_candidates = []
+    for (s_m, r_m), p_m in sorted(pending.items()):
+        m_e = memory.get((s_m, r_m))
+        if not m_e or m_e.get("kind") != "input" or not m_e.get("page"):
+            continue
+        e_m = p_m["entry"]
+        if e_m.get("source") == "memory-identity" and e_m.get("flag") is None:
+            continue  # memory already served this row cleanly
+        coord_m = p_m["coord"]
+        if any(f_[0] == s_m and f_[1] == coord_m for f_ in flags) or True:
+            pg = int(m_e["page"])
+            mem_candidates.append({"sheet": s_m, "row": r_m,
+                                   "label": m_e.get("label") or p_m["label"],
+                                   "prior_value": p_m["prior_value"],
+                                   "pages": list(range(max(1, pg - 2), pg + 6)),
+                                   "coord": coord_m,
+                                   "prior_coord": p_m["prior_coord"]})
+    if mem_candidates and time.time() < deadline:
+        mem_res = targeted.rescue(map_client, system, disclosures, mem_candidates, cfg, maplog)
+        fixed_m = 0
+        for cand in mem_candidates:
+            res = mem_res.get((cand["sheet"], cand["row"]))
+            if not res:
+                continue
+            writer.write(cand["sheet"], cand["coord"], res["value"],
+                         prior_coord=cand["prior_coord"],
+                         note="memory-guided page read: " + (res.get("note") or ""),
+                         flag=res.get("flag"))
+            flags = [f_ for f_ in flags if not (f_[0] == cand["sheet"] and f_[1] == cand["coord"])]
+            if res.get("flag"):
+                flags.append((cand["sheet"], cand["coord"], res.get("note") or ""))
+            fixed_m += 1
+        print(f"[4c0] memory-guided page reads recovered {fixed_m}/{len(mem_candidates)} rows",
+              flush=True)
+
     # [4c] per-row LLM consults LAST, only for rows neither path resolved
     consults = 0
     for cand in rescue_candidates:

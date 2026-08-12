@@ -42,6 +42,12 @@ def rescue(client, system, disclosure_paths, unresolved, cfg, log):
     # locate landmark pages per row, group rows sharing pages into batches
     batches = {}
     for u in unresolved:
+        placed = False
+        if u.get("pages"):  # memory-guided: read the remembered page area directly
+            doc = u.get("doc") or next(iter(pages_by_doc))
+            key = (doc, tuple(u["pages"]))
+            batches.setdefault(key, []).append(u)
+            continue
         for doc, pt in pages_by_doc.items():
             cp = candidate_pages(pt, u.get("prior_value"))
             if cp:

@@ -48,7 +48,9 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
         hits = [it for it in staging["items"]
                 if norm(it.get("label")) == norm(mem["label"])
                 and isinstance(it.get("value"), (int, float))
-                and (not mem.get("stmt") or it.get("stmt") == mem.get("stmt"))]
+                and (not mem.get("stmt") or it.get("stmt") == mem.get("stmt"))
+                and (not mem.get("segment") or not it.get("segment")
+                     or norm(str(it.get("segment"))) == norm(str(mem.get("segment"))))]
         if hits:
             best = hits[0]
             if isinstance(pv0, (int, float)) and pv0:
