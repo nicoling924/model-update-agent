@@ -254,9 +254,13 @@ def _plausible(item, row):
 
 
 def _accept(item, row, how):
-    return {"value": item["value"], "source": how, "flag": None,
-            "note": f"{item['label']}, {item.get('doc','')} p{item['page']}",
-            "page": item["page"]}
+    entry = {"value": item["value"], "source": how, "flag": None,
+             "note": f"{item['label']}, {item.get('doc','')} p{item['page']}",
+             "page": item["page"]}
+    if item.get("disputed"):
+        entry["flag"] = "red"
+        entry["note"] = ("DISPUTED between extraction passes — verify. " + entry["note"])
+    return entry
 
 
 def _llm_map(row, staging, client, system, mapping_prompt, cfg, log):

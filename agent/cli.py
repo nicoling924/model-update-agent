@@ -103,6 +103,29 @@ def cmd_update(company_dir, period):
     est_snapshot = workbook.snapshot_column(pre_values, stmts_sheet, cols[target_year])
     print(f"[1] target: {target_year} (col {target_col}); prior actual: {last_actual} ({prior_col})")
 
+    # -- 2a. CHUNKED PAGE-READS FIRST — the primary path, never starved -------
+    # Needs only page texts + the model's own prior values; runs before the big
+    # extraction and is exempt from the LLM walk-away deadline by position.
+    from . import targeted
+    map_client = Client(temperature=cfg["updater"]["temperature"],
+                        max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
+    all_rows = []
+    for sheet_c, iv_c in (spec.get("input_vs_formula") or {}).items():
+        ax_c = spec["year_axis"].get(sheet_c, spec["year_axis"][stmts_sheet])
+        pc_c = ax_c["columns"].get(last_actual)
+        hr_c = ax_c.get("header_row", 1)
+        wsp = pre_values[sheet_c]
+        for r in iv_c.get("input_rows", []):
+            if r == hr_c or pc_c is None:
+                continue
+            lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
+                        if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
+            all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
+                             "prior_value": wsp[f"{pc_c}{r}"].value})
+    chunked = targeted.rescue(map_client, system, disclosures, all_rows, cfg, [])
+    print(f"[2a] chunked reads (primary) corroborated {len(chunked)}/{len(all_rows)} "
+          "input rows", flush=True)
+
     # -- 2/3. ingest + extract (validated), cached by content signature ------
     import hashlib
     import json as _json
@@ -147,9 +170,6 @@ def cmd_update(company_dir, period):
     glossary = mapping.build_glossary(cfg, spec)
     maplog, backouts, flags = [], [], []
     backout_rules = {str(b.get("row_ref")): b for b in spec.get("backout_rules") or []}
-    # mapping consultations are small questions — small fast budget, no escalation needed
-    map_client = Client(temperature=cfg["updater"]["temperature"],
-                        max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
     deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.75
     rows_done = 0
     rescue_candidates = []
@@ -209,19 +229,7 @@ def cmd_update(company_dir, period):
                     flags.append((sheet, f"{s_target}{r}",
                                   f"prior formula {pv}: embedded constants unresolved"))
         writer.format_rollover(sheet, s_prior, s_target)
-    # [4a] chunked page-reads for ALL input rows — the PRIMARY resolution path.
-    # Each batch is a small task ("read this table, priors are your landmarks"),
-    # the regime where the LLM is most accurate.
-    from . import targeted
-    all_rows = [{"sheet": s, "row": r, "label": p["label"],
-                 "prior_value": p["prior_value"]} for (s, r), p in pending.items()]
-    chunked = {}
-    if time.time() < deadline:
-        chunked = targeted.rescue(map_client, system, disclosures, all_rows, cfg, maplog)
-    print(f"[4a] chunked reads corroborated {len(chunked)}/{len(all_rows)} input rows",
-          flush=True)
-
-    # [4b] merge chunked reads with the deterministic cascade, then write.
+    # [4b] merge the (already-computed) chunked reads with the cascade, then write.
     # Agreement of the two independent paths -> unflagged; disagreement -> the
     # page-quoted chunk wins but is red-flagged with both values in the note.
     agree = conflict = chunk_only = cascade_only = 0

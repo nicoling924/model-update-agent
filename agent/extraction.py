@@ -85,6 +85,9 @@ def _majority(passes):
 
 
 def _consensus(a, b):
+    """2-pass merge, COVERAGE-PRESERVING: agreed items stay clean; items only in
+    pass 1 or with disagreeing values are KEPT but marked disputed (downstream
+    treats disputed like low-trust: never accepted without corroboration)."""
     def key(it):
         return (it.get("stmt"), __import__("re").sub(r"[^a-z0-9]+", " ",
                 str(it.get("label", "")).lower()).strip())
@@ -93,6 +96,7 @@ def _consensus(a, b):
         bmap.setdefault(key(it), []).append(it)
     items = []
     for it in a["items"]:
+        matched = False
         for cand in bmap.get(key(it), []):
             va, vb = it.get("value"), cand.get("value")
             if isinstance(va, (int, float)) and isinstance(vb, (int, float)) \
@@ -100,8 +104,11 @@ def _consensus(a, b):
                 pa, pb = it.get("prior"), cand.get("prior")
                 if isinstance(pa, (int, float)) and isinstance(pb, (int, float)) and abs(pa - pb) > 1.0:
                     it = dict(it, prior=None)  # values agree, priors don't — keep value only
-                items.append(it)
+                matched = True
                 break
+        if not matched:
+            it = dict(it, disputed=True)  # keep the data, mark the doubt
+        items.append(it)
     ids = {it["id"] for it in items}
     ties = [t for t in a["ties"]
             if all(i in ids for i in t.get("lhs", []) + t.get("rhs", []))]
