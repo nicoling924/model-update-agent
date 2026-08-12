@@ -174,6 +174,7 @@ def cmd_update(company_dir, period):
     rows_done = 0
     rescue_candidates = []
     pending = {}  # (sheet, row) -> cascade entry + coords, written after merge
+    pending_consts = {}  # (sheet, row) -> formula with unresolved embedded constants
     for sheet, iv in (spec.get("input_vs_formula") or {}).items():
         s_axis = spec["year_axis"].get(sheet, axis)
         s_prior = s_axis["columns"].get(last_actual, prior_col)
@@ -209,25 +210,22 @@ def cmd_update(company_dir, period):
             pv = pre_wb[sheet][f"{s_prior}{r}"].value
             if isinstance(pv, str) and pv.startswith("="):
                 shifted = workbook.shift_formula(pv, s_prior, s_target)
-                new_f, flag_row = shifted, None
-                if mapping._CONSTS.match(pv):
-                    comp = mapping._recompose(pv, staging)
-                    if comp:
-                        new_f = comp
-                    else:
-                        flag_row = "red"
-                elif re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", pv):
-                    new_f, ok = mapping.rewrite_constants(shifted, staging)
-                    if not ok:
-                        flag_row = "red"
-                writer.write(sheet, f"{s_target}{r}", new_f,
-                             prior_coord=f"{s_prior}{r}",
-                             note=("CONSTANTS NOT FULLY REWRITTEN from prior formula "
-                                   f"{pv} — verify each embedded number" if flag_row else None),
-                             flag=flag_row)
-                if flag_row:
-                    flags.append((sheet, f"{s_target}{r}",
-                                  f"prior formula {pv}: embedded constants unresolved"))
+                new_f, unresolved = shifted, []
+                if mapping._CONSTS.match(pv) or \
+                        re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", pv):
+                    new_f, ok, unresolved = mapping.rewrite_constants(shifted, staging)
+                if unresolved:
+                    # queue embedded constants for component-level landmark reads
+                    lab = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
+                                if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
+                               f"row {r}")
+                    pending_consts[(sheet, r)] = {
+                        "formula": new_f, "unresolved": list(unresolved),
+                        "coord": f"{s_target}{r}", "prior_coord": f"{s_prior}{r}",
+                        "label": lab, "prior_formula": pv}
+                else:
+                    writer.write(sheet, f"{s_target}{r}", new_f,
+                                 prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
     # [4b] merge the (already-computed) chunked reads with the cascade, then write.
     # Agreement of the two independent paths -> unflagged; disagreement -> the
@@ -279,6 +277,49 @@ def cmd_update(company_dir, period):
     print(f"[4b] merge: {agree} agreed, {conflict} conflicts (flagged), "
           f"{chunk_only} chunk-only, {cascade_only} cascade-only", flush=True)
 
+    # [4b2] component-level landmark reads: each unresolved embedded constant is
+    # its own tiny task — "find the line whose prior-year column shows <c>" —
+    # generic across model styles because it needs only the constant itself
+    if pending_consts and time.time() < deadline:
+        comp_rows = []
+        for (cs, cr), pc in pending_consts.items():
+            for j, tok in enumerate(pc["unresolved"]):
+                comp_rows.append({"sheet": cs, "row": f"{cr}#c{j}",
+                                  "label": pc["label"],
+                                  "prior_value": float(tok)})
+        comp_res = targeted.rescue(map_client, system, disclosures, comp_rows, cfg, maplog)
+        resolved_n = 0
+        for (cs, cr), pc in sorted(pending_consts.items()):
+            f_txt, left = pc["formula"], []
+            for j, tok in enumerate(pc["unresolved"]):
+                res = comp_res.get((cs, f"{cr}#c{j}"))
+                if res and isinstance(res.get("value"), (int, float)):
+                    nv = abs(res["value"])  # formula text carries its own sign operator
+                    nv_s = str(int(nv)) if nv == int(nv) else str(nv)
+                    f_txt = re.sub(rf"(?<![A-Za-z0-9_.]){re.escape(tok)}(?![A-Za-z0-9_.])",
+                                   nv_s, f_txt, count=1)
+                    resolved_n += 1
+                else:
+                    left.append(tok)
+            flag_row = "red" if left else None
+            writer.write(cs, pc["coord"], f_txt, prior_coord=pc["prior_coord"],
+                         note=(f"CONSTANTS UNRESOLVED {left} from prior formula "
+                               f"{pc['prior_formula']} — verify" if left else
+                               f"embedded constants rewritten (staging + landmark reads) "
+                               f"from {pc['prior_formula']}"),
+                         flag=flag_row)
+            if flag_row:
+                flags.append((cs, pc["coord"],
+                              f"embedded constants unresolved: {left}"))
+        print(f"[4b2] component landmark reads resolved {resolved_n} embedded "
+              f"constants across {len(pending_consts)} composite formulas", flush=True)
+    elif pending_consts:
+        for (cs, cr), pc in sorted(pending_consts.items()):
+            writer.write(cs, pc["coord"], pc["formula"], prior_coord=pc["prior_coord"],
+                         note=f"CONSTANTS UNRESOLVED {pc['unresolved']} — verify",
+                         flag="red")
+            flags.append((cs, pc["coord"], "embedded constants unresolved (time budget)"))
+
     # [4c] per-row LLM consults LAST, only for rows neither path resolved
     consults = 0
     for cand in rescue_candidates:
@@ -295,6 +336,14 @@ def cmd_update(company_dir, period):
             consults += 1
     if consults:
         print(f"[4c] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
+
+    # circular-reference detection + repair (mark-to-actual law: a converted
+    # column is actual-mode THROUGHOUT — no cell may be left in forecast-mode)
+    leftover_cycles = workbook.repair_cycles(wb, spec, writer, flags,
+                                             target_year, pre_wb)
+    if leftover_cycles:
+        print("STRUCTURAL FAILURE: unrepairable circular references:", leftover_cycles)
+        sys.exit(2)
 
     # per-company confirmed corrections (machine-actionable MODEL_SPEC landmines)
     for fx in spec.get("analyst_fixes") or []:

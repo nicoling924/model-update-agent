@@ -113,6 +113,62 @@ class Writer:
                 cell.fill = fill
 
 
+def repair_cycles(wb, spec, writer, flags, target_year, pre_wb, max_rounds=3):
+    """Detect circular references in the target column and repair them by the
+    mark-to-actual law: a converted column must be actual-mode THROUGHOUT, so any
+    untouched cell caught in a cycle gets the PRIOR actual column's formula
+    (shifted), red-flagged. Returns the list of unrepairable cycles (should be
+    empty; non-empty = structural failure)."""
+    import re as _re
+    from .evaluator import Evaluator
+    for _ in range(max_rounds):
+        ev = Evaluator(wb)
+        for sheet, axis in (spec.get("year_axis") or {}).items():
+            tcol = (axis.get("columns") or {}).get(str(target_year))
+            if not tcol or sheet not in wb.sheetnames:
+                continue
+            ws = wb[sheet]
+            for r in range(1, min(ws.max_row, 400) + 1):
+                if ws[f"{tcol}{r}"].value is not None:
+                    try:
+                        ev.cell(sheet, f"{tcol}{r}")
+                    except Exception:
+                        pass
+        cyc = sorted(set(ev.cycles))
+        if not cyc:
+            return []
+        written = set(writer.log["written"])
+        repaired = False
+        for s, co in cyc:
+            if f"{s}!{co}" in written or s not in (spec.get("year_axis") or {}):
+                continue
+            m = _re.match(r"([A-Z]+)(\d+)$", co)
+            if not m:
+                continue
+            col, row = m.group(1), m.group(2)
+            cols = spec["year_axis"][s].get("columns") or {}
+            years = sorted(cols)
+            try:
+                i = years.index(str(target_year))
+            except ValueError:
+                continue
+            if i == 0 or cols.get(str(target_year)) != col:
+                continue
+            pcol = cols[years[i - 1]]
+            pv = pre_wb[s][f"{pcol}{row}"].value
+            if isinstance(pv, str) and pv.startswith("="):
+                writer.write(s, co, shift_formula(pv, pcol, col),
+                             prior_coord=f"{pcol}{row}",
+                             note=("CYCLE REPAIR: cell was left in forecast-mode inside "
+                                   f"an actual column; converted by copying prior-column "
+                                   f"formula {pv}"), flag="red")
+                flags.append((s, co, "cycle repair: converted to actual-mode"))
+                repaired = True
+        if not repaired:
+            return cyc
+    return sorted(set(Evaluator(wb).cycles))
+
+
 def clobber_diff(pre_map, post_wb, allowed_cols, allowed_cells, skip_sheets=()):
     """Cells changed outside the target column(s) + explicitly allowed cells.
     Non-empty result = formulas were clobbered = delivery must be blocked."""
