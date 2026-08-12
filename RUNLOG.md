@@ -73,6 +73,8 @@ reading, process, or prompting (proven by elimination across 3 harness
 generations). Production path to 90%+: accumulate analyst rulings in the
 per-company spec across periods; each run's flags are the next run's rules.
 
+| 27 (Sol+tables, branch) | 08-12 09:04 | 63.2m ❌ | 75.7% | 1,810 | 115 | 53 | Sol lands mid-tier, between Luna (71.7) and Terra (77.4), confirming the model-quality gradient. Most thorough extraction of the benchmark (3,637 items / 470 ties) yet mid-band accuracy — same judgment-bound ceiling. Benchmark remains closed; no further runs without explicit instruction. |
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
