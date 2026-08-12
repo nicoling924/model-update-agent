@@ -174,7 +174,31 @@ def _complete(it):
 _NUMTOKEN = __import__("re").compile(r"\d[\d,]{2,}")
 
 
+def _coerce_num(x):
+    """'1,234' -> 1234.0; '(56)' -> -56.0; '-'/'n/a'/'' -> None; numbers pass through."""
+    if isinstance(x, (int, float)):
+        return float(x)
+    if isinstance(x, str):
+        t = x.strip().replace(",", "").replace("\u2013", "-").replace("\u2014", "-")
+        neg = t.startswith("(") and t.endswith(")")
+        t = t.strip("()")
+        try:
+            v = float(t)
+            return -v if neg else v
+        except ValueError:
+            return None
+    return None
+
+
+def _clean(obj):
+    for it in obj.get("items", []):
+        it["value"] = _coerce_num(it.get("value"))
+        it["prior"] = _coerce_num(it.get("prior"))
+    return obj
+
+
 def _validator(obj):
+    _clean(obj)
     errs = []
     items = {it.get("id"): it for it in obj.get("items", [])}
     if not items:
@@ -212,6 +236,7 @@ def _validator(obj):
 
 
 def _shape_validator(obj):
+    _clean(obj)
     errs = []
     for it in obj.get("items", []):
         if not it.get("id"):
