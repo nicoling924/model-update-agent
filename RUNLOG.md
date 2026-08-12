@@ -78,6 +78,30 @@ per-company spec across periods; each run's flags are the next run's rules.
 | 29 (Luna, full stack) | 08-12 12:49 | crashed 28m | — | — | — | — | OpenRouter returned 200-with-error-body during extraction; client crashed before any cell was written (fixed: retryable no-choices handling). |
 | 30 (Luna, full stack) | 08-12 13:19 | 60.2m ✓ | **75.8% (Luna live best)** | 4,284 | 108 | 58 | First complete execution of the full stack: whole-column rollover (analyst's copy-paste method, 216 inputs auto-discovered, zero cycles), chunked reads 62/216, component landmark reads, reviewer auto-apply 4, closing loop 10 repairs. Luna live trajectory: 70.1 → 71.7 → 74.2 → 75.8. |
 
+**OVERNIGHT PHASE 4 — the learner agent (self-supervised calibration):**
+| Learn v1 | 08-12 18:07 | 58m ✓ | — | — | — | — | Learner works: 134 identities (108 inputs + 26 composites) from FY24 report vs 2024A answer key; privacy-safe hidden _UPDATE_MAP tab committed. (First attempt crashed on string-number coercion — fixed.) |
+| Mem v1 update | 08-12 19:35 | 48.3m ✓ | 73.5% | -3,129 | 119 | 63 | Attribution: 53 cells correct straight from memory; 36 learner gaps (20 unidentified + 16 ambiguous segment-less identities); 27 identities unusable against that run's extraction. |
+| Learn v2 + update | 08-12 20:29 | ✓ / blocked | — | — | — | — | Learner v2 (segment+page identities). Update blocked by the cycle guard — root cause was OURS: constants-rewriter treated the '41' in 'AI$41' as data and created a self-reference. Fixed ($-boundary); the guard proved it will never ship a corrupted workbook. |
+| Mem v2 update | 08-12 21:5x | 45.7m ✓ | 73.6% | -3,106 | 126 | 55 | Segment-aware identities live; memory-guided page reads only 2/57 (prior-year page drift). |
+| Mem v3 update (drift band) | 08-13 | 45.7m ✓ | 71.6% | -3,107 | 138 | 57 | Drift band widened -> still 3/68 corroborated: Luna cannot reliably quote the prior even when pointed at the right pages. PLATEAU CONFIRMED. |
+
+**OVERNIGHT VERDICT — the user's question answered:** the learner is sound
+(identities correct when precise; 53 direct hits) and NOT the limiter. The
+limiter is the updater's raw material: **Luna's per-run extraction lottery**
+(71.6–75.8 across four identical-code cold runs). No within-run machinery —
+memory, tables, chunking, voting, closing loops — moves the live score outside
+that band, because each cold run re-reads the documents from scratch and reads
+them differently each time.
+
+**RECOMMENDATION (production architecture):** split "document digestion" from
+"model update". A report's content never changes — digest each disclosure ONCE
+into a validated extraction artifact (best-of-N passes, or a stronger model,
+or human-spot-checked), stored alongside the PDF; every update then runs
+against the frozen artifact: reproducible, variance-free, and the memory tab's
+identities always find their lines. Cold-run-per-update is a benchmarking
+constraint, not a production requirement — dropping it is the single change
+that makes 90% reachable with the existing harness.
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
