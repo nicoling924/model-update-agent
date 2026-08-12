@@ -75,6 +75,9 @@ per-company spec across periods; each run's flags are the next run's rules.
 
 | 27 (Sol+tables, branch) | 08-12 09:04 | 63.2m ❌ | 75.7% | 1,810 | 115 | 53 | Sol lands mid-tier, between Luna (71.7) and Terra (77.4), confirming the model-quality gradient. Most thorough extraction of the benchmark (3,637 items / 470 ties) yet mid-band accuracy — same judgment-bound ceiling. Benchmark remains closed; no further runs without explicit instruction. |
 
+| 29 (Luna, full stack) | 08-12 12:49 | crashed 28m | — | — | — | — | OpenRouter returned 200-with-error-body during extraction; client crashed before any cell was written (fixed: retryable no-choices handling). |
+| 30 (Luna, full stack) | 08-12 13:19 | 60.2m ✓ | **75.8% (Luna live best)** | 4,284 | 108 | 58 | First complete execution of the full stack: whole-column rollover (analyst's copy-paste method, 216 inputs auto-discovered, zero cycles), chunked reads 62/216, component landmark reads, reviewer auto-apply 4, closing loop 10 repairs. Luna live trajectory: 70.1 → 71.7 → 74.2 → 75.8. |
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
