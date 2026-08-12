@@ -49,6 +49,8 @@ cross-check on every write (agreement -> unflagged, conflict -> flagged), and
 bounded reviewer auto-apply of incontrovertible catches. Hypothesis: a better
 harness lifts the weakest model past its own ~70% plateau.
 
+| 21 (Luna, new harness) | 08-12 01:06 | 86.6m ❌ (>60) | 62.3% | 9,636 | 169 | 91 | **The headline feature never ran**: triple extraction on slow Luna consumed the whole LLM time budget, so the chunked primary reads were skipped by the walk-away deadline (0/179 corroborated) — the run degraded to cascade-only on a heavily shrunken majority-filtered extraction (890 of ~1,700 items). Reviewer auto-apply worked (4 incontrovertible fixes applied + re-verified). Not a test of the chunked design — a scheduling failure. Fix queued for r22: chunked reads run FIRST and are exempt from the deadline; votes 3→2 for slow models. |
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
