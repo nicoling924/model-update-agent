@@ -109,15 +109,27 @@ def cmd_update(company_dir, period):
     from . import targeted
     map_client = Client(temperature=cfg["updater"]["temperature"],
                         max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
-    all_rows = []
-    for sheet_c, iv_c in (spec.get("input_vs_formula") or {}).items():
-        ax_c = spec["year_axis"].get(sheet_c, spec["year_axis"][stmts_sheet])
+    # input census = spec-listed input rows UNION every hardcode the prior actual
+    # column actually holds (runtime discovery — spec lists become a hint, not a cage)
+    census = {}
+    for sheet_c, ax_c in spec["year_axis"].items():
         pc_c = ax_c["columns"].get(last_actual)
         hr_c = ax_c.get("header_row", 1)
+        if not pc_c or sheet_c not in pre_wb.sheetnames:
+            continue
+        rows_c = set((spec.get("input_vs_formula") or {}).get(sheet_c, {}).get("input_rows", []))
+        wsf = pre_wb[sheet_c]
+        for r in range(1, min(wsf.max_row, 400) + 1):
+            if isinstance(wsf[f"{pc_c}{r}"].value, (int, float)):
+                rows_c.add(r)
+        rows_c.discard(hr_c)
+        census[sheet_c] = sorted(rows_c)
+    all_rows = []
+    for sheet_c, rows_c in census.items():
+        ax_c = spec["year_axis"][sheet_c]
+        pc_c = ax_c["columns"].get(last_actual)
         wsp = pre_values[sheet_c]
-        for r in iv_c.get("input_rows", []):
-            if r == hr_c or pc_c is None:
-                continue
+        for r in rows_c:
             lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
                         if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
             all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
@@ -166,6 +178,23 @@ def cmd_update(company_dir, period):
                                     f"{prior_model} -> {cands[0]['prior']} (p{cands[0]['page']})")
     print(f"[3] restatement scan: {len(restatements)} restated")
 
+    # -- 3b. WHOLE-COLUMN ROLLOVER (the analyst's own move; pure code, no LLM):
+    # copy the entire prior actual column — values, Excel-shifted formulas,
+    # types, formats — so the converted column is actual-mode with no cell
+    # left behind. Disclosed inputs overwrite it next.
+    rollover_hardcodes = {}
+    for sheet_rv, ax_rv in spec["year_axis"].items():
+        pc_rv = ax_rv["columns"].get(last_actual)
+        tc_rv = ax_rv["columns"].get(target_year)
+        if not pc_rv or not tc_rv or sheet_rv not in wb.sheetnames:
+            continue
+        hr_rv = ax_rv.get("header_row", 1)
+        rows_hc = workbook.rollover_column(wb, sheet_rv, pc_rv, tc_rv,
+                                           header_rows={hr_rv})
+        rollover_hardcodes[sheet_rv] = set(rows_hc)
+    print(f"[3b] whole-column rollover: prior actual column copied across "
+          f"{len(rollover_hardcodes)} sheets (Excel-shifted formulas)", flush=True)
+
     # -- 5. map + apply ------------------------------------------------------
     glossary = mapping.build_glossary(cfg, spec)
     maplog, backouts, flags = [], [], []
@@ -181,7 +210,7 @@ def cmd_update(company_dir, period):
         s_target = s_axis["columns"].get(target_year, target_col)
         ws_prior = pre_values[sheet]
         header_r = s_axis.get("header_row", 1)
-        for r in iv.get("input_rows", []):
+        for r in census.get(sheet, []):
             if r == header_r:
                 continue  # year headers are written separately, never mapped
             label = next((ws_prior[f"{lc}{r}"].value for lc in "ABCDEF"
@@ -206,26 +235,29 @@ def cmd_update(company_dir, period):
         # formula rows: re-copy prior pattern shifted one column (mark-to-actual
         # recipe) — but REWRITE any embedded prior-year constants (MODEL_SPEC rule);
         # a copied constant is a stale 2024 number wearing a 2025 costume
-        for r in iv.get("formula_rows", []):
-            pv = pre_wb[sheet][f"{s_prior}{r}"].value
-            if isinstance(pv, str) and pv.startswith("="):
-                shifted = workbook.shift_formula(pv, s_prior, s_target)
-                new_f, unresolved = shifted, []
-                if mapping._CONSTS.match(pv) or \
-                        re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", pv):
-                    new_f, ok, unresolved = mapping.rewrite_constants(shifted, staging)
-                if unresolved:
-                    # queue embedded constants for component-level landmark reads
-                    lab = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
-                                if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
-                               f"row {r}")
-                    pending_consts[(sheet, r)] = {
-                        "formula": new_f, "unresolved": list(unresolved),
-                        "coord": f"{s_target}{r}", "prior_coord": f"{s_prior}{r}",
-                        "label": lab, "prior_formula": pv}
-                else:
-                    writer.write(sheet, f"{s_target}{r}", new_f,
-                                 prior_coord=f"{s_prior}{r}")
+        # constants sweep over ALL rolled formula cells in this sheet's column:
+        # rewrite embedded prior-year constants; queue unresolved for landmark reads
+        ws_cur = wb[sheet]
+        for r in range(1, min(ws_cur.max_row, 400) + 1):
+            if r == header_r:
+                continue
+            cur = ws_cur[f"{s_target}{r}"].value
+            if not (isinstance(cur, str) and cur.startswith("=")):
+                continue
+            if not re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", cur):
+                continue
+            new_f, ok, unresolved = mapping.rewrite_constants(cur, staging)
+            if unresolved:
+                lab = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
+                            if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
+                           f"row {r}")
+                pending_consts[(sheet, r)] = {
+                    "formula": new_f, "unresolved": list(unresolved),
+                    "coord": f"{s_target}{r}", "prior_coord": f"{s_prior}{r}",
+                    "label": lab, "prior_formula": cur}
+            elif new_f != cur:
+                writer.write(sheet, f"{s_target}{r}", new_f,
+                             prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
     # [4b] merge the (already-computed) chunked reads with the cascade, then write.
     # Agreement of the two independent paths -> unflagged; disagreement -> the
@@ -336,6 +368,26 @@ def cmd_update(company_dir, period):
             consults += 1
     if consults:
         print(f"[4c] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
+
+    # any rolled-over hardcode that mapping did not overwrite is, by definition,
+    # a stale prior-year number: flag it red — complete coverage, no silent gaps
+    written_set = set(writer.log["written"])
+    carried_n = 0
+    for sheet_hc, rowset in rollover_hardcodes.items():
+        tc_hc = spec["year_axis"][sheet_hc]["columns"].get(target_year)
+        for r in sorted(rowset):
+            coord = f"{sheet_hc}!{tc_hc}{r}"
+            if coord in written_set:
+                continue
+            cell_hc = wb[sheet_hc][f"{tc_hc}{r}"]
+            writer.write(sheet_hc, f"{tc_hc}{r}", cell_hc.value,
+                         note="CARRIED prior-year actual — not located in disclosure; verify",
+                         flag="red")
+            flags.append((sheet_hc, f"{tc_hc}{r}", "carried prior-year hardcode"))
+            carried_n += 1
+    if carried_n:
+        print(f"[4d] {carried_n} rolled hardcodes not updated -> red-flagged as carried",
+              flush=True)
 
     # circular-reference detection + repair (mark-to-actual law: a converted
     # column is actual-mode THROUGHOUT — no cell may be left in forecast-mode)

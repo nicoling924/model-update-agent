@@ -53,6 +53,66 @@ def shift_formula(formula, from_col, to_col):
     return pat.sub(lambda m: to_col + m.group(2), formula)
 
 
+def _col2n(c):
+    n = 0
+    for ch in c:
+        n = n * 26 + ord(ch) - 64
+    return n
+
+
+def _n2col(n):
+    s = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def shift_formula_excel(formula, offset=1):
+    """Shift ALL relative column references by `offset`, exactly like Excel's
+    copy-paste one column right: AG20*AH21 -> AH20*AI21; $-absolute columns and
+    row numbers stay put. Sheet-qualified relative refs shift too (Excel does)."""
+    pat = re.compile(r"(\$?)([A-Z]{1,3})(\$?\d+)")
+
+    def sub(m):
+        if m.group(1) == "$":
+            return m.group(0)  # absolute column
+        return _n2col(_col2n(m.group(2)) + offset) + m.group(3)
+
+    # protect quoted sheet names from column-pattern collisions
+    parts = re.split(r"('[^']*')", formula)
+    return "".join(p if p.startswith("'") else pat.sub(sub, p) for p in parts)
+
+
+def rollover_column(wb, sheet, from_col, to_col, header_rows=()):
+    """The analyst's own move: copy the ENTIRE prior actual column into the
+    target column — values, formulas (Excel-shifted), types, formats — so the
+    converted column is actual-mode THROUGHOUT with no cell left behind.
+    Returns the rows that arrived as hardcodes (the runtime input census)."""
+    ws = wb[sheet]
+    hardcode_rows = []
+    for r in range(1, ws.max_row + 1):
+        if r in header_rows:
+            continue
+        src = ws[f"{from_col}{r}"]
+        dst = ws[f"{to_col}{r}"]
+        if type(src).__name__ == "MergedCell" or type(dst).__name__ == "MergedCell":
+            continue
+        v = src.value
+        if v is None:
+            dst.value = None
+            continue
+        if isinstance(v, str) and v.startswith("="):
+            dst.value = shift_formula_excel(v, 1)
+        else:
+            dst.value = v
+            if isinstance(v, (int, float)):
+                hardcode_rows.append(r)
+        dst._style = copy.copy(src._style)
+        dst.number_format = src.number_format
+    return hardcode_rows
+
+
 class Writer:
     def __init__(self, wb, cfg):
         self.wb = wb
