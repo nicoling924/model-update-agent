@@ -346,6 +346,7 @@ def cmd_update(company_dir, period):
         # target column only, bounded, read-back verified. Everything else stays
         # surfaced for the analyst, never silently fixed.
         applied = 0
+        applied_coords = []
         staged_vals = [it["value"] for it in staging["items"]
                        if isinstance(it.get("value"), (int, float))]
         for f in findings["findings"]:
@@ -365,12 +366,20 @@ def cmd_update(company_dir, period):
                 continue
             if not any(abs(val - sv) <= 1.0 or abs(-val - sv) <= 1.0 for sv in staged_vals):
                 continue  # no independent corroboration in validated extraction
+            # magnitude sanity vs prior year: a "fix" 20x off the prior is a misread
+            pv_chk = pre_values[sheet_f][f"{prior_col}{row_f}"].value \
+                if sheet_f in pre_values.sheetnames else None
+            if isinstance(pv_chk, (int, float)) and pv_chk != 0 and val != 0:
+                ratio = abs(val) / abs(pv_chk)
+                if ratio < 0.05 or ratio > 20:
+                    continue
             writer2 = workbook.Writer(wb, cfg)
             writer2.write(sheet_f, f"{col_f}{row_f}", val,
                           prior_coord=f"{prior_col}{row_f}" if sheet_f == stmts_sheet else None,
                           note=f"REVIEWER-APPLIED: {str(f.get('evidence',''))[:140]} "
                                f"(p{f.get('page','?')}; corroborated by extraction)")
             f["outcome"] = "auto-applied"
+            applied_coords.append(f"{sheet_f}!{col_f}{row_f}")
             applied += 1
         if applied:
             workbook.save(wb, model_path)
@@ -378,6 +387,28 @@ def cmd_update(company_dir, period):
             results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
             print(f"[6b] reviewer auto-applied {applied} incontrovertible fixes; "
                   f"re-verified: {len(soft)} exceptions remain", flush=True)
+
+    # -- 6c. closing loop: investigate cells under doubt (flagged + auto-applied),
+    # evidence-first, never touching cleanly-resolved cells
+    if soft:
+        from . import closing
+        eligible = {f"{s_}!{c_}" for s_, c_, _ in flags}
+        if cfg["reviewer"]["enabled"]:
+            eligible |= set(locals().get("applied_coords") or [])
+        writer_cl = workbook.Writer(wb, cfg)
+        writer_cl.log["written"] = list(writer.log["written"])
+        cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
+                                         target_year, pre_values=pre_values,
+                                         eligible=eligible)
+        if cl_log:
+            workbook.save(wb, model_path)
+            wb = workbook.load(model_path)
+            results, hard, soft = verify.run_checks(wb, spec, staging, cfg,
+                                                    pre_map, allowed)
+            print(f"[6c] closing loop repaired {len(cl_log)-1} doubted cells "
+                  f"(all red-flagged); {len(soft)} exceptions remain", flush=True)
+            for line in cl_log:
+                print("     ", line, flush=True)
 
     # -- 8. report -----------------------------------------------------------
     ev = Evaluator(wb)
