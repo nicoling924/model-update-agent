@@ -257,6 +257,15 @@ def _accept(item, row, how):
     entry = {"value": item["value"], "source": how, "flag": None,
              "note": f"{item['label']}, {item.get('doc','')} p{item['page']}",
              "page": item["page"]}
+    pv = row.get("prior_value") if isinstance(row, dict) else None
+    v = entry["value"]
+    if isinstance(pv, (int, float)) and isinstance(v, (int, float)) \
+            and pv != 0 and v != 0 and (v < 0) != (pv < 0):
+        # model's stored sign convention wins; genuine sign changes surface flagged
+        entry["value"] = -v
+        entry["flag"] = "red"
+        entry["note"] = ("SIGN HARMONIZED to model convention (disclosure printed "
+                         f"{v}) — verify. " + entry["note"])
     if item.get("disputed"):
         entry["flag"] = "red"
         entry["note"] = ("DISPUTED between extraction passes — verify. " + entry["note"])
