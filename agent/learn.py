@@ -51,7 +51,8 @@ def learn(wb, pre_values, spec, staging, census, tol=1.0):
                 it, flip = ident
                 entries.append({"sheet": sheet, "row": r, "kind": "input",
                                 "label": it["label"], "stmt": it.get("stmt"),
-                                "page": it.get("page"), "sign_flip": flip})
+                                "page": it.get("page"), "sign_flip": flip,
+                                "segment": it.get("segment")})
         # composite formulas: identify each embedded constant
         for r in range(1, min(wsf.max_row, 400) + 1):
             f = wsf[f"{pc}{r}"].value
@@ -114,6 +115,7 @@ def write_memory_tab(wb, entries):
         ws[f"F{i}"] = e.get("page")
         ws[f"G{i}"] = "Y" if e.get("sign_flip") else "N"
         ws[f"H{i}"] = json.dumps(e.get("components")) if e.get("components") else None
+        ws[f"I{i}"] = e.get("segment")
     return len(entries)
 
 
@@ -132,5 +134,6 @@ def read_memory_tab(wb):
             "kind": ws[f"C{r}"].value, "label": ws[f"D{r}"].value,
             "stmt": ws[f"E{r}"].value, "page": ws[f"F{r}"].value,
             "sign_flip": ws[f"G{r}"].value == "Y",
+            "segment": ws[f"I{r}"].value,
             "components": json.loads(comps) if comps else None}
     return out
