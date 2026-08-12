@@ -187,14 +187,17 @@ def _overlap(a, b):
     return bool(wa & wb) or not wa
 
 
+SCALARS = {10, 12, 52, 100, 365, 1000, 8760, 10000}  # unit/time scalars, never data
+
+
 def rewrite_constants(formula, staging):
     """Rewrite prior-year constants embedded in a MIXED formula (refs + constants).
-    Each constant >=100 must triangulate (consensus) prior->current; returns
-    (new_formula, all_resolved). Constants <100 are kept as-is (plugs/adjustments)."""
+    Each constant >=10 (non-scalar) triangulates (consensus) prior->current;
+    returns (new_formula, all_resolved, unresolved_tokens). Unresolved literal
+    tokens can be retried by component-level landmark reads."""
     from .extraction import find_by_prior
     all_ok = True
-
-    SCALARS = {10, 12, 52, 100, 365, 1000, 8760, 10000}  # unit/time scalars, never data
+    unresolved = []
 
     def sub(m):
         nonlocal all_ok
@@ -206,17 +209,19 @@ def rewrite_constants(formula, staging):
         vals = [h.get("value") for h in hits if isinstance(h.get("value"), (int, float))]
         if not vals or max(vals) - min(vals) > 1.0:
             all_ok = False
+            unresolved.append(m.group(0))
             return m.group(0)
         v = vals[0]
         # plausibility: same sign, sane YoY ratio — else likely a prior collision
         if v * c < 0 or not (0.4 <= abs(v) / abs(c) <= 2.5):
             all_ok = False
+            unresolved.append(m.group(0))
             return m.group(0)
         return str(int(v)) if v == int(v) else str(v)
 
     # match standalone numeric literals not part of cell refs (AH69) or row digits
     new = re.sub(r"(?<![A-Za-z0-9_.])\d+(?:\.\d+)?(?![A-Za-z0-9_.])", sub, formula)
-    return new, all_ok
+    return new, all_ok, unresolved
 
 
 def _recompose(prior_formula, staging):

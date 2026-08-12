@@ -42,11 +42,17 @@ class Evaluator:
         self.memo = {}
         self.cycles = []
 
+    _IN_PROGRESS = object()
+
     def cell(self, sheet, coord):
         key = (sheet, coord)
         if key in self.memo:
-            return self.memo[key]
-        self.memo[key] = 0  # cycle guard
+            v = self.memo[key]
+            if v is Evaluator._IN_PROGRESS:
+                self.cycles.append(key)  # genuine circular reference detected
+                return 0
+            return v
+        self.memo[key] = Evaluator._IN_PROGRESS
         v = self.wb[sheet][coord].value
         if v is None:
             r = 0
@@ -56,8 +62,6 @@ class Evaluator:
             r = self.formula(sheet, v[1:])
         else:
             r = v
-        if self.memo[key] == 0 and r != 0 and key in [c[0] for c in self.cycles]:
-            pass
         self.memo[key] = r
         return r
 
