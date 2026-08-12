@@ -217,6 +217,12 @@ def _validator(obj):
                     f"add the missing key(s) to this exact item")
     for tie in obj.get("ties", []):
         try:
+            refs = tie["lhs"] + tie["rhs"]
+            nones = [i for i in refs if items[i].get("value") is None]
+            if nones:
+                errs.append(f"tie '{tie.get('desc')}' references items with non-numeric "
+                            f"values {nones} — give numeric values or drop the tie")
+                continue
             lhs = sum(items[i]["value"] for i in tie["lhs"])
             rhs = sum(items[i]["value"] for i in tie["rhs"])
         except KeyError as e:
@@ -252,8 +258,10 @@ def _quarantine(obj):
     failing_ids, passing_ids = set(), set()
     for tie in obj.get("ties", []):
         try:
-            lhs = sum(items[i].get("value", 0) for i in tie.get("lhs", []))
-            rhs = sum(items[i].get("value", 0) for i in tie.get("rhs", []))
+            lhs = sum(items[i]["value"] or 0 if isinstance(items[i].get("value"), (int, float)) else 0
+                      for i in tie.get("lhs", []))
+            rhs = sum(items[i]["value"] or 0 if isinstance(items[i].get("value"), (int, float)) else 0
+                      for i in tie.get("rhs", []))
         except KeyError:
             continue
         refs = set(tie.get("lhs", []) + tie.get("rhs", []))
