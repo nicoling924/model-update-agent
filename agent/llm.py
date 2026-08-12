@@ -73,6 +73,14 @@ class Client:
                     raise LLMError(f"LLM request rejected: {msg}")
                 r.raise_for_status()
                 data = r.json()
+                if not data.get("choices"):
+                    # aggregators can return 200 with an error body (provider
+                    # hiccup, rate limit, credit issue) — treat as retryable
+                    msg = str((data.get("error") or {}).get("message", data))[:300]
+                    last_err = f"no-choices response: {msg}"
+                    slow = any(w in msg.lower() for w in ("rate", "quota", "credit", "capacity"))
+                    time.sleep(min(30 * (attempt + 1), 120) if slow else 5 * (attempt + 1))
+                    continue
                 u = data.get("usage") or {}
                 self.usage["calls"] += 1
                 self.usage["prompt_tokens"] += u.get("prompt_tokens", 0)
