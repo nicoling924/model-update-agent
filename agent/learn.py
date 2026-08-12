@@ -58,7 +58,7 @@ def learn(wb, pre_values, spec, staging, census, tol=1.0):
             f = wsf[f"{pc}{r}"].value
             if not (isinstance(f, str) and f.startswith("=")):
                 continue
-            toks = re.findall(r"(?<![A-Za-z0-9_.])\d{2,}(?:\.\d+)?(?![A-Za-z0-9_.])", f)
+            toks = re.findall(r"(?<![A-Za-z0-9_.$])\d{2,}(?:\.\d+)?(?![A-Za-z0-9_.])", f)
             comps = []
             for tok in toks:
                 c = float(tok)
