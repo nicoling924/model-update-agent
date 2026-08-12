@@ -59,6 +59,52 @@ def cmd_discover(company_dir):
           "an analyst removes the draft flag.")
 
 
+def cmd_learn(company_dir, prior_period):
+    """Calibration: learn row->disclosure-line identities from the PRIOR year's
+    report vs the workbook's own prior actual column; write hidden _UPDATE_MAP."""
+    from . import learn as learn_mod
+    t0 = time.time()
+    cfg = _load_cfg()
+    company_dir = Path(company_dir)
+    spec = yaml.safe_load((company_dir / "spec.yaml").read_text())
+    disclosures = sorted((company_dir / "disclosures" / prior_period).glob("*.pdf"))
+    if not disclosures:
+        sys.exit(f"No PDFs in disclosures/{prior_period}/ — attach the prior-year report.")
+    model_path = _model_path(company_dir, spec)
+    wb = workbook.load(model_path)
+    if learn_mod.MEMORY_TAB in wb.sheetnames:
+        print(f"{learn_mod.MEMORY_TAB} tab already present — memory exists, learner not needed.")
+        return
+    pre_values = workbook.load(model_path, data_only=True)
+    system = _system(company_dir)
+    client = Client(temperature=cfg["updater"]["temperature"],
+                    max_output_tokens=cfg["updater"]["max_output_tokens"])
+    print(f"[L1] extracting prior-year disclosures ({prior_period}) ...", flush=True)
+    staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
+    print(f"[L1] extracted {len(staging['items'])} items, {len(staging['ties'])} ties", flush=True)
+    # census of prior-column hardcodes
+    census = {}
+    for sheet_c, ax_c in spec["year_axis"].items():
+        pc_c = ax_c["columns"].get(str(ax_c.get("last_actual")))
+        hr_c = ax_c.get("header_row", 1)
+        if not pc_c or sheet_c not in wb.sheetnames:
+            continue
+        wsf = wb[sheet_c]
+        rows_c = [r for r in range(1, min(wsf.max_row, 400) + 1)
+                  if isinstance(wsf[f"{pc_c}{r}"].value, (int, float)) and r != hr_c]
+        census[sheet_c] = rows_c
+    entries = learn_mod.learn(wb, pre_values, spec, staging, census)
+    n = learn_mod.write_memory_tab(wb, entries)
+    workbook.save(wb, model_path)
+    wb2 = workbook.load(model_path)
+    assert learn_mod.MEMORY_TAB in wb2.sheetnames
+    kinds = {}
+    for e in entries:
+        kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
+    print(f"[L2] learned {n} identities {kinds} -> hidden {learn_mod.MEMORY_TAB} tab "
+          f"written (privacy-safe metadata only). {(time.time()-t0)/60:.1f} min")
+
+
 def cmd_update(company_dir, period):
     t0 = time.time()
     cfg = _load_cfg()
@@ -158,6 +204,12 @@ def cmd_update(company_dir, period):
         workbook.dump_json(staging, staging_path)
         print(f"[2] extracted {len(staging['items'])} items, {len(staging['ties'])} ties validated")
 
+    # memory tab: identities learned by the learner agent (if present)
+    from . import learn as learn_mod
+    memory = learn_mod.read_memory_tab(pre_wb)
+    if memory:
+        print(f"[M] using {len(memory)} learned identities from {learn_mod.MEMORY_TAB} tab")
+
     # -- 4. restatement scan ------------------------------------------------
     wb = workbook.load(model_path)
     writer = workbook.Writer(wb, cfg)
@@ -219,7 +271,8 @@ def cmd_update(company_dir, period):
             row_ctx = {"sheet": sheet, "row": r, "label": label,
                        "prior_value": ws_prior[f"{s_prior}{r}"].value,
                        "prior_formula": prior_cell.value if isinstance(prior_cell.value, str) else None,
-                       "backout_rule": backout_rules.get(f"{sheet}!{r}")}
+                       "backout_rule": backout_rules.get(f"{sheet}!{r}"),
+                       "memory": memory.get((sheet, r))}
             # pass 1 is deterministic-only; values are NOT written yet — the
             # chunked page-read (primary path) runs next and the two results
             # are merged with cross-checking before any write
@@ -319,7 +372,29 @@ def cmd_update(company_dir, period):
                 comp_rows.append({"sheet": cs, "row": f"{cr}#c{j}",
                                   "label": pc["label"],
                                   "prior_value": float(tok)})
+        # memory-known components resolve without any LLM call
+        mem_resolved = {}
+        for (cs, cr), pc in pending_consts.items():
+            m = memory.get((cs, cr))
+            comps = (m or {}).get("components") or []
+            for j, tok in enumerate(pc["unresolved"]):
+                ident = next((c for c in comps if c and c.get("token") == tok), None)
+                if not ident:
+                    continue
+                from .mapping import norm as _norm
+                hits = [it for it in staging["items"]
+                        if _norm(it.get("label")) == _norm(ident["label"])
+                        and isinstance(it.get("value"), (int, float))
+                        and (not ident.get("stmt") or it.get("stmt") == ident["stmt"])]
+                vals = sorted({round(h["value"], 1) for h in hits})
+                if len(vals) == 1:
+                    mem_resolved[(cs, f"{cr}#c{j}")] = {"value": vals[0],
+                        "page": hits[0].get("page"),
+                        "note": f"memory identity: '{ident['label']}'"}
+        comp_rows = [cr_ for cr_ in comp_rows
+                     if (cr_["sheet"], cr_["row"]) not in mem_resolved]
         comp_res = targeted.rescue(map_client, system, disclosures, comp_rows, cfg, maplog)
+        comp_res.update(mem_resolved)
         resolved_n = 0
         for (cs, cr), pc in sorted(pending_consts.items()):
             f_txt, left = pc["formula"], []
@@ -588,6 +663,10 @@ def main():
     cmd = sys.argv[1]
     if cmd == "discover":
         cmd_discover(sys.argv[2])
+    elif cmd == "learn":
+        if len(sys.argv) < 4:
+            sys.exit("usage: python run.py learn <company_dir> <prior_period>")
+        cmd_learn(sys.argv[2], sys.argv[3])
     elif cmd == "update":
         if len(sys.argv) < 4:
             sys.exit("usage: python run.py update <company_dir> <period>")
