@@ -440,10 +440,12 @@ def cmd_update(company_dir, period):
         coord_m = p_m["coord"]
         if any(f_[0] == s_m and f_[1] == coord_m for f_ in flags) or True:
             pg = int(m_e["page"])
+            # prior-year page positions drift in the new document (sections shift);
+            # cover the drift band rather than the exact remembered page
             mem_candidates.append({"sheet": s_m, "row": r_m,
                                    "label": m_e.get("label") or p_m["label"],
                                    "prior_value": p_m["prior_value"],
-                                   "pages": list(range(max(1, pg - 2), pg + 6)),
+                                   "pages": list(range(max(1, pg - 2), pg + 18)),
                                    "coord": coord_m,
                                    "prior_coord": p_m["prior_coord"]})
     if mem_candidates and time.time() < deadline:
