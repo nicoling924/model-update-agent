@@ -65,6 +65,14 @@ accumulation across periods, or analyst rulings can supply. Recommended
 production shape: Luna/Terra updater + accumulated spec + reviewer auto-apply,
 with first-run flags resolved by the analyst feeding the spec.
 
+| 26 (Terra+tables, branch) | 08-12 08:02 | **36.1m ✓ (fastest)** | 77.4% | -3,158 | 104 | 52 | Matrix complete: mid-band for Terra (78±4) — no breakout. Same stubborn judgment rows across all configs (FCA side, revenue split, recurring bridge). Tables verdict: cheapest+fastest+safest configuration at equal accuracy — merge-worthy on economics, not accuracy. |
+
+**BENCHMARK CLOSED (16 scored runs):** cold-first-run ceilings — Luna ~72%,
+Terra ~78% — are set by model judgment (allocation/definition calls), not by
+reading, process, or prompting (proven by elimination across 3 harness
+generations). Production path to 90%+: accumulate analyst rulings in the
+per-company spec across periods; each run's flags are the next run's rules.
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
