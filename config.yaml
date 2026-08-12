@@ -16,8 +16,8 @@ budgets:
   json_repair_retries: 2         # malformed-JSON retries per call
   max_run_minutes: 60            # past 75% of this, mapping stops consulting the LLM (estimate+flag)
   mapping_output_tokens: 3000    # mapping consultations are small; keep them fast
-  targeted_max_calls: 15         # landmark-page rescue batches per run
-  extraction_votes: 2            # double-extract, keep consensus (variance filter)
+  extraction_votes: 3            # majority-of-3 voting (variance filter, keeps coverage)
+  targeted_max_calls: 30         # chunked reads are now the PRIMARY path for input rows
 
 conventions:
   flag_uncertain_fill: "FFC7CE"  # light red: uncertain / needs analyst review

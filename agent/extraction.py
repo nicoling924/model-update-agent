@@ -39,10 +39,49 @@ def extract(client, system, disclosure_paths, extraction_prompt, cfg):
               for _ in range(votes)]
     if len(passes) == 1:
         return passes[0]
-    merged = _consensus(passes[0], passes[1])
-    print(f"    [2] consensus: {len(merged['items'])} items agreed "
-          f"(pass1 {len(passes[0]['items'])}, pass2 {len(passes[1]['items'])})", flush=True)
+    if len(passes) == 2:
+        merged = _consensus(passes[0], passes[1])
+    else:
+        merged = _majority(passes)
+    print(f"    [2] consensus: {len(merged['items'])} items kept from "
+          f"{[len(p['items']) for p in passes]}", flush=True)
     return merged
+
+
+def _majority(passes):
+    """3+ passes: keep an item when >=2 passes agree on its value (coverage-
+    preserving, unlike strict 2-pass intersection)."""
+    def key(it):
+        return (it.get("stmt"), __import__("re").sub(r"[^a-z0-9]+", " ",
+                str(it.get("label", "")).lower()).strip())
+    buckets = {}
+    for pi, p in enumerate(passes):
+        for it in p["items"]:
+            buckets.setdefault(key(it), []).append((pi, it))
+    items = []
+    for k, cands in buckets.items():
+        vals = [it.get("value") for _, it in cands if isinstance(it.get("value"), (int, float))]
+        best_group = []
+        for _, it in cands:
+            v = it.get("value")
+            if not isinstance(v, (int, float)):
+                continue
+            grp = [(pj, jt) for pj, jt in cands
+                   if isinstance(jt.get("value"), (int, float)) and abs(jt["value"] - v) <= 1.0]
+            if len({pj for pj, _ in grp}) > len({pj for pj, _ in best_group}):
+                best_group = grp
+        if len({pj for pj, _ in best_group}) >= 2:
+            rep = dict(best_group[0][1])
+            priors = [jt.get("prior") for _, jt in best_group
+                      if isinstance(jt.get("prior"), (int, float))]
+            if priors and (max(priors) - min(priors) > 1.0):
+                rep["prior"] = None
+            items.append(rep)
+    ids = {it["id"] for it in items}
+    ties = [t for t in passes[0]["ties"]
+            if all(i in ids for i in t.get("lhs", []) + t.get("rhs", []))]
+    return {"items": items, "ties": ties,
+            "meta": {**passes[0].get("meta", {}), "consensus": "majority-of-3"}}
 
 
 def _consensus(a, b):

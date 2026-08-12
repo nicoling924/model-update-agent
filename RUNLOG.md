@@ -42,6 +42,13 @@ the blind reviewer's incontrovertible catches auto-apply with read-back (max 2
 iterations, per the original Project M workflow), (3) a stronger/cross-provider
 reviewer model.
 
+**PHASE 3 (run 21+): back to gpt-5.6-luna with the upgraded harness** — chunked
+page-reads as the PRIMARY path for all input rows (~20-30 rows/batch, prior-value
+landmarks, corroboration-gated), majority-of-3 extraction voting, cascade
+cross-check on every write (agreement -> unflagged, conflict -> flagged), and
+bounded reviewer auto-apply of incontrovertible catches. Hypothesis: a better
+harness lifts the weakest model past its own ~70% plateau.
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in

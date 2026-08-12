@@ -153,6 +153,7 @@ def cmd_update(company_dir, period):
     deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.75
     rows_done = 0
     rescue_candidates = []
+    pending = {}  # (sheet, row) -> cascade entry + coords, written after merge
     for sheet, iv in (spec.get("input_vs_formula") or {}).items():
         s_axis = spec["year_axis"].get(sheet, axis)
         s_prior = s_axis["columns"].get(last_actual, prior_col)
@@ -169,29 +170,18 @@ def cmd_update(company_dir, period):
                        "prior_value": ws_prior[f"{s_prior}{r}"].value,
                        "prior_formula": prior_cell.value if isinstance(prior_cell.value, str) else None,
                        "backout_rule": backout_rules.get(f"{sheet}!{r}")}
-            # pass 1 is deterministic-only (fast); LLM help comes later in
-            # priority order: targeted rescue first, per-row consults last
+            # pass 1 is deterministic-only; values are NOT written yet — the
+            # chunked page-read (primary path) runs next and the two results
+            # are merged with cross-checking before any write
             entry = mapping.resolve_row(row_ctx, staging, glossary, None, system,
                                         _prompt("mapping"), cfg, maplog)
-            entry["_ctx"] = row_ctx
             rows_done += 1
             if rows_done % 50 == 0:
-                print(f"    [4] {rows_done} rows mapped ({sheet})", flush=True)
-            value = entry.get("formula", entry.get("value"))
-            if value is None:
-                continue
-            writer.write(sheet, f"{s_target}{r}", value,
-                         prior_coord=f"{s_prior}{r}",
-                         note=entry.get("note"), flag=entry.get("flag"))
-            if entry.get("flag") == "red":
-                flags.append((sheet, f"{s_target}{r}", entry.get("note", "")))
-                if entry.get("source") in ("estimate", "llm", "label-only (uncorroborated)"):
-                    rescue_candidates.append({"sheet": sheet, "row": r, "label": label,
-                                              "prior_value": row_ctx["prior_value"],
-                                              "coord": f"{s_target}{r}",
-                                              "prior_coord": f"{s_prior}{r}"})
-            elif entry.get("flag") == "orange":
-                backouts.append((sheet, f"{s_target}{r}", entry.get("note", "")))
+                print(f"    [4] {rows_done} rows pre-mapped ({sheet})", flush=True)
+            pending[(sheet, r)] = {"entry": entry, "label": label,
+                                   "prior_value": row_ctx["prior_value"],
+                                   "coord": f"{s_target}{r}",
+                                   "prior_coord": f"{s_prior}{r}"}
         # formula rows: re-copy prior pattern shifted one column (mark-to-actual
         # recipe) — but REWRITE any embedded prior-year constants (MODEL_SPEC rule);
         # a copied constant is a stale 2024 number wearing a 2025 costume
@@ -219,32 +209,71 @@ def cmd_update(company_dir, period):
                     flags.append((sheet, f"{s_target}{r}",
                                   f"prior formula {pv}: embedded constants unresolved"))
         writer.format_rollover(sheet, s_prior, s_target)
-    # [4a] targeted rescue FIRST (few batched calls, high yield)
-    rescued_keys = set()
-    if rescue_candidates and time.time() < deadline:
-        from . import targeted
-        rescued = targeted.rescue(map_client, system, disclosures,
-                                  rescue_candidates, cfg, maplog)
-        for (rs, rr), res in rescued.items():
-            cand = next(c for c in rescue_candidates
-                        if c["sheet"] == rs and c["row"] == rr)
-            writer.write(rs, cand["coord"], res["value"],
-                         prior_coord=cand["prior_coord"], note=res["note"],
-                         flag=res.get("flag"))
-            if not res.get("flag"):
-                flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
-            else:
-                flags = [f for f in flags if not (f[0] == rs and f[1] == cand["coord"])]
-                flags.append((rs, cand["coord"], res["note"]))
-            rescued_keys.add((rs, rr))
-        print(f"[4a] targeted rescue: {len(rescued)}/{len(rescue_candidates)} "
-              "flagged rows recovered with prior-corroborated re-reads", flush=True)
+    # [4a] chunked page-reads for ALL input rows — the PRIMARY resolution path.
+    # Each batch is a small task ("read this table, priors are your landmarks"),
+    # the regime where the LLM is most accurate.
+    from . import targeted
+    all_rows = [{"sheet": s, "row": r, "label": p["label"],
+                 "prior_value": p["prior_value"]} for (s, r), p in pending.items()]
+    chunked = {}
+    if time.time() < deadline:
+        chunked = targeted.rescue(map_client, system, disclosures, all_rows, cfg, maplog)
+    print(f"[4a] chunked reads corroborated {len(chunked)}/{len(all_rows)} input rows",
+          flush=True)
 
-    # [4b] per-row LLM consults LAST, only for unrescued rows, within time budget
+    # [4b] merge chunked reads with the deterministic cascade, then write.
+    # Agreement of the two independent paths -> unflagged; disagreement -> the
+    # page-quoted chunk wins but is red-flagged with both values in the note.
+    agree = conflict = chunk_only = cascade_only = 0
+    for (s, r), p in sorted(pending.items()):
+        e, c = p["entry"], chunked.get((s, r))
+        ev = e.get("value") if not e.get("formula") else _eval_const(e.get("formula"))
+        if c is not None:
+            cv = c["value"]
+            if isinstance(ev, (int, float)) and abs(ev - cv) <= 1.0:
+                keep = e.get("formula") or cv  # keep traceable formula when it agrees
+                fl = c.get("flag")  # sign-harmonized chunks stay flagged
+                writer.write(s, p["coord"], keep, prior_coord=p["prior_coord"],
+                             note=e.get("note") or c["note"], flag=fl)
+                if fl:
+                    flags.append((s, p["coord"], c["note"]))
+                agree += 1
+            elif isinstance(ev, (int, float)) and e.get("flag") is None:
+                note = (f"CONFLICT: chunked page-read {cv} vs cascade {round(ev,1)} "
+                        f"({e.get('source')}) — page-quoted value written, verify. "
+                        + (c.get("note") or ""))
+                writer.write(s, p["coord"], cv, prior_coord=p["prior_coord"],
+                             note=note, flag="red")
+                flags.append((s, p["coord"], note))
+                conflict += 1
+            else:  # cascade had nothing solid — chunk stands on its corroboration
+                writer.write(s, p["coord"], cv, prior_coord=p["prior_coord"],
+                             note=c["note"], flag=c.get("flag"))
+                if c.get("flag"):
+                    flags.append((s, p["coord"], c["note"]))
+                chunk_only += 1
+        else:
+            v = e.get("formula", e.get("value"))
+            if v is None:
+                continue
+            writer.write(s, p["coord"], v, prior_coord=p["prior_coord"],
+                         note=e.get("note"), flag=e.get("flag"))
+            if e.get("flag") == "red":
+                flags.append((s, p["coord"], e.get("note", "")))
+                if e.get("source") in ("estimate", "label-only (uncorroborated)"):
+                    rescue_candidates.append({"sheet": s, "row": r, "label": p["label"],
+                                              "prior_value": p["prior_value"],
+                                              "coord": p["coord"],
+                                              "prior_coord": p["prior_coord"]})
+            elif e.get("flag") == "orange":
+                backouts.append((s, p["coord"], e.get("note", "")))
+            cascade_only += 1
+    print(f"[4b] merge: {agree} agreed, {conflict} conflicts (flagged), "
+          f"{chunk_only} chunk-only, {cascade_only} cascade-only", flush=True)
+
+    # [4c] per-row LLM consults LAST, only for rows neither path resolved
     consults = 0
     for cand in rescue_candidates:
-        if (cand["sheet"], cand["row"]) in rescued_keys:
-            continue
         if time.time() >= deadline:
             maplog.append(f"time budget: {cand['sheet']}!r{cand['row']} left as flagged estimate")
             continue
@@ -257,7 +286,7 @@ def cmd_update(company_dir, period):
                          note=entry.get("note"), flag="red")
             consults += 1
     if consults:
-        print(f"[4b] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
+        print(f"[4c] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
 
     # per-company confirmed corrections (machine-actionable MODEL_SPEC landmines)
     for fx in spec.get("analyst_fixes") or []:
@@ -304,6 +333,43 @@ def cmd_update(company_dir, period):
         findings = rev.review(rc, _prompt("reviewer"), conventions, disclosures,
                               rev.column_dump(wb, spec), rev.column_dump(pre_wb, spec), cfg)
         print(f"[6] reviewer: {len(findings['findings'])} findings — {findings['verdict'][:120]}")
+        # [6b] auto-apply INCONTROVERTIBLE catches only: genuine_error + a numeric
+        # claim that matches a validated staging item (two independent sources),
+        # target column only, bounded, read-back verified. Everything else stays
+        # surfaced for the analyst, never silently fixed.
+        applied = 0
+        staged_vals = [it["value"] for it in staging["items"]
+                       if isinstance(it.get("value"), (int, float))]
+        for f in findings["findings"]:
+            if applied >= 10 or f.get("severity") != "genuine_error":
+                continue
+            m = re.match(r"^\s*'?([A-Za-z0-9 _\-]+)'?!([A-Z]{1,3})(\d+)\s*$",
+                         str(f.get("cell", "")))
+            nums = re.findall(r"-?[\d,]+(?:\.\d+)?", str(f.get("disclosure_says", "")))
+            if not m or not nums:
+                continue
+            sheet_f, col_f, row_f = m.group(1), m.group(2), int(m.group(3))
+            if sheet_f not in wb.sheetnames or col_f not in spec.get("_target_cols", []):
+                continue
+            try:
+                val = float(nums[0].replace(",", ""))
+            except ValueError:
+                continue
+            if not any(abs(val - sv) <= 1.0 or abs(-val - sv) <= 1.0 for sv in staged_vals):
+                continue  # no independent corroboration in validated extraction
+            writer2 = workbook.Writer(wb, cfg)
+            writer2.write(sheet_f, f"{col_f}{row_f}", val,
+                          prior_coord=f"{prior_col}{row_f}" if sheet_f == stmts_sheet else None,
+                          note=f"REVIEWER-APPLIED: {str(f.get('evidence',''))[:140]} "
+                               f"(p{f.get('page','?')}; corroborated by extraction)")
+            f["outcome"] = "auto-applied"
+            applied += 1
+        if applied:
+            workbook.save(wb, model_path)
+            wb = workbook.load(model_path)
+            results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
+            print(f"[6b] reviewer auto-applied {applied} incontrovertible fixes; "
+                  f"re-verified: {len(soft)} exceptions remain", flush=True)
 
     # -- 8. report -----------------------------------------------------------
     ev = Evaluator(wb)
@@ -338,6 +404,17 @@ def cmd_update(company_dir, period):
     print("LLM provenance:", "; ".join(provenance))
     print(f"[7] report: _REPORT tab + {md}")
     print(f"DONE in {(time.time()-t0)/60:.1f} min. Deliverable: {model_path}")
+
+
+def _eval_const(f):
+    """Evaluate a pure-constants formula string ('=3872+5943'); None otherwise."""
+    import re as _re
+    if isinstance(f, str) and _re.match(r"^=[\d+\-. ]+$", f):
+        try:
+            return eval(f[1:], {"__builtins__": {}}, {})
+        except Exception:
+            return None
+    return None
 
 
 def _markdown_report(name, period, results, restatements, flags, backouts, moves,
