@@ -57,8 +57,9 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
             corro = (isinstance(pv0, (int, float)) and pv0
                      and isinstance(best.get("prior"), (int, float))
                      and abs(abs(best["prior"]) - abs(pv0)) <= max(1.0, 0.02 * abs(pv0)))
+            kin = _overlap(row.get("label"), mem["label"])
             entry = {"value": v, "source": "memory-identity",
-                     "flag": None if corro else "red",
+                     "flag": None if (corro and kin) else "red",
                      "note": (f"memory identity: '{mem['label']}' p{best.get('page')}"
                               + ("" if corro else " (prior not corroborated — verify)")),
                      "page": best.get("page")}
