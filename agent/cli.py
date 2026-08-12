@@ -297,7 +297,7 @@ def cmd_update(company_dir, period):
             cur = ws_cur[f"{s_target}{r}"].value
             if not (isinstance(cur, str) and cur.startswith("=")):
                 continue
-            if not re.search(r"(?<![A-Za-z0-9_.])\d{2,}(?![A-Za-z0-9_.])", cur):
+            if not re.search(r"(?<![A-Za-z0-9_.$])\d{2,}(?![A-Za-z0-9_.])", cur):
                 continue
             new_f, ok, unresolved = mapping.rewrite_constants(cur, staging)
             if unresolved:
@@ -403,7 +403,7 @@ def cmd_update(company_dir, period):
                 if res and isinstance(res.get("value"), (int, float)):
                     nv = abs(res["value"])  # formula text carries its own sign operator
                     nv_s = str(int(nv)) if nv == int(nv) else str(nv)
-                    f_txt = re.sub(rf"(?<![A-Za-z0-9_.]){re.escape(tok)}(?![A-Za-z0-9_.])",
+                    f_txt = re.sub(rf"(?<![A-Za-z0-9_.$]){re.escape(tok)}(?![A-Za-z0-9_.])",
                                    nv_s, f_txt, count=1)
                     resolved_n += 1
                 else:

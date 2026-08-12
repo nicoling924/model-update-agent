@@ -246,7 +246,7 @@ def rewrite_constants(formula, staging):
         return str(int(v)) if v == int(v) else str(v)
 
     # match standalone numeric literals not part of cell refs (AH69) or row digits
-    new = re.sub(r"(?<![A-Za-z0-9_.])\d+(?:\.\d+)?(?![A-Za-z0-9_.])", sub, formula)
+    new = re.sub(r"(?<![A-Za-z0-9_.$])\d+(?:\.\d+)?(?![A-Za-z0-9_.])", sub, formula)
     return new, all_ok, unresolved
 
 
