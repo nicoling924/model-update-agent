@@ -54,6 +54,17 @@ harness lifts the weakest model past its own ~70% plateau.
 | 22 (Luna, fixed harness) | 08-12 02:47 | 50.4m ✓ | 71.7% | 1,811 | 125 | 70 | Chunked-primary executed properly (57/179 corroborated; 44 dual-confirmed, 1 conflict flagged); 2-pass coverage-preserving consensus; reviewer auto-applied 4; first OpenRouter-billed run. **Luna-with-best-harness verdict: ~72% — harness sets the floor and safety, model quality sets the ceiling** (Luna fails chunk corroboration 2 of 3 times on dense tables). |
 | 23 (Terra, new harness) | 08-12 05:06 | 42.4m ✓ | 74.9% | 1,811 | 116 | 57 | Within Terra's 78±4 band — chunked harness adds safety (conflict caught, dual-confirmed cells) but not points, for either model: chunk corroboration is landmark-limited (~1/3 of rows have a printed prior to anchor on; Terra 59/179 vs Luna 57/179). Bottleneck shifts to extraction quality -> run 24 tests table-aware reading. |
 
+| 24 (Luna+tables, branch) | 08-12 05:15 | cancelled @90m | — | — | — | — | Table-aware pages doubled reading volume x 2 voting passes -> timeout during extraction; no cells written. Fix: single-pass extraction (tables replace voting as the variance control). |
+| 25 (Luna+tables, 1-pass) | 08-12 06:48 | 67.8m ❌ (>60) | **71.7%** | -2,086 | 126 | 69 | Richest extraction of the benchmark (2,202 items / 223 ties) — and accuracy IDENTICAL to Luna without tables (r22: 71.7%). The residual errors are no longer reading errors: same stubborn set (revenue split allocation, FCA asset-vs-liability side, one-offs bridge) — these are JUDGMENT/definition calls, not transcription. |
+
+**HARNESS-CEILING VERDICT (Luna, 3 harness generations: 70.1 / 71.7 / 71.7):**
+harness engineering has converged for this model tier. Reading quality is no
+longer the constraint (tables proved it); the remaining ~28%% needs judgment
+(allocation, definitions, bridges) that only a stronger model, per-company spec
+accumulation across periods, or analyst rulings can supply. Recommended
+production shape: Luna/Terra updater + accumulated spec + reviewer auto-apply,
+with first-run flags resolved by the analyst feeding the spec.
+
 **FAIRNESS NOTE (15:5x UTC):** runs ≤15 ran with a system prompt that included the
 original MODEL_SPEC, which contained some FY25 figures (tie-out anchors, FX
 rulings) — deterministic mapping was unaffected but LLM consults could in
