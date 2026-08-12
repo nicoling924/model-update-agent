@@ -11,6 +11,10 @@ on:
         description: "Fiscal period (e.g. FY25, 1H26)"
         default: "FY25"
         required: true
+      model:
+        description: "Optional model override (else repo variable)"
+        default: ""
+        required: false
 
 jobs:
   update:
@@ -19,8 +23,8 @@ jobs:
     env:
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.6-luna' }}
-      REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'gpt-5.6-luna' }}
+      LLM_MODEL: ${{ inputs.model || vars.LLM_MODEL || 'gpt-5.6-luna' }}
+      REVIEWER_MODEL: ${{ inputs.model || vars.REVIEWER_MODEL || 'gpt-5.6-luna' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
