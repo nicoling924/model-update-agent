@@ -15,11 +15,17 @@ on:
         description: "Optional model override (else repo variable)"
         default: ""
         required: false
+      action:
+        description: "update or learn (learner writes the _UPDATE_MAP memory tab)"
+        default: "update"
+        required: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: write
     env:
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -33,8 +39,16 @@ jobs:
       - run: pip install -r requirements.txt
       # NO cross-run caching: every run starts cold (fresh VM, fresh checkout,
       # fresh extraction) so no run inherits context from a previous one.
-      - name: Run model update
-        run: python run.py update "companies/${{ inputs.company }}" "${{ inputs.period }}"
+      - name: Run model update / learner
+        run: python run.py "${{ inputs.action || 'update' }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
+      - name: Persist learned memory tab (learn action only)
+        if: ${{ inputs.action == 'learn' }}
+        run: |
+          git config user.name "model-update-agent"
+          git config user.email "agent@users.noreply.github.com"
+          git add "companies/${{ inputs.company }}/model/"
+          git commit -m "learner: _UPDATE_MAP memory tab for ${{ inputs.company }}" || echo "no changes to commit"
+          git push
       - name: Upload results (model + reports + staging)
         if: always()
         uses: actions/upload-artifact@v4

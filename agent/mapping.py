@@ -40,6 +40,29 @@ def resolve_row(row, staging, glossary, client, system, mapping_prompt, cfg, log
         entry = _apply_rule(rule0, row, staging)
         if entry:
             return entry
+    # 0.5 learned identity from the workbook's own _UPDATE_MAP memory tab:
+    # the learner already established WHICH disclosure line feeds this row
+    mem = row.get("memory")
+    pv0 = row.get("prior_value")
+    if mem and mem.get("kind") == "input" and mem.get("label"):
+        hits = [it for it in staging["items"]
+                if norm(it.get("label")) == norm(mem["label"])
+                and isinstance(it.get("value"), (int, float))
+                and (not mem.get("stmt") or it.get("stmt") == mem.get("stmt"))]
+        if hits:
+            best = hits[0]
+            if isinstance(pv0, (int, float)) and pv0:
+                best = min(hits, key=lambda it: abs(abs(it.get("prior") or 1e18) - abs(pv0)))
+            v = -best["value"] if mem.get("sign_flip") else best["value"]
+            corro = (isinstance(pv0, (int, float)) and pv0
+                     and isinstance(best.get("prior"), (int, float))
+                     and abs(abs(best["prior"]) - abs(pv0)) <= max(1.0, 0.02 * abs(pv0)))
+            entry = {"value": v, "source": "memory-identity",
+                     "flag": None if corro else "red",
+                     "note": (f"memory identity: '{mem['label']}' p{best.get('page')}"
+                              + ("" if corro else " (prior not corroborated — verify)")),
+                     "page": best.get("page")}
+            return entry
     # 1. direct find — accepted ONLY with prior-year corroboration (an uncorroborated
     # label match is the classic definition-mismatch trap: plausible, wrong, unflagged)
     target = glossary.get(norm(row["label"]), norm(row["label"]))
