@@ -41,12 +41,12 @@ jobs:
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
         run: python run.py "${{ inputs.action || 'update' }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
-      - name: Persist learned memory tab (learn action only)
-        if: ${{ inputs.action == 'learn' }}
+      - name: Persist learner/discover outputs
+        if: ${{ inputs.action != 'update' }}
         run: |
           git config user.name "model-update-agent"
           git config user.email "agent@users.noreply.github.com"
-          git add "companies/${{ inputs.company }}/model/"
+          git add "companies/${{ inputs.company }}/model/" "companies/${{ inputs.company }}/spec.yaml" || true
           git commit -m "learner: _UPDATE_MAP memory tab for ${{ inputs.company }}" || echo "no changes to commit"
           git push
       - name: Upload results (model + reports + staging)

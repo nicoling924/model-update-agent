@@ -15,7 +15,8 @@ import re
 
 
 def norm(s):
-    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+    # script-aware: keep CJK characters (Chinese-language reports) alongside latin
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", " ", (s or "").lower()).strip()
 
 
 def build_glossary(cfg, spec):
