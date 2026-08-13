@@ -93,7 +93,12 @@ def cmd_learn(company_dir, prior_period):
         rows_c = [r for r in range(1, min(wsf.max_row, 400) + 1)
                   if isinstance(wsf[f"{pc_c}{r}"].value, (int, float)) and r != hr_c]
         census[sheet_c] = rows_c
-    entries = learn_mod.learn(wb, pre_values, spec, staging, census)
+    from . import pdfs as pdfs_mod
+    page_sections = {}
+    for d in disclosures:
+        page_sections.update(pdfs_mod.sections(pdfs_mod.pages(d)))
+    entries = learn_mod.learn(wb, pre_values, spec, staging, census,
+                              page_sections=page_sections)
     n = learn_mod.write_memory_tab(wb, entries)
     workbook.save(wb, model_path)
     wb2 = workbook.load(model_path)
@@ -429,6 +434,8 @@ def cmd_update(company_dir, period):
 
     # [4c-pre] memory-guided page reads: identity known but label absent from this
     # extraction — read the remembered page area directly (page drift tolerated)
+    from . import pdfs as pdfs_mod
+    _doc_pages = {str(d): pdfs_mod.pages(d) for d in disclosures}
     mem_candidates = []
     for (s_m, r_m), p_m in sorted(pending.items()):
         m_e = memory.get((s_m, r_m))
@@ -439,13 +446,25 @@ def cmd_update(company_dir, period):
             continue  # memory already served this row cleanly
         coord_m = p_m["coord"]
         if any(f_[0] == s_m and f_[1] == coord_m for f_ in flags) or True:
-            pg = int(m_e["page"])
-            # prior-year page positions drift in the new document (sections shift);
-            # cover the drift band rather than the exact remembered page
+            # locate by SECTION TITLE in the CURRENT documents — the one anchor
+            # stable across years (page numbers are not)
+            sec = (m_e.get("section") or "").strip()
+            pages_hint = []
+            if sec:
+                sec_norm = sec.lower()
+                for d_path, pt in _doc_pages.items():
+                    hits = [pn for pn, tx in pt if sec_norm in tx.lower()][:6]
+                    if hits:
+                        lo, hi = min(hits), max(hits)
+                        pages_hint = list(range(max(1, lo - 1), hi + 4))
+                        break
+            if not pages_hint:
+                pg = int(m_e["page"])
+                pages_hint = list(range(max(1, pg - 2), pg + 18))
             mem_candidates.append({"sheet": s_m, "row": r_m,
                                    "label": m_e.get("label") or p_m["label"],
                                    "prior_value": p_m["prior_value"],
-                                   "pages": list(range(max(1, pg - 2), pg + 18)),
+                                   "pages": pages_hint[:12],
                                    "coord": coord_m,
                                    "prior_coord": p_m["prior_coord"]})
     if mem_candidates and time.time() < deadline:
