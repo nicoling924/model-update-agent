@@ -16,14 +16,18 @@ on:
         default: ""
         required: false
       action:
-        description: "update or learn (learner writes the _UPDATE_MAP memory tab)"
-        default: "update"
+        description: "chain (learn then update in one go), update, or learn"
+        default: "chain"
+        required: false
+      prior_period:
+        description: "Prior period for the learner leg of chain/learn (e.g. FY24)"
+        default: "FY24"
         required: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     permissions:
       contents: write
     env:
@@ -40,9 +44,19 @@ jobs:
       # NO cross-run caching: every run starts cold (fresh VM, fresh checkout,
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
-        run: python run.py "${{ inputs.action || 'update' }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
+        run: |
+          if [ "${{ inputs.action || 'chain' }}" = "chain" ]; then
+            # one go: learner (skips itself if the memory tab already exists),
+            # then the objective-driven update on the same working copy
+            python run.py learn "companies/${{ inputs.company }}" "${{ inputs.prior_period || 'FY24' }}"
+            python run.py update "companies/${{ inputs.company }}" "${{ inputs.period }}"
+          elif [ "${{ inputs.action }}" = "learn" ]; then
+            python run.py learn "companies/${{ inputs.company }}" "${{ inputs.prior_period || 'FY24' }}"
+          else
+            python run.py "${{ inputs.action }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
+          fi
       - name: Persist learner/discover outputs
-        if: ${{ inputs.action != 'update' }}
+        if: ${{ inputs.action == 'learn' || inputs.action == 'discover' }}
         run: |
           git config user.name "model-update-agent"
           git config user.email "agent@users.noreply.github.com"
