@@ -55,13 +55,14 @@ jobs:
           else
             python run.py "${{ inputs.action }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
           fi
-      - name: Persist learner/discover outputs
-        if: ${{ inputs.action == 'learn' || inputs.action == 'discover' }}
+      - name: Persist learner/discover/digest outputs
+        if: ${{ inputs.action == 'learn' || inputs.action == 'discover' || inputs.action == 'digest' }}
         run: |
           git config user.name "model-update-agent"
           git config user.email "agent@users.noreply.github.com"
-          git add "companies/${{ inputs.company }}/model/" "companies/${{ inputs.company }}/spec.yaml" || true
-          git commit -m "learner: _UPDATE_MAP memory tab for ${{ inputs.company }}" || echo "no changes to commit"
+          git add "companies/${{ inputs.company }}/model/" "companies/${{ inputs.company }}/spec.yaml" \
+                  "companies/${{ inputs.company }}/disclosures/${{ inputs.period }}/digest.json" || true
+          git commit -m "${{ inputs.action }}: persisted output for ${{ inputs.company }} ${{ inputs.period }}" || echo "no changes to commit"
           git push
       - name: Upload results (model + reports + staging)
         if: always()

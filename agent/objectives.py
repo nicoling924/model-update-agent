@@ -194,8 +194,9 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                     sign = 1
                 elif abs(-ip - pv) <= max(tol, abs(pv) * 0.001):
                     sign = -1  # model stores this line with flipped sign (e.g. liabilities +)
-            nl_it = _norm(it.get("label", ""))
-            label_hit = any(_syn_hit(s, nl_it) for s in KEY_KINDS[kind]) \
+            syns = KEY_KINDS.get(kind, [])  # pseudo-kinds (tie-web) have none:
+            nl_it = _norm(it.get("label", ""))  # triangulation-only, the strong path
+            label_hit = bool(syns) and any(_syn_hit(s, nl_it) for s in syns) \
                 and not _excluded(kind, nl_it)
             if sign is not None:
                 cands_tri.setdefault(round(iv * sign, 1), set()).add(("item", it.get("page")))
@@ -264,6 +265,41 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                f"{sum(1 for p in proven.values() if p['status'] == 'single-source')} single-source, "
                f"{sum(1 for p in proven.values() if p['status'] == 'missing')} not in disclosure")
     return proven
+
+
+def tie_web(wb, pre_wb, spec, staging, raw_lines, cfg, last_actual, target_year, log,
+            exclude_rows=frozenset()):
+    """Extend the key-number method to EVERY subtotal: each formula row in a
+    statements-role sheet whose disclosed value can be PROVEN (triangulation +
+    redundancy, same guards as keys) becomes an anchor. A proven subtotal that
+    disagrees with the model's computed value exposes a wrong input beneath it —
+    the tail's errors get caught by the arithmetic above them."""
+    pseudo = {}
+    sheets = [s for s, v in (spec.get("sheets") or {}).items()
+              if (v or {}).get("role") == "statements"]
+    for sheet in sheets:
+        if sheet not in wb.sheetnames:
+            continue
+        axis = spec["year_axis"].get(sheet) or {}
+        tcol = (axis.get("columns") or {}).get(target_year)
+        if not tcol:
+            continue
+        for r in range(1, min(wb[sheet].max_row, 400) + 1):
+            if (sheet, r) in exclude_rows:
+                continue  # key numbers keep their own (definition-aware) handling
+            v = wb[sheet][f"{tcol}{r}"].value
+            if not (isinstance(v, str) and v.startswith("=")):
+                continue
+            if re.match(r"^=[\d+\-. ()]+$", v):
+                continue  # constant back-out, an input not a subtotal
+            lab = _row_label(wb[sheet], r)
+            pseudo[f"sub:{sheet}!{r}"] = {"sheet": sheet, "row": r,
+                                          "label": lab or f"row {r}", "src": "tieweb"}
+    proven = prove(pseudo, staging, raw_lines, pre_wb, spec, last_actual, cfg, [])
+    anchors = {k: p for k, p in proven.items() if p.get("status") == "proven"}
+    log.append(f"tie-web: {len(pseudo)} subtotal rows scanned, "
+               f"{len(anchors)} proven as anchors")
+    return {k: pseudo[k] for k in anchors}, anchors
 
 
 def _precedent_inputs(wb, sheet, coord, target_cols, eligible, depth=0, seen=None):
