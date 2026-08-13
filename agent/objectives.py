@@ -355,11 +355,17 @@ def _sensitivity(wb, t_sheet, t_coord, p_sheet, p_coord):
 
 
 def _plug_formula(old_value, adj):
-    adj_s = f"{adj:.6g}"
     if isinstance(old_value, str) and old_value.startswith("="):
-        return f"{old_value}+({adj_s})"
+        # collapse an existing trailing plug instead of stacking another
+        m = re.match(r"^(.*)\+\((-?[\d.]+(?:[eE][+-]?\d+)?)\)$", old_value)
+        if m:
+            try:
+                return f"{m.group(1)}+({float(m.group(2)) + adj:.6g})"
+            except ValueError:
+                pass
+        return f"{old_value}+({adj:.6g})"
     base = old_value if isinstance(old_value, (int, float)) else 0
-    return f"={base:.6g}+({adj_s})"
+    return f"={base:.6g}+({adj:.6g})"
 
 
 def scorecard(wb, spec, keymap, proven, cfg, t0):

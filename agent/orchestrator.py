@@ -56,6 +56,34 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
     def _card():
         return objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
 
+    def _objective_state(card):
+        """(set of keys currently correct, |target-year balance gap|)."""
+        ok = {e["kind"] for e in card["tier1"] if e["status"] in ("CORRECT", "MATCH-1SRC")}
+        gap = sum(abs(g) for _c, y, g in card["tier0"]
+                  if y == target_year and isinstance(g, (int, float)))
+        return ok, gap
+
+    def _guarded_write(sheet, coord, value, note, flag):
+        """Every write self-verifies: if it breaks a previously-correct key or
+        widens the target-year balance gap, it is REVERTED on the spot — the
+        agent can act freely but can never regress the objectives."""
+        before = _card()
+        ok_before, gap_before = _objective_state(before)
+        old = wb[sheet][coord].value
+        writer.write(sheet, coord, value, note=note, flag=flag)
+        after = _card()
+        ok_after, gap_after = _objective_state(after)
+        broken = ok_before - ok_after
+        if broken or gap_after > gap_before + 1.0:
+            wb[sheet][coord].value = old
+            if writer.log["written"] and writer.log["written"][-1] == f"{sheet}!{coord}":
+                writer.log["written"].pop()
+            return (False, f"REVERTED: that write {'broke key(s) ' + str(sorted(broken)) if broken else ''}"
+                           f"{' and ' if broken and gap_after > gap_before + 1.0 else ''}"
+                           f"{f'widened the balance gap {gap_before:,.1f} -> {gap_after:,.1f}' if gap_after > gap_before + 1.0 else ''}"
+                           " — the model is unchanged. Reconsider the target cell.")
+        return (True, None)
+
     pages_served = set()
 
     def t_read_pages(args):
@@ -140,9 +168,12 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             r = abs(val) / abs(pv)
             if r > 20 or r < 0.05:
                 return f"REFUSED: magnitude guard (prior {pv:,.1f} vs {val:,.1f})"
-        writer.write(sheet, coord, val, note=f"ORCHESTRATOR: {why[:180]}", flag="red")
+        ok, msg = _guarded_write(sheet, coord, val,
+                                 f"ORCHESTRATOR: {why[:180]}", "red")
+        if not ok:
+            return msg
         flags.append((sheet, coord, f"orchestrator set: {why[:80]}"))
-        return f"written {ref} = {val} (red-flagged)"
+        return f"written {ref} = {val} (red-flagged; self-check passed)"
 
     def t_diagnose_balance(args):
         card = _card()
@@ -195,11 +226,13 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             return (f"REFUSED: corrected value {new_v:,.1f} is not corroborated by the "
                     "disclosure — a repair that merely forces the check is forbidden")
         old = wb[sheet][coord].value
-        writer.write(sheet, coord, objectives._plug_formula(old, adj),
-                     note=f"ORCHESTRATOR balance repair: {str(args.get('why', ''))[:150]}",
-                     flag="red")
+        ok, msg = _guarded_write(sheet, coord, objectives._plug_formula(old, adj),
+                                 f"ORCHESTRATOR balance repair: "
+                                 f"{str(args.get('why', ''))[:150]}", "red")
+        if not ok:
+            return msg
         flags.append((sheet, coord, "orchestrator balance repair — verify"))
-        return f"repaired {ref} by {adj:+,.1f}; re-score to confirm"
+        return f"repaired {ref} by {adj:+,.1f} (self-check passed); re-score to confirm"
 
     def t_trace_cell(args):
         """The Fable move: decompose a cell — formula, each precedent's current

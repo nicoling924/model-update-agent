@@ -72,6 +72,13 @@ call finish with a summary.
 - `finish {"summary": "..."}` — end the loop; state which objectives are met and
   what remains flagged for the analyst.
 
+## Self-check (automatic)
+
+Every write you make is verified on the spot: if it breaks a previously-correct
+key number or widens the balance gap, it is REVERTED automatically and you are
+told why. A revert means your target cell was wrong — use statement_diff or
+trace_cell to find the right row, don't force the same value elsewhere blindly.
+
 ## Search discipline
 
 Company terminology varies — if find_line misses, try the synonym once
