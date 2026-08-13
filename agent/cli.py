@@ -723,15 +723,29 @@ def cmd_update(company_dir, period):
         obj_deadline)
     for ln in obj_notes + obj_log:
         print("  [OBJ]", ln, flush=True)
-    if n_fix:
+    print(f"[5b] deterministic converge: {n_fix} fixes banked", flush=True)
+
+    # -- 5c. ORCHESTRATOR: the LLM holds the objectives and drives the residuals
+    # with tools (trace/find/prove/plug/repair) — observe-decide-act until the
+    # tiers are satisfied, nothing can improve them, or the clock says stop
+    decisions = []
+    if (cfg.get("orchestrator") or {}).get("enabled", True) \
+            and not (card["t0_pass"] and card["t1_pass"]):
+        from . import orchestrator
+        card, decisions = orchestrator.run(
+            map_client, system, _prompt("orchestrator"), wb, spec, staging, cfg,
+            writer_obj, pre_wb, target_year, last_actual, keymap, proven, flags,
+            backouts, eligible_inputs, disclosures, t0, obj_deadline,
+            lambda s: print(s, flush=True))
+    if writer_obj.log["written"] != writer.log["written"]:
         writer.log["written"] = list(writer_obj.log["written"])
         workbook.save(wb, model_path)
         wb = workbook.load(model_path)
         results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
         card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
-    print(f"[5b] objectives: tier0 balance {'PASS' if card['t0_pass'] else 'FAIL'}, "
-          f"tier1 key numbers {'PASS' if card['t1_pass'] else 'FAIL'} "
-          f"({n_fix} objective fixes applied)", flush=True)
+    print(f"[5c] objectives after orchestrator ({len(decisions)} decisions): "
+          f"tier0 balance {'PASS' if card['t0_pass'] else 'FAIL'}, "
+          f"tier1 key numbers {'PASS' if card['t1_pass'] else 'FAIL'}", flush=True)
 
     # -- 7. blind review -----------------------------------------------------
     findings = None
@@ -835,7 +849,7 @@ def cmd_update(company_dir, period):
     md.parent.mkdir(exist_ok=True)
     # final objectives scorecard on the delivered workbook
     card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
-    obj_lines = objectives.render(card, obj_log)
+    obj_lines = objectives.render(card, obj_log + [f"[orchestrator] {d}" for d in decisions])
     for ln in obj_lines[:8]:
         print(ln, flush=True)
     provenance = [f"- updater: {client.usage}"]

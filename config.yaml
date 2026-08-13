@@ -19,6 +19,12 @@ budgets:
   extraction_votes: 1            # structured tables replace voting as the variance control
   targeted_max_calls: 30         # chunked reads are now the PRIMARY path for input rows
 
+orchestrator:
+  # observe-decide-act loop: the LLM sees the objectives + live scorecard each
+  # turn and picks ONE tool call; code validates and executes with guardrails
+  enabled: true
+  max_decisions: 25
+
 objectives:
   # Tier ladder (strict priority): 0 balance all years, 1 key numbers 100%,
   # 2 finish <=60 min, 3 maximize remaining cells. Tiers 0-1 are converged by
