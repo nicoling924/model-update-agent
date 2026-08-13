@@ -698,6 +698,41 @@ def cmd_update(company_dir, period):
     for f in soft:
         print("  EXCEPTION:", f)
 
+    # -- 5b. OBJECTIVE CONVERGENCE (tier ladder, pure code) ------------------
+    # Tier 0 balance / Tier 1 key numbers get first claim on the clock; fixes
+    # are deterministic (proof-by-redundancy + anchor-plug + balance diagnostic)
+    from . import objectives
+    obj_notes = []
+    spec["_target_year"] = target_year
+    keymap = objectives.locate(spec, pre_wb, obj_notes)
+    raw_all = lookup_mod.raw_lines(disclosures)
+    proven = objectives.prove(keymap, staging, raw_all, pre_wb, spec,
+                              last_actual, cfg, obj_notes)
+    eligible_inputs = set()
+    for sh_o, rows_o in rollover_hardcodes.items():
+        tc_o = spec["year_axis"][sh_o]["columns"].get(target_year)
+        if tc_o:
+            eligible_inputs |= {(sh_o, f"{tc_o}{r}") for r in rows_o}
+    eligible_inputs |= {(cs_o, pc_o["coord"]) for (cs_o, _r), pc_o in pending_consts.items()}
+    writer_obj = workbook.Writer(wb, cfg)
+    writer_obj.log["written"] = list(writer.log["written"])
+    obj_deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.92
+    card, obj_log, n_fix = objectives.converge(
+        wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
+        last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
+        obj_deadline)
+    for ln in obj_notes + obj_log:
+        print("  [OBJ]", ln, flush=True)
+    if n_fix:
+        writer.log["written"] = list(writer_obj.log["written"])
+        workbook.save(wb, model_path)
+        wb = workbook.load(model_path)
+        results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
+        card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
+    print(f"[5b] objectives: tier0 balance {'PASS' if card['t0_pass'] else 'FAIL'}, "
+          f"tier1 key numbers {'PASS' if card['t1_pass'] else 'FAIL'} "
+          f"({n_fix} objective fixes applied)", flush=True)
+
     # -- 7. blind review -----------------------------------------------------
     findings = None
     if cfg["reviewer"]["enabled"]:
@@ -798,11 +833,17 @@ def cmd_update(company_dir, period):
     workbook.save(wb, model_path)
     md = company_dir / "updates" / f"{period}_update_report.md"
     md.parent.mkdir(exist_ok=True)
+    # final objectives scorecard on the delivered workbook
+    card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
+    obj_lines = objectives.render(card, obj_log)
+    for ln in obj_lines[:8]:
+        print(ln, flush=True)
     provenance = [f"- updater: {client.usage}"]
     if cfg["reviewer"]["enabled"]:
         provenance.append(f"- reviewer: {rc.usage}")
     md.write_text(("## ⚠ DELIVERED WITH EXCEPTIONS\n" + "\n".join(f"- {e}" for e in soft)
                    + "\n\n" if soft else "")
+                  + "\n".join(obj_lines) + "\n\n"
                   + _markdown_report(name, period, results, restatements, flags, backouts,
                                      moves, core, findings, maplog)
                   + "\n## LLM provenance (server-reported model + token usage)\n"
