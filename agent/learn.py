@@ -140,3 +140,74 @@ def read_memory_tab(wb):
             "section": ws[f"J{r}"].value,
             "components": json.loads(comps) if comps else None}
     return out
+
+
+def deterministic_identities(disclosure_paths, wb, pre_values, spec, tol=1.0):
+    """Code-only learning: find each (prior, prior-1) pair in the RENDERED table
+    lines of the prior-year documents; store the LITERAL rendered label+section.
+    These identities are exact-matchable against next year's render."""
+    from collections import defaultdict
+    from . import lookup as lk
+    idx = lk.index_tables(disclosure_paths)
+    parsed = []
+    for pnum, section, label, cells in idx:
+        parsed.append((pnum, section, label,
+                       lk._year_value(cells, _year_prior(spec)),
+                       lk._year_value(cells, _year_prior2(spec))))
+    by_val = defaultdict(list)
+    for row in parsed:
+        if row[3] is not None:
+            by_val[round(row[3])].append(row)
+    out = {}
+    for sheet, ax in spec["year_axis"].items():
+        cols = ax.get("columns") or {}
+        years = sorted(cols)
+        la = str(ax.get("last_actual"))
+        try:
+            i = years.index(la)
+        except ValueError:
+            continue
+        pc, p2c = cols[la], (cols[years[i - 1]] if i > 0 else None)
+        if sheet not in wb.sheetnames:
+            continue
+        wsf, wsv = wb[sheet], pre_values[sheet]
+        hr = ax.get("header_row", 1)
+        for r in range(1, min(wsf.max_row, 400) + 1):
+            if r == hr:
+                continue
+            v = wsf[f"{pc}{r}"].value
+            if not isinstance(v, (int, float)) or v == 0 or abs(v) < 50:
+                continue  # small values collide; leave them to other paths
+            v2 = wsv[f"{p2c}{r}"].value if p2c else None
+            v2 = v2 if isinstance(v2, (int, float)) else None
+            hits = []
+            for flip in (1, -1):
+                for row in by_val.get(round(flip * v), []):
+                    if abs(row[3] - flip * v) > tol:
+                        continue
+                    lock2 = (v2 is None or row[4] is None or abs(row[4] - flip * v2) <= tol)
+                    hits.append((row, flip, lock2))
+            strong = [h for h in hits if h[2]]
+            use = strong if strong else hits
+            if not use:
+                continue
+            labels = {(h[0][2] or "").strip().lower() for h in use}
+            if len(use) == 1 or len(labels) == 1:
+                row, flip, _ = use[0]
+                out[(sheet, r)] = {"kind": "input", "label": row[2], "section": row[1],
+                                   "page": row[0], "sign_flip": flip == -1,
+                                   "stmt": None, "segment": None, "method": "det"}
+    return out
+
+
+def _year_prior(spec):
+    ax = next(iter(spec["year_axis"].values()))
+    return str(ax.get("last_actual"))
+
+
+def _year_prior2(spec):
+    ax = next(iter(spec["year_axis"].values()))
+    cols = ax.get("columns") or {}
+    years = sorted(cols)
+    i = years.index(str(ax.get("last_actual")))
+    return years[i - 1] if i > 0 else ""

@@ -97,8 +97,17 @@ def cmd_learn(company_dir, prior_period):
     page_sections = {}
     for d in disclosures:
         page_sections.update(pdfs_mod.sections(pdfs_mod.pages(d)))
+    det = learn_mod.deterministic_identities(disclosures, wb, pre_values, spec)
+    print(f"[L1b] deterministic identities (code-only, literal labels): {len(det)}", flush=True)
     entries = learn_mod.learn(wb, pre_values, spec, staging, census,
                               page_sections=page_sections)
+    merged = {}
+    for e in entries:
+        if e.get("kind") == "input":
+            merged[(e["sheet"], e["row"])] = e
+    for k, e in det.items():
+        merged[k] = {"sheet": k[0], "row": k[1], **{kk: vv for kk, vv in e.items() if kk != "method"}}
+    entries = [e for e in entries if e.get("kind") != "input"] + list(merged.values())
     n = learn_mod.write_memory_tab(wb, entries)
     workbook.save(wb, model_path)
     wb2 = workbook.load(model_path)
@@ -209,11 +218,35 @@ def cmd_update(company_dir, period):
         workbook.dump_json(staging, staging_path)
         print(f"[2] extracted {len(staging['items'])} items, {len(staging['ties'])} ties validated")
 
+    # deterministic table lookup: memory identities served by CODE from the
+    # rendered tables — numbers never pass through an LLM (clean status only;
+    # sign-flips and restatements surface flagged)
+    from . import lookup as lookup_mod
+    det_results = {}
     # memory tab: identities learned by the learner agent (if present)
     from . import learn as learn_mod
     memory = learn_mod.read_memory_tab(pre_wb)
     if memory:
         print(f"[M] using {len(memory)} learned identities from {learn_mod.MEMORY_TAB} tab")
+        idx_cur = lookup_mod.index_tables(disclosures)
+        rows_ctx_lk = {}
+        for (s_k, r_k), m_k in memory.items():
+            if m_k.get("kind") != "input":
+                continue
+            ax_k = spec["year_axis"].get(s_k)
+            if not ax_k:
+                continue
+            pc_k = ax_k["columns"].get(last_actual)
+            pv_k = pre_values[s_k][f"{pc_k}{r_k}"].value if pc_k else None
+            rows_ctx_lk[(s_k, r_k)] = {"label": None,
+                                       "prior_value": pv_k if isinstance(pv_k, (int, float)) else None}
+        det_results = lookup_mod.lookup_rows(idx_cur, memory, rows_ctx_lk,
+                                             target_year, last_actual)
+        n_clean = sum(1 for v in det_results.values() if v.get("status") == "clean")
+        print(f"[M2] deterministic table lookup: {n_clean} clean, "
+              f"{sum(1 for v in det_results.values() if v.get('status')=='restated')} restated, "
+              f"{sum(1 for v in det_results.values() if v.get('status')=='sign_flip')} sign-flips "
+              f"of {len(det_results)} attempted", flush=True)
 
     # -- 4. restatement scan ------------------------------------------------
     wb = workbook.load(model_path)
@@ -281,8 +314,20 @@ def cmd_update(company_dir, period):
             # pass 1 is deterministic-only; values are NOT written yet — the
             # chunked page-read (primary path) runs next and the two results
             # are merged with cross-checking before any write
-            entry = mapping.resolve_row(row_ctx, staging, glossary, None, system,
-                                        _prompt("mapping"), cfg, maplog)
+            dr = det_results.get((sheet, r))
+            if dr and dr.get("status") == "clean" and isinstance(dr.get("value"), (int, float)):
+                entry = {"value": dr["value"], "source": "table-lookup", "flag": None,
+                         "note": f"code table-lookup: '{dr.get('line_label')}' p{dr.get('page')}"
+                                 " (prior verified, no LLM)", "page": dr.get("page")}
+            elif dr and dr.get("status") in ("restated", "sign_flip") and isinstance(dr.get("value"), (int, float)):
+                entry = {"value": dr["value"], "source": f"table-lookup-{dr['status']}",
+                         "flag": "red",
+                         "note": f"code table-lookup ({dr['status']}): '{dr.get('line_label')}' "
+                                 f"p{dr.get('page')}, prior in report {dr.get('prior_found')} — verify",
+                         "page": dr.get("page")}
+            else:
+                entry = mapping.resolve_row(row_ctx, staging, glossary, None, system,
+                                            _prompt("mapping"), cfg, maplog)
             rows_done += 1
             if rows_done % 50 == 0:
                 print(f"    [4] {rows_done} rows pre-mapped ({sheet})", flush=True)
@@ -320,9 +365,23 @@ def cmd_update(company_dir, period):
     # [4b] merge the (already-computed) chunked reads with the cascade, then write.
     # Agreement of the two independent paths -> unflagged; disagreement -> the
     # page-quoted chunk wins but is red-flagged with both values in the note.
+    def _mag_flag(v_, pv_):
+        if isinstance(v_, (int, float)) and isinstance(pv_, (int, float)) \
+                and abs(pv_) >= 100 and v_ != 0:
+            rr = abs(v_) / abs(pv_)
+            return rr > 20 or rr < 0.05
+        return False
+
     agree = conflict = chunk_only = cascade_only = 0
     for (s, r), p in sorted(pending.items()):
         e, c = p["entry"], chunked.get((s, r))
+        # universal magnitude sanity: a 20x jump vs prior is never written silently
+        for cand_e in (e,):
+            v_chk = cand_e.get("value")
+            if cand_e.get("flag") is None and _mag_flag(v_chk, p["prior_value"]):
+                cand_e["flag"] = "red"
+                cand_e["note"] = ("MAGNITUDE ALERT: >20x change vs prior year — verify. "
+                                  + (cand_e.get("note") or ""))
         ev = e.get("value") if not e.get("formula") else _eval_const(e.get("formula"))
         if c is not None:
             cv = c["value"]
