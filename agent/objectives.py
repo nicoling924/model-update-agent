@@ -20,6 +20,8 @@ from .evaluator import Evaluator
 KEY_KINDS = {
     "sales": ["total revenue", "revenue", "turnover", "sales", "operating revenue"],
     "gross_profit": ["gross profit", "gross margin (hk$", "gross income"],
+    "operating_profit": ["operating profit", "operating income", "ebit",
+                         "profit from operations"],
     "net_profit": ["net profits (reported)", "net profit", "profit attributable",
                    "net income", "profit for the year"],
     "cash": ["cash and cash equivalents", "cash & cash equivalents", "cash and equivalents",
@@ -116,6 +118,11 @@ def locate(spec, pre_wb, log):
                                  ("non_current_liabilities", "total_assets", "current_liabilities")):
         if kind not in keymap and total_k in keymap and cur_k in keymap:
             log.append(f"{kind}: no model row — covered via {total_k} − {cur_k} identity")
+    # gross OR operating profit — either satisfies the margin objective
+    if ("gross_profit" in keymap) != ("operating_profit" in keymap):
+        have = "gross_profit" if "gross_profit" in keymap else "operating_profit"
+        other = "operating_profit" if have == "gross_profit" else "gross_profit"
+        log.append(f"{other}: no model row — margin objective covered by {have}")
     missing = [k for k in KEY_KINDS if k not in keymap
                and not any(f"{k}:" in ln for ln in log)]
     if missing:
@@ -346,10 +353,22 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                                f"disclosed {dv:,.1f} ({mismatch['proof']})")
                 fixes += 1
                 continue
-            # formula cell: anchor-plug through the least-certain precedent input
+            # formula cell: anchor-plug through an existing input row — prefer a
+            # NON-IMPORTANT line ("others"/misc/adjustment), then flagged cells;
+            # never a row that is itself a key number, never a new row
             precs = _precedent_inputs(wb, s, coord, target_cols, eligible_inputs)
             flagged_set = {(fs, fc) for fs, fc, _n in flags}
-            ranked = sorted(set(precs), key=lambda p: 0 if p in flagged_set else 1)
+            key_cells = {(k["sheet"], f"{k.get('coord')}")
+                         for k in card["tier1"] if k.get("coord")}
+
+            def _plug_rank(p):
+                lab = _norm(_row_label(wb[p[0]], int(re.sub(r"[A-Z]+", "", p[1]))) or "")
+                otherish = any(w in lab for w in
+                               ("other", "misc", "sundr", "adjust", "其他", "其它"))
+                return (0 if otherish else 1, 0 if p in flagged_set else 1)
+
+            ranked = [p for p in sorted(set(precs), key=_plug_rank)
+                      if p not in key_cells]
             done = False
             for ps, pco in ranked:
                 coef, base_in = _sensitivity(wb, s, coord, ps, pco)
