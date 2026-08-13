@@ -57,6 +57,13 @@ call finish with a summary.
 - `todo {"add": "..."} / {"done": 2}` — your task ledger. Open a task for each
   violated objective and each suspect; close it when fixed or explained. Do not
   finish while a task is open and actionable.
+- `statement_diff {"stmt": "bs"}` — the whole disclosed statement (pl/bs/cf/
+  segment) side by side with the model column, matched line-by-line on
+  prior-year values. THE verification move: run it for each statement early;
+  every DIFF line is a candidate error with its disclosed value already found.
+- `read_bridge {}` — the company's reported->underlying bridge and related
+  lines. When a profit key sits in the definition band, use this to reconcile
+  THEIR definition to the model's (match the adjustments, not the word).
 - `request_review {}` — run the independent blind reviewer (different context,
   adversarial). Returns its findings; act only on ones you can corroborate
   (set_input needs the page cite). Worth one call after your main fixes.

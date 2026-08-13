@@ -264,6 +264,96 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                 return "ERROR: bad todo number"
         return "ERROR: pass add or done"
 
+    _model_prior_rows = {}  # (built lazily) sheet -> [(row, label, prior_value)]
+
+    def _prior_rows():
+        if _model_prior_rows:
+            return _model_prior_rows
+        ev_p = Evaluator(pre_wb)
+        for sheet, v in (spec.get("sheets") or {}).items():
+            if (v or {}).get("role") not in ("statements", "segment") \
+                    or sheet not in pre_wb.sheetnames:
+                continue
+            pcol = (spec["year_axis"].get(sheet) or {}).get("columns", {}).get(last_actual)
+            if not pcol:
+                continue
+            rows = []
+            for r in range(1, min(pre_wb[sheet].max_row, 400) + 1):
+                lab = objectives._row_label(pre_wb[sheet], r)
+                if not lab:
+                    continue
+                try:
+                    pv = ev_p.cell(sheet, f"{pcol}{r}")
+                except Exception:
+                    continue
+                if isinstance(pv, (int, float)) and pv != 0:
+                    rows.append((r, str(lab), pv))
+            _model_prior_rows[sheet] = rows
+        return _model_prior_rows
+
+    def t_statement_diff(args):
+        """The Fable verification move: the disclosed statement and the model
+        column side by side, matched on prior-year values, every line."""
+        stmt = str(args.get("stmt", "bs")).lower()
+        items = [it for it in staging.get("items", [])
+                 if it.get("stmt") == stmt
+                 and isinstance(it.get("value"), (int, float))
+                 and isinstance(it.get("prior"), (int, float))]
+        if not items:
+            return f"no staged items for stmt '{stmt}' (use pl/bs/cf/segment)"
+        ev_c = Evaluator(wb)
+        out, matched_rows = [], set()
+        for it in items[:120]:
+            hit = None
+            for sheet, rows in _prior_rows().items():
+                tcol = (spec["year_axis"].get(sheet) or {}).get("columns", {}).get(target_year)
+                if not tcol:
+                    continue
+                for r, lab, pv in rows:
+                    sign = 1 if abs(it["prior"] - pv) <= max(1.0, abs(pv) * 0.001) else \
+                        (-1 if abs(-it["prior"] - pv) <= max(1.0, abs(pv) * 0.001) else None)
+                    if sign is None:
+                        continue
+                    try:
+                        mv = ev_c.cell(sheet, f"{tcol}{r}")
+                    except Exception:
+                        continue
+                    dv = it["value"] * sign
+                    delta = (mv - dv) if isinstance(mv, (int, float)) else None
+                    hit = (sheet, r, lab, mv, dv, delta)
+                    break
+                if hit:
+                    break
+            if hit:
+                sheet, r, lab, mv, dv, delta = hit
+                matched_rows.add((sheet, r))
+                mark = "OK" if delta is not None and abs(delta) <= max(1.0, abs(dv) * 0.001) \
+                    else f"DIFF {delta:+,.1f}"
+                out.append(f"{sheet}!{r} '{lab[:28]}' model={mv:,.1f} | disclosed "
+                           f"'{str(it['label'])[:28]}' {dv:,.1f} (p{it.get('page')}) {mark}")
+            else:
+                out.append(f"(no model row) disclosed '{str(it['label'])[:34]}' "
+                           f"{it['value']:,.1f} prior {it['prior']:,.1f} (p{it.get('page')})")
+        diffs = [l for l in out if "DIFF" in l]
+        return (f"STATEMENT DIFF [{stmt}]: {len(diffs)} lines differ of "
+                f"{len(out)} compared\n" + "\n".join(diffs[:25] +
+                [l for l in out if "DIFF" not in l][:15]))
+
+    def t_read_bridge(args):
+        """The company's reported->underlying bridge — the definition decoder."""
+        lines = [f"p{b.get('page')}: {b.get('label')} = {b.get('value')}"
+                 for b in staging.get("bridge") or []]
+        kw = re.compile(r"underlying|adjusted|recurring|core (?:profit|earnings)|"
+                        r"one[- ]off|non[- ]recurring|fair value|revaluation", re.I)
+        raw_hits = [f"p{pn} [{sec}]: {ln.strip()}" for pn, sec, ln in raw_cache
+                    if kw.search(ln) and re.search(r"\d", ln)][:25]
+        if not lines and not raw_hits:
+            return "no bridge disclosed"
+        return ("BRIDGE ITEMS (extracted):\n" + ("\n".join(lines) or "(none)")
+                + "\n\nBRIDGE-RELATED LINES (raw text):\n" + "\n".join(raw_hits)
+                + "\nUse this to reconcile the COMPANY's definition to the MODEL's: "
+                  "match the adjustments, not the word.")
+
     def t_request_review(args):
         if request_review is None:
             return "reviewer disabled for this run"
@@ -286,6 +376,7 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
              "set_input": t_set_input, "diagnose_balance": t_diagnose_balance,
              "apply_repair": t_apply_repair, "trace_cell": t_trace_cell,
              "note": t_note, "todo": t_todo,
+             "statement_diff": t_statement_diff, "read_bridge": t_read_bridge,
              "request_review": t_request_review, "list_flags": t_list_flags,
              "rescore": lambda a: _fmt_scorecard(_card())}
 

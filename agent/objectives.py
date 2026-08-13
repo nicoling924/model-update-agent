@@ -276,7 +276,7 @@ def tie_web(wb, pre_wb, spec, staging, raw_lines, cfg, last_actual, target_year,
     the tail's errors get caught by the arithmetic above them."""
     pseudo = {}
     sheets = [s for s, v in (spec.get("sheets") or {}).items()
-              if (v or {}).get("role") == "statements"]
+              if (v or {}).get("role") in ("statements", "segment")]
     for sheet in sheets:
         if sheet not in wb.sheetnames:
             continue
