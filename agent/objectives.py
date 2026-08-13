@@ -61,7 +61,8 @@ _EXCLUDE = {"current_assets": ["non-current", "non current", "less", "net curren
             "cff": ["other"]}
 # definition-sensitive keys: the company's own version of this line may lawfully
 # differ from the model's scope — inside this band, flag for the analyst, never plug
-_DEFN_BAND = {"operating_profit": 0.05, "gross_profit": 0.05, "net_profit": 0.01}
+_DEFN_BAND = {"operating_profit": 0.05, "gross_profit": 0.05, "net_profit": 0.01,
+              "sales": 0.002}  # revenue has no real definition variants — tight band
 _DEFN_DEFAULT = 0.01
 
 
@@ -416,7 +417,7 @@ def scorecard(wb, spec, keymap, proven, cfg, t0):
 
 def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
              last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
-             deadline):
+             deadline, protected_cells=frozenset()):
     """The tier loop. Deterministic fixes only; every write flagged + noted."""
     tol = cfg["conventions"]["rounding_tolerance"]
     spec["_target_year"] = target_year
@@ -487,7 +488,7 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                 return (0 if otherish else 1, 0 if p in flagged_set else 1)
 
             ranked = [p for p in sorted(set(precs), key=_plug_rank)
-                      if p not in key_cells]
+                      if p not in key_cells and p not in protected_cells]
             done = False
             for ps, pco in ranked:
                 coef, base_in = _sensitivity(wb, s, coord, ps, pco)

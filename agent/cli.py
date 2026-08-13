@@ -754,12 +754,17 @@ def cmd_update(company_dir, period):
     tw_keymap, tw_proven = objectives.tie_web(
         wb, pre_wb, spec, staging, raw_all, cfg, last_actual, target_year, tw_log,
         exclude_rows={(v["sheet"], v["row"]) for v in keymap.values()})
+    key_cells_prot = set()
+    for v in keymap.values():
+        tc_k = spec["year_axis"].get(v["sheet"], {}).get("columns", {}).get(target_year)
+        if tc_k:
+            key_cells_prot.add((v["sheet"], f"{tc_k}{v['row']}"))
     n_tw = 0
     if tw_keymap:
         _c, tw_clog, n_tw = objectives.converge(
             wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
             last_actual, tw_keymap, tw_proven, flags, backouts, t0,
-            eligible_inputs, obj_deadline)
+            eligible_inputs, obj_deadline, protected_cells=key_cells_prot)
         tw_log += tw_clog
     for ln in tw_log:
         print("  [TIE]", ln, flush=True)

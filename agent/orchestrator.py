@@ -63,26 +63,62 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                   if y == target_year and isinstance(g, (int, float)))
         return ok, gap
 
+    class _Tx:
+        """Undoable multi-cell write transaction over the shared writer."""
+        def __init__(self):
+            self.undo, self.n_flags, self.n_backouts = [], len(flags), len(backouts)
+
+        def write(self, sheet_w, coord_w, value_w, **kw):
+            self.undo.append((sheet_w, coord_w, wb[sheet_w][coord_w].value))
+            return writer.write(sheet_w, coord_w, value_w, **kw)
+
+        @property
+        def log(self):
+            return writer.log
+
+        def rollback(self):
+            for sheet_u, coord_u, old_u in reversed(self.undo):
+                wb[sheet_u][coord_u].value = old_u
+                if writer.log["written"] and writer.log["written"][-1] == f"{sheet_u}!{coord_u}":
+                    writer.log["written"].pop()
+            del flags[self.n_flags:]
+            del backouts[self.n_backouts:]
+
     def _guarded_write(sheet, coord, value, note, flag):
-        """Every write self-verifies: if it breaks a previously-correct key or
-        widens the target-year balance gap, it is REVERTED on the spot — the
-        agent can act freely but can never regress the objectives."""
+        """Every write self-verifies. If it breaks a previously-correct key, the
+        downstream plugs are RE-DERIVED first (fixing an upstream input must not
+        be blocked by a plug that had absorbed the old error); only if the state
+        still cannot be recovered is the whole transaction rolled back."""
         before = _card()
         ok_before, gap_before = _objective_state(before)
-        old = wb[sheet][coord].value
-        writer.write(sheet, coord, value, note=note, flag=flag)
+        tx = _Tx()
+        tx.write(sheet, coord, value, note=note, flag=flag)
         after = _card()
         ok_after, gap_after = _objective_state(after)
         broken = ok_before - ok_after
+        replugged = []
+        if broken:
+            re_km = {k: keymap[k] for k in broken if k in keymap}
+            re_pv = {k: proven[k] for k in broken if k in proven}
+            if re_km:
+                spec_t1 = dict(spec)
+                spec_t1["check_rows"] = []
+                objectives.converge(wb, spec_t1, staging, cfg, tx, pre_wb, None,
+                                    target_year, last_actual, re_km, re_pv,
+                                    flags, backouts, t0, eligible_inputs, deadline)
+                after = _card()
+                ok_after, gap_after = _objective_state(after)
+                broken = ok_before - ok_after
+                replugged = sorted(re_km)
         if broken or gap_after > gap_before + 1.0:
-            wb[sheet][coord].value = old
-            if writer.log["written"] and writer.log["written"][-1] == f"{sheet}!{coord}":
-                writer.log["written"].pop()
+            tx.rollback()
             return (False, f"REVERTED: that write {'broke key(s) ' + str(sorted(broken)) if broken else ''}"
                            f"{' and ' if broken and gap_after > gap_before + 1.0 else ''}"
                            f"{f'widened the balance gap {gap_before:,.1f} -> {gap_after:,.1f}' if gap_after > gap_before + 1.0 else ''}"
-                           " — the model is unchanged. Reconsider the target cell.")
-        return (True, None)
+                           " (even after re-deriving downstream plugs) — the model is "
+                           "unchanged. Reconsider the target cell.")
+        extra = f"; downstream keys re-plugged: {replugged}" if replugged else ""
+        return (True, extra)
 
     pages_served = set()
 
@@ -173,7 +209,7 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         if not ok:
             return msg
         flags.append((sheet, coord, f"orchestrator set: {why[:80]}"))
-        return f"written {ref} = {val} (red-flagged; self-check passed)"
+        return f"written {ref} = {val} (red-flagged; self-check passed{msg or ''})"
 
     def t_diagnose_balance(args):
         card = _card()
@@ -232,7 +268,8 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         if not ok:
             return msg
         flags.append((sheet, coord, "orchestrator balance repair — verify"))
-        return f"repaired {ref} by {adj:+,.1f} (self-check passed); re-score to confirm"
+        return (f"repaired {ref} by {adj:+,.1f} (self-check passed{msg or ''}); "
+                "re-score to confirm")
 
     def t_trace_cell(args):
         """The Fable move: decompose a cell — formula, each precedent's current
