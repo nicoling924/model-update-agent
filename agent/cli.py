@@ -152,6 +152,25 @@ def cmd_learn(company_dir, prior_period):
           f"written (privacy-safe metadata only). {(time.time()-t0)/60:.1f} min")
 
 
+def cmd_digest(company_dir, period):
+    """Read the period's disclosures carefully ONCE (3 passes, union-merged,
+    raw-corroborated) and freeze the result beside the PDFs. Updates then run
+    variance-free on the frozen digest."""
+    from . import digest as digest_mod
+    cfg = _load_cfg()
+    company_dir = Path(company_dir)
+    disclosures = sorted((company_dir / "disclosures" / period).glob("*.pdf"))
+    if not disclosures:
+        sys.exit(f"No PDFs in disclosures/{period}/")
+    system = _system(company_dir)
+    client = Client(temperature=cfg["updater"]["temperature"],
+                    max_output_tokens=cfg["updater"]["max_output_tokens"])
+    sig = digest_mod.signature(disclosures, _prompt("extraction"), system, client.model)
+    out = company_dir / "disclosures" / period / "digest.json"
+    digest_mod.build(client, system, disclosures, _prompt("extraction"), cfg, out, sig)
+    print(f"LLM provenance: {client.usage}")
+
+
 def cmd_update(company_dir, period):
     t0 = time.time()
     cfg = _load_cfg()
@@ -237,9 +256,17 @@ def cmd_update(company_dir, period):
     sig_src = _prompt("extraction") + system + client.model + "".join(
         hashlib.sha256(p.read_bytes()).hexdigest() for p in disclosures)
     sig = hashlib.sha256(sig_src.encode()).hexdigest()[:16]
+    # frozen digest first: the one careful reading beats any fresh single pass
+    from . import digest as digest_mod
+    dig_sig = digest_mod.signature(disclosures, _prompt("extraction"), system,
+                                   client.model)
+    frozen = digest_mod.load_if_valid(company_dir, period, dig_sig)
+    if frozen is not None:
+        print(f"[2] using FROZEN DIGEST ({len(frozen['items'])} items, "
+              f"{frozen['_confidence']}) — variance-free", flush=True)
     staging_path = company_dir / "updates" / f"{period}_staging.json"
-    staging = None
-    if staging_path.exists():
+    staging = frozen
+    if staging is None and staging_path.exists():
         cached = _json.loads(staging_path.read_text())
         if cached.get("_sig") == sig:
             staging = cached
@@ -727,6 +754,25 @@ def cmd_update(company_dir, period):
         print("  [OBJ]", ln, flush=True)
     print(f"[6] bootstrap converge: {n_fix} deterministic fixes banked", flush=True)
 
+    # TIE-WEB: every provable subtotal becomes an anchor — the key-number method
+    # cast over the whole statement, so tail errors get caught by the arithmetic
+    # above them (proven-only, same guards, plugs orange-flagged)
+    tw_log = []
+    tw_keymap, tw_proven = objectives.tie_web(
+        wb, pre_wb, spec, staging, raw_all, cfg, last_actual, target_year, tw_log,
+        exclude_rows={(v["sheet"], v["row"]) for v in keymap.values()})
+    n_tw = 0
+    if tw_keymap:
+        _c, tw_clog, n_tw = objectives.converge(
+            wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
+            last_actual, tw_keymap, tw_proven, flags, backouts, t0,
+            eligible_inputs, obj_deadline)
+        tw_log += tw_clog
+    for ln in tw_log:
+        print("  [TIE]", ln, flush=True)
+    print(f"[6t] tie-web: {n_tw} subtotal-anchored fixes", flush=True)
+    obj_log = obj_log + tw_log
+
     # blind review as a TOOL: the loop calls it when it wants a second pair of
     # eyes; findings return to the loop, which acts through its guarded writes
     findings_box = {}
@@ -861,6 +907,10 @@ def main():
     cmd = sys.argv[1]
     if cmd == "discover":
         cmd_discover(sys.argv[2])
+    elif cmd == "digest":
+        if len(sys.argv) < 4:
+            sys.exit("usage: python run.py digest <company_dir> <period>")
+        cmd_digest(sys.argv[2], sys.argv[3])
     elif cmd == "learn":
         if len(sys.argv) < 4:
             sys.exit("usage: python run.py learn <company_dir> <prior_period>")
