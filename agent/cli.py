@@ -746,17 +746,10 @@ def cmd_update(company_dir, period):
     writer_obj = workbook.Writer(wb, cfg)
     writer_obj.log["written"] = list(writer.log["written"])
     obj_deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.92
-    card, obj_log, n_fix = objectives.converge(
-        wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
-        last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
-        obj_deadline)
-    for ln in obj_notes + obj_log:
-        print("  [OBJ]", ln, flush=True)
-    print(f"[6] bootstrap converge: {n_fix} deterministic fixes banked", flush=True)
 
-    # TIE-WEB: every provable subtotal becomes an anchor — the key-number method
-    # cast over the whole statement, so tail errors get caught by the arithmetic
-    # above them (proven-only, same guards, plugs orange-flagged)
+    # ORDERING GUARANTEE: tie-web first (wide net over subtotals), key-number
+    # converge LAST — the least-requirement keys get the final word, re-tying
+    # anything a tie-web plug disturbed beneath them.
     tw_log = []
     tw_keymap, tw_proven = objectives.tie_web(
         wb, pre_wb, spec, staging, raw_all, cfg, last_actual, target_year, tw_log,
@@ -771,7 +764,15 @@ def cmd_update(company_dir, period):
     for ln in tw_log:
         print("  [TIE]", ln, flush=True)
     print(f"[6t] tie-web: {n_tw} subtotal-anchored fixes", flush=True)
-    obj_log = obj_log + tw_log
+
+    card, obj_log, n_fix = objectives.converge(
+        wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
+        last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
+        obj_deadline)
+    for ln in obj_notes + obj_log:
+        print("  [OBJ]", ln, flush=True)
+    print(f"[6] key-number converge (final word): {n_fix} fixes banked", flush=True)
+    obj_log = tw_log + obj_log
 
     # blind review as a TOOL: the loop calls it when it wants a second pair of
     # eyes; findings return to the loop, which acts through its guarded writes
