@@ -157,3 +157,20 @@ balance diagnostic.
 | 38 (Luna, self-check writes) | 08-13 18:59 | 48.7m ✓ | 68.7% | 0 (2025) / fcst ~3.3-4.7k | 144 | 69 | 2025 balance PASS repeated (perpetual-securities repair reproduced, self-check passed). NEW SYSTEMIC FLAW FOUND: tie-web plugged INTO the sales cell (+436 to tie pretax — key rows were anchor-excluded but not plug-site-excluded); definition band then excused the corrupted sales (0.5% < 1%); revert guard blocked the orchestrator's correct restore (downstream plug had absorbed the error). r39 fixes (all offline-verified on a replica): key cells protected as plug sites, sales band tightened to 0.2%, guarded writes now transactional with AUTO-REPLUG of downstream keys before judging revert. |
 
 | 39 (Luna, full consistency system) | 08-13 19:55 | 49.8m ✓ | 66.2% | -3,872 (perpetual repair not reproduced) / fcst small (-550..858) | 160 | 70 | Keys 9/12 (ties best); guards all held (protected plug sites, auto-replug, no self-corruption). New monster (SOC Accounts ±82,724, GT 0) traced to ONE misread upstream input propagating — pure extraction lottery, not machinery. **LUNA PLATEAU CONFIRMED on final harness: 66.2/68.7/66.2 — balance achievable but not reproducible (evidence-dependent). Per plan: Terra x2 on identical harness.** |
+
+**TERRA VERDICT (identical harness, runs 40-41):**
+| 40 (TERRA, full stack) | 08-13 20:46 | 48.9m ✓ | 66.9% | 0 (2025) / fcst -23k | 154 | 71 | 2025 balance PASS; keys 8/12. |
+| 41 (TERRA, + breadth pass) | 08-13 21:38 | 48.7m ✓ | 63.2% | 0 (2025) / fcst 1.2-2.6k | 172 | 78 | Breadth pass live (9 repairs); Aus unit-scale misreads (27.5 vs 27,500) dominate the wrong list. |
+
+**OVERNIGHT CONCLUSION (runs 37-41):** the objective architecture RELIABLY wins
+its objectives — 2025 balance passed 4 of 5 runs (never before achieved), keys
+stable 8-9/12, exact-GT investigative repairs (perpetual securities 9,815),
+zero unguarded corruption — but whole-model % REGRESSED vs the phase-4 stack
+(Luna ~68 vs ~72-76; Terra ~65 vs ~77). Root cause isolated by elimination:
+extraction volume unchanged (2,100-2,600 items every run) -> NOT the reading;
+the regression is PLUG DISPLACEMENT — each subtotal plug moves an innocent
+sibling to absorb a residual whose true cause is a wrong sibling. FIX BUILT +
+REPLAY-VALIDATED (not yet run live): sibling-first correction — check each
+component's own disclosed value before plugging; on run-41 replay 8/9 sibling
+corrections exactly match GT. Next live run carries it (budget cap reached;
+awaiting analyst).
