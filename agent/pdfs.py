@@ -103,3 +103,22 @@ def windows(page_texts, chars_per_window=60000, overlap_pages=1):
 
 def render(win):
     return "\n\n".join(f"=== PAGE {p} ===\n{t}" for p, t in win)
+
+
+_HEAD_PAT = __import__("re").compile(
+    r"^(?:(?:\d{1,2}[A-Z]?\.?\s+)?[A-Z][A-Za-z&,\'\u2019 -]{6,60}|[A-Z][A-Z &,\' -]{8,60})$")
+
+
+def sections(page_texts):
+    """{page: nearest section heading} — headings are short title-like lines
+    (statement titles, note headers). Deterministic, layout-agnostic."""
+    current, out = None, {}
+    for pnum, text in page_texts:
+        for line in text.splitlines()[:12]:
+            line = line.strip()
+            if 8 <= len(line) <= 60 and _HEAD_PAT.match(line) \
+                    and not any(ch.isdigit() for ch in line[-6:]):
+                current = line
+                break
+        out[pnum] = current
+    return out

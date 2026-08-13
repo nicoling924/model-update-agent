@@ -19,7 +19,7 @@ DISCLAIMER = ("VALUATION MODEL UPDATE MAPPING — machine-generated metadata for
               "workbook. Managed by the model-update agent; edits welcome.")
 
 
-def learn(wb, pre_values, spec, staging, census, tol=1.0):
+def learn(wb, pre_values, spec, staging, census, tol=1.0, page_sections=None):
     """Return identity entries [{sheet,row,kind,label,stmt,page,sign_flip}] by
     double-locked matching of the prior actual column against prior-year staging."""
     from .mapping import norm, SCALARS
@@ -49,10 +49,11 @@ def learn(wb, pre_values, spec, staging, census, tol=1.0):
             ident = _identify(items, v, v2, tol)
             if ident:
                 it, flip = ident
+                sec = (page_sections or {}).get(it.get("page"))
                 entries.append({"sheet": sheet, "row": r, "kind": "input",
                                 "label": it["label"], "stmt": it.get("stmt"),
                                 "page": it.get("page"), "sign_flip": flip,
-                                "segment": it.get("segment")})
+                                "segment": it.get("segment"), "section": sec})
         # composite formulas: identify each embedded constant
         for r in range(1, min(wsf.max_row, 400) + 1):
             f = wsf[f"{pc}{r}"].value
@@ -116,6 +117,7 @@ def write_memory_tab(wb, entries):
         ws[f"G{i}"] = "Y" if e.get("sign_flip") else "N"
         ws[f"H{i}"] = json.dumps(e.get("components")) if e.get("components") else None
         ws[f"I{i}"] = e.get("segment")
+        ws[f"J{i}"] = e.get("section")
     return len(entries)
 
 
@@ -135,5 +137,6 @@ def read_memory_tab(wb):
             "stmt": ws[f"E{r}"].value, "page": ws[f"F{r}"].value,
             "sign_flip": ws[f"G{r}"].value == "Y",
             "segment": ws[f"I{r}"].value,
+            "section": ws[f"J{r}"].value,
             "components": json.loads(comps) if comps else None}
     return out
