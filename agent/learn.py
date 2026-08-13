@@ -118,6 +118,7 @@ def write_memory_tab(wb, entries):
         ws[f"H{i}"] = json.dumps(e.get("components")) if e.get("components") else None
         ws[f"I{i}"] = e.get("segment")
         ws[f"J{i}"] = e.get("section")
+        ws[f"K{i}"] = e.get("audit")
     return len(entries)
 
 
@@ -138,6 +139,7 @@ def read_memory_tab(wb):
             "sign_flip": ws[f"G{r}"].value == "Y",
             "segment": ws[f"I{r}"].value,
             "section": ws[f"J{r}"].value,
+            "audit": ws[f"K{r}"].value,
             "components": json.loads(comps) if comps else None}
     return out
 

@@ -163,3 +163,35 @@ def raw_lines(disclosure_paths):
                 if any(ch.isdigit() for ch in ln):
                     lines.append((pnum, secs.get(pnum) or "", ln.strip()))
     return lines
+
+
+def raw_lookup_rows(rawlines, memory, rows_ctx, tol=1.0):
+    """Unified serving for SIMPLE hardcodes, same method as embedded values:
+    find the remembered line NAME in raw text, prove it with the prior-year
+    number adjacent, copy its left neighbour. Statuses: clean | miss."""
+    by_lab = {}
+    for pn, sec, ln in rawlines:
+        by_lab.setdefault(norm(label_of(ln)), []).append((pn, sec, ln))
+    results = {}
+    for key, ctx in rows_ctx.items():
+        mem = memory.get(key)
+        if not mem or mem.get("kind") != "input" or not mem.get("label"):
+            continue
+        pv = ctx.get("prior_value")
+        if not isinstance(pv, (int, float)) or pv == 0:
+            continue
+        founds = []
+        for pn, sec, ln in by_lab.get(norm(mem["label"]), []):
+            ns = line_nums(ln)
+            for i in range(1, len(ns)):
+                if abs(abs(ns[i]) - abs(pv)) <= tol:
+                    founds.append((abs(ns[i - 1]), pn, ln))
+        changed = [f for f in founds if abs(f[0] - abs(pv)) > tol]
+        pick = (changed or founds or [None])[0]
+        if pick is None:
+            results[key] = {"status": "miss"}
+            continue
+        v = pick[0] * (1 if pv > 0 else -1)  # model sign convention
+        results[key] = {"status": "clean", "value": v, "page": pick[1],
+                        "line_label": mem["label"]}
+    return results

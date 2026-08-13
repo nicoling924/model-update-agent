@@ -110,6 +110,37 @@ def cmd_learn(company_dir, prior_period):
     recipes = learn_mod.component_recipes(disclosures, wb, pre_values, spec)
     print(f"[L1c] component recipes (raw-text find-and-search, strict): {len(recipes)} composite rows", flush=True)
     entries = recipes + list(merged.values())
+    # LLM MAP-AUDIT (one call): semantic sanity of the learned map — a row named
+    # "Working capital" mapped to a "Dividends paid" line passes every numeric
+    # lock yet is conceptually wrong; reasoning catches what arithmetic cannot
+    audit_pairs = []
+    for e in entries:
+        if e.get("kind") != "input" or not e.get("label"):
+            continue
+        wsx = pre_values[e["sheet"]]
+        rl = next((wsx[f"{lc}{e['row']}"].value for lc in "ABCDEF"
+                   if isinstance(wsx[f"{lc}{e['row']}"].value, str)), "")
+        audit_pairs.append({"id": f"{e['sheet']}!{e['row']}",
+                            "model_row": str(rl)[:60], "mapped_to": str(e["label"])[:60]})
+    if audit_pairs:
+        import json as _j
+        try:
+            resp = client.json(
+                "You audit financial line mappings.",
+                "For each pair, judge whether the model row plausibly corresponds to "
+                "the mapped disclosure line (synonyms are fine: sales=revenue). Return "
+                '{"suspects": ["<id>", ...]} listing ONLY conceptually implausible pairs.\n'
+                + _j.dumps(audit_pairs),
+                lambda o: [] if isinstance(o.get("suspects"), list) else ["missing suspects"],
+                repair_retries=1)
+            suspects = set(resp.get("suspects") or [])
+            for e in entries:
+                if e.get("kind") == "input" and f"{e['sheet']}!{e['row']}" in suspects:
+                    e["audit"] = "SUSPECT"
+            print(f"[L1d] map-audit: {len(suspects)} suspect mappings flagged of "
+                  f"{len(audit_pairs)}", flush=True)
+        except Exception as ex:
+            print(f"[L1d] map-audit skipped ({ex})", flush=True)
     n = learn_mod.write_memory_tab(wb, entries)
     workbook.save(wb, model_path)
     wb2 = workbook.load(model_path)
@@ -244,6 +275,22 @@ def cmd_update(company_dir, period):
                                        "prior_value": pv_k if isinstance(pv_k, (int, float)) else None}
         det_results = lookup_mod.lookup_rows(idx_cur, memory, rows_ctx_lk,
                                              target_year, last_actual)
+        raw_cur = lookup_mod.raw_lines(disclosures)
+        raw_results = lookup_mod.raw_lookup_rows(raw_cur, memory, rows_ctx_lk)
+        # unify: raw-text is primary; rendered tables confirm. Agreement -> clean;
+        # disagreement -> flagged conflict; raw-only -> clean (the Ctrl+F standard)
+        for k_, rr_ in raw_results.items():
+            if rr_.get("status") != "clean":
+                continue
+            dr_ = det_results.get(k_)
+            if dr_ and dr_.get("status") == "clean" and isinstance(dr_.get("value"), (int, float)) \
+                    and abs(dr_["value"] - rr_["value"]) > 1.0:
+                det_results[k_] = {"status": "restated", "value": rr_["value"],
+                                   "prior_found": dr_.get("value"),
+                                   "page": rr_.get("page"),
+                                   "line_label": rr_.get("line_label")}
+            else:
+                det_results[k_] = rr_
         n_clean = sum(1 for v in det_results.values() if v.get("status") == "clean")
         print(f"[M2] deterministic table lookup: {n_clean} clean, "
               f"{sum(1 for v in det_results.values() if v.get('status')=='restated')} restated, "
@@ -317,7 +364,13 @@ def cmd_update(company_dir, period):
             # chunked page-read (primary path) runs next and the two results
             # are merged with cross-checking before any write
             dr = det_results.get((sheet, r))
-            if dr and dr.get("status") == "clean" and isinstance(dr.get("value"), (int, float)):
+            if dr and memory.get((sheet, r), {}).get("audit") == "SUSPECT" \
+                    and isinstance(dr.get("value"), (int, float)):
+                entry = {"value": dr["value"], "source": "table-lookup-suspect",
+                         "flag": "red",
+                         "note": "AUDIT-SUSPECT mapping — LLM doubts this row/line pairing; verify",
+                         "page": dr.get("page")}
+            elif dr and dr.get("status") == "clean" and isinstance(dr.get("value"), (int, float)):
                 entry = {"value": dr["value"], "source": "table-lookup", "flag": None,
                          "note": f"code table-lookup: '{dr.get('line_label')}' p{dr.get('page')}"
                                  " (prior verified, no LLM)", "page": dr.get("page")}
