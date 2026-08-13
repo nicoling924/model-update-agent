@@ -139,3 +139,10 @@ fair benchmark.
 - r11: first integrity-gate verdict (balance 18,241; 113 flags)
 - r12: corroboration-gated cascade, consensus dedup, sign-flip, recompose → gap 250
 - r13: targeted rescue (5/6 on hardest rows in live test), always-flag LLM, tiered gate
+
+**PHASE 6 (objective-driven branch, 08-13):** tier ladder — balance > key numbers
+(sales/GP/NP/cash/CA/CL/NCA/NCL/equity/CFO/CFI/CFF + breakdowns, 100% target) >
+60min > whole-model 90%. Convergence in code: proof-by-redundancy, anchor-plug,
+balance diagnostic.
+
+| 31 (Luna, objectives v1, GitHub chain) | 08-13 12:22 | learn 40.5m + upd 47.0m ✓ | 69.6% | -5,958 | 145 | 62 | First cloud run (learn+update one dispatch). Objective layer INERT — 3 bugs: proof-by-redundancy elected small ubiquitous numbers (equity "9,508" vs model's correct 107,610), retry loop burned the fix budget on one unfixable key, precedent-walk regex ate bare same-sheet refs (plug never found a site). Replay-validated fixes: triangulation-first + magnitude guard + word-boundary labels + statement-locality (6 proven-right/0 pluggable-wrong/5 honest-unproven on run-31's own staging), one-attempt-per-key, definition band (op profit 3.3% gap flagged not plugged), sign harmonization, ref-walk fixed. Learner tab committed — next runs skip the learn leg. |
