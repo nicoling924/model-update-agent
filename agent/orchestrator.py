@@ -50,10 +50,16 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
     def _card():
         return objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
 
+    pages_served = set()
+
     def t_read_pages(args):
         pages = [int(p) for p in (args.get("pages") or [])][:12]
         if not pages:
             return "ERROR: no pages given"
+        if set(pages) <= pages_served:
+            return ("ALREADY READ these pages this run — the text does not change; "
+                    "act on what you saw, or read DIFFERENT pages")
+        pages_served.update(pages)
         lines = [f"p{pn}: {ln.strip()}" for pn, _s, ln in raw_cache
                  if pn in pages and re.search(r"\d", ln)][:80]
         return "PAGE TEXT (numeric lines):\n" + "\n".join(lines) if lines \
@@ -97,6 +103,10 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                             eligible_inputs, deadline)
         made = len(writer.log["written"]) - n_before
         e2 = next((x for x in _card()["tier1"] if x["kind"] == kind), None)
+        if made == 0:
+            return (f"{kind}: refused — either inside the definition band (model "
+                    "and disclosed close: scope difference, flag stands) or no "
+                    "legal plug site. Do NOT retry; move to the next objective.")
         return f"{kind}: {made} write(s); now {e2['status'] if e2 else '?'}"
 
     def t_set_input(args):

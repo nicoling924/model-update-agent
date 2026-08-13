@@ -53,6 +53,13 @@ call finish with a summary.
 - `finish {"summary": "..."}` — end the loop; state which objectives are met and
   what remains flagged for the analyst.
 
+## Search discipline
+
+Company terminology varies — if find_line misses, try the synonym once
+(minority interests = non-controlling interests; turnover = revenue; borrowings
+= debt) and then move on. Never re-read pages you already read. If three probes
+at the same hypothesis fail, note it as unresolved and attack the next objective.
+
 ## The investigation pattern that works
 
 Balance gap? -> trace_cell the check row -> compare components vs prior -> the
