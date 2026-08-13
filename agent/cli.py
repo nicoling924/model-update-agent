@@ -798,6 +798,65 @@ def cmd_update(company_dir, period):
     else:
         request_review = None
 
+    # -- 6p. BREADTH PASS (bootstrap, before the agent): the run-30 machinery
+    # that repaired ~15 tail cells/run, reinstated UNDER the loop's authority —
+    # it runs before the agent, never after, so it can never clobber the agent.
+    obj_written = {c for c in writer_obj.log["written"]
+                   if c not in set(writer.log["written"])}
+    breadth_log = []
+    if cfg["reviewer"]["enabled"]:
+        fnd = request_review()
+        staged_vals_b = [it["value"] for it in staging["items"]
+                        if isinstance(it.get("value"), (int, float))]
+        applied_b = 0
+        for f in fnd["findings"]:
+            if applied_b >= 10 or f.get("severity") != "genuine_error":
+                continue
+            m = re.match(r"^\s*'?([A-Za-z0-9 _\-]+)'?!([A-Z]{1,3})(\d+)\s*$",
+                         str(f.get("cell", "")))
+            nums = re.findall(r"-?[\d,]+(?:\.\d+)?", str(f.get("disclosure_says", "")))
+            if not m or not nums:
+                continue
+            sheet_f, col_f, row_f = m.group(1), m.group(2), int(m.group(3))
+            coord_f = f"{col_f}{row_f}"
+            if sheet_f not in wb.sheetnames or col_f not in spec.get("_target_cols", []) \
+                    or f"{sheet_f}!{coord_f}" in obj_written \
+                    or (sheet_f, coord_f) in key_cells_prot:
+                continue
+            try:
+                val = float(nums[0].replace(",", ""))
+            except ValueError:
+                continue
+            if not any(abs(val - sv) <= 1.0 or abs(-val - sv) <= 1.0 for sv in staged_vals_b):
+                continue
+            pv_chk = pre_values[sheet_f][f"{prior_col}{row_f}"].value \
+                if sheet_f in pre_values.sheetnames else None
+            if isinstance(pv_chk, (int, float)) and pv_chk != 0 and val != 0:
+                ratio = abs(val) / abs(pv_chk)
+                if ratio < 0.05 or ratio > 20:
+                    continue
+            elif abs(val) > 1000:
+                continue
+            writer_obj.write(sheet_f, coord_f, val,
+                             note=f"REVIEWER-APPLIED (bootstrap): "
+                                  f"{str(f.get('evidence', ''))[:140]}")
+            f["outcome"] = "auto-applied"
+            breadth_log.append(f"reviewer-applied {sheet_f}!{coord_f} = {val}")
+            applied_b += 1
+    from . import closing
+    eligible_cl = {f"{s_}!{c_}" for s_, c_, _n in flags} - obj_written \
+        - {f"{s_}!{c_}" for s_, c_ in key_cells_prot}
+    writer_cl = workbook.Writer(wb, cfg)
+    writer_cl.log["written"] = list(writer_obj.log["written"])
+    cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
+                                     target_year, pre_values=pre_values,
+                                     eligible=eligible_cl)
+    writer_obj.log["written"] = list(writer_cl.log["written"])
+    breadth_log += cl_log or []
+    print(f"[6p] breadth pass: {len(breadth_log)} repairs "
+          "(reviewer-corroborated + closing residuals; objective cells protected)",
+          flush=True)
+
     decisions = []
     if (cfg.get("orchestrator") or {}).get("enabled", True):
         from . import orchestrator
@@ -806,7 +865,8 @@ def cmd_update(company_dir, period):
             writer_obj, pre_wb, target_year, last_actual, keymap, proven, flags,
             backouts, eligible_inputs, disclosures, t0, obj_deadline,
             lambda s: print(s, flush=True),
-            bootstrap_log=obj_notes + obj_log, request_review=request_review)
+            bootstrap_log=obj_notes + obj_log + breadth_log,
+            request_review=request_review)
     writer.log["written"] = list(writer_obj.log["written"])
     workbook.save(wb, model_path)
     wb = workbook.load(model_path)
