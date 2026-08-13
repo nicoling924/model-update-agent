@@ -1,0 +1,7 @@
+/Users/lingling/Project M/.venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[L1] extracting prior-year disclosures (FY24) ...
+    [2] CLP 2024 Annual Results Presentation.pdf pages 1-29 (total items so far: 0)
+    [2] CLP 2024 Annual Results Presentation.pdf pages 29-49 (total items so far: 46)
+    [2] CLP 2024 Annual Results Presentation.pdf pages 49-60 (total items so far: 152)
+    [2] e_2024 Annual Report.pdf pages 1-11 (total items so far: 230)

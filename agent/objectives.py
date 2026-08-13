@@ -48,17 +48,35 @@ KEY_KINDS = {
             "financing cash flow"],
 }
 # guards: "current assets" must never match "non-current assets"; CF totals must
-# never match an "other …" or pre-subtotal line
-_EXCLUDE = {"current_assets": ["non-current", "non current"],
-            "current_liabilities": ["non-current", "non current"],
-            "total_assets": ["liabilit", "return", "roa"],
+# never match an "other …" or pre-subtotal line; BS totals must never match
+# derived lines like "total assets less current liabilities"
+_EXCLUDE = {"current_assets": ["non-current", "non current", "less", "net current"],
+            "current_liabilities": ["non-current", "non current", "less",
+                                    "total assets", "net current", "equity and"],
+            "non_current_liabilities": ["less", "total assets", "other", "net",
+                                        "equity and", "debts"],
+            "total_assets": ["liabilit", "return", "roa", "less"],
             "cfo": ["other", "before working capital"],
             "cfi": ["other"],
             "cff": ["other"]}
+# definition-sensitive keys: the company's own version of this line may lawfully
+# differ from the model's scope — inside this band, flag for the analyst, never plug
+_DEFN_BAND = {"operating_profit": 0.05, "gross_profit": 0.05, "net_profit": 0.01}
+_DEFN_DEFAULT = 0.01
 
 
 def _norm(s):
     return re.sub(r"[^a-z0-9& ]", "", str(s).lower()).strip()
+
+
+def _syn_hit(syn, nl):
+    """Word-boundary synonym match in normalized space — 'current liabilities'
+    must NOT hit 'noncurrent liabilities' once the hyphen is stripped."""
+    return re.search(rf"(?<![a-z0-9]){re.escape(_norm(syn))}(?![a-z0-9])", nl) is not None
+
+
+def _excluded(kind, nl):
+    return any(_syn_hit(x, nl) for x in _EXCLUDE.get(kind, []))
 
 
 def _row_label(values_ws, r):
@@ -98,15 +116,15 @@ def locate(spec, pre_wb, log):
                 if not lab:
                     continue
                 nl = _norm(lab)
-                if any(x in nl for x in _EXCLUDE.get(kind, [])):
+                if _excluded(kind, nl):
                     continue
                 # a key row must actually HOLD something — kills section headers
                 lv = ws[f"{la_col}{r}"].value if la_col else 0
                 if la_col and not (isinstance(lv, (int, float))
                                    or (isinstance(lv, str) and lv.startswith("="))):
                     continue
-                if any(_norm(syn) in nl for syn in syns):
-                    rank = min(i for i, syn in enumerate(syns) if _norm(syn) in nl)
+                if any(_syn_hit(syn, nl) for syn in syns):
+                    rank = min(i for i, syn in enumerate(syns) if _syn_hit(syn, nl))
                     if best is None or rank < best[0]:
                         best = (rank, sheet, r, lab)
         if best:
@@ -160,7 +178,12 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                 pv = ev_prior.cell(loc["sheet"], f"{pc}{loc['row']}")
             except Exception:
                 pv = None
-        cands = {}  # model-sign value -> set of source pages
+        # triangulated candidates (matched on the model's own prior — strong)
+        # kept separate from label-only ones (weak); label-only serves ONLY when
+        # no triangulation exists, and every candidate must pass the magnitude
+        # guard — a key line does not move 5x, so a tiny same-label note row
+        # can never outvote the real figure (the run-31 failure mode)
+        cands_tri, cands_lab = {}, {}
         for it in staging.get("items", []):
             iv, ip = it.get("value"), it.get("prior")
             if not isinstance(iv, (int, float)):
@@ -171,14 +194,24 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                     sign = 1
                 elif abs(-ip - pv) <= max(tol, abs(pv) * 0.001):
                     sign = -1  # model stores this line with flipped sign (e.g. liabilities +)
-            label_hit = any(_norm(s) in _norm(it.get("label", "")) for s in KEY_KINDS[kind]) \
-                and not any(x in _norm(it.get("label", ""))
-                            for x in _EXCLUDE.get(kind, []))
-            if sign is None and not label_hit:
-                continue
-            mv = iv * (sign if sign else 1)
-            k = round(mv, 1)
-            cands.setdefault(k, set()).add(("item", it.get("page")))
+            nl_it = _norm(it.get("label", ""))
+            label_hit = any(_syn_hit(s, nl_it) for s in KEY_KINDS[kind]) \
+                and not _excluded(kind, nl_it)
+            if sign is not None:
+                cands_tri.setdefault(round(iv * sign, 1), set()).add(("item", it.get("page")))
+            elif label_hit:
+                # harmonize to the MODEL's sign convention (disclosures print
+                # liabilities negative where models store them positive — a raw
+                # label-only value must never flip the model's sign)
+                iv_h = iv if not (isinstance(pv, (int, float)) and pv) \
+                    else abs(iv) * (1 if pv > 0 else -1)
+                cands_lab.setdefault(round(iv_h, 1), set()).add(("item", it.get("page")))
+        cands = dict(cands_tri) if cands_tri else dict(cands_lab)
+        # magnitude guard: BS/P&L key lines do not move 5x in a year; CF lines
+        # legitimately swing wider, so they get a looser band
+        lo, hi = (0.05, 20) if kind in ("cfo", "cfi", "cff") else (0.2, 5)
+        if isinstance(pv, (int, float)) and abs(pv) > 10:
+            cands = {v: s for v, s in cands.items() if lo <= abs(v) / max(abs(pv), 1e-9) <= hi}
         for mv, srcs in cands.items():
             for rp in raw_num_pages.get(round(abs(mv), 1), ()):
                 if all(rp != p for _t, p in srcs):
@@ -191,6 +224,26 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
         status = "proven" if len(srcs) >= 2 else "single-source"
         proven[kind] = {"status": status, "value": val, "sources": len(srcs),
                         "pages": sorted(str(p) for _t, p in srcs)[:4]}
+    # statement locality: the group BS lives on the pages where the PROVEN
+    # anchors (equity, total assets ...) sit; a single-source BS candidate far
+    # from there is a subsidiary/segment statement wearing the same label —
+    # drop it to honest-unproven rather than trust the wrong entity
+    BS_KINDS = {"cash", "current_assets", "current_liabilities", "non_current_assets",
+                "non_current_liabilities", "equity", "total_assets"}
+    anchor_first = [min(int(x) for x in (proven[k].get("pages") or []) if str(x).isdigit())
+                    for k in BS_KINDS
+                    if proven.get(k, {}).get("status") == "proven"
+                    and any(str(x).isdigit() for x in proven[k].get("pages") or [])]
+    if anchor_first:
+        lo_p, hi_p = min(anchor_first) - 2, min(anchor_first) + 8
+        for k in BS_KINDS:
+            p = proven.get(k)
+            if p and p.get("status") == "single-source":
+                pgs = [int(x) for x in (p.get("pages") or []) if str(x).isdigit()]
+                if pgs and all(not (lo_p <= x <= hi_p) for x in pgs):
+                    log.append(f"{k}: single-source {p['value']:,.1f} sits off the "
+                               f"statement pages (p{pgs} vs ~p{lo_p}-{hi_p}) — dropped")
+                    p.update(status="missing", value=None)
     # arithmetic corroboration upgrades single-source values whose identity ties
     def _v(k):
         p = proven.get(k) or {}
@@ -232,14 +285,20 @@ def _precedent_inputs(wb, sheet, coord, target_cols, eligible, depth=0, seen=Non
         out.append((sheet, coord))
         return out
     body = v.replace("$", "")
-    for m in re.finditer(r"(?:'([^']+)'|([A-Za-z][A-Za-z0-9 ]*?))?!?([A-Z]{1,3})(\d+)", body):
-        sh = (m.group(1) or m.group(2) or sheet).strip("'").strip()
-        if sh not in wb.sheetnames:
+    refs = []
+
+    def _grab(m):  # sheet-qualified refs first, then strip so bare refs parse clean
+        refs.append(((m.group(1) or m.group(2)).strip("'").strip(), m.group(3)))
+        return " "
+
+    bare = re.sub(r"(?:'([^']+)'|([A-Za-z][A-Za-z0-9 ]*?))!([A-Z]{1,3}\d+)", _grab, body)
+    for m in re.finditer(r"(?<![A-Za-z0-9_])([A-Z]{1,3}\d+)", bare):
+        refs.append((sheet, m.group(1)))
+    for sh, ref in refs:
+        col = re.match(r"([A-Z]{1,3})", ref).group(1)
+        if sh not in wb.sheetnames or col not in target_cols:
             continue
-        if m.group(3) not in target_cols:
-            continue
-        out += _precedent_inputs(wb, sh, f"{m.group(3)}{m.group(4)}", target_cols,
-                                 eligible, depth + 1, seen)
+        out += _precedent_inputs(wb, sh, ref, target_cols, eligible, depth + 1, seen)
     return out
 
 
@@ -294,7 +353,7 @@ def scorecard(wb, spec, keymap, proven, cfg, t0):
             except Exception:
                 pass
         dv = p.get("value")
-        if dv is None:
+        if dv is None or p.get("status") == "missing":
             st = "UNPROVABLE"  # not in disclosure — needs back-out or analyst
         elif isinstance(model_v, (int, float)) \
                 and abs(model_v - dv) <= max(tol, abs(dv) * 0.001):
@@ -329,17 +388,35 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
 
     max_fixes = int((cfg.get("objectives") or {}).get("max_fixes", 12))
     fixes = 0
-    for _iteration in range(max_fixes + 1):
+    attempted = set()  # one attempt per key — a failed plug never eats the budget twice
+    for _iteration in range(max_fixes * 2):
         card = scorecard(wb, spec, keymap, proven, cfg, t0)
         if time.time() >= deadline or fixes >= max_fixes:
             break
         # ---- TIER 1 first in causal order: anchors feed the balance ----------
         mismatch = next((e for e in card["tier1"] if e["status"] == "MISMATCH"
-                         and e["coord"]), None)
+                         and e["coord"] and e["kind"] not in attempted), None)
         if mismatch is not None:
+            attempted.add(mismatch["kind"])
             s, coord, dv = mismatch["sheet"], mismatch["coord"], mismatch["disclosed"]
-            cell_v = wb[s][coord].value
-            residual = dv - (mismatch["model"] or 0)
+            # definition-risk zone: model and disclosure close but unequal is
+            # more likely a scope difference (cash vs cash+deposits; company's
+            # "operating earnings" vs the model's) — flag, never plug
+            band = _DEFN_BAND.get(mismatch["kind"], _DEFN_DEFAULT)
+            if not isinstance(mismatch["model"], (int, float)):
+                # no numeric baseline (eval error) — plugging would be blind
+                flags.append((s, coord, f"key {mismatch['kind']}: model value not "
+                              f"evaluable; disclosed {dv:,.1f} — verify manually"))
+                obj_log.append(f"T1 {mismatch['kind']}: model not evaluable — flagged")
+                continue
+            if dv and abs(mismatch["model"] - dv) <= abs(dv) * band:
+                flags.append((s, coord, f"key {mismatch['kind']}: model "
+                              f"{mismatch['model']:,.1f} vs disclosed {dv:,.1f} within "
+                              f"{band:.0%} — possible definition/scope difference, review"))
+                obj_log.append(f"T1 {mismatch['kind']}: within {band:.0%} of disclosed — "
+                               "flagged as definition check, not plugged")
+                continue
+            residual = dv - mismatch["model"]
             if (s, coord) in eligible_inputs:
                 # the key cell is itself an input: set it to the proven value
                 fl = None if mismatch["proof"] == "proven" else "red"
@@ -393,8 +470,6 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                            f"(disclosed {dv:,.1f}, model {mismatch['model']}) — flagged")
             flags.append((s, coord, f"key {mismatch['kind']} unfixable: disclosed "
                                     f"{dv:,.1f} vs model {mismatch['model']}"))
-            card["tier1"] = [e for e in card["tier1"] if e is not mismatch]
-            proven[mismatch["kind"]]["status"] = "missing"  # stop retrying
             continue
         # ---- TIER 0: balance diagnostic on the target-year gap ---------------
         gap_entry = next(((c, y, g) for c, y, g in card["tier0"]
@@ -404,8 +479,8 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
             break  # tiers 0-1 satisfied (or unfixable) — done
         chk_ref, _y, gap = gap_entry
         chk_sheet, chk_coord = chk_ref.split("!")
-        flagged_inputs = [(fs, fc) for fs, fc, _n in flags
-                          if (fs, fc) in eligible_inputs]
+        flagged_inputs = sorted({(fs, fc) for fs, fc, _n in flags
+                                 if (fs, fc) in eligible_inputs})
         candidates = []
         for ps, pco in flagged_inputs[:80]:
             coef, base_in = _sensitivity(wb, chk_sheet, chk_coord, ps, pco)
