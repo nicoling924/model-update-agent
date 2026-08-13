@@ -1,0 +1,678 @@
+sheets:
+  Model:
+    role: statements
+    evidence:
+    - Model!A3 contains P&L
+    - Model!A46 contains Balance Sheet
+    - Model!A104 contains Cash flow statement
+  Raw financials:
+    role: statements
+    evidence:
+    - Raw financials!A3 contains P&L
+    - Raw financials!A53 contains Balance sheet
+    - Raw financials!A183 contains CF statement
+    note: Source/raw financial statement data; Model is the primary integrated statement
+      and forecast sheet.
+  Driver:
+    role: drivers
+    evidence:
+    - Driver!A3 contains P&L drivers
+    - Driver!A91 contains Balance Sheet driver
+    - Driver!A127 contains Borrowing and interest expense
+    - Driver!A141 contains Net working capital
+  Sensitvity:
+    role: valuation
+    evidence:
+    - Sensitvity!B4 contains Gas Turbine sensitivity analysis
+    - Sensitvity!K4 contains Nuclear sensitivity analysis
+    - Sensitvity!B5 contains Base case net income
+    note: Calculation-only sensitivity sheet; do not edit during routine statement
+      updates.
+  Fair Value - H:
+    role: valuation
+    evidence:
+    - Fair Value - H!A2 contains P/E multiple valuation
+    - Fair Value - H!D2 contains Forecast returns and rating
+    note: Calculation-only valuation sheet; do not edit.
+  Fair Value - A:
+    role: valuation
+    evidence:
+    - Fair Value - A!A2 contains P/E multiple valuation
+    - Fair Value - A!D2 contains Forecast returns and rating
+    note: Calculation-only valuation sheet; do not edit.
+  Cons:
+    role: untouched
+    evidence:
+    - Cons!A14 contains Consensus from Reuters
+    - 'Cons!A20 contains Unit: Rmb mn'
+    note: Consensus comparison sheet; preserve as provided.
+  Appendix:
+    role: untouched
+    evidence:
+    - Appendix!B2 contains Milestone
+    - Appendix!E14 contains Management
+    - Appendix!B23 contains Shareholding structure by Q125
+  AH discount:
+    role: untouched
+    evidence:
+    - AH discount!A2 contains Date
+    - AH discount!B2 contains Dongfang H share discount to A share
+    - AH discount!P1 contains A/H溢价率
+    note: Historical market-data sheet; preserve as provided.
+  VA-Disclaimer:
+    role: untouched
+    evidence:
+    - VA-Disclaimer!A1 is the only populated structural location
+year_axis:
+  Model:
+    header_row: 2
+    unit_cell: Model!A1
+    unit: Rmb m
+    columns:
+      B:
+        year: 2006
+        type: actual
+        header_type: plain_number
+        evidence: Model!B2
+      C:
+        year: 2007
+        type: actual
+        header_type: plain_number
+        evidence: Model!C2
+      D:
+        year: 2008
+        type: actual
+        header_type: plain_number
+        evidence: Model!D2
+      E:
+        year: 2009
+        type: actual
+        header_type: plain_number
+        evidence: Model!E2
+      F:
+        year: 2010
+        type: actual
+        header_type: plain_number
+        evidence: Model!F2
+      G:
+        year: 2011
+        type: actual
+        header_type: plain_number
+        evidence: Model!G2
+      H:
+        year: 2012
+        type: actual
+        header_type: plain_number
+        evidence: Model!H2
+      I:
+        year: 2013
+        type: actual
+        header_type: plain_number
+        evidence: Model!I2
+      J:
+        year: 2014
+        type: actual
+        header_type: plain_number
+        evidence: Model!J2
+      K:
+        year: 2015
+        type: actual
+        header_type: plain_number
+        evidence: Model!K2
+      L:
+        year: 2016
+        type: actual
+        header_type: plain_number
+        evidence: Model!L2
+      M:
+        year: 2017
+        type: actual
+        header_type: plain_number
+        evidence: Model!M2
+      N:
+        year: 2018
+        type: actual
+        header_type: plain_number
+        evidence: Model!N2
+      O:
+        year: 2019
+        type: actual
+        header_type: plain_number
+        evidence: Model!O2
+      P:
+        year: null
+        type: actual
+        header_type: plain_number
+        evidence: Model!P29 and Model!P59 are referenced as the next historical year
+        note: The year value itself is absent from the truncated dump.
+      Q:
+        year: null
+        type: actual
+        header_type: plain_number
+        evidence: Model!Q29 and Model!Q59
+        note: The year value itself is absent from the truncated dump.
+      R:
+        year: null
+        type: actual
+        header_type: plain_number
+        evidence: Model!R29 and Model!R59
+        note: The year value itself is absent from the truncated dump.
+      S:
+        year: null
+        type: actual
+        header_type: plain_number
+        evidence: Model!S29 and Model!S59
+        note: The year value itself is absent from the truncated dump.
+      T:
+        year: null
+        type: actual
+        header_type: plain_number
+        evidence: Model!T29, Model!T59 and Model!T102
+        note: The year value itself is absent from the truncated dump.
+      U:
+        year: 2025
+        type: forecast
+        header_type: plain_number
+        evidence: Fair Value - H!L2 is 2025E and links to Model!U35; Model!U102 is
+          forecast ROIC.
+      V:
+        year: 2026
+        type: forecast
+        header_type: plain_number
+        evidence: Fair Value - H!M2 is 2026E and links to Model!V35.
+      W:
+        year: 2027
+        type: forecast
+        header_type: plain_number
+        evidence: Fair Value - H!N2 is 2027E and links to Model!W35.
+      X:
+        year: 2028
+        type: forecast
+        header_type: plain_number
+        evidence: Fair Value - H!O2 is 2028E and links to Model!X35.
+      Y:
+        year: 2029
+        type: forecast
+        header_type: plain_number
+        evidence: Fair Value - H!P2 is 2029E and links to Model!Y35.
+      Z:
+        year: 2030
+        type: forecast
+        header_type: plain_number
+        evidence: Driver!O2 is the forecast continuation and Driver!O95 links to Model!Z4;
+          exact Model!Z2 header is not shown.
+    note: Do not change the existing numeric year headers. The dump is truncated for
+      columns beyond O.
+  Driver:
+    header_row: 2
+    unit_cell: Driver!A2
+    unit: Rmb m
+    columns:
+      B:
+        year: 2017
+        type: actual
+        header_type: plain_number
+        evidence: Driver!B2
+      C:
+        year: 2018
+        type: actual
+        header_type: plain_number
+        evidence: Driver!C2
+      D:
+        year: 2019
+        type: actual
+        header_type: plain_number
+        evidence: Driver!D2
+      E:
+        year: 2020
+        type: actual
+        header_type: plain_number
+        evidence: Driver!E2
+      F:
+        year: 2021
+        type: actual
+        header_type: formula_number
+        evidence: Driver!F2 = E2+1
+      G:
+        year: 2022
+        type: actual
+        header_type: formula_number
+        evidence: Driver!G2 = F2+1
+      H:
+        year: 2023
+        type: actual
+        header_type: formula_number
+        evidence: Driver!H2 = G2+1
+      I:
+        year: 2024
+        type: actual
+        header_type: formula_number
+        evidence: Driver!I2 = H2+1
+      J:
+        year: 2025
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!J94 = I98 and Driver!J95 links to Model!U4
+      K:
+        year: 2026
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!K94 = J98 and Driver!K95 links to Model!V4
+      L:
+        year: 2027
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!L94 = K98 and Driver!L95 links to Model!W4
+      M:
+        year: 2028
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!M94 = L98 and Driver!M95 links to Model!X4
+      N:
+        year: 2029
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!N94 = M98 and Driver!N95 links to Model!Y4
+      O:
+        year: 2030
+        type: forecast
+        header_type: formula_number
+        evidence: Driver!O94 = N98 and Driver!O95 links to Model!Z4
+        note: The O2 header value is not shown but the column is used as the sixth
+          forecast year.
+  Raw financials:
+    header_row: 2
+    date_row: 1
+    columns:
+      B:
+        year: 2006
+        type: actual
+        header_type: text
+        evidence: Raw financials!B1 contains 2006-12-31 and Raw financials!B2 contains
+          FY2006
+      C:
+        year: 2007
+        type: actual
+        header_type: text
+        evidence: Raw financials!C2 contains FY2007
+      D:
+        year: 2008
+        type: actual
+        header_type: text
+        evidence: Raw financials!D2 contains FY2008
+      E:
+        year: 2009
+        type: actual
+        header_type: text
+        evidence: Raw financials!E2 contains FY2009
+      F:
+        year: 2010
+        type: actual
+        header_type: text
+        evidence: Raw financials!F2 contains FY2010
+      G:
+        year: 2011
+        type: actual
+        header_type: text
+        evidence: Raw financials!G2 contains FY2011
+      H:
+        year: 2012
+        type: actual
+        header_type: text
+        evidence: Raw financials!H2 contains FY2012
+      I:
+        year: 2013
+        type: actual
+        header_type: text
+        evidence: Raw financials!I2 contains FY2013
+      J:
+        year: 2014
+        type: actual
+        header_type: text
+        evidence: Raw financials!J2 contains FY2014
+      K:
+        year: 2015
+        type: actual
+        header_type: text
+        evidence: Raw financials!K2 contains FY2015
+      L:
+        year: 2016
+        type: actual
+        header_type: text
+        evidence: Raw financials!L2 contains FY2016
+      M:
+        year: 2017
+        type: actual
+        header_type: text
+        evidence: Raw financials!M2 contains FY2017
+      N:
+        year: 2018
+        type: actual
+        header_type: text
+        evidence: Raw financials!N2 contains FY2018
+    note: Additional columns exist but their complete year headers are not present
+      in the truncated dump. Preserve all existing date/text headers.
+statement_rows:
+  primary_sheet: Model
+  unit: Rmb m except per-share figures and ratios
+  p_and_l:
+    revenue:
+      row: 4
+      label: Revenue
+      evidence: Model!A4
+    d_and_a:
+      rows:
+        depreciation: 107
+        amortization: 108
+      labels:
+      - Depreciation
+      - Amortization
+      evidence:
+      - Model!A107
+      - Model!A108
+      note: Total D&A is the composition Model row 107 + Model row 108; no single
+        total D&A row is shown.
+    finance_cost_income:
+      finance_gain_cost:
+        row: 17
+        label: Finance gain (cost)
+        evidence: Model!A17
+      investment_income:
+        row: 18
+        label: Investment income
+        evidence: Model!A18
+      composition_note: Model row 17 is linked as the negative of Raw financials finance
+        expense, while Model row 18 is investment income.
+    tax:
+      row: 23
+      label: Tax
+      evidence: Model!A23
+    net_profit:
+      row: 25
+      label: Profit after tax
+      evidence: Model!A25
+    attributable_profit:
+      row: 28
+      label: Reported net profit
+      evidence: Model!A28
+      tie: Model!A28 is Model row 25 plus Model row 26, where row 26 is minority interest.
+    eps:
+      basic:
+        row: 35
+        label: EPS - basic
+        evidence: Model!A35
+      diluted:
+        row: 36
+        label: EPS - diluted
+        evidence: Model!A36
+    dividends:
+      cash_dividend:
+        row: 38
+        label: Dividend 现金分红
+        evidence: Model!A38
+      dps:
+        row: 39
+        label: DPS
+        evidence: Model!A39
+        tie: Model row 39 equals Model row 38 divided by Model row 42.
+  balance_sheet:
+    cash:
+      row: 47
+      label: Cash
+      evidence: Model!A47
+    assets:
+      total_assets:
+        row: 67
+        label: Total Assets
+        evidence: Model!A67
+        tie: Model row 67 equals Model row 54 plus Model row 65.
+    equity:
+      shareholders_equity:
+        row: 89
+        label: Total shareholder's equity
+        evidence: Model!A89
+      total_equity:
+        row: 91
+        label: Total equity
+        evidence: Model!A91
+        tie: Model row 91 equals Model row 89 plus Model row 90.
+    debt:
+      total_debt:
+        row: 98
+        label: Total debt
+        evidence: Model!A98
+        tie: Model row 98 equals Model rows 69 + 73 + 77.
+      debt_components:
+      - row: 69
+        label: Short term borrowing
+        evidence: Model!A69
+      - row: 73
+        label: LT borrowing mature in 1 year
+        evidence: Model!A73
+      - row: 77
+        label: Long term borrowing and bonds payable
+        evidence: Model!A77
+    liabilities_and_equity:
+      row: 93
+      label: Total liabilities and equity
+      evidence: Model!A93
+      tie: Model row 93 equals Model rows 75 + 82 + 91.
+  cash_flow:
+    section_row: 104
+    operating_cash_flow:
+      row: 114
+      label: Operating cash flow
+      evidence: Model!A114
+    investing_cash_flow:
+      row: 120
+      label: Investing cash flow
+      evidence: Model!A120
+    financing_cash_flow:
+      row: 127
+      label: Financing cash flow
+      evidence: Model!A127
+    net_changes_in_cash:
+      row: 130
+      label: Net changes in cash
+      evidence: Model!A130
+      tie: Model row 130 equals rows 114 + 120 + 127 + 129.
+    cash_year_end:
+      row: 133
+      label: Cash - year end
+      evidence: Model!A133
+      tie: Model row 133 equals Model rows 132 + 130.
+    fcff:
+      row: 137
+      label: Free cash flow to firm
+      evidence: Model!A137
+    fcfe:
+      row: 138
+      label: Free cash flow to equity holder
+      evidence: Model!A138
+check_rows:
+- sheet: Model
+  row: 95
+  label: Check
+  expected_value: 0
+  evidence: Model!A95 and Model!B95 = ROUND(B67-B93,0)
+  purpose: 'Balance sheet: total assets less total liabilities and equity.'
+- sheet: Model
+  row: 135
+  label: Diff vs. B/S
+  expected_value: 0
+  evidence: Model!A135 and Model!B135 = ROUND(B47-B133,0)
+  purpose: Cash flow ending cash less balance-sheet cash.
+- sheet: Driver
+  row: 109
+  label: Check
+  expected_value: 0
+  evidence: Driver!A109 and Driver!E109 = ROUND(Model!P59-E108,0)
+  purpose: Net PPE schedule versus Model PPE.
+- sheet: Driver
+  row: 139
+  label: Check
+  expected_value: 0
+  evidence: Driver!A139 and Driver!E139 = ROUND(Model!P17-E138,0)
+  purpose: Net finance cost schedule versus Model finance gain/cost.
+- sheet: Raw financials
+  row: 114
+  label: 资产差额(合计平衡项目)
+  expected_value: 0
+  evidence: Raw financials!A114 and Raw financials!AA114
+  purpose: Raw financials asset balance adjustment.
+- sheet: Raw financials
+  row: 140
+  label: 流动负债差额(合计平衡项目)
+  expected_value: 0
+  evidence: Raw financials!A140 and Raw financials!AA140
+- sheet: Raw financials
+  row: 180
+  label: 负债及股东权益差额(合计平衡项目)
+  expected_value: 0
+  evidence: Raw financials!A180 and Raw financials!AA180
+input_vs_formula:
+  most_recent_actual_column: T
+  status: 'null'
+  note: The T-column cell types for the statement rows are not included consistently
+    in the truncated dump. Do not infer them from earlier columns; inspect the workbook
+    before replicating actual-column cell types.
+  evidenced_examples:
+  - sheet: Model
+    cell: Model!B38
+    type: hardcoded_input
+    label: Dividend 现金分红
+  - sheet: Model
+    cell: Model!B4
+    type: formula
+    label: Revenue
+    formula_evidence: ='Raw financials'!B4
+  - sheet: Model
+    cell: Model!B67
+    type: formula
+    label: Total Assets
+    formula_evidence: =B54+B65
+roll_forward_bases:
+- sheet: Driver
+  rows:
+  - 94
+  - 98
+  labels:
+  - Beginning value
+  - Ending value
+  description: Gross PPE forecast begins from prior-year ending value.
+  formula_evidence: Driver!J94 = I98; Driver!K94 = J98; Driver!J98 = SUM(J94:J97)
+- sheet: Driver
+  rows:
+  - 101
+  - 105
+  labels:
+  - Beginning value
+  - Ending value
+  description: Accumulated depreciation forecast begins from prior-year ending value.
+  formula_evidence: Driver!J101 = I105; Driver!K101 = J105; Driver!J105 = J101+J102+J104
+- sheet: Driver
+  rows:
+  - 112
+  - 115
+  labels:
+  - Beginning value
+  - Ending value
+  description: Construction-in-progress forecast begins from prior-year ending value.
+  formula_evidence: Driver!J112 = I115; Driver!K112 = J115; Driver!J115 = J112+J113+J114
+- sheet: Driver
+  rows:
+  - 118
+  - 122
+  labels:
+  - Beginning value
+  - Ending value
+  description: Intangible-asset forecast begins from prior-year ending value.
+  formula_evidence: Driver!J118 = I122; Driver!K118 = J122; Driver!J122 = J118+J119+J121
+- sheet: Driver
+  rows:
+  - 128
+  - 129
+  - 130
+  labels:
+  - Borrowing
+  - Cash
+  - Net debt/(cash)
+  description: Debt and cash driver schedules are anchored to Model closing balances.
+  formula_evidence: Driver!J128 = Model!U98; Driver!J129 = Model!U47; Driver!J130
+    = J128-J129
+- sheet: Driver
+  rows:
+  - 142
+  - 144
+  - 146
+  - 148
+  - 150
+  labels:
+  - Accounts receivable
+  - Other receivable
+  - Inventory
+  - Accounts payables
+  - Other payables
+  description: Net-working-capital balances are anchored to turnover-day assumptions
+    and forecast revenue/COGS.
+  formula_evidence: Driver!J142 = Model!U4/(365/J143); Driver!J146 = -Model!U6/(365/J147);
+    Driver!J148 = -Model!U6/(365/J149)
+calc_mode: manual
+quirks:
+- issue: Forecast and historical headers are structurally different.
+  evidence:
+  - Model!B2 contains a plain numeric year
+  - Raw financials!B2 contains text FY2006
+  - Fair Value - H!L2 contains text 2025E
+  risk: Never normalize or overwrite headers.
+- issue: The Model uses non-adjacent and cross-sheet year references.
+  evidence:
+  - Driver!E14 = Model!P4
+  - Driver!J95 = Model!U4/Model!T4*Driver!I95
+  - Model!U102 references Model!T91 and Model!T99
+- issue: Some schedules use sign-reversed presentation conventions.
+  evidence:
+  - Model!B6 = -'Raw financials'!B8
+  - Model!B17 = -'Raw financials'!B13
+  - Model!B23 = -'Raw financials'!B36
+  - Model!B99 = B98-B47
+  risk: Preserve signs and formulas; do not map by label alone.
+- issue: Debt and liabilities are stored as positive balances in the balance sheet.
+  evidence:
+  - Model!A69 contains Short term borrowing
+  - Model!A77 contains Long term borrowing and bonds payable
+  - Model!A93 = B75+B82+B91
+- issue: Sensitivity tables contain Excel data-table formula objects.
+  evidence:
+  - Sensitvity!E6
+  - Sensitvity!N6
+  - Sensitvity!E27
+  risk: Do not overwrite or convert these cells during normal updates.
+- issue: The sensitivity sheet name is misspelled as Sensitvity.
+  evidence:
+  - Driver!U18 references Sensitvity!J26
+  - Driver!U73 references Sensitvity!A6
+  risk: Preserve the exact sheet name in formulas.
+- issue: There are sparse, auxiliary columns outside the principal year axis.
+  evidence:
+  - Model!AA19:AX19 contain auxiliary calculations
+  - Driver!AB6:AD6 contain comparison data
+  - Raw financials!AA114 contains a balance adjustment
+- issue: The structural dump is truncated and does not show all year-header cells
+    or all forecast rows.
+  evidence:
+  - Model!P2:Z2 are not fully shown
+  - Raw financials!O2 onward is not fully shown
+  - Model!T-column cell types are not consistently shown
+  risk: Require a complete workbook inspection before editing the latest actual column.
+- issue: Potential pre-existing unsupported formula/error constructs exist.
+  evidence:
+  - AH discount!R1 contains _xlfn.STDEV.P
+  - Sensitvity!E6 contains an openpyxl DataTableFormula object
+draft: true
+model_file: DFE Model.xlsx
+aliases: []
+backout_rules: []
+analyst_rulings: []
+carried_flags: []
+tie_out_anchors: []
