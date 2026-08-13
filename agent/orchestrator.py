@@ -40,10 +40,16 @@ def _fmt_scorecard(card):
 
 def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         target_year, last_actual, keymap, proven, flags, backouts,
-        eligible_inputs, disclosures, t0, deadline, log_print):
-    """Returns (final_card, decisions_log). Mutates wb via writer."""
+        eligible_inputs, disclosures, t0, deadline, log_print,
+        bootstrap_log=None, request_review=None):
+    """Returns (final_card, decisions_log). Mutates wb via writer.
+
+    bootstrap_log: deterministic actions already taken this run — seeded into the
+    loop's history so the agent owns them as its own first moves.
+    request_review: callable running the blind reviewer once; exposed as a tool."""
     spec["_target_year"] = target_year
-    history, decisions = [], []
+    history = [f"[bootstrap] {ln}" for ln in (bootstrap_log or [])][-12:]
+    decisions = []
     raw_cache = lookup_mod.raw_lines(disclosures)
     tried = set()
 
@@ -242,11 +248,45 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             notes.append(tx)
         return f"noted ({len(notes)} notes kept)"
 
+    todos = []  # [text, open?]
+
+    def t_todo(args):
+        add = str(args.get("add", ""))[:160]
+        done = args.get("done")
+        if add:
+            todos.append([add, True])
+            return f"todo added (#{len(todos)})"
+        if done is not None:
+            try:
+                todos[int(done) - 1][1] = False
+                return f"todo #{done} closed"
+            except (ValueError, IndexError):
+                return "ERROR: bad todo number"
+        return "ERROR: pass add or done"
+
+    def t_request_review(args):
+        if request_review is None:
+            return "reviewer disabled for this run"
+        f = request_review()
+        lines = [f"[{x.get('severity')}] {x.get('cell')}: "
+                 f"{str(x.get('disclosure_says', ''))[:80]} — "
+                 f"{str(x.get('evidence', ''))[:120]} (p{x.get('page', '?')})"
+                 for x in f.get("findings", [])][:12]
+        return ("REVIEWER VERDICT: " + str(f.get("verdict", ""))[:200] + "\n"
+                + ("\n".join(lines) or "no findings")
+                + "\nAct on findings you can verify (set_input needs the page cite); "
+                  "ignore ones you cannot corroborate.")
+
+    def t_list_flags(args):
+        return "\n".join(f"{s_}!{c_}: {n_[:80]}" for s_, c_, n_ in flags[-40:]) \
+            or "no flags"
+
     tools = {"read_pages": t_read_pages, "find_line": t_find_line,
              "prove_key": t_prove_key, "plug_key": t_plug_key,
              "set_input": t_set_input, "diagnose_balance": t_diagnose_balance,
              "apply_repair": t_apply_repair, "trace_cell": t_trace_cell,
-             "note": t_note,
+             "note": t_note, "todo": t_todo,
+             "request_review": t_request_review, "list_flags": t_list_flags,
              "rescore": lambda a: _fmt_scorecard(_card())}
 
     max_d = int((cfg.get("orchestrator") or {}).get("max_decisions", MAX_DECISIONS))
@@ -256,8 +296,11 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             break
         card = _card()
         mins_left = max(0.0, (deadline - time.time()) / 60)
+        open_td = [(i + 1, t) for i, (t, op) in enumerate(todos) if op]
         state = (f"TIME: {mins_left:.0f} min left (objective 3)\n\n"
                  + _fmt_scorecard(card)
+                 + ("\n\nYOUR OPEN TASKS:\n" + "\n".join(f"#{i} {t}" for i, t in open_td)
+                    if open_td else "")
                  + ("\n\nYOUR NOTES:\n" + "\n".join(f"- {n}" for n in notes[-10:])
                     if notes else "")
                  + "\n\nACTION HISTORY (latest last):\n"

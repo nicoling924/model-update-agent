@@ -699,90 +699,10 @@ def cmd_update(company_dir, period):
         print("  EXCEPTION:", f)
 
 
-    # -- 7. blind review -----------------------------------------------------
-    findings = None
-    if cfg["reviewer"]["enabled"]:
-        from . import reviewer as rev
-        rc = Client.reviewer(cfg)
-        conventions = (Path(company_dir) / "MODEL_SPEC.md").read_text() \
-            if (Path(company_dir) / "MODEL_SPEC.md").exists() else ""
-        findings = rev.review(rc, _prompt("reviewer"), conventions, disclosures,
-                              rev.column_dump(wb, spec), rev.column_dump(pre_wb, spec), cfg)
-        print(f"[6] reviewer: {len(findings['findings'])} findings — {findings['verdict'][:120]}")
-        # [6b] auto-apply INCONTROVERTIBLE catches only: genuine_error + a numeric
-        # claim that matches a validated staging item (two independent sources),
-        # target column only, bounded, read-back verified. Everything else stays
-        # surfaced for the analyst, never silently fixed.
-        applied = 0
-        applied_coords = []
-        staged_vals = [it["value"] for it in staging["items"]
-                       if isinstance(it.get("value"), (int, float))]
-        for f in findings["findings"]:
-            if applied >= 10 or f.get("severity") != "genuine_error":
-                continue
-            m = re.match(r"^\s*'?([A-Za-z0-9 _\-]+)'?!([A-Z]{1,3})(\d+)\s*$",
-                         str(f.get("cell", "")))
-            nums = re.findall(r"-?[\d,]+(?:\.\d+)?", str(f.get("disclosure_says", "")))
-            if not m or not nums:
-                continue
-            sheet_f, col_f, row_f = m.group(1), m.group(2), int(m.group(3))
-            if sheet_f not in wb.sheetnames or col_f not in spec.get("_target_cols", []):
-                continue
-            try:
-                val = float(nums[0].replace(",", ""))
-            except ValueError:
-                continue
-            if not any(abs(val - sv) <= 1.0 or abs(-val - sv) <= 1.0 for sv in staged_vals):
-                continue  # no independent corroboration in validated extraction
-            # magnitude sanity vs prior year: a "fix" 20x off the prior is a misread
-            pv_chk = pre_values[sheet_f][f"{prior_col}{row_f}"].value \
-                if sheet_f in pre_values.sheetnames else None
-            if isinstance(pv_chk, (int, float)) and pv_chk != 0 and val != 0:
-                ratio = abs(val) / abs(pv_chk)
-                if ratio < 0.05 or ratio > 20:
-                    continue
-            elif abs(val) > 1000:
-                continue  # zero/blank prior jumping to a large number is never incontrovertible
-            writer2 = workbook.Writer(wb, cfg)
-            writer2.write(sheet_f, f"{col_f}{row_f}", val,
-                          prior_coord=f"{prior_col}{row_f}" if sheet_f == stmts_sheet else None,
-                          note=f"REVIEWER-APPLIED: {str(f.get('evidence',''))[:140]} "
-                               f"(p{f.get('page','?')}; corroborated by extraction)")
-            f["outcome"] = "auto-applied"
-            applied_coords.append(f"{sheet_f}!{col_f}{row_f}")
-            applied += 1
-        if applied:
-            workbook.save(wb, model_path)
-            wb = workbook.load(model_path)
-            results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
-            print(f"[6b] reviewer auto-applied {applied} incontrovertible fixes; "
-                  f"re-verified: {len(soft)} exceptions remain", flush=True)
-
-    # -- 6c. closing loop: investigate cells under doubt (flagged + auto-applied),
-    # evidence-first, never touching cleanly-resolved cells
-    if soft:
-        from . import closing
-        eligible = {f"{s_}!{c_}" for s_, c_, _ in flags}
-        if cfg["reviewer"]["enabled"]:
-            eligible |= set(locals().get("applied_coords") or [])
-        writer_cl = workbook.Writer(wb, cfg)
-        writer_cl.log["written"] = list(writer.log["written"])
-        cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
-                                         target_year, pre_values=pre_values,
-                                         eligible=eligible)
-        if cl_log:
-            workbook.save(wb, model_path)
-            wb = workbook.load(model_path)
-            results, hard, soft = verify.run_checks(wb, spec, staging, cfg,
-                                                    pre_map, allowed)
-            print(f"[6c] closing loop repaired {len(cl_log)-1} doubted cells "
-                  f"(all red-flagged); {len(soft)} exceptions remain", flush=True)
-            for line in cl_log:
-                print("     ", line, flush=True)
-
-    # -- 5b. OBJECTIVE CONVERGENCE (tier ladder, pure code) ------------------
-    # Tier 0 balance / Tier 1 key numbers get first claim on the clock; fixes
-    # are deterministic (proof-by-redundancy + anchor-plug + balance diagnostic)
+    # -- 6. THE AGENT LOOP owns the rest of the run --------------------------
+    # Bootstrap (code, free): objective state + deterministic converge, recorded
+    # as the agent's own first moves. Then the orchestrator has FULL and FINAL
+    # authority — blind review is a tool it calls; NOTHING writes after it.
     from . import objectives
     obj_notes = []
     spec["_target_year"] = target_year
@@ -805,29 +725,58 @@ def cmd_update(company_dir, period):
         obj_deadline)
     for ln in obj_notes + obj_log:
         print("  [OBJ]", ln, flush=True)
-    print(f"[5b] deterministic converge: {n_fix} fixes banked", flush=True)
+    print(f"[6] bootstrap converge: {n_fix} deterministic fixes banked", flush=True)
 
-    # -- 5c. ORCHESTRATOR: the LLM holds the objectives and drives the residuals
-    # with tools (trace/find/prove/plug/repair) — observe-decide-act until the
-    # tiers are satisfied, nothing can improve them, or the clock says stop
+    # blind review as a TOOL: the loop calls it when it wants a second pair of
+    # eyes; findings return to the loop, which acts through its guarded writes
+    findings_box = {}
+    rc = None
+    if cfg["reviewer"]["enabled"]:
+        from . import reviewer as rev
+        rc = Client.reviewer(cfg)
+        conventions = (Path(company_dir) / "MODEL_SPEC.md").read_text() \
+            if (Path(company_dir) / "MODEL_SPEC.md").exists() else ""
+
+        def request_review():
+            if "findings" not in findings_box:
+                findings_box["findings"] = rev.review(
+                    rc, _prompt("reviewer"), conventions, disclosures,
+                    rev.column_dump(wb, spec), rev.column_dump(pre_wb, spec), cfg)
+            return findings_box["findings"]
+    else:
+        request_review = None
+
     decisions = []
-    if (cfg.get("orchestrator") or {}).get("enabled", True) \
-            and not (card["t0_pass"] and card["t1_pass"]):
+    if (cfg.get("orchestrator") or {}).get("enabled", True):
         from . import orchestrator
         card, decisions = orchestrator.run(
             map_client, system, _prompt("orchestrator"), wb, spec, staging, cfg,
             writer_obj, pre_wb, target_year, last_actual, keymap, proven, flags,
             backouts, eligible_inputs, disclosures, t0, obj_deadline,
-            lambda s: print(s, flush=True))
-    if writer_obj.log["written"] != writer.log["written"]:
-        writer.log["written"] = list(writer_obj.log["written"])
-        workbook.save(wb, model_path)
-        wb = workbook.load(model_path)
-        results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
-        card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
-    print(f"[5c] objectives after orchestrator ({len(decisions)} decisions): "
+            lambda s: print(s, flush=True),
+            bootstrap_log=obj_notes + obj_log, request_review=request_review)
+    writer.log["written"] = list(writer_obj.log["written"])
+    workbook.save(wb, model_path)
+    wb = workbook.load(model_path)
+    results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
+    if hard:
+        print("\nINTEGRITY GATE FAILED post-loop (structural) — model NOT delivered:")
+        for f in hard:
+            print("  -", f)
+        sys.exit(2)
+    card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
+    print(f"[6z] agent loop done ({len(decisions)} decisions): "
           f"tier0 balance {'PASS' if card['t0_pass'] else 'FAIL'}, "
-          f"tier1 key numbers {'PASS' if card['t1_pass'] else 'FAIL'}", flush=True)
+          f"tier1 key numbers {'PASS' if card['t1_pass'] else 'FAIL'}; "
+          f"{len(soft)} exceptions remain", flush=True)
+
+    findings = findings_box.get("findings")
+    if cfg["reviewer"]["enabled"] and findings is None:
+        # the loop chose not to consult the reviewer — still run it advisory-only
+        # for the report (house rule: every run ends with an independent look)
+        findings = request_review()
+        print(f"[6r] advisory blind review: {len(findings['findings'])} findings — "
+              f"{findings['verdict'][:100]}", flush=True)
 
     # -- 8. report -----------------------------------------------------------
     ev = Evaluator(wb)
