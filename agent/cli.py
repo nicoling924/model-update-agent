@@ -107,7 +107,9 @@ def cmd_learn(company_dir, prior_period):
             merged[(e["sheet"], e["row"])] = e
     for k, e in det.items():
         merged[k] = {"sheet": k[0], "row": k[1], **{kk: vv for kk, vv in e.items() if kk != "method"}}
-    entries = [e for e in entries if e.get("kind") != "input"] + list(merged.values())
+    recipes = learn_mod.component_recipes(disclosures, wb, pre_values, spec)
+    print(f"[L1c] component recipes (raw-text find-and-search, strict): {len(recipes)} composite rows", flush=True)
+    entries = recipes + list(merged.values())
     n = learn_mod.write_memory_tab(wb, entries)
     workbook.save(wb, model_path)
     wb2 = workbook.load(model_path)
@@ -436,6 +438,11 @@ def cmd_update(company_dir, period):
                 comp_rows.append({"sheet": cs, "row": f"{cr}#c{j}",
                                   "label": pc["label"],
                                   "prior_value": float(tok)})
+        # memory component RECIPES: find by name, read by position, verify by prior
+        raw25 = lookup_mod.raw_lines(disclosures)
+        by_lab25 = {}
+        for pn_, sec_, ln_ in raw25:
+            by_lab25.setdefault(lookup_mod.norm(lookup_mod.label_of(ln_)), []).append((pn_, sec_, ln_))
         # memory-known components resolve without any LLM call
         mem_resolved = {}
         for (cs, cr), pc in pending_consts.items():
@@ -445,16 +452,30 @@ def cmd_update(company_dir, period):
                 ident = next((c for c in comps if c and c.get("token") == tok), None)
                 if not ident:
                     continue
-                from .mapping import norm as _norm
-                hits = [it for it in staging["items"]
-                        if _norm(it.get("label")) == _norm(ident["label"])
-                        and isinstance(it.get("value"), (int, float))
-                        and (not ident.get("stmt") or it.get("stmt") == ident["stmt"])]
-                vals = sorted({round(h["value"], 1) for h in hits})
-                if len(vals) == 1:
-                    mem_resolved[(cs, f"{cr}#c{j}")] = {"value": vals[0],
-                        "page": hits[0].get("page"),
-                        "note": f"memory identity: '{ident['label']}'"}
+                # STRICT raw-text read: same label, prior at learned pos+1, value at pos
+                pos = ident.get("pos")
+                cval = float(tok)
+                founds = []
+                for pn_, sec_, ln_ in by_lab25.get(lookup_mod.norm(ident["label"]), []):
+                    ns = lookup_mod.line_nums(ln_)
+                    if pos is not None and len(ns) > pos + 1 \
+                            and abs(abs(ns[pos + 1]) - cval) <= 1.0:
+                        founds.append((abs(ns[pos]), pn_))
+                # layout-independent fallback: find the old number anywhere on the
+                # line and take its LEFT NEIGHBOUR (statements print current | prior)
+                for pn_, sec_, ln_ in by_lab25.get(lookup_mod.norm(ident["label"]), []):
+                    ns = lookup_mod.line_nums(ln_)
+                    for i_ in range(1, len(ns)):
+                        if abs(abs(ns[i_]) - cval) <= 1.0:
+                            founds.append((abs(ns[i_ - 1]), pn_))
+                # a line where the "new" number equals the old constant is usually a
+                # stale-ordered duplicate (summary tables) — prefer changed values
+                changed = [f_ for f_ in founds if abs(f_[0] - cval) > 1.0]
+                found = (changed or founds or [None])[0]
+                if found:
+                    mem_resolved[(cs, f"{cr}#c{j}")] = {"value": found[0],
+                        "page": found[1],
+                        "note": f"recipe read: '{ident['label'][:40]}' (prior verified, no LLM)"}
         comp_rows = [cr_ for cr_ in comp_rows
                      if (cr_["sheet"], cr_["row"]) not in mem_resolved]
         comp_res = targeted.rescue(map_client, system, disclosures, comp_rows, cfg, maplog)

@@ -117,3 +117,49 @@ def lookup_rows(table_index, memory, rows_ctx, target_year, prior_year, tol=1.0)
         results[key] = {"status": status, "value": v, "prior_found": pri,
                         "page": best["page"], "line_label": best["label"]}
     return results
+
+
+NUMTOK = re.compile(r"\(?-?[\d,]+(?:\.\d+)?\)?")
+
+
+def line_nums(line):
+    out = []
+    for m in NUMTOK.finditer(line):
+        t = m.group(0)
+        if not any(ch.isdigit() for ch in t):
+            continue
+        v = t.replace(",", "").strip("()")
+        try:
+            f = float(v)
+        except ValueError:
+            continue
+        if t.startswith("("):
+            f = -f
+        out.append(f)
+    return out
+
+
+def label_of(line):
+    m = NUMTOK.search(line)
+    return (line[:m.start()] if m else line).strip(" .|\u2013\u2014-")
+
+
+def fmt_variants(c):
+    a = abs(c)
+    s_ = f"{a:,.0f}" if a == int(a) else f"{a:,.1f}"
+    return {s_, s_.replace(",", ""), f"({s_})", f"({s_.replace(',', '')})"}
+
+
+def raw_lines(disclosure_paths):
+    """(page, section, line) for every digit-bearing raw-text line (flowed text
+    only — the analyst's Ctrl+F view of the document)."""
+    lines = []
+    for p in disclosure_paths:
+        pt = pdfs.pages(p)
+        secs = pdfs.sections(pt)
+        for pnum, text in pt:
+            body = text.split("[STRUCTURED TABLES")[0]
+            for ln in body.splitlines():
+                if any(ch.isdigit() for ch in ln):
+                    lines.append((pnum, secs.get(pnum) or "", ln.strip()))
+    return lines

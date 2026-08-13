@@ -211,3 +211,74 @@ def _year_prior2(spec):
     years = sorted(cols)
     i = years.index(str(ax.get("last_actual")))
     return years[i - 1] if i > 0 else ""
+
+
+def component_recipes(disclosure_paths, wb, pre_values, spec, min_const=30, tol=1.0):
+    """Learn embedded-hardcode recipes by the analyst's own method: Ctrl+F the
+    constant in the prior-year report's raw text. STRICT acceptance — the paired
+    year-before constant (same position in the year-before formula) must appear
+    on the same line, or the label must be unique; everything else is left for
+    the LLM/analyst arbiter at update time. Recipe = [{token,label,section,pos}]."""
+    import re as _re
+    from . import lookup as lk
+    from .mapping import SCALARS
+    TOKC = _re.compile(r"(?<![A-Za-z0-9_.$])\d{2,}(?:\.\d+)?(?![A-Za-z0-9_.])")
+    L = lk.raw_lines(disclosure_paths)
+    entries = []
+    for sheet, ax in spec["year_axis"].items():
+        cols = ax.get("columns") or {}
+        years = sorted(cols)
+        la = str(ax.get("last_actual"))
+        try:
+            i = years.index(la)
+        except ValueError:
+            continue
+        pc, p2c = cols[la], (cols[years[i - 1]] if i > 0 else None)
+        if sheet not in wb.sheetnames:
+            continue
+        wsf = wb[sheet]
+        for r in range(1, min(wsf.max_row, 400) + 1):
+            fh = wsf[f"{pc}{r}"].value
+            if not (isinstance(fh, str) and fh.startswith("=")):
+                continue
+            toks = TOKC.findall(fh)
+            if not toks:
+                continue
+            fg = wsf[f"{p2c}{r}"].value if p2c else None
+            t2 = TOKC.findall(fg) if isinstance(fg, str) else []
+            paired = list(zip(toks, t2)) if len(t2) == len(toks) else [(t, None) for t in toks]
+            comps = []
+            for tok, tok2 in paired:
+                c = float(tok)
+                if c < min_const or c in SCALARS:
+                    comps.append(None)
+                    continue
+                c2 = float(tok2) if tok2 else None
+                cands = [(pn, sec, ln) for pn, sec, ln in L
+                         if any(v in ln for v in lk.fmt_variants(c))
+                         and len(lk.label_of(ln)) > 6]
+                chosen = None
+                if c2:  # strong lock: year-before constant on the same line
+                    locked = [h for h in cands
+                              if any(abs(abs(n) - c2) <= tol for n in lk.line_nums(h[2]))]
+                    if locked:
+                        chosen = locked[0]
+                if chosen is None:
+                    labels = {lk.norm(lk.label_of(h[2])) for h in cands}
+                    if len(cands) >= 1 and len(labels) == 1:
+                        chosen = cands[0]
+                if chosen is None:
+                    comps.append(None)
+                    continue
+                nums = lk.line_nums(chosen[2])
+                pos = next((ix for ix, n in enumerate(nums) if abs(abs(n) - c) <= tol), None)
+                if pos is None:
+                    comps.append(None)
+                    continue
+                comps.append({"token": tok, "label": lk.label_of(chosen[2]),
+                              "section": chosen[1], "pos": pos})
+            if any(comps):
+                entries.append({"sheet": sheet, "row": r, "kind": "components",
+                                "components": comps, "label": None, "stmt": None,
+                                "page": None, "sign_flip": False, "segment": None})
+    return entries
