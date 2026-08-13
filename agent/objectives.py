@@ -431,16 +431,50 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
 
     max_fixes = int((cfg.get("objectives") or {}).get("max_fixes", 12))
     fixes = 0
-    attempted = set()  # one attempt per key — a failed plug never eats the budget twice
-    for _iteration in range(max_fixes * 2):
+    attempts = {}  # per-kind attempt counter: sibling fixes may take several passes
+    ev_prior_c = Evaluator(pre_wb)
+
+    def _sibling_disclosed(sheet_s, row_s):
+        """The GUILTY-sibling check: this component's own disclosed value via
+        prior triangulation. Returns (value, n_sources) or (None, 0)."""
+        axis_s = spec["year_axis"].get(sheet_s) or {}
+        pc_s = (axis_s.get("columns") or {}).get(last_actual)
+        if not pc_s:
+            return None, 0
+        try:
+            pv_s = ev_prior_c.cell(sheet_s, f"{pc_s}{row_s}")
+        except Exception:
+            return None, 0
+        if not isinstance(pv_s, (int, float)) or abs(pv_s) <= tol:
+            return None, 0
+        cands_s = {}
+        for it in staging.get("items", []):
+            iv, ip = it.get("value"), it.get("prior")
+            if not isinstance(iv, (int, float)) or not isinstance(ip, (int, float)):
+                continue
+            if abs(ip - pv_s) <= max(tol, abs(pv_s) * 0.001):
+                sign_s = 1
+            elif abs(-ip - pv_s) <= max(tol, abs(pv_s) * 0.001):
+                sign_s = -1
+            else:
+                continue
+            v_s = round(iv * sign_s, 1)
+            if 0.2 <= abs(v_s) / abs(pv_s) <= 5:
+                cands_s.setdefault(v_s, set()).add(it.get("page"))
+        if not cands_s:
+            return None, 0
+        best_s = max(cands_s.items(), key=lambda kv: len(kv[1]))
+        return best_s[0], len(best_s[1])
+
+    for _iteration in range(max_fixes * 3):
         card = scorecard(wb, spec, keymap, proven, cfg, t0)
         if time.time() >= deadline or fixes >= max_fixes:
             break
         # ---- TIER 1 first in causal order: anchors feed the balance ----------
         mismatch = next((e for e in card["tier1"] if e["status"] == "MISMATCH"
-                         and e["coord"] and e["kind"] not in attempted), None)
+                         and e["coord"] and attempts.get(e["kind"], 0) < 3), None)
         if mismatch is not None:
-            attempted.add(mismatch["kind"])
+            attempts[mismatch["kind"]] = attempts.get(mismatch["kind"], 0) + 1
             s, coord, dv = mismatch["sheet"], mismatch["coord"], mismatch["disclosed"]
             # definition-risk zone: model and disclosure close but unequal is
             # more likely a scope difference (cash vs cash+deposits; company's
@@ -489,7 +523,39 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
 
             ranked = [p for p in sorted(set(precs), key=_plug_rank)
                       if p not in key_cells and p not in protected_cells]
+            # FIX THE GUILTY SIBLING FIRST: a component whose own disclosed
+            # value disagrees with its cell is the real error — correcting it
+            # ties the subtotal without displacing an innocent row to a plug
             done = False
+            ev_cur = Evaluator(wb)
+            for ps, pco in ranked:
+                row_p = int(re.sub(r"[A-Z]+", "", pco))
+                dv_s, n_src = _sibling_disclosed(ps, row_p)
+                if dv_s is None:
+                    continue
+                try:
+                    cur_s = ev_cur.cell(ps, pco)
+                except Exception:
+                    continue
+                if not isinstance(cur_s, (int, float)) \
+                        or abs(cur_s - dv_s) <= max(tol, abs(dv_s) * 0.001):
+                    continue
+                fl_s = None if n_src >= 2 else "red"
+                writer.write(ps, pco, dv_s,
+                             note=f"OBJECTIVE sibling correction: this component's "
+                                  f"disclosed value is {dv_s:,.1f} ({n_src} source(s)); "
+                                  f"was {cur_s:,.1f} — corrected while tying "
+                                  f"{mismatch['kind']}",
+                             flag=fl_s)
+                if fl_s:
+                    flags.append((ps, pco, f"sibling correction for {mismatch['kind']}"))
+                obj_log.append(f"T1 {mismatch['kind']}: GUILTY SIBLING {ps}!{pco} "
+                               f"{cur_s:,.1f} -> {dv_s:,.1f} ({n_src} src)")
+                fixes += 1
+                done = True
+                break
+            if done:
+                continue  # re-score; if the subtotal still misses, plug next pass
             for ps, pco in ranked:
                 coef, base_in = _sensitivity(wb, s, coord, ps, pco)
                 if not coef or abs(coef) < 0.01 or abs(coef) > 100:
