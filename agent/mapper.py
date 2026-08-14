@@ -137,8 +137,26 @@ def map_block(client, system, prompt_tpl, block, raw_lines, cfg):
             "value": val if isinstance(val, (int, float)) else None,
             "status": str(m.get("status", "")).upper(),
             "page": m.get("page"),
-            "line": str(m.get("line", ""))[:80]}
+            "line": str(m.get("line", ""))[:80],
+            "hint": str(m.get("hint", ""))[:80]}
     return out
+
+
+def pages_for_hint(hint, raw_lines, limit=6):
+    """Turn a mapper's 'where it lives' hint into candidate pages: score pages
+    by hint-keyword hits in their text/section headers."""
+    words = [w for w in re.findall(r"[a-z]{4,}", str(hint).lower())
+             if w not in ("note", "notes", "page", "section", "statement",
+                          "statements", "table")]
+    if not words:
+        return []
+    votes = {}
+    for pn, sec, ln in raw_lines:
+        blob = (str(sec) + " " + ln).lower()
+        hits = sum(1 for w in words if w in blob)
+        if hits:
+            votes[pn] = votes.get(pn, 0) + hits
+    return sorted(votes, key=lambda p: -votes[p])[:limit]
 
 
 def audit(mapped, rows, raw_lines, tol=1.0):

@@ -288,7 +288,10 @@ def cmd_update(company_dir, period):
                or mapped[(r["sheet"], r["row"])].get("value") is None]
     for r in nf_rows:
         top = [p for p, _n in (aff.get(r["sheet"]) or _Counter()).most_common(4)]
-        r["pages"] = sorted(set(r["pages"] + top))[:mapper.MAX_BLOCK_PAGES]
+        m_nf = mapped.get((r["sheet"], r["row"])) or {}
+        hinted = mapper.pages_for_hint(m_nf.get("hint"), raw_all) \
+            if m_nf.get("status") == "NEED_PAGES" else []
+        r["pages"] = (hinted + sorted(set(r["pages"] + top)))[:mapper.MAX_BLOCK_PAGES]
     if nf_rows and time.time() < deadline_map:
         rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
         got = 0
