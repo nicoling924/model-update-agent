@@ -252,7 +252,26 @@ def cmd_update(company_dir, period):
                              "memory_hint": m_e.get("label"),
                              "memory_page": m_e.get("page")})
     raw_all = lookup_mod.raw_lines(disclosures)
-    all_rows = mapper.find_homes(all_rows, raw_all)
+    # MAPPER view: document-qualified page ids (doc_i*1000 + page) so the AR's
+    # p184 and the announcement's p25 never mix in one "page" — the run-45
+    # cross-PDF collision. Audit/objectives keep the plain view.
+    raw_map = []
+    for d_i, d_p in enumerate(disclosures):
+        for pn_d, sec_d, ln_d in lookup_mod.raw_lines([d_p]):
+            raw_map.append((d_i * 1000 + pn_d, sec_d, ln_d))
+    for r in all_rows:  # memory page hints (per-doc scheme) vote in every doc
+        if r.get("memory_page"):
+            r["memory_page"] = None  # ambiguous across docs — label/prior carry it
+    all_rows = mapper.find_homes(all_rows, raw_map)
+    # statements-sheet rows with no home inherit their sheet's modal home pages
+    from collections import Counter as _C0
+    sheet_mode = {}
+    for r in all_rows:
+        if r["pages"]:
+            sheet_mode.setdefault(r["sheet"], _C0()).update(r["pages"][:2])
+    for r in all_rows:
+        if not r["pages"] and r["sheet"] in sheet_mode:
+            r["pages"] = [p for p, _n in sheet_mode[r["sheet"]].most_common(4)]
     blocks = mapper.cluster(all_rows)
     n_home = sum(1 for r in all_rows if r["pages"])
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
@@ -266,7 +285,7 @@ def cmd_update(company_dir, period):
                   flush=True)
             break
         try:
-            mapped.update(mapper.map_block(client, system, map_prompt, b, raw_all, cfg))
+            mapped.update(mapper.map_block(client, system, map_prompt, b, raw_map, cfg))
         except Exception as ex:
             print(f"    [2] block {b['sheet']} p{b['pages'][:3]} failed ({ex}) — "
                   "rows fall to carried", flush=True)
@@ -283,32 +302,41 @@ def cmd_update(company_dir, period):
                 aff.setdefault(s_a, _Counter())[int(m_a["page"])] += 1
             except (TypeError, ValueError):
                 pass
-    nf_rows = [r for r in all_rows
-               if (r["sheet"], r["row"]) not in mapped
-               or mapped[(r["sheet"], r["row"])].get("value") is None]
-    for r in nf_rows:
-        top = [p for p, _n in (aff.get(r["sheet"]) or _Counter()).most_common(4)]
-        m_nf = mapped.get((r["sheet"], r["row"])) or {}
-        hinted = mapper.pages_for_hint(m_nf.get("hint"), raw_all) \
-            if m_nf.get("status") == "NEED_PAGES" else []
-        r["pages"] = (hinted + sorted(set(r["pages"] + top)))[:mapper.MAX_BLOCK_PAGES]
-    if nf_rows and time.time() < deadline_map:
+    for rescue_round in (1, 2):
+        aff.clear()
+        for (s_a, _r_a), m_a in mapped.items():
+            if m_a.get("status") == "OK" and m_a.get("page"):
+                try:
+                    aff.setdefault(s_a, _Counter())[int(m_a["page"])] += 1
+                except (TypeError, ValueError):
+                    pass
+        nf_rows = [r for r in all_rows
+                   if (r["sheet"], r["row"]) not in mapped
+                   or mapped[(r["sheet"], r["row"])].get("value") is None]
+        if not nf_rows or time.time() > deadline_map:
+            break
+        for r in nf_rows:
+            top = [p for p, _n in (aff.get(r["sheet"]) or _Counter()).most_common(4)]
+            m_nf = mapped.get((r["sheet"], r["row"])) or {}
+            hinted = mapper.pages_for_hint(m_nf.get("hint"), raw_map) \
+                if m_nf.get("status") == "NEED_PAGES" else []
+            r["pages"] = (hinted + top + sorted(set(r["pages"])))[:mapper.MAX_BLOCK_PAGES]
         rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
         got = 0
         for b in rescue_blocks:
             if time.time() > deadline_map:
                 break
             try:
-                res_b = mapper.map_block(client, system, map_prompt, b, raw_all, cfg)
+                res_b = mapper.map_block(client, system, map_prompt, b, raw_map, cfg)
                 got += sum(1 for v in res_b.values() if v.get("value") is not None)
                 for k_b, v_b in res_b.items():
                     if v_b.get("value") is not None or k_b not in mapped:
                         mapped[k_b] = v_b
             except Exception as ex:
                 print(f"    [2r] rescue block failed ({ex})", flush=True)
-        print(f"[2r] rescue pass: {got} of {len(nf_rows)} unresolved rows recovered "
-              f"via sheet-affinity pages", flush=True)
-    mapped = mapper.audit(mapped, all_rows, raw_all)
+        print(f"[2r] rescue round {rescue_round}: {got} of {len(nf_rows)} unresolved "
+              "rows recovered", flush=True)
+    mapped = mapper.audit(mapped, all_rows, raw_map)
     st_c = _Counter(m["status"] for m in mapped.values())
     print(f"[2b] direct map: {dict(st_c)} of {len(all_rows)} rows", flush=True)
 
@@ -321,10 +349,15 @@ def cmd_update(company_dir, period):
         if m.get("value") is None:
             continue
         ctx_m = next((r for r in all_rows if r["sheet"] == s_m and r["row"] == r_m), {})
+        pg_n = m.get("page")
+        try:
+            pg_n = int(pg_n) % 1000
+        except (TypeError, ValueError):
+            pass
         staging["items"].append({"label": m.get("line") or str(ctx_m.get("label")),
                                  "value": m["value"],
                                  "prior": ctx_m.get("prior_value"),
-                                 "page": m.get("page"), "stmt": None})
+                                 "page": pg_n, "stmt": None})
     n_raw_items = 0
     for pn_r, _sec_r, ln_r in raw_all:
         ns_r = lookup_mod.line_nums(ln_r)
