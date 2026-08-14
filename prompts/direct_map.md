@@ -4,6 +4,17 @@ Below are (1) pages from the company's latest results disclosure and (2) a block
 of rows from an equity research model that must be marked to actual. For each
 row, find this year's actual value in the pages.
 
+**Your mission: every row filled.** An analyst depends on this column being
+updated — an unfilled row silently keeps LAST YEAR's number, which is worse
+than a flagged estimate. Before giving up on any row, exhaust these options:
+(a) the prior-year match anywhere on these pages; (b) DERIVING it from lines
+that ARE here (totals minus known components); (c) if you are convinced the
+figure lives elsewhere in the report, answer NEED_PAGES with your best guess
+of where ("segment note", "five-year statistics", "fixed asset note",
+"scheme of control statement") — the harness will fetch those pages and ask
+you again. NOT_FOUND is the LAST resort, reserved for figures a results
+disclosure genuinely never contains.
+
 How to work, in priority order:
 - **Match on the prior-year number.** Each row shows its prior-year value; find
   that number in the pages' comparative column and read across to the current
@@ -21,8 +32,9 @@ How to work, in priority order:
 
 Return JSON:
 {"mappings": [{"id": "<sheet>!<row>", "value": <number or null>,
-               "status": "OK|DERIVED|UNCERTAIN|NOT_FOUND",
-               "page": <page number>, "line": "<the line you read, briefly>"}]}
+               "status": "OK|DERIVED|UNCERTAIN|NEED_PAGES|NOT_FOUND",
+               "page": <page number>, "line": "<the line you read, briefly>",
+               "hint": "<for NEED_PAGES: where you think the figure lives>"}]}
 Include EVERY row id listed below exactly once.
 
 ## Pages
