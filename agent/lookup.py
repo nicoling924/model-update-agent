@@ -122,13 +122,21 @@ def lookup_rows(table_index, memory, rows_ctx, target_year, prior_year, tol=1.0)
 NUMTOK = re.compile(r"\(?-?[\d,]+(?:\.\d+)?\)?")
 
 
-def line_nums(line):
+def line_nums(line, skip_years=True):
+    """Numbers on a line. Format-aware year filter: a financial value >=1000 is
+    printed WITH a thousands comma ('2,025'); a bare 4-digit 19xx/20xx token
+    ('2025') is a YEAR — column header or date — and poisons every downstream
+    prior-triangulation if treated as data."""
     out = []
     for m in NUMTOK.finditer(line):
         t = m.group(0)
         if not any(ch.isdigit() for ch in t):
             continue
-        v = t.replace(",", "").strip("()")
+        raw = t.strip("()")
+        if skip_years and "," not in raw and "." not in raw \
+                and raw.isdigit() and 1990 <= int(raw) <= 2100:
+            continue
+        v = raw.replace(",", "")
         try:
             f = float(v)
         except ValueError:
