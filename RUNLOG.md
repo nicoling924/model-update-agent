@@ -201,3 +201,26 @@ for regional splits + CF composition, learned from FY24 answer key.
 
 | 52 (Luna+4-row Terra esc.) | 08-14 11:49 | 27.3m ✓ | 73.8% | 0 (2025) / fcst +25.8k | 129 | 49 | All 5 overnight subsystems fired; forecast blowout traced to constants-Ctrl+F corrupting the NFA roll-forward bases (multi-column note tables). Terra escalation removed after (user: pure Luna). |
 | 53 (pure Luna, base protection) | 08-14 17:25 | 27.8m ✓ | 71.9% | **0 (2025) / fcst <1.6k — FIXED** | 138 | 53 | Bases carried+flagged, never auto-rewritten: forecast gaps 26k -> <1.6k. Keys 7/12 — CA/CL still draw-dependent though their TOTALS prove nearly every run -> r54 wires the allocation pass (structure-scale unconfident components to proven totals). |
+
+**OVERNIGHT SPRINT 2 (runs 53-64, all pure Luna, one investigated change each):**
+| 53 | base protection | 71.9% | keys 7 | fcst FIXED <1.6k |
+| 54 | (exposed range bug) | 70.7% | keys 7 | SUM ranges never expanded — fixed |
+| 55 | range expansion | 72.1% | keys 7 | allocation fired, then disturbed -> sealed plug_key |
+| 56 | write-path sealed | 71.2% | keys 8 | allocation starved of anchors |
+| 57 | (instrumented) | 74.7% | keys 8 | skip reasons now logged |
+| 58-59 | anchor widening + instrumentation | 74.1/71.9 | keys 7 | composites had lost input eligibility — fixed |
+| 60 | composite eligibility | 74.3% | keys 7 | CA/TA tie via machinery; year-token poison found |
+| 61 | year filter | 73.2% | **keys 9 (record)** | cash/CA/TA/CFO all exact |
+| 62 | identity anchors | 73.2% | keys 8 | CL derived EXACT (38,414) but post-converge |
+| 63 | anchors pre-converge | 72.4% | keys 6 (bad draw) | |
+| 64 | coverage pass | 71.9% | **keys 9** | 19 carried rows decided; CL anchor unreliable across draws |
+
+**MORNING STATE:** keys 9/12 twice (from 4), cash/CA/TA/NCL structurally solved
+(year filter + composite eligibility + identity machinery), balance 2025 passes
+most draws, forecasts <2k when 2025 passes, runtime ~27min. Completion pinned
+71.9-75.3 vs the 80 floor: per-run draw variance now dominates — every
+mechanism is individually validated; the composite score re-rolls nightly.
+NEXT (designed, not built): (1) CL identity-anchor reliability (fire on every
+draw, not just when TA proves first), (2) MEMORY COMPOUNDING — persist each
+run's verified mappings to _UPDATE_MAP so runs stop re-reading from scratch;
+the permanent end of the draw lottery and the road to the 80 floor.
