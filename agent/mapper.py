@@ -159,6 +159,72 @@ def pages_for_hint(hint, raw_lines, limit=6):
     return sorted(votes, key=lambda p: -votes[p])[:limit]
 
 
+def map_block_voted(client, system, prompt_tpl, block, raw_lines, cfg, votes=2):
+    """Accuracy over speed: map the block N times and reconcile per row.
+    Agreement -> confident. Disagreement -> the value corroborated by the raw
+    text of its cited page wins; no corroboration -> UNCERTAIN with both values
+    shown. Union semantics: a row any draw resolved is never dropped."""
+    draws = []
+    for _ in range(max(1, votes)):
+        draws.append(map_block(client, system, prompt_tpl, block, raw_lines, cfg))
+    raw_by_page = {}
+    for pn, _s, ln in raw_lines:
+        raw_by_page.setdefault(pn, []).append(ln)
+
+    def _cited(v, page):
+        try:
+            pg = int(page)
+        except (TypeError, ValueError):
+            return False
+        window = sum((raw_by_page.get(q, []) for q in (pg - 1, pg, pg + 1)), [])
+        return any(any(s in ln for s in _num_variants(v)) for ln in window)
+
+    prior_by_key = {(r["sheet"], r["row"]): r.get("prior_value")
+                    for r in block["rows"]}
+    out = {}
+    keys = {k for d in draws for k in d}
+    for k in keys:
+        cands = [d[k] for d in draws if k in d and d[k].get("value") is not None]
+        if not cands:
+            e = next(d[k] for d in draws if k in d)
+            e["conf"] = 0
+            out[k] = e
+            continue
+        vals = [c["value"] for c in cands]
+        # confidence 0-5: agreement + page-cited + prior-beside-it (the
+        # "found at last year's position" signal). >=4 = solid, skippable later.
+        if len(cands) >= 2 and max(vals) - min(vals) <= 1.0:
+            best = max(cands, key=lambda c: c.get("status") == "OK")
+            best["note"] = f"agreed across {len(cands)} independent reads"
+            conf = 2
+        elif len(cands) == 1:
+            best = cands[0]
+            conf = 1
+        else:
+            cited = [c for c in cands if _cited(c["value"], c.get("page"))]
+            if len({round(c["value"], 1) for c in cited}) == 1:
+                best = cited[0]
+                best["note"] = "reads disagreed; this value verified on cited page"
+                conf = 1
+            else:
+                best = cands[0]
+                best["status"] = "UNCERTAIN"
+                best["note"] = ("reads disagreed: "
+                                + " vs ".join(f"{c['value']}" for c in cands[:3]))
+                best["conf"] = 0
+                out[k] = best
+                continue
+        if _cited(best["value"], best.get("page")):
+            conf += 1
+        pv_k = prior_by_key.get(k)
+        if isinstance(pv_k, (int, float)) and abs(pv_k) > 1 \
+                and _cited(pv_k, best.get("page")):
+            conf += 2  # this year's value sits beside last year's — position match
+        best["conf"] = min(conf, 5)
+        out[k] = best
+    return out
+
+
 def audit(mapped, rows, raw_lines, tol=1.0):
     """Code-side cross-check of every mapped value before anything is written:
     (a) the claimed value must exist in the raw text of the cited page area;

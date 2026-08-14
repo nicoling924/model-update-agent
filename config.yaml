@@ -19,6 +19,11 @@ budgets:
   extraction_votes: 1            # structured tables replace voting as the variance control
   targeted_max_calls: 30         # chunked reads are now the PRIMARY path for input rows
 
+mapper:
+  # accuracy over speed: every block mapped N times, reconciled per row
+  # (agreement -> confident; disagreement -> page-verified value or UNCERTAIN)
+  votes: 2
+
 orchestrator:
   # observe-decide-act loop: the LLM sees the objectives + live scorecard each
   # turn and picks ONE tool call; code validates and executes with guardrails.
