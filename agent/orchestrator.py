@@ -214,44 +214,68 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         flags.append((sheet, coord, f"orchestrator set: {why[:80]}"))
         return f"written {ref} = {val} (red-flagged; self-check passed{msg or ''})"
 
+    def _year_inputs(year):
+        """Hardcode cells in a given year's columns — legal repair sites there."""
+        out = set()
+        for sheet_y, ax_y in spec["year_axis"].items():
+            col_y = (ax_y.get("columns") or {}).get(str(year))
+            if not col_y or sheet_y not in wb.sheetnames:
+                continue
+            for rr in range(1, min(wb[sheet_y].max_row, 400) + 1):
+                if isinstance(wb[sheet_y][f"{col_y}{rr}"].value, (int, float)):
+                    out.add((sheet_y, f"{col_y}{rr}"))
+        return out
+
     def t_diagnose_balance(args):
+        year = str(args.get("year") or target_year)
         card = _card()
         gap_e = next(((c, y, g) for c, y, g in card["tier0"]
-                      if y == target_year and g is not None and abs(g) > 1.0), None)
+                      if y == year and g is not None and abs(g) > 1.0), None)
         if not gap_e:
-            return "balance already satisfied for the target year"
+            return f"balance already satisfied for {year}"
         chk_ref, _y, gap = gap_e
         chk_sheet, chk_coord = chk_ref.split("!")
         staged_vals = {round(abs(it["value"]), 1) for it in staging.get("items", [])
                        if isinstance(it.get("value"), (int, float))}
         out = []
-        flagged_inputs = sorted({(fs, fc) for fs, fc, _n in flags
+        if year == target_year:
+            cand_cells = sorted({(fs, fc) for fs, fc, _n in flags
                                  if (fs, fc) in eligible_inputs})[:60]
-        for ps, pco in flagged_inputs:
+        else:
+            cand_cells = sorted(_year_inputs(year))[:80]
+        for ps, pco in cand_cells:
             coef, base_in = objectives._sensitivity(wb, chk_sheet, chk_coord, ps, pco)
             if not coef or abs(coef) < 0.01 or abs(coef) > 100:
                 continue
             adj = -gap / coef
             new_v = (base_in or 0) + adj
-            corr = any(abs(abs(new_v) - sv) <= 1.0 for sv in staged_vals)
-            out.append(f"{ps}!{pco}: adjust {adj:+,.1f} -> {new_v:,.1f} "
-                       f"{'[CORROBORATED in disclosure]' if corr else '[not corroborated]'}")
-        return f"gap {gap:+,.1f} at {chk_ref}\n" + ("\n".join(out[:15]) or
-                                                    "no candidate single-cell repairs")
+            if year == target_year:
+                corr = any(abs(abs(new_v) - sv) <= 1.0 for sv in staged_vals)
+                tag = "[CORROBORATED in disclosure]" if corr else "[not corroborated]"
+            else:
+                # forecast repairs: only one-off removal (->~0) or pattern
+                # continuity qualify — never re-forecasting a driver
+                tag = "[ONE-OFF REMOVAL candidate]" if abs(new_v) <= max(1.0, abs(base_in or 0) * 0.02) \
+                    else "[would re-forecast a driver — not allowed]"
+            out.append(f"{ps}!{pco}: adjust {adj:+,.1f} -> {new_v:,.1f} {tag}")
+        return f"gap {gap:+,.1f} at {chk_ref} ({year})\n" + ("\n".join(out[:15]) or
+                                                            "no candidate single-cell repairs")
 
     def t_apply_repair(args):
         ref = str(args.get("cell", ""))
+        year = str(args.get("year") or target_year)
         m = re.match(r"^\s*'?([^'!]+)'?!([A-Z]{1,3})(\d+)\s*$", ref)
         if not m:
             return "ERROR: cell must be Sheet!COLROW"
         sheet, coord = m.group(1), f"{m.group(2)}{m.group(3)}"
-        if (sheet, coord) not in eligible_inputs:
-            return f"REFUSED: {ref} is not an input cell"
+        legal = eligible_inputs if year == target_year else _year_inputs(year)
+        if (sheet, coord) not in legal:
+            return f"REFUSED: {ref} is not an input cell for {year}"
         card = _card()
         gap_e = next(((c, y, g) for c, y, g in card["tier0"]
-                      if y == target_year and g is not None and abs(g) > 1.0), None)
+                      if y == year and g is not None and abs(g) > 1.0), None)
         if not gap_e:
-            return "no balance gap to repair"
+            return f"no balance gap to repair in {year}"
         chk_sheet, chk_coord = gap_e[0].split("!")
         gap = gap_e[2]
         coef, base_in = objectives._sensitivity(wb, chk_sheet, chk_coord, sheet, coord)
@@ -259,11 +283,17 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             return f"REFUSED: {ref} does not feed the balance check"
         adj = -gap / coef
         new_v = (base_in or 0) + adj
-        staged_vals = {round(abs(it["value"]), 1) for it in staging.get("items", [])
-                       if isinstance(it.get("value"), (int, float))}
-        if not any(abs(abs(new_v) - sv) <= 1.0 for sv in staged_vals):
-            return (f"REFUSED: corrected value {new_v:,.1f} is not corroborated by the "
-                    "disclosure — a repair that merely forces the check is forbidden")
+        if year == target_year:
+            staged_vals = {round(abs(it["value"]), 1) for it in staging.get("items", [])
+                           if isinstance(it.get("value"), (int, float))}
+            if not any(abs(abs(new_v) - sv) <= 1.0 for sv in staged_vals):
+                return (f"REFUSED: corrected value {new_v:,.1f} is not corroborated by the "
+                        "disclosure — a repair that merely forces the check is forbidden")
+        else:
+            if abs(new_v) > max(1.0, abs(base_in or 0) * 0.02):
+                return (f"REFUSED: forecast repair must be a one-off REMOVAL "
+                        f"(corrected value ~0), got {new_v:,.1f} — re-forecasting "
+                        "drivers is forbidden by house rules; flag for the analyst")
         old = wb[sheet][coord].value
         ok, msg = _guarded_write(sheet, coord, objectives._plug_formula(old, adj),
                                  f"ORCHESTRATOR balance repair: "

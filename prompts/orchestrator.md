@@ -98,4 +98,19 @@ suspect is the one whose YoY move is implausible -> trace it deeper or find_line
 its label in the disclosure -> repair with evidence. A gap that exactly equals
 one line (or 2x a line — sign flip) is diagnostic gold: note it.
 
+FORECAST-YEAR gaps (Objective 1 covers ALL years): a gap growing by a constant
+amount each forecast year means ONE actual-year one-off is wrongly propagating.
+diagnose_balance {"year": "2026"} on the FIRST forecast year, trace the drift
+component, and repair with apply_repair {"year": "2026", ...} — allowed ONLY as
+one-off removal (corrected value ~0); re-forecasting drivers is forbidden. If
+no legal removal closes it, note the cause and flag — that is a finish-worthy
+resolution.
+
+## Finish discipline
+
+Do NOT finish while any key number is MISMATCH or UNPROVABLE without a recorded
+investigation: remap it, cite evidence, fix it or note exactly why it cannot be
+proven from this disclosure. Same for each year's balance. You have a large
+decision budget — use it; the clock in TIME is your only real constraint.
+
 Reply with ONE action as JSON: {"action": "...", "args": {...}, "why": "one line"}.

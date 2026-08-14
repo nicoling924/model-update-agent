@@ -21,9 +21,10 @@ budgets:
 
 orchestrator:
   # observe-decide-act loop: the LLM sees the objectives + live scorecard each
-  # turn and picks ONE tool call; code validates and executes with guardrails
+  # turn and picks ONE tool call; code validates and executes with guardrails.
+  # Direct mapping freed ~45 min/run — spent here on deeper investigation.
   enabled: true
-  max_decisions: 25
+  max_decisions: 60
 
 objectives:
   # Tier ladder (strict priority): 0 balance all years, 1 key numbers 100%,
