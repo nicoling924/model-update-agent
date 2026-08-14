@@ -215,14 +215,16 @@ def cmd_update(company_dir, period):
     est_snapshot = workbook.snapshot_column(pre_values, stmts_sheet, cols[target_year])
     print(f"[1] target: {target_year} (col {target_col}); prior actual: {last_actual} ({prior_col})")
 
-    # -- 2a. CHUNKED PAGE-READS FIRST — the primary path, never starved -------
-    # Needs only page texts + the model's own prior values; runs before the big
-    # extraction and is exempt from the LLM walk-away deadline by position.
-    from . import targeted
+    # -- 2. DIRECT MAPPING: the brain reads, the hands verify -----------------
+    # Retrieval (code): every row's home pages via prior-value Ctrl+F across the
+    # whole document — statements, notes, statistics tables alike. Then ONE
+    # holistic LLM call per block: pages + rows -> mapped values. Then audit.
+    from . import mapper
+    from . import learn as learn_mod
+    from . import lookup as lookup_mod
     map_client = Client(temperature=cfg["updater"]["temperature"],
                         max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
-    # input census = spec-listed input rows UNION every hardcode the prior actual
-    # column actually holds (runtime discovery — spec lists become a hint, not a cage)
+    memory = learn_mod.read_memory_tab(pre_wb)
     census = {}
     for sheet_c, ax_c in spec["year_axis"].items():
         pc_c = ax_c["columns"].get(last_actual)
@@ -244,110 +246,55 @@ def cmd_update(company_dir, period):
         for r in rows_c:
             lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
                         if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
+            m_e = memory.get((sheet_c, r)) or {}
             all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
-                             "prior_value": wsp[f"{pc_c}{r}"].value})
-    chunked = targeted.rescue(map_client, system, disclosures, all_rows, cfg, [])
-    print(f"[2a] chunked reads (primary) corroborated {len(chunked)}/{len(all_rows)} "
-          "input rows", flush=True)
+                             "prior_value": pre_wb[sheet_c][f"{pc_c}{r}"].value,
+                             "memory_hint": m_e.get("label"),
+                             "memory_page": m_e.get("page")})
+    raw_all = lookup_mod.raw_lines(disclosures)
+    all_rows = mapper.find_homes(all_rows, raw_all)
+    blocks = mapper.cluster(all_rows)
+    n_home = sum(1 for r in all_rows if r["pages"])
+    print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
+          f"({len(blocks)} blocks) across {len(raw_all)} raw lines", flush=True)
+    mapped = {}
+    map_prompt = _prompt("direct_map")
+    deadline_map = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.55
+    for bi, b in enumerate(blocks):
+        if time.time() > deadline_map:
+            print(f"    [2] map deadline — {len(blocks)-bi} blocks left as carried",
+                  flush=True)
+            break
+        try:
+            mapped.update(mapper.map_block(client, system, map_prompt, b, raw_all, cfg))
+        except Exception as ex:
+            print(f"    [2] block {b['sheet']} p{b['pages'][:3]} failed ({ex}) — "
+                  "rows fall to carried", flush=True)
+        if (bi + 1) % 8 == 0:
+            print(f"    [2] mapped {bi+1}/{len(blocks)} blocks "
+                  f"({len(mapped)} rows)", flush=True)
+    mapped = mapper.audit(mapped, all_rows, raw_all)
+    from collections import Counter as _Counter
+    st_c = _Counter(m["status"] for m in mapped.values())
+    print(f"[2b] direct map: {dict(st_c)} of {len(all_rows)} rows", flush=True)
 
-    # -- 2/3. ingest + extract (validated), cached by content signature ------
-    import hashlib
-    import json as _json
-    sig_src = _prompt("extraction") + system + client.model + "".join(
-        hashlib.sha256(p.read_bytes()).hexdigest() for p in disclosures)
-    sig = hashlib.sha256(sig_src.encode()).hexdigest()[:16]
-    # frozen digest first: the one careful reading beats any fresh single pass
-    from . import digest as digest_mod
-    dig_sig = digest_mod.signature(disclosures, _prompt("extraction"), system,
-                                   client.model)
-    frozen = digest_mod.load_if_valid(company_dir, period, dig_sig)
-    if frozen is not None:
-        print(f"[2] using FROZEN DIGEST ({len(frozen['items'])} items, "
-              f"{frozen['_confidence']}) — variance-free", flush=True)
-    staging_path = company_dir / "updates" / f"{period}_staging.json"
-    staging = frozen
-    if staging is None and staging_path.exists():
-        cached = _json.loads(staging_path.read_text())
-        if cached.get("_sig") == sig:
-            staging = cached
-            print(f"[2] reusing cached extraction ({len(staging['items'])} items) — "
-                  "PDFs, prompts, and model unchanged")
-    if staging is None:
-        staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
-        staging["_sig"] = sig
-        workbook.dump_json(staging, staging_path)
-        print(f"[2] extracted {len(staging['items'])} items, {len(staging['ties'])} ties validated")
+    # synthesized staging: the audit layer's raw material (mapped rows as items;
+    # raw text supplies redundancy corroboration in prove())
+    staging = {"items": [], "ties": [], "_direct": True}
+    for (s_m, r_m), m in mapped.items():
+        if m.get("value") is None:
+            continue
+        ctx_m = next((r for r in all_rows if r["sheet"] == s_m and r["row"] == r_m), {})
+        staging["items"].append({"label": m.get("line") or str(ctx_m.get("label")),
+                                 "value": m["value"],
+                                 "prior": ctx_m.get("prior_value"),
+                                 "page": m.get("page"), "stmt": None})
+    workbook.dump_json(staging, company_dir / "updates" / f"{period}_staging.json")
 
-    # deterministic table lookup: memory identities served by CODE from the
-    # rendered tables — numbers never pass through an LLM (clean status only;
-    # sign-flips and restatements surface flagged)
-    from . import lookup as lookup_mod
-    det_results = {}
-    # memory tab: identities learned by the learner agent (if present)
-    from . import learn as learn_mod
-    memory = learn_mod.read_memory_tab(pre_wb)
-    if memory:
-        print(f"[M] using {len(memory)} learned identities from {learn_mod.MEMORY_TAB} tab")
-        idx_cur = lookup_mod.index_tables(disclosures)
-        rows_ctx_lk = {}
-        for (s_k, r_k), m_k in memory.items():
-            if m_k.get("kind") != "input":
-                continue
-            ax_k = spec["year_axis"].get(s_k)
-            if not ax_k:
-                continue
-            pc_k = ax_k["columns"].get(last_actual)
-            pv_k = pre_values[s_k][f"{pc_k}{r_k}"].value if pc_k else None
-            rows_ctx_lk[(s_k, r_k)] = {"label": None,
-                                       "prior_value": pv_k if isinstance(pv_k, (int, float)) else None}
-        det_results = lookup_mod.lookup_rows(idx_cur, memory, rows_ctx_lk,
-                                             target_year, last_actual)
-        raw_cur = lookup_mod.raw_lines(disclosures)
-        raw_results = lookup_mod.raw_lookup_rows(raw_cur, memory, rows_ctx_lk)
-        # unify: raw-text is primary; rendered tables confirm. Agreement -> clean;
-        # disagreement -> flagged conflict; raw-only -> clean (the Ctrl+F standard)
-        for k_, rr_ in raw_results.items():
-            if rr_.get("status") != "clean":
-                continue
-            dr_ = det_results.get(k_)
-            if dr_ and dr_.get("status") == "clean" and isinstance(dr_.get("value"), (int, float)) \
-                    and abs(dr_["value"] - rr_["value"]) > 1.0:
-                det_results[k_] = {"status": "restated", "value": rr_["value"],
-                                   "prior_found": dr_.get("value"),
-                                   "page": rr_.get("page"),
-                                   "line_label": rr_.get("line_label")}
-            else:
-                det_results[k_] = rr_
-        n_clean = sum(1 for v in det_results.values() if v.get("status") == "clean")
-        print(f"[M2] deterministic table lookup: {n_clean} clean, "
-              f"{sum(1 for v in det_results.values() if v.get('status')=='restated')} restated, "
-              f"{sum(1 for v in det_results.values() if v.get('status')=='sign_flip')} sign-flips "
-              f"of {len(det_results)} attempted", flush=True)
-
-    # -- 4. restatement scan ------------------------------------------------
+    # -- 3. rollover + write the mapped column --------------------------------
     wb = workbook.load(model_path)
     writer = workbook.Writer(wb, cfg)
     restatements = []
-    for key, loc in (spec.get("statement_rows") or {}).items():
-        prior_model = pre_values[loc["sheet"]][f"{prior_col}{loc['row']}"].value
-        hits = extraction.find_by_prior(staging, prior_model,
-                                        cfg["conventions"]["rounding_tolerance"])
-        if prior_model is not None and not hits:
-            cands = [it for it in staging["items"]
-                     if mapping.norm(it["label"]) == mapping.norm(loc.get("label_seen", key))
-                     and isinstance(it.get("prior"), (int, float))]
-            if len(cands) == 1 and abs(cands[0]["prior"] - (prior_model or 0)) > cfg["conventions"]["rounding_tolerance"]:
-                writer.restate(loc["sheet"], f"{prior_col}{loc['row']}", cands[0]["prior"],
-                               f"comparative restated in {period} disclosure "
-                               f"(p{cands[0]['page']}): {prior_model} -> {cands[0]['prior']}")
-                restatements.append(f"{loc['sheet']}!{prior_col}{loc['row']}: "
-                                    f"{prior_model} -> {cands[0]['prior']} (p{cands[0]['page']})")
-    print(f"[3] restatement scan: {len(restatements)} restated")
-
-    # -- 3b. WHOLE-COLUMN ROLLOVER (the analyst's own move; pure code, no LLM):
-    # copy the entire prior actual column — values, Excel-shifted formulas,
-    # types, formats — so the converted column is actual-mode with no cell
-    # left behind. Disclosed inputs overwrite it next.
     rollover_hardcodes = {}
     for sheet_rv, ax_rv in spec["year_axis"].items():
         pc_rv = ax_rv["columns"].get(last_actual)
@@ -358,70 +305,55 @@ def cmd_update(company_dir, period):
         rows_hc = workbook.rollover_column(wb, sheet_rv, pc_rv, tc_rv,
                                            header_rows={hr_rv})
         rollover_hardcodes[sheet_rv] = set(rows_hc)
-    print(f"[3b] whole-column rollover: prior actual column copied across "
-          f"{len(rollover_hardcodes)} sheets (Excel-shifted formulas)", flush=True)
+    print(f"[3] whole-column rollover across {len(rollover_hardcodes)} sheets", flush=True)
 
-    # -- 5. map + apply ------------------------------------------------------
-    glossary = mapping.build_glossary(cfg, spec)
     maplog, backouts, flags = [], [], []
-    backout_rules = {str(b.get("row_ref")): b for b in spec.get("backout_rules") or []}
-    deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.75
-    rows_done = 0
-    rescue_candidates = []
-    pending = {}  # (sheet, row) -> cascade entry + coords, written after merge
-    pending_consts = {}  # (sheet, row) -> formula with unresolved embedded constants
+    pending_consts = {}
+    n_ok = n_der = n_unc = 0
+    for r_ctx in all_rows:
+        s_w, r_w = r_ctx["sheet"], r_ctx["row"]
+        ax_w = spec["year_axis"][s_w]
+        tcol_w = ax_w["columns"].get(target_year)
+        pcol_w = ax_w["columns"].get(last_actual)
+        if not tcol_w:
+            continue
+        coord_w = f"{tcol_w}{r_w}"
+        m = mapped.get((s_w, r_w))
+        if m is None or m.get("value") is None or m["status"] in ("NOT_FOUND",):
+            continue  # rollover carry stands; [4d] flags it
+        if m["status"] in ("OK", "RESCALED"):
+            fl_w = None if m["status"] == "OK" else "red"
+            writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
+                         note=(f"direct-map: '{m.get('line','')}' p{m.get('page')}"
+                               + (f"; {m.get('note')}" if m.get('note') else "")),
+                         flag=fl_w)
+            if fl_w:
+                flags.append((s_w, coord_w, m.get("note") or "rescaled"))
+            n_ok += 1
+        elif m["status"] == "DERIVED":
+            writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
+                         note=f"direct-map DERIVED: {m.get('line','')} p{m.get('page')}",
+                         flag="orange")
+            backouts.append((s_w, coord_w, m.get("line", "")[:60]))
+            n_der += 1
+        else:  # UNCERTAIN / UNCITED — write but red-flag
+            writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
+                         note=f"direct-map {m['status']}: {m.get('line','')} "
+                              f"p{m.get('page')} — verify",
+                         flag="red")
+            flags.append((s_w, coord_w, f"{m['status']}: {m.get('line','')[:50]}"))
+            n_unc += 1
+    print(f"[3b] wrote {n_ok} clean, {n_der} derived, {n_unc} uncertain", flush=True)
+
+    # embedded constants: memory recipes serve deterministically; leftovers
+    # rewritten from the mapped staging; unresolved -> red flag
     for sheet, iv in (spec.get("input_vs_formula") or {}).items():
         s_axis = spec["year_axis"].get(sheet, axis)
         s_prior = s_axis["columns"].get(last_actual, prior_col)
         s_target = s_axis["columns"].get(target_year, target_col)
-        ws_prior = pre_values[sheet]
         header_r = s_axis.get("header_row", 1)
-        for r in census.get(sheet, []):
-            if r == header_r:
-                continue  # year headers are written separately, never mapped
-            label = next((ws_prior[f"{lc}{r}"].value for lc in "ABCDEF"
-                          if isinstance(ws_prior[f"{lc}{r}"].value, str)), f"row {r}")
-            prior_cell = pre_wb[sheet][f"{s_prior}{r}"]
-            row_ctx = {"sheet": sheet, "row": r, "label": label,
-                       "prior_value": ws_prior[f"{s_prior}{r}"].value,
-                       "prior_formula": prior_cell.value if isinstance(prior_cell.value, str) else None,
-                       "backout_rule": backout_rules.get(f"{sheet}!{r}"),
-                       "memory": memory.get((sheet, r))}
-            # pass 1 is deterministic-only; values are NOT written yet — the
-            # chunked page-read (primary path) runs next and the two results
-            # are merged with cross-checking before any write
-            dr = det_results.get((sheet, r))
-            if dr and memory.get((sheet, r), {}).get("audit") == "SUSPECT" \
-                    and isinstance(dr.get("value"), (int, float)):
-                entry = {"value": dr["value"], "source": "table-lookup-suspect",
-                         "flag": "red",
-                         "note": "AUDIT-SUSPECT mapping — LLM doubts this row/line pairing; verify",
-                         "page": dr.get("page")}
-            elif dr and dr.get("status") == "clean" and isinstance(dr.get("value"), (int, float)):
-                entry = {"value": dr["value"], "source": "table-lookup", "flag": None,
-                         "note": f"code table-lookup: '{dr.get('line_label')}' p{dr.get('page')}"
-                                 " (prior verified, no LLM)", "page": dr.get("page")}
-            elif dr and dr.get("status") in ("restated", "sign_flip") and isinstance(dr.get("value"), (int, float)):
-                entry = {"value": dr["value"], "source": f"table-lookup-{dr['status']}",
-                         "flag": "red",
-                         "note": f"code table-lookup ({dr['status']}): '{dr.get('line_label')}' "
-                                 f"p{dr.get('page')}, prior in report {dr.get('prior_found')} — verify",
-                         "page": dr.get("page")}
-            else:
-                entry = mapping.resolve_row(row_ctx, staging, glossary, None, system,
-                                            _prompt("mapping"), cfg, maplog)
-            rows_done += 1
-            if rows_done % 50 == 0:
-                print(f"    [4] {rows_done} rows pre-mapped ({sheet})", flush=True)
-            pending[(sheet, r)] = {"entry": entry, "label": label,
-                                   "prior_value": row_ctx["prior_value"],
-                                   "coord": f"{s_target}{r}",
-                                   "prior_coord": f"{s_prior}{r}"}
-        # formula rows: re-copy prior pattern shifted one column (mark-to-actual
-        # recipe) — but REWRITE any embedded prior-year constants (MODEL_SPEC rule);
-        # a copied constant is a stale 2024 number wearing a 2025 costume
-        # constants sweep over ALL rolled formula cells in this sheet's column:
-        # rewrite embedded prior-year constants; queue unresolved for landmark reads
+        if sheet not in wb.sheetnames:
+            continue
         ws_cur = wb[sheet]
         for r in range(1, min(ws_cur.max_row, 400) + 1):
             if r == header_r:
@@ -431,236 +363,21 @@ def cmd_update(company_dir, period):
                 continue
             if not re.search(r"(?<![A-Za-z0-9_.$])\d{2,}(?![A-Za-z0-9_.])", cur):
                 continue
-            new_f, ok, unresolved = mapping.rewrite_constants(cur, staging)
+            new_f, ok_c, unresolved = mapping.rewrite_constants(cur, staging)
             if unresolved:
-                lab = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
-                            if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
-                           f"row {r}")
-                pending_consts[(sheet, r)] = {
-                    "formula": new_f, "unresolved": list(unresolved),
-                    "coord": f"{s_target}{r}", "prior_coord": f"{s_prior}{r}",
-                    "label": lab, "prior_formula": cur}
+                lab_c = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
+                              if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
+                             f"row {r}")
+                writer.write(sheet, f"{s_target}{r}", new_f,
+                             prior_coord=f"{s_prior}{r}",
+                             note=f"CONSTANTS UNRESOLVED {unresolved} — verify",
+                             flag="red")
+                flags.append((sheet, f"{s_target}{r}",
+                              f"embedded constants unresolved: {unresolved}"))
             elif new_f != cur:
                 writer.write(sheet, f"{s_target}{r}", new_f,
                              prior_coord=f"{s_prior}{r}")
         writer.format_rollover(sheet, s_prior, s_target)
-    # [4b] merge the (already-computed) chunked reads with the cascade, then write.
-    # Agreement of the two independent paths -> unflagged; disagreement -> the
-    # page-quoted chunk wins but is red-flagged with both values in the note.
-    def _mag_flag(v_, pv_):
-        if isinstance(v_, (int, float)) and isinstance(pv_, (int, float)) \
-                and abs(pv_) >= 100 and v_ != 0:
-            rr = abs(v_) / abs(pv_)
-            return rr > 20 or rr < 0.05
-        return False
-
-    agree = conflict = chunk_only = cascade_only = 0
-    for (s, r), p in sorted(pending.items()):
-        e, c = p["entry"], chunked.get((s, r))
-        # universal magnitude sanity: a 20x jump vs prior is never written silently
-        for cand_e in (e,):
-            v_chk = cand_e.get("value")
-            if cand_e.get("flag") is None and _mag_flag(v_chk, p["prior_value"]):
-                cand_e["flag"] = "red"
-                cand_e["note"] = ("MAGNITUDE ALERT: >20x change vs prior year — verify. "
-                                  + (cand_e.get("note") or ""))
-        ev = e.get("value") if not e.get("formula") else _eval_const(e.get("formula"))
-        if c is not None:
-            cv = c["value"]
-            if isinstance(ev, (int, float)) and abs(ev - cv) <= 1.0:
-                keep = e.get("formula") or cv  # keep traceable formula when it agrees
-                fl = c.get("flag")  # sign-harmonized chunks stay flagged
-                writer.write(s, p["coord"], keep, prior_coord=p["prior_coord"],
-                             note=e.get("note") or c["note"], flag=fl)
-                if fl:
-                    flags.append((s, p["coord"], c["note"]))
-                agree += 1
-            elif isinstance(ev, (int, float)) and e.get("flag") is None:
-                note = (f"CONFLICT: chunked page-read {cv} vs cascade {round(ev,1)} "
-                        f"({e.get('source')}) — page-quoted value written, verify. "
-                        + (c.get("note") or ""))
-                writer.write(s, p["coord"], cv, prior_coord=p["prior_coord"],
-                             note=note, flag="red")
-                flags.append((s, p["coord"], note))
-                conflict += 1
-            else:  # cascade had nothing solid — chunk stands on its corroboration
-                writer.write(s, p["coord"], cv, prior_coord=p["prior_coord"],
-                             note=c["note"], flag=c.get("flag"))
-                if c.get("flag"):
-                    flags.append((s, p["coord"], c["note"]))
-                chunk_only += 1
-        else:
-            v = e.get("formula", e.get("value"))
-            if v is None:
-                continue
-            writer.write(s, p["coord"], v, prior_coord=p["prior_coord"],
-                         note=e.get("note"), flag=e.get("flag"))
-            if e.get("flag") == "red":
-                flags.append((s, p["coord"], e.get("note", "")))
-                if e.get("source") in ("estimate", "label-only (uncorroborated)"):
-                    rescue_candidates.append({"sheet": s, "row": r, "label": p["label"],
-                                              "prior_value": p["prior_value"],
-                                              "coord": p["coord"],
-                                              "prior_coord": p["prior_coord"]})
-            elif e.get("flag") == "orange":
-                backouts.append((s, p["coord"], e.get("note", "")))
-            cascade_only += 1
-    print(f"[4b] merge: {agree} agreed, {conflict} conflicts (flagged), "
-          f"{chunk_only} chunk-only, {cascade_only} cascade-only", flush=True)
-
-    # [4b2] component-level landmark reads: each unresolved embedded constant is
-    # its own tiny task — "find the line whose prior-year column shows <c>" —
-    # generic across model styles because it needs only the constant itself
-    if pending_consts and time.time() < deadline:
-        comp_rows = []
-        for (cs, cr), pc in pending_consts.items():
-            for j, tok in enumerate(pc["unresolved"]):
-                comp_rows.append({"sheet": cs, "row": f"{cr}#c{j}",
-                                  "label": pc["label"],
-                                  "prior_value": float(tok)})
-        # memory component RECIPES: find by name, read by position, verify by prior
-        raw25 = lookup_mod.raw_lines(disclosures)
-        by_lab25 = {}
-        for pn_, sec_, ln_ in raw25:
-            by_lab25.setdefault(lookup_mod.norm(lookup_mod.label_of(ln_)), []).append((pn_, sec_, ln_))
-        # memory-known components resolve without any LLM call
-        mem_resolved = {}
-        for (cs, cr), pc in pending_consts.items():
-            m = memory.get((cs, cr))
-            comps = (m or {}).get("components") or []
-            for j, tok in enumerate(pc["unresolved"]):
-                ident = next((c for c in comps if c and c.get("token") == tok), None)
-                if not ident:
-                    continue
-                # STRICT raw-text read: same label, prior at learned pos+1, value at pos
-                pos = ident.get("pos")
-                cval = float(tok)
-                founds = []
-                for pn_, sec_, ln_ in by_lab25.get(lookup_mod.norm(ident["label"]), []):
-                    ns = lookup_mod.line_nums(ln_)
-                    if pos is not None and len(ns) > pos + 1 \
-                            and abs(abs(ns[pos + 1]) - cval) <= 1.0:
-                        founds.append((abs(ns[pos]), pn_))
-                # layout-independent fallback: find the old number anywhere on the
-                # line and take its LEFT NEIGHBOUR (statements print current | prior)
-                for pn_, sec_, ln_ in by_lab25.get(lookup_mod.norm(ident["label"]), []):
-                    ns = lookup_mod.line_nums(ln_)
-                    for i_ in range(1, len(ns)):
-                        if abs(abs(ns[i_]) - cval) <= 1.0:
-                            founds.append((abs(ns[i_ - 1]), pn_))
-                # a line where the "new" number equals the old constant is usually a
-                # stale-ordered duplicate (summary tables) — prefer changed values
-                changed = [f_ for f_ in founds if abs(f_[0] - cval) > 1.0]
-                found = (changed or founds or [None])[0]
-                if found:
-                    mem_resolved[(cs, f"{cr}#c{j}")] = {"value": found[0],
-                        "page": found[1],
-                        "note": f"recipe read: '{ident['label'][:40]}' (prior verified, no LLM)"}
-        comp_rows = [cr_ for cr_ in comp_rows
-                     if (cr_["sheet"], cr_["row"]) not in mem_resolved]
-        comp_res = targeted.rescue(map_client, system, disclosures, comp_rows, cfg, maplog)
-        comp_res.update(mem_resolved)
-        resolved_n = 0
-        for (cs, cr), pc in sorted(pending_consts.items()):
-            f_txt, left = pc["formula"], []
-            for j, tok in enumerate(pc["unresolved"]):
-                res = comp_res.get((cs, f"{cr}#c{j}"))
-                if res and isinstance(res.get("value"), (int, float)):
-                    nv = abs(res["value"])  # formula text carries its own sign operator
-                    nv_s = str(int(nv)) if nv == int(nv) else str(nv)
-                    f_txt = re.sub(rf"(?<![A-Za-z0-9_.$]){re.escape(tok)}(?![A-Za-z0-9_.])",
-                                   nv_s, f_txt, count=1)
-                    resolved_n += 1
-                else:
-                    left.append(tok)
-            flag_row = "red" if left else None
-            writer.write(cs, pc["coord"], f_txt, prior_coord=pc["prior_coord"],
-                         note=(f"CONSTANTS UNRESOLVED {left} from prior formula "
-                               f"{pc['prior_formula']} — verify" if left else
-                               f"embedded constants rewritten (staging + landmark reads) "
-                               f"from {pc['prior_formula']}"),
-                         flag=flag_row)
-            if flag_row:
-                flags.append((cs, pc["coord"],
-                              f"embedded constants unresolved: {left}"))
-        print(f"[4b2] component landmark reads resolved {resolved_n} embedded "
-              f"constants across {len(pending_consts)} composite formulas", flush=True)
-    elif pending_consts:
-        for (cs, cr), pc in sorted(pending_consts.items()):
-            writer.write(cs, pc["coord"], pc["formula"], prior_coord=pc["prior_coord"],
-                         note=f"CONSTANTS UNRESOLVED {pc['unresolved']} — verify",
-                         flag="red")
-            flags.append((cs, pc["coord"], "embedded constants unresolved (time budget)"))
-
-    # [4c-pre] memory-guided page reads: identity known but label absent from this
-    # extraction — read the remembered page area directly (page drift tolerated)
-    from . import pdfs as pdfs_mod
-    _doc_pages = {str(d): pdfs_mod.pages(d) for d in disclosures}
-    mem_candidates = []
-    for (s_m, r_m), p_m in sorted(pending.items()):
-        m_e = memory.get((s_m, r_m))
-        if not m_e or m_e.get("kind") != "input" or not m_e.get("page"):
-            continue
-        e_m = p_m["entry"]
-        if e_m.get("source") == "memory-identity" and e_m.get("flag") is None:
-            continue  # memory already served this row cleanly
-        coord_m = p_m["coord"]
-        if any(f_[0] == s_m and f_[1] == coord_m for f_ in flags) or True:
-            # locate by SECTION TITLE in the CURRENT documents — the one anchor
-            # stable across years (page numbers are not)
-            sec = (m_e.get("section") or "").strip()
-            pages_hint = []
-            if sec:
-                sec_norm = sec.lower()
-                for d_path, pt in _doc_pages.items():
-                    hits = [pn for pn, tx in pt if sec_norm in tx.lower()][:6]
-                    if hits:
-                        lo, hi = min(hits), max(hits)
-                        pages_hint = list(range(max(1, lo - 1), hi + 4))
-                        break
-            if not pages_hint:
-                pg = int(m_e["page"])
-                pages_hint = list(range(max(1, pg - 2), pg + 18))
-            mem_candidates.append({"sheet": s_m, "row": r_m,
-                                   "label": m_e.get("label") or p_m["label"],
-                                   "prior_value": p_m["prior_value"],
-                                   "pages": pages_hint[:12],
-                                   "coord": coord_m,
-                                   "prior_coord": p_m["prior_coord"]})
-    if mem_candidates and time.time() < deadline:
-        mem_res = targeted.rescue(map_client, system, disclosures, mem_candidates, cfg, maplog)
-        fixed_m = 0
-        for cand in mem_candidates:
-            res = mem_res.get((cand["sheet"], cand["row"]))
-            if not res:
-                continue
-            writer.write(cand["sheet"], cand["coord"], res["value"],
-                         prior_coord=cand["prior_coord"],
-                         note="memory-guided page read: " + (res.get("note") or ""),
-                         flag=res.get("flag"))
-            flags = [f_ for f_ in flags if not (f_[0] == cand["sheet"] and f_[1] == cand["coord"])]
-            if res.get("flag"):
-                flags.append((cand["sheet"], cand["coord"], res.get("note") or ""))
-            fixed_m += 1
-        print(f"[4c0] memory-guided page reads recovered {fixed_m}/{len(mem_candidates)} rows",
-              flush=True)
-
-    # [4c] per-row LLM consults LAST, only for rows neither path resolved
-    consults = 0
-    for cand in rescue_candidates:
-        if time.time() >= deadline:
-            maplog.append(f"time budget: {cand['sheet']}!r{cand['row']} left as flagged estimate")
-            continue
-        entry = mapping._llm_map(cand, staging, map_client,
-                                 system, _prompt("mapping"), cfg, maplog)
-        if entry and (entry.get("value") is not None or entry.get("formula")):
-            v = entry.get("formula", entry.get("value"))
-            writer.write(cand["sheet"], cand["coord"], v,
-                         prior_coord=cand["prior_coord"],
-                         note=entry.get("note"), flag="red")
-            consults += 1
-    if consults:
-        print(f"[4c] LLM consults resolved {consults} further rows (all red-flagged)", flush=True)
 
     # any rolled-over hardcode that mapping did not overwrite is, by definition,
     # a stale prior-year number: flag it red — complete coverage, no silent gaps
