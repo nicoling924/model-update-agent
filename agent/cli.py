@@ -714,6 +714,31 @@ def cmd_update(company_dir, period):
                               "sources": 3, "pages": ["FY24-recipe"]}
             obj_notes.append(f"derive {kind_d}: {v25_d:,.1f} via FY24 recipe = "
                              + " ".join(det_d)[:140])
+    # ALLOCATION (house rule mechanized): components of a PROVEN total that the
+    # mapper could not confidently resolve are scaled to prior-year structure so
+    # the total ties exactly — keys stop depending on the mapper's draw
+    anchors_a = {}
+    for kind_a in ("current_assets", "current_liabilities", "total_assets",
+                   "non_current_assets", "non_current_liabilities"):
+        p_a = proven.get(kind_a) or {}
+        loc_a = keymap.get(kind_a)
+        if loc_a and p_a.get("status") == "proven"                 and isinstance(p_a.get("value"), (int, float)):
+            anchors_a[(loc_a["sheet"], loc_a["row"])] = p_a["value"]
+    confident_a = set()
+    for (s_m2, r_m2), m_m2 in mapped.items():
+        if m_m2.get("conf", 0) >= 4:
+            tc_m2 = spec["year_axis"].get(s_m2, {}).get("columns", {}).get(target_year)
+            if tc_m2:
+                confident_a.add((s_m2, f"{tc_m2}{r_m2}"))
+    alloc_log = []
+    n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
+                                     anchors_a, confident_a, eligible_inputs,
+                                     writer_obj, flags, backouts, alloc_log)
+    for ln_a in alloc_log:
+        print("  [ALLOC]", ln_a, flush=True)
+    print(f"[6a] allocation: {n_alloc} components structure-scaled to proven totals",
+          flush=True)
+
     card, obj_log, n_fix = objectives.converge(
         wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
         last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
