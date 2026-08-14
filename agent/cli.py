@@ -273,13 +273,46 @@ def cmd_update(company_dir, period):
         if (bi + 1) % 8 == 0:
             print(f"    [2] mapped {bi+1}/{len(blocks)} blocks "
                   f"({len(mapped)} rows)", flush=True)
-    mapped = mapper.audit(mapped, all_rows, raw_all)
+    # NOT_FOUND rescue: rows that failed re-map against the pages where their
+    # SHEET-MATES succeeded — a sheet's rows live together in the document
     from collections import Counter as _Counter
+    aff = {}
+    for (s_a, _r_a), m_a in mapped.items():
+        if m_a.get("status") == "OK" and m_a.get("page"):
+            try:
+                aff.setdefault(s_a, _Counter())[int(m_a["page"])] += 1
+            except (TypeError, ValueError):
+                pass
+    nf_rows = [r for r in all_rows
+               if (r["sheet"], r["row"]) not in mapped
+               or mapped[(r["sheet"], r["row"])].get("value") is None]
+    for r in nf_rows:
+        top = [p for p, _n in (aff.get(r["sheet"]) or _Counter()).most_common(4)]
+        r["pages"] = sorted(set(r["pages"] + top))[:mapper.MAX_BLOCK_PAGES]
+    if nf_rows and time.time() < deadline_map:
+        rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
+        got = 0
+        for b in rescue_blocks:
+            if time.time() > deadline_map:
+                break
+            try:
+                res_b = mapper.map_block(client, system, map_prompt, b, raw_all, cfg)
+                got += sum(1 for v in res_b.values() if v.get("value") is not None)
+                for k_b, v_b in res_b.items():
+                    if v_b.get("value") is not None or k_b not in mapped:
+                        mapped[k_b] = v_b
+            except Exception as ex:
+                print(f"    [2r] rescue block failed ({ex})", flush=True)
+        print(f"[2r] rescue pass: {got} of {len(nf_rows)} unresolved rows recovered "
+              f"via sheet-affinity pages", flush=True)
+    mapped = mapper.audit(mapped, all_rows, raw_all)
     st_c = _Counter(m["status"] for m in mapped.values())
     print(f"[2b] direct map: {dict(st_c)} of {len(all_rows)} rows", flush=True)
 
-    # synthesized staging: the audit layer's raw material (mapped rows as items;
-    # raw text supplies redundancy corroboration in prove())
+    # staging for the AUDIT layer — two independent sources so the auditors can
+    # actually check the mapper: (a) the mapped rows themselves, (b) a code-only
+    # pseudo-extraction of EVERY printed line (label + current + prior read
+    # positionally) — thousands of items, no LLM, restores prove()/tie-web sight
     staging = {"items": [], "ties": [], "_direct": True}
     for (s_m, r_m), m in mapped.items():
         if m.get("value") is None:
@@ -289,6 +322,19 @@ def cmd_update(company_dir, period):
                                  "value": m["value"],
                                  "prior": ctx_m.get("prior_value"),
                                  "page": m.get("page"), "stmt": None})
+    n_raw_items = 0
+    for pn_r, _sec_r, ln_r in raw_all:
+        ns_r = lookup_mod.line_nums(ln_r)
+        if len(ns_r) < 2:
+            continue
+        lab_r = lookup_mod.label_of(ln_r)
+        if not lab_r or len(lab_r) < 4:
+            continue
+        staging["items"].append({"label": lab_r, "value": ns_r[0], "prior": ns_r[1],
+                                 "page": pn_r, "stmt": None, "_src": "rawline"})
+        n_raw_items += 1
+    print(f"[2c] audit staging: {len(staging['items'])} items "
+          f"({n_raw_items} code-parsed raw lines)", flush=True)
     workbook.dump_json(staging, company_dir / "updates" / f"{period}_staging.json")
 
     # -- 3. rollover + write the mapped column --------------------------------
