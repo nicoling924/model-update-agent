@@ -808,6 +808,7 @@ def cmd_update(company_dir, period):
     # mapper could not confidently resolve are scaled to prior-year structure so
     # the total ties exactly — keys stop depending on the mapper's draw
     anchors_a = {}
+    alloc_log = []
     for kind_a in ("current_assets", "current_liabilities", "total_assets",
                    "non_current_assets", "non_current_liabilities"):
         p_a = proven.get(kind_a) or {}
@@ -828,13 +829,45 @@ def cmd_update(company_dir, period):
                     and abs(v_v - abs(p_a["value"])) <= max(1.0, v_v * 0.005)
         if loc_a and ok_anchor and isinstance(p_a.get("value"), (int, float)):
             anchors_a[(loc_a["sheet"], loc_a["row"])] = p_a["value"]
+    # identity anchors: an unproven total whose COMPLEMENT line is printed
+    # (net-format BS: "total assets less current liabilities") derives exactly —
+    # complement found by prior-triangulation on the model's own arithmetic
+    for kind_i, total_i in (("current_liabilities", "total_assets"),
+                            ("current_assets", "total_assets")):
+        loc_i = keymap.get(kind_i)
+        p_i = proven.get(kind_i) or {}
+        p_t = proven.get(total_i) or {}
+        if not loc_i or p_i.get("status") == "proven" \
+                or (loc_i["sheet"], loc_i["row"]) in anchors_a \
+                or p_t.get("status") != "proven" \
+                or not isinstance(p_t.get("value"), (int, float)):
+            continue
+        loc_t = keymap.get(total_i)
+        ax_i = spec["year_axis"].get(loc_i["sheet"]) or {}
+        pc_i = (ax_i.get("columns") or {}).get(last_actual)
+        try:
+            ev_i = Evaluator(pre_wb)
+            part_prior = ev_i.cell(loc_i["sheet"], f"{pc_i}{loc_i['row']}")
+            tot_prior = ev_i.cell(loc_t["sheet"], f"{pc_i}{loc_t['row']}")
+        except Exception:
+            continue
+        if not (isinstance(part_prior, (int, float)) and isinstance(tot_prior, (int, float))):
+            continue
+        comp_v, _pg_i, _ln_i, uniq_i = derive.ctrlf_read(tot_prior - part_prior, raw_all)
+        if uniq_i and isinstance(comp_v, (int, float)):
+            derived_i = p_t["value"] - comp_v
+            if 0.2 <= abs(derived_i) / max(abs(part_prior), 1e-9) <= 5:
+                anchors_a[(loc_i["sheet"], loc_i["row"])] = round(derived_i, 1)
+                proven[kind_i] = {"status": "proven", "value": round(derived_i, 1),
+                                  "sources": 3, "pages": ["identity-complement"]}
+                alloc_log.append(f"identity anchor {kind_i}: {p_t['value']:,.1f} - "
+                                 f"complement {comp_v:,.1f} = {derived_i:,.1f}")
     confident_a = set()
     for (s_m2, r_m2), m_m2 in mapped.items():
         if m_m2.get("conf", 0) >= 4:
             tc_m2 = spec["year_axis"].get(s_m2, {}).get("columns", {}).get(target_year)
             if tc_m2:
                 confident_a.add((s_m2, f"{tc_m2}{r_m2}"))
-    alloc_log = []
     n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
                                      anchors_a, confident_a, eligible_inputs,
                                      writer_obj, flags, backouts, alloc_log,
