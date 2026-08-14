@@ -329,6 +329,18 @@ def _precedent_inputs(wb, sheet, coord, target_cols, eligible, depth=0, seen=Non
         return " "
 
     bare = re.sub(r"(?:'([^']+)'|([A-Za-z][A-Za-z0-9 ]*?))!([A-Z]{1,3}\d+)", _grab, body)
+    # expand same-column ranges: SUM(AI57:AI63) means EVERY cell between —
+    # endpoint-only walks silently missed the middle (latent since day one)
+    def _grab_range(m):
+        c1, r1, c2, r2 = m.group(1), int(m.group(2)), m.group(3), int(m.group(4))
+        if c1 == c2 and abs(r2 - r1) <= 100:
+            for rr in range(min(r1, r2), max(r1, r2) + 1):
+                refs.append((sheet, f"{c1}{rr}"))
+            return " "
+        return m.group(0)
+
+    bare = re.sub(r"(?<![A-Za-z0-9_])([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)",
+                  _grab_range, bare)
     for m in re.finditer(r"(?<![A-Za-z0-9_])([A-Z]{1,3}\d+)", bare):
         refs.append((sheet, m.group(1)))
     for sh, ref in refs:
