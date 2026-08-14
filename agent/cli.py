@@ -324,6 +324,15 @@ def cmd_update(company_dir, period):
             hinted = mapper.pages_for_hint(m_nf.get("hint"), raw_map) \
                 if m_nf.get("status") == "NEED_PAGES" else []
             r["pages"] = (hinted + top + sorted(set(r["pages"])))[:mapper.MAX_BLOCK_PAGES]
+            # code-found evidence comes TO the model: the exact lines where this
+            # row's prior-year value is printed in the new documents
+            pv_nf = r.get("prior_value")
+            if isinstance(pv_nf, (int, float)) and abs(pv_nf) >= 10:
+                variants_nf = mapper._num_variants(pv_nf)
+                cand_nf = [f"p{pn_c}: {ln_c.strip()[:110]}"
+                           for pn_c, _s_c, ln_c in raw_map
+                           if any(v_c in ln_c for v_c in variants_nf)]
+                r["candidate_lines"] = cand_nf[:4]
         rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
         got = 0
         for b in rescue_blocks:

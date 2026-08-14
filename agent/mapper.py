@@ -107,6 +107,8 @@ def map_block(client, system, prompt_tpl, block, raw_lines, cfg):
             if r.get("memory_hint") else ""
         rows_desc.append(f"- id {r['sheet']}!{r['row']}: '{r['label']}' "
                          f"(prior year: {r['prior_value']}){hint}")
+        for cl in (r.get("candidate_lines") or [])[:4]:
+            rows_desc.append(f"    prior-year value found here: {cl}")
     user = (prompt_tpl
             .replace("{PAGES}", "\n".join(text[:600]))
             .replace("{ROWS}", "\n".join(rows_desc)))
