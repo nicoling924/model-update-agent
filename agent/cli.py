@@ -512,6 +512,9 @@ def cmd_update(company_dir, period):
                 continue
             if not re.search(r"(?<![A-Za-z0-9_.$])\d{2,}(?![A-Za-z0-9_.])", cur):
                 continue
+            # composites ARE input cells: register for eligibility (allocation,
+            # plugs, trace all depend on this — lost in the direct-map rewiring)
+            pending_consts[(sheet, r)] = {"coord": f"{s_target}{r}"}
             # roll-forward bases are NEVER auto-rewritten: their notes are
             # multi-column tables where neighbour reads corrupt (runs 51-52
             # forecast blowout); keep prior constants, red-flag for re-anchor
