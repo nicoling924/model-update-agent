@@ -52,6 +52,7 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
     proportions so the sum ties exactly."""
     from . import objectives
     n_alloc = 0
+    log.append(f"allocation anchors: {[(f'{s0}!r{r0}', round(v0,1)) for (s0,r0),v0 in anchors.items()]}")
     for (sheet, row), dv in anchors.items():
         axis = spec["year_axis"].get(sheet) or {}
         tcol = (axis.get("columns") or {}).get(target_year)
@@ -65,6 +66,8 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                                              eligible_inputs)
         precs = sorted(set(precs))
         if len(precs) < 2:
+            log.append(f"allocation {sheet}!r{row}: only {len(precs)} eligible "
+                       "component(s) found — skipped")
             continue
         ev_c, ev_p = Evaluator(wb), Evaluator(pre_wb)
         fixed_sum = 0.0
@@ -92,13 +95,16 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
             else:
                 fixed_sum += cur
         if not free:
+            log.append(f"allocation {sheet}!r{row}: no adjustable components "
+                       f"({len(precs)} all trusted/zero-prior) — skipped")
             continue
         try:
             total_now = ev_c.cell(sheet, f"{tcol}{row}")
         except Exception:
             continue
         if isinstance(total_now, (int, float)) and abs(total_now - dv) <= 1.0:
-            continue  # already ties
+            log.append(f"allocation {sheet}!r{row}: already ties — nothing to do")
+            continue
         residual = dv - fixed_sum
         prior_free_sum = sum(p for _s, _c, p in free)
         if abs(prior_free_sum) < 1.0:
