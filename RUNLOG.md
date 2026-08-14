@@ -174,3 +174,12 @@ REPLAY-VALIDATED (not yet run live): sibling-first correction — check each
 component's own disclosed value before plugging; on run-41 replay 8/9 sibling
 corrections exactly match GT. Next live run carries it (budget cap reached;
 awaiting analyst).
+
+**PHASE 7 — DIRECT MAPPING (the brain reads, the hands verify), 08-14:** side
+test (user-run, ChatGPT Terra-light on Final sheet: 82.5% vs our Terra+harness
+73.3% on identical rows) proved the extract-then-match pipeline throttles the
+model. Pipeline deleted; replaced by retrieval (prior-value Ctrl+F, 80% of rows
+located incl. notes) -> holistic per-block mapping -> code audit -> objective loop.
+
+| 42 | — | cancelled | — | — | — | — | superseded pre-flight by the remap freedom upgrade. |
+| 43 (Luna, direct-map v1) | 08-14 05:29 | **8.2m ✓ (6x faster, 1/4 cost)** | 69.7% | **-263** / fcst <1.6k | **127 (lowest ever)** | 79 | Ties branch-best accuracy at a fraction of time/cost; best balance profile ever. Two decoded flaws: 96/216 NOT_FOUND (mapper conservatism -> carried), audit layer blind (synthesized staging too thin: 0 tie-web anchors, 0 key fixes, keys 5/12). r44: sheet-affinity rescue pass + code-parsed raw-line staging (2,802 items; keys provable again: 6 right/1 wrong offline) + thin-proof plug guard (>=3 sources). |

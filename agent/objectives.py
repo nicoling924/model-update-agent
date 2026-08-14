@@ -493,6 +493,16 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                 obj_log.append(f"T1 {mismatch['kind']}: within {band:.0%} of disclosed — "
                                "flagged as definition check, not plugged")
                 continue
+            n_src = (proven.get(mismatch["kind"]) or {}).get("sources", 0)
+            if n_src < 3:
+                # thin proof never overwrites the model — flag for the agent,
+                # which can remap the row with page evidence and judge itself
+                flags.append((s, coord, f"key {mismatch['kind']}: disclosed "
+                              f"{dv:,.1f} has only {n_src} source(s) — verify, "
+                              "not auto-plugged"))
+                obj_log.append(f"T1 {mismatch['kind']}: proof too thin "
+                               f"({n_src} src) — flagged, not plugged")
+                continue
             residual = dv - mismatch["model"]
             if (s, coord) in eligible_inputs:
                 # the key cell is itself an input: set it to the proven value
