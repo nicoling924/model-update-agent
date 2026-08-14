@@ -171,10 +171,20 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         n_before = len(writer.log["written"])
         spec_t1 = dict(spec)
         spec_t1["check_rows"] = []  # key plug only — balance repair is its own tool
-        objectives.converge(wb, spec_t1, staging, cfg, writer, pre_wb, None,
+        before_pk = _card()
+        ok_before_pk, gap_before_pk = _objective_state(before_pk)
+        tx_pk = _Tx()
+        objectives.converge(wb, spec_t1, staging, cfg, tx_pk, pre_wb, None,
                             target_year, last_actual, {kind: keymap[kind]},
                             {kind: proven[kind]}, flags, backouts, t0,
                             eligible_inputs, deadline)
+        after_pk = _card()
+        ok_after_pk, gap_after_pk = _objective_state(after_pk)
+        if (ok_before_pk - ok_after_pk) or gap_after_pk > gap_before_pk + 1.0:
+            tx_pk.rollback()
+            return (f"{kind}: plug REVERTED — it broke "
+                    f"{sorted(ok_before_pk - ok_after_pk) or 'the balance'}; "
+                    "investigate the underlying components instead")
         made = len(writer.log["written"]) - n_before
         e2 = next((x for x in _card()["tier1"] if x["kind"] == kind), None)
         if made == 0:
