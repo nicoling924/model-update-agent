@@ -195,3 +195,6 @@ granularity derivation rows (regional BS splits, CF composition, one-offs
 bridge) — the class that needs learned per-company recipes (FY24 calibration)
 or analyst rulings, not better reading. Next: learner v6 — component recipes
 for regional splits + CF composition, learned from FY24 answer key.
+
+| 50 (Luna, candidate-line injection) | 08-14 09:21 | 26.9m ✓ | 74.1% | 0 (2025) | 124 | 52 | User's diagnosis vindicated by measurement: 153/156 FY24 hardcodes ARE printed in the docs — findability, not derivation, was the wall. Code-found candidate lines now fed to the mapper. BS chain still stale -> traced to the TRUE root: |
+| 51 (Luna, no-silent-carry) | 08-14 09:53 | 23.9m ✓ | **75.3% (record)** | **0 (2025)** / fcst +26k (new propagation, flagged) | **117 (record low)** | 51 | **THE SILENT-CARRY BUG (since run 30s): composite rows like cash '=4976+23' kept stale constants UNFLAGGED when the rewriter failed — 4 runs of identical invisible wrongness. Fixed with Ctrl+F neighbour fallback (magnitude-banded) + always-flag rule. Keys 4->8/12 (cash EXACT), whole model record.** Remaining: CA/TA (one BS input ~3.2k off), CFO recipe ambiguity (1.5%), CFF (no recipe), forecast propagation of a 2025 repair. |
