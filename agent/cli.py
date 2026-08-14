@@ -272,6 +272,13 @@ def cmd_update(company_dir, period):
     for r in all_rows:
         if not r["pages"] and r["sheet"] in sheet_mode:
             r["pages"] = [p for p, _n in sheet_mode[r["sheet"]].most_common(4)]
+    for r in all_rows:
+        pv_a = r.get("prior_value")
+        if isinstance(pv_a, (int, float)) and abs(pv_a) >= 10:
+            variants_a = mapper._num_variants(pv_a)
+            r["candidate_lines"] = [f"p{pn_a}: {ln_a.strip()[:110]}"
+                                    for pn_a, _s_a, ln_a in raw_map
+                                    if any(v_a in ln_a for v_a in variants_a)][:4]
     blocks = mapper.cluster(all_rows)
     n_home = sum(1 for r in all_rows if r["pages"])
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
@@ -349,6 +356,45 @@ def cmd_update(company_dir, period):
                 print(f"    [2r] rescue block failed ({ex})", flush=True)
         print(f"[2r] rescue round {rescue_round}: {got} of {len(nf_rows)} unresolved "
               "rows recovered", flush=True)
+    # recipe pass (identity Ctrl+F, tie-broken) for anything still unresolved
+    from . import derive as derive_mod
+    unres = [r for r in all_rows
+             if (r["sheet"], r["row"]) not in mapped
+             or mapped[(r["sheet"], r["row"])].get("value") is None]
+    rp_log = []
+    for k_rp, m_rp in derive_mod.recipe_pass(unres, raw_all, rp_log).items():
+        mapped[k_rp] = m_rp
+    for ln_rp in rp_log:
+        print(f"[2e] {ln_rp}", flush=True)
+    # confidence-routed escalation: a stronger engine reads ONLY the rows the
+    # weak one is unsure about (env ESCALATION_MODEL; ~cents per run)
+    import os as _os
+    esc_model = _os.environ.get("ESCALATION_MODEL")
+    if esc_model and esc_model != client.model:
+        esc_rows = [r for r in all_rows
+                    if (mapped.get((r["sheet"], r["row"])) or {}).get("status")
+                    in (None, "UNCERTAIN", "NEED_PAGES", "UNCITED")]
+        if esc_rows and time.time() < deadline_map:
+            esc_client = Client(model=esc_model,
+                                temperature=cfg["updater"]["temperature"],
+                                max_output_tokens=cfg["budgets"].get("mapping_output_tokens", 3000))
+            got_e = 0
+            for b_e in mapper.cluster([r for r in esc_rows if r["pages"]]):
+                if time.time() > deadline_map:
+                    break
+                try:
+                    res_e = mapper.map_block(esc_client, system, map_prompt, b_e,
+                                             raw_map, cfg)
+                except Exception as ex:
+                    print(f"    [2f] escalation block failed ({ex})", flush=True)
+                    continue
+                for k_e, v_e in res_e.items():
+                    if v_e.get("value") is not None:
+                        v_e["note"] = f"escalated read ({esc_model.split('/')[-1]})"
+                        v_e["status"] = "OK" if v_e.get("status") == "OK" else "UNCERTAIN"
+                        mapped[k_e] = v_e
+                        got_e += 1
+            print(f"[2f] escalation: {got_e} rows resolved by {esc_model}", flush=True)
     mapped = mapper.audit(mapped, all_rows, raw_map)
     st_c = _Counter(m["status"] for m in mapped.values())
     print(f"[2b] direct map: {dict(st_c)} of {len(all_rows)} rows", flush=True)
@@ -433,7 +479,7 @@ def cmd_update(company_dir, period):
             if fl_w:
                 flags.append((s_w, coord_w, m.get("note") or "rescaled"))
             n_ok += 1
-        elif m["status"] == "DERIVED":
+        elif m["status"] in ("DERIVED", "RECIPE"):
             writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
                          note=f"direct-map DERIVED: {m.get('line','')} p{m.get('page')}",
                          flag="orange")
@@ -640,7 +686,8 @@ def cmd_update(company_dir, period):
                 continue
             if not isinstance(v24_d, (int, float)):
                 continue
-            recipe_d = derive.learn_composition(v24_d, v23_d, fy24_raw, CF_SECTIONS)
+            recipe_d = derive.learn_composition(v24_d, v23_d, fy24_raw, CF_SECTIONS,
+                                                max_terms=5)
             if not recipe_d:
                 obj_notes.append(f"derive {kind_d}: no double-locked FY24 recipe")
                 continue
@@ -740,6 +787,37 @@ def cmd_update(company_dir, period):
           "(reviewer-corroborated + closing residuals; objective cells protected)",
           flush=True)
 
+    # forecast-propagation attribution: any year whose balance gap WIDENED
+    # during the repair phase gets a ready-made task naming the repaired cells
+    # that feed its check (pure arithmetic, generic)
+    prop_tasks = []
+    try:
+        post_card = objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
+        pre_gaps = {y: g for _c, y, g in card["tier0"] if g is not None}
+        new_writes = [w for w in writer_obj.log["written"]
+                      if w not in set(writer.log["written"])][-40:]
+        for c_ref, y_p, g_p in post_card["tier0"]:
+            if y_p == target_year or g_p is None:
+                continue
+            g_pre = pre_gaps.get(y_p)
+            if g_pre is None or abs(g_p) <= abs(g_pre) + 1.0:
+                continue
+            chk_s, chk_c = c_ref.split("!")
+            feeders = []
+            for w_ref in new_writes:
+                ws_, wc_ = w_ref.split("!")
+                coef_w, _b = objectives._sensitivity(wb, chk_s, chk_c, ws_, wc_)
+                if coef_w and abs(coef_w) > 0.01:
+                    feeders.append(w_ref)
+            prop_tasks.append(f"TASK: {y_p} balance gap widened "
+                              f"{g_pre:+,.1f} -> {g_p:+,.1f} during repairs; "
+                              f"repaired cells feeding it: {feeders[:6]}")
+            break  # first widened year is enough — the drift is one cause
+    except Exception as ex_p:
+        prop_tasks.append(f"(propagation attribution failed: {ex_p})")
+    for tline in prop_tasks:
+        print("  [PROP]", tline, flush=True)
+
     decisions = []
     if (cfg.get("orchestrator") or {}).get("enabled", True):
         from . import orchestrator
@@ -748,7 +826,7 @@ def cmd_update(company_dir, period):
             writer_obj, pre_wb, target_year, last_actual, keymap, proven, flags,
             backouts, eligible_inputs, disclosures, t0, obj_deadline,
             lambda s: print(s, flush=True),
-            bootstrap_log=obj_notes + obj_log + breadth_log,
+            bootstrap_log=obj_notes + obj_log + breadth_log + prop_tasks,
             request_review=request_review)
     writer.log["written"] = list(writer_obj.log["written"])
     workbook.save(wb, model_path)

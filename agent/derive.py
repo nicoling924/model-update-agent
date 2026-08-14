@@ -19,6 +19,31 @@ from . import lookup
 from .evaluator import Evaluator
 
 
+def recipe_pass(unresolved_rows, fy25_raw, log, max_rows=60):
+    """Identity recipes for rows mapping could not resolve: the tie-broken
+    Ctrl+F read. Unique -> serve (orange); ambiguous -> serve best red-flagged."""
+    out = {}
+    for r in unresolved_rows[:max_rows]:
+        pv = r.get("prior_value")
+        if not isinstance(pv, (int, float)) or abs(pv) < 10:
+            continue
+        v, pg, ln, unique = ctrlf_read(pv, fy25_raw, r.get("label"))
+        if v is None:
+            continue
+        # sign follows the model's own convention (prior carries it)
+        v_signed = v if pv >= 0 else -v
+        out[(r["sheet"], r["row"])] = {
+            "value": v_signed,
+            "status": "RECIPE" if unique else "UNCERTAIN",
+            "page": pg, "line": ln,
+            "note": ("ctrlf-recipe: prior found, neighbour read"
+                     + ("" if unique else " — AMBIGUOUS, verify"))}
+    n_u = sum(1 for m in out.values() if m["status"] == "RECIPE")
+    log.append(f"recipe pass: {n_u} unique reads + {len(out) - n_u} ambiguous "
+               f"of {len(unresolved_rows)} unresolved rows")
+    return out
+
+
 def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                     confident, eligible_inputs, writer, flags, backouts, log):
     """anchors: {(sheet,row): disclosed_total}. For each anchor row that is a
@@ -132,6 +157,43 @@ def learn_composition(target_cur, target_prior, fy24_raw, section_keywords,
         if n == 2 and len(cands) > 35:
             cands = cands[:35]  # cap the cubic stage
     return None
+
+
+_STMT_HINTS = ("statement of", "balance sheet", "income statement", "cash flow",
+               "financial position", "comprehensive income")
+
+
+def ctrlf_read(prior_value, raw_lines, row_label=None, tol=0.6):
+    """The Ctrl+F read with disambiguating tie-breaks: find lines printing the
+    prior value, take the left neighbour (magnitude-banded). If several survive,
+    prefer primary-statement sections, then label similarity. Returns
+    (value, page, line, unique) or (None, None, None, False)."""
+    cands = []
+    lab_n = lookup.norm(str(row_label or ""))
+    lab_words = set(w for w in lab_n.split() if len(w) >= 4)
+    for pn, sec, ln in raw_lines:
+        ns = lookup.line_nums(ln)
+        for i in range(1, len(ns)):
+            if abs(abs(ns[i]) - abs(prior_value)) <= tol:
+                nb = ns[i - 1]
+                if not (0.2 <= abs(nb) / max(abs(prior_value), 1e-9) <= 5):
+                    continue
+                sec_l = str(sec).lower()
+                score = (2 if any(h in sec_l for h in _STMT_HINTS) else 0)
+                ln_words = set(lookup.norm(ln).split())
+                score += min(2, len(lab_words & ln_words))
+                cands.append((round(abs(nb), 1), score, pn, ln.strip()[:90]))
+                break
+    if not cands:
+        return None, None, None, False
+    vals = {c[0] for c in cands}
+    if len(vals) == 1:
+        c = cands[0]
+        return c[0], c[2], c[3], True
+    best = sorted(cands, key=lambda c: -c[1])
+    if best[0][1] > (best[1][1] if len(best) > 1 else -1):
+        return best[0][0], best[0][2], best[0][3], True
+    return best[0][0], best[0][2], best[0][3], False  # ambiguous — caller flags
 
 
 def replay_composition(recipe, fy25_raw):
