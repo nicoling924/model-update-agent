@@ -809,7 +809,21 @@ def cmd_update(company_dir, period):
                    "non_current_assets", "non_current_liabilities"):
         p_a = proven.get(kind_a) or {}
         loc_a = keymap.get(kind_a)
-        if loc_a and p_a.get("status") == "proven"                 and isinstance(p_a.get("value"), (int, float)):
+        ok_anchor = p_a.get("status") == "proven"
+        if not ok_anchor and p_a.get("status") == "single-source" and loc_a \
+                and isinstance(p_a.get("value"), (int, float)):
+            # single-source totals qualify when the Ctrl+F read confirms them
+            ax_v = spec["year_axis"].get(loc_a["sheet"]) or {}
+            pc_v = (ax_v.get("columns") or {}).get(last_actual)
+            try:
+                pv_v = Evaluator(pre_wb).cell(loc_a["sheet"], f"{pc_v}{loc_a['row']}")
+            except Exception:
+                pv_v = None
+            if isinstance(pv_v, (int, float)):
+                v_v, _pg_v, _ln_v, uniq_v = derive.ctrlf_read(pv_v, raw_all)
+                ok_anchor = bool(uniq_v) and isinstance(v_v, (int, float)) \
+                    and abs(v_v - abs(p_a["value"])) <= max(1.0, v_v * 0.005)
+        if loc_a and ok_anchor and isinstance(p_a.get("value"), (int, float)):
             anchors_a[(loc_a["sheet"], loc_a["row"])] = p_a["value"]
     confident_a = set()
     for (s_m2, r_m2), m_m2 in mapped.items():
