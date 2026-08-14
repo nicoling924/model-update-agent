@@ -512,6 +512,20 @@ def cmd_update(company_dir, period):
                 continue
             if not re.search(r"(?<![A-Za-z0-9_.$])\d{2,}(?![A-Za-z0-9_.])", cur):
                 continue
+            # roll-forward bases are NEVER auto-rewritten: their notes are
+            # multi-column tables where neighbour reads corrupt (runs 51-52
+            # forecast blowout); keep prior constants, red-flag for re-anchor
+            base_cells = {(b.get("sheet"), b.get("cell"))
+                          for b in spec.get("roll_forward_bases") or []}
+            if (sheet, f"{s_target}{r}") in base_cells:
+                rule_b = next((b.get("re_anchor_rule", "") for b in
+                               spec.get("roll_forward_bases") or []
+                               if (b.get("sheet"), b.get("cell")) == (sheet, f"{s_target}{r}")), "")
+                writer.write(sheet, f"{s_target}{r}", cur, prior_coord=f"{s_prior}{r}",
+                             note=f"ROLL-FORWARD BASE carried at prior structure — "
+                                  f"re-anchor: {rule_b[:120]}", flag="red")
+                flags.append((sheet, f"{s_target}{r}", "roll-forward base needs re-anchor"))
+                continue
             new_f, ok_c, unresolved = mapping.rewrite_constants(cur, staging)
             # Ctrl+F fallback for every constant the rewriter left untouched:
             # the constant IS last year's number — find it in the new documents,
