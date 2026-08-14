@@ -83,11 +83,13 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                 continue
             trusted = (ps, pco) in confident
             if trusted and raw_lines and isinstance(pri, (int, float)) and abs(pri) >= 10:
-                # confidence must survive its own Ctrl+F check: a component whose
-                # disclosed value disagrees with its cell is a SUSPECT, not fixed
+                # trust must be POSITIVELY verified: only a unique Ctrl+F read
+                # that AGREES keeps a component fixed; disagreeing or ambiguous
+                # components are adjustable (an unverifiable "confident" cell
+                # blocking a proven total is how run 62 stalled)
                 v_c, _pg, _ln, uniq = ctrlf_read(pri, raw_lines)
-                if uniq and isinstance(v_c, (int, float))                         and abs(abs(cur) - v_c) > max(1.0, v_c * 0.005):
-                    trusted = False
+                trusted = bool(uniq) and isinstance(v_c, (int, float)) \
+                    and abs(abs(cur) - v_c) <= max(1.0, v_c * 0.005)
             if trusted:
                 fixed_sum += cur
             elif isinstance(pri, (int, float)) and pri != 0:
