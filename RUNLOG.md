@@ -183,3 +183,15 @@ located incl. notes) -> holistic per-block mapping -> code audit -> objective lo
 
 | 42 | — | cancelled | — | — | — | — | superseded pre-flight by the remap freedom upgrade. |
 | 43 (Luna, direct-map v1) | 08-14 05:29 | **8.2m ✓ (6x faster, 1/4 cost)** | 69.7% | **-263** / fcst <1.6k | **127 (lowest ever)** | 79 | Ties branch-best accuracy at a fraction of time/cost; best balance profile ever. Two decoded flaws: 96/216 NOT_FOUND (mapper conservatism -> carried), audit layer blind (synthesized staging too thin: 0 tie-web anchors, 0 key fixes, keys 5/12). r44: sheet-affinity rescue pass + code-parsed raw-line staging (2,802 items; keys provable again: 6 right/1 wrong offline) + thin-proof plug guard (>=3 sources). |
+
+| 44 | — | cancelled | — | — | — | — | superseded pre-flight by mission-aware mapper (NEED_PAGES routing). |
+| 45 (Luna, mission-aware map) | 08-14 05:53 | **11.1m ✓** | **74.3% (branch record)** | 0 (2025) / fcst <2k | 120 | 55 | Rescue +29 rows; audit layers all live (12 tie-web + 10 key + 15 breadth fixes); keys 5/12 — BS keys carried. |
+| 46 (Luna, doc-qualified pages) | 08-14 06:13 | 13.1m ✓ | 72.2% | 0 (2025) / fcst <1.8k | 128 | 61 | Retrieval 216/216, rescue +41; score oscillated (mapper nondeterminism ±2pp). ROOT CAUSE of stuck BS keys found: cash/CA/TA are FORMULA rows summing REGIONAL-sheet inputs that group disclosures don't publish at model granularity — the same segment-allocation class every config (incl. raw ChatGPT 82.5% side test) misses. Not a mapping bug.
+
+**DIRECT-MAP VERDICT (runs 43-46):** architecture validated — 74.3% branch
+record, 6x faster (~12 min), ~1/4 cost (~$1.50/run), lowest unflagged-wrong,
+2025 balance passing consistently. Remaining gap is concentrated in segment-
+granularity derivation rows (regional BS splits, CF composition, one-offs
+bridge) — the class that needs learned per-company recipes (FY24 calibration)
+or analyst rulings, not better reading. Next: learner v6 — component recipes
+for regional splits + CF composition, learned from FY24 answer key.
