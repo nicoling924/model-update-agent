@@ -467,6 +467,29 @@ def cmd_update(company_dir, period):
             if not re.search(r"(?<![A-Za-z0-9_.$])\d{2,}(?![A-Za-z0-9_.])", cur):
                 continue
             new_f, ok_c, unresolved = mapping.rewrite_constants(cur, staging)
+            # Ctrl+F fallback for every constant the rewriter left untouched:
+            # the constant IS last year's number — find it in the new documents,
+            # take the neighbour, magnitude-banded to kill junk. NO SILENT CARRY:
+            # a composite that still holds a stale constant is always red-flagged.
+            for tok_c in set(re.findall(r"(?<![A-Za-z0-9_.$])(\d{2,}(?:\.\d+)?)(?![A-Za-z0-9_.])", new_f)):
+                tv = float(tok_c)
+                if tv < 10:
+                    continue
+                cands_c = set()
+                for _pn_c, _sec_c, ln_c in raw_all:
+                    ns_c = lookup_mod.line_nums(ln_c)
+                    for i_c in range(1, len(ns_c)):
+                        if abs(abs(ns_c[i_c]) - tv) <= 0.6:
+                            nb = abs(ns_c[i_c - 1])
+                            if 0.2 <= nb / tv <= 5:
+                                cands_c.add(round(nb, 1))
+                if len(cands_c) == 1:
+                    nv_c = cands_c.pop()
+                    nv_s = str(int(nv_c)) if nv_c == int(nv_c) else str(nv_c)
+                    new_f = re.sub(rf"(?<![A-Za-z0-9_.$]){re.escape(tok_c)}(?![A-Za-z0-9_.])",
+                                   nv_s, new_f, count=1)
+                elif tok_c not in (unresolved or []):
+                    unresolved = list(unresolved or []) + [tok_c]
             if unresolved:
                 lab_c = next((pre_values[sheet][f"{lc}{r}"].value for lc in "ABCDEF"
                               if isinstance(pre_values[sheet][f"{lc}{r}"].value, str)),
