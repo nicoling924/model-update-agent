@@ -278,14 +278,15 @@ def cmd_update(company_dir, period):
           f"({len(blocks)} blocks) across {len(raw_all)} raw lines", flush=True)
     mapped = {}
     map_prompt = _prompt("direct_map")
-    deadline_map = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.55
+    deadline_map = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.70
     for bi, b in enumerate(blocks):
         if time.time() > deadline_map:
             print(f"    [2] map deadline — {len(blocks)-bi} blocks left as carried",
                   flush=True)
             break
         try:
-            mapped.update(mapper.map_block(client, system, map_prompt, b, raw_map, cfg))
+            mapped.update(mapper.map_block_voted(client, system, map_prompt, b, raw_map, cfg,
+                                                 votes=(cfg.get('mapper') or {}).get('votes', 2)))
         except Exception as ex:
             print(f"    [2] block {b['sheet']} p{b['pages'][:3]} failed ({ex}) — "
                   "rows fall to carried", flush=True)
@@ -312,7 +313,9 @@ def cmd_update(company_dir, period):
                     pass
         nf_rows = [r for r in all_rows
                    if (r["sheet"], r["row"]) not in mapped
-                   or mapped[(r["sheet"], r["row"])].get("value") is None]
+                   or mapped[(r["sheet"], r["row"])].get("value") is None
+                   or (mapped[(r["sheet"], r["row"])].get("conf", 5) == 0
+                       and rescue_round == 1)]
         if not nf_rows or time.time() > deadline_map:
             break
         for r in nf_rows:
@@ -327,7 +330,8 @@ def cmd_update(company_dir, period):
             if time.time() > deadline_map:
                 break
             try:
-                res_b = mapper.map_block(client, system, map_prompt, b, raw_map, cfg)
+                res_b = mapper.map_block_voted(client, system, map_prompt, b, raw_map,
+                                               cfg, votes=(cfg.get('mapper') or {}).get('votes', 2))
                 got += sum(1 for v in res_b.values() if v.get("value") is not None)
                 for k_b, v_b in res_b.items():
                     if v_b.get("value") is not None or k_b not in mapped:
@@ -372,6 +376,13 @@ def cmd_update(company_dir, period):
     print(f"[2c] audit staging: {len(staging['items'])} items "
           f"({n_raw_items} code-parsed raw lines)", flush=True)
     workbook.dump_json(staging, company_dir / "updates" / f"{period}_staging.json")
+    conf_map = {f"{s_m}!{r_m}": {"conf": m.get("conf", 0), "status": m.get("status"),
+                                 "value": m.get("value")}
+                for (s_m, r_m), m in mapped.items()}
+    workbook.dump_json(conf_map, company_dir / "updates" / f"{period}_confidence.json")
+    n_solid = sum(1 for v in conf_map.values() if v["conf"] >= 4)
+    print(f"[2d] confidence: {n_solid} rows solid (conf>=4, skippable in later runs); "
+          f"{sum(1 for v in conf_map.values() if v['conf'] <= 1)} need attention", flush=True)
 
     # -- 3. rollover + write the mapped column --------------------------------
     wb = workbook.load(model_path)
@@ -406,7 +417,8 @@ def cmd_update(company_dir, period):
         if m["status"] in ("OK", "RESCALED"):
             fl_w = None if m["status"] == "OK" else "red"
             writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
-                         note=(f"direct-map: '{m.get('line','')}' p{m.get('page')}"
+                         note=(f"direct-map [conf {m.get('conf', '?')}/5]: "
+                               f"'{m.get('line','')}' p{m.get('page')}"
                                + (f"; {m.get('note')}" if m.get('note') else "")),
                          flag=fl_w)
             if fl_w:

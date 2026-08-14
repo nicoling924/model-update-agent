@@ -26,7 +26,8 @@ MAX_DECISIONS = 25
 
 
 def _fmt_scorecard(card):
-    L = []
+    L = ["PRIORITY: balance (all years) > key numbers >>> everything else. "
+         "Time is generous — accuracy only."]
     t0_bad = [(c, y, g) for c, y, g in card["tier0"] if g is None or abs(g) > 1.0]
     L.append("OBJECTIVE 1 (balance): " + ("SATISFIED" if not t0_bad else
              "VIOLATED at " + "; ".join(f"{c} ({y}): gap {g}" for c, y, g in t0_bad[:6])))
