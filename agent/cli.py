@@ -820,7 +820,8 @@ def cmd_update(company_dir, period):
     alloc_log = []
     n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
                                      anchors_a, confident_a, eligible_inputs,
-                                     writer_obj, flags, backouts, alloc_log)
+                                     writer_obj, flags, backouts, alloc_log,
+                                     raw_lines=raw_all)
     for ln_a in alloc_log:
         print("  [ALLOC]", ln_a, flush=True)
     print(f"[6a] allocation: {n_alloc} components structure-scaled to proven totals",
