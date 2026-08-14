@@ -1,0 +1,169 @@
+"""Derivation — for rows the disclosure does not print.
+
+Two mechanisms, both from the house rules:
+
+1. ALLOCATION (BS splits): a proven disclosed TOTAL + the model's own prior-year
+   structure. Confident components stay fixed; the unproven remainder is scaled
+   to prior-year proportions so the total ties exactly. ("Hold prior-year
+   ratios/structures and plug to disclosed totals" — mechanized.) Orange-flagged.
+
+2. COMPOSITION (CF reclassification): the model's FY24 value is the answer key —
+   search the FY24 disclosure's own lines for the subset that sums to it (<=4
+   terms, same section). That subset IS the analyst's recipe; replay it on FY25
+   by line name. (Model CFO = statutory CFO +/- specific reclassifications.)
+"""
+import itertools
+import re
+
+from . import lookup
+from .evaluator import Evaluator
+
+
+def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
+                    confident, eligible_inputs, writer, flags, backouts, log):
+    """anchors: {(sheet,row): disclosed_total}. For each anchor row that is a
+    same-column SUM over input cells, scale the non-confident inputs to prior
+    proportions so the sum ties exactly."""
+    from . import objectives
+    n_alloc = 0
+    for (sheet, row), dv in anchors.items():
+        axis = spec["year_axis"].get(sheet) or {}
+        tcol = (axis.get("columns") or {}).get(target_year)
+        pcol = (axis.get("columns") or {}).get(last_actual)
+        if not tcol or not pcol or sheet not in wb.sheetnames:
+            continue
+        f = wb[sheet][f"{tcol}{row}"].value
+        if not (isinstance(f, str) and f.startswith("=")):
+            continue
+        precs = objectives._precedent_inputs(wb, sheet, f"{tcol}{row}", {tcol},
+                                             eligible_inputs)
+        precs = sorted(set(precs))
+        if len(precs) < 2:
+            continue
+        ev_c, ev_p = Evaluator(wb), Evaluator(pre_wb)
+        fixed_sum = 0.0
+        free = []
+        for ps, pco in precs:
+            r2 = int(re.sub(r"[A-Z]+", "", pco))
+            try:
+                cur = ev_c.cell(ps, pco)
+                pri = ev_p.cell(ps, f"{pcol}{r2}")
+            except Exception:
+                continue
+            if not isinstance(cur, (int, float)):
+                continue
+            if (ps, pco) in confident:
+                fixed_sum += cur
+            elif isinstance(pri, (int, float)) and pri != 0:
+                free.append((ps, pco, pri))
+            else:
+                fixed_sum += cur
+        if not free:
+            continue
+        try:
+            total_now = ev_c.cell(sheet, f"{tcol}{row}")
+        except Exception:
+            continue
+        if isinstance(total_now, (int, float)) and abs(total_now - dv) <= 1.0:
+            continue  # already ties
+        residual = dv - fixed_sum
+        prior_free_sum = sum(p for _s, _c, p in free)
+        if abs(prior_free_sum) < 1.0:
+            continue
+        factor = residual / prior_free_sum
+        if not (0.2 <= factor <= 5):  # structure-hold must stay plausible
+            log.append(f"allocation {sheet}!r{row}: factor {factor:.2f} implausible "
+                       "— skipped")
+            continue
+        for ps, pco, pri in free:
+            writer.write(ps, pco, f"={pri:.6g}*{factor:.6g}",
+                         note=f"ALLOCATED: prior structure held, scaled so "
+                              f"{sheet}!r{row} ties to disclosed {dv:,.1f}",
+                         flag="orange")
+            backouts.append((ps, pco, f"allocation to {sheet}!r{row}"))
+        n_alloc += len(free)
+        log.append(f"allocation {sheet}!r{row}: {len(free)} components scaled "
+                   f"x{factor:.3f} -> ties to {dv:,.1f}")
+    return n_alloc
+
+
+def _section_lines(raw_lines, keywords):
+    out = []
+    for pn, sec, ln in raw_lines:
+        blob = (str(sec) + " " + ln).lower()
+        if any(k in blob for k in keywords):
+            out.append((pn, sec, ln))
+    return out
+
+
+def learn_composition(target_cur, target_prior, fy24_raw, section_keywords,
+                      max_terms=4, tol=1.5):
+    """Find <=max_terms FY24 disclosure lines whose (current, prior) columns
+    BOTH sum to the model's (FY24, FY23) values — the double-lock. A subset
+    that only works one year is a coincidence and is rejected."""
+    cands = []
+    seen = set()
+    for pn, sec, ln in _section_lines(fy24_raw, section_keywords):
+        ns = lookup.line_nums(ln)
+        if len(ns) < 2:
+            continue  # need current AND prior printed on the line
+        lab = lookup.label_of(ln)
+        if not lab or len(lab) < 5:
+            continue
+        key = lookup.norm(lab)
+        if key in seen:
+            continue
+        seen.add(key)
+        if abs(ns[0]) > 1:
+            cands.append((lab, ns[0], ns[1], pn))
+    cands = cands[:60]
+    have_prior = isinstance(target_prior, (int, float))
+    for n in range(1, max_terms + 1):
+        for combo in itertools.combinations(cands, n):
+            for signs in itertools.product((1, -1), repeat=n):
+                s_cur = sum(sg * c[1] for sg, c in zip(signs, combo))
+                if abs(s_cur - target_cur) > tol:
+                    continue
+                if have_prior:
+                    s_pri = sum(sg * c[2] for sg, c in zip(signs, combo))
+                    if abs(s_pri - target_prior) > max(tol * 2, abs(target_prior) * 0.002):
+                        continue  # fails the second year -> coincidence
+                return [(c[0], sg, c[1], c[3]) for sg, c in zip(signs, combo)]
+        if n == 2 and len(cands) > 35:
+            cands = cands[:35]  # cap the cubic stage
+    return None
+
+
+def replay_composition(recipe, fy25_raw):
+    """Apply a learned recipe to FY25: find each line by name, VERIFY it is the
+    right instance by last year's value sitting beside it (comparative column),
+    and take the current value. Returns (value, details) or (None, why)."""
+    by_label = {}
+    for pn, sec, ln in fy25_raw:
+        lab = lookup.norm(lookup.label_of(ln) or "")
+        if lab:
+            ns = lookup.line_nums(ln)
+            if ns:
+                by_label.setdefault(lab, []).append((ns, pn))
+    total, details = 0.0, []
+    for lab, sign, v24, _pg in recipe:
+        hits = by_label.get(lookup.norm(lab)) or []
+        # 1st choice: the line whose SECOND number equals the FY24 value we
+        # learned (current | prior layout) — proof it is the same line
+        best = next(((ns, pn) for ns, pn in hits
+                     if len(ns) >= 2 and abs(abs(ns[1]) - abs(v24)) <= 1.0), None)
+        if best is None:  # fall back: old value anywhere on the line, neighbour left
+            for ns, pn in hits:
+                for i in range(1, len(ns)):
+                    if abs(abs(ns[i]) - abs(v24)) <= 1.0:
+                        best = ([ns[i - 1]], pn)
+                        break
+                if best:
+                    break
+        if best is None:
+            return None, [f"line '{lab}' not verifiable in FY25 (prior {v24:,.1f} "
+                          "not found beside any instance)"]
+        val = best[0][0]
+        total += sign * val
+        details.append(f"{'+' if sign > 0 else '-'}{val:,.1f} '{lab[:32]}' p{best[1]}")
+    return total, details

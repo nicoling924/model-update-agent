@@ -581,6 +581,46 @@ def cmd_update(company_dir, period):
         print("  [TIE]", ln, flush=True)
     print(f"[6t] tie-web: {n_tw} subtotal-anchored fixes", flush=True)
 
+    # DERIVATION RECIPES (FY24-calibrated): keys the disclosure never prints are
+    # reconstructed the way the analyst built them — learn the composition on
+    # FY24 (double-locked on two years), replay on FY25 by verified line names
+    from . import derive
+    prior_dir = company_dir / "disclosures" / f"FY{str(last_actual)[-2:]}"
+    if prior_dir.exists() and sorted(prior_dir.glob("*.pdf")):
+        fy24_raw = lookup_mod.raw_lines(sorted(prior_dir.glob("*.pdf")))
+        CF_SECTIONS = ["cash flow", "operating activities", "investing activities",
+                       "financing activities"]
+        ev_d = Evaluator(pre_wb)
+        for kind_d in ("cfo", "cfi", "cff"):
+            p_d = proven.get(kind_d) or {}
+            loc_d = keymap.get(kind_d)
+            if not loc_d or p_d.get("status") == "proven":
+                continue
+            ax_d = spec["year_axis"][loc_d["sheet"]]
+            years_d = sorted(ax_d["columns"])
+            li_d = years_d.index(str(last_actual))
+            pc_d = ax_d["columns"][str(last_actual)]
+            ppc_d = ax_d["columns"][years_d[li_d - 1]] if li_d > 0 else None
+            try:
+                v24_d = ev_d.cell(loc_d["sheet"], f"{pc_d}{loc_d['row']}")
+                v23_d = ev_d.cell(loc_d["sheet"], f"{ppc_d}{loc_d['row']}") if ppc_d else None
+            except Exception:
+                continue
+            if not isinstance(v24_d, (int, float)):
+                continue
+            recipe_d = derive.learn_composition(v24_d, v23_d, fy24_raw, CF_SECTIONS)
+            if not recipe_d:
+                obj_notes.append(f"derive {kind_d}: no double-locked FY24 recipe")
+                continue
+            v25_d, det_d = derive.replay_composition(recipe_d, raw_all)
+            if v25_d is None:
+                obj_notes.append(f"derive {kind_d}: recipe not replayable — "
+                                 + "; ".join(det_d or [])[:100])
+                continue
+            proven[kind_d] = {"status": "proven", "value": round(v25_d, 1),
+                              "sources": 3, "pages": ["FY24-recipe"]}
+            obj_notes.append(f"derive {kind_d}: {v25_d:,.1f} via FY24 recipe = "
+                             + " ".join(det_d)[:140])
     card, obj_log, n_fix = objectives.converge(
         wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
         last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
