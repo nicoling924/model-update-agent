@@ -52,6 +52,9 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
     decisions = []
     raw_cache = lookup_mod.raw_lines(disclosures)
     tried = set()
+    from pathlib import Path as _P
+    prompt_remap = [(_P(__file__).resolve().parent.parent / "prompts"
+                     / "direct_map.md").read_text()]
 
     def _card():
         return objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
@@ -424,6 +427,48 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                 + "\nUse this to reconcile the COMPANY's definition to the MODEL's: "
                   "match the adjustments, not the word.")
 
+    def t_remap(args):
+        """Re-map any rows against any pages, holistically — the agent's own
+        reading power, on demand. Rows it names are re-read in one context."""
+        from . import mapper
+        refs = args.get("rows") or []
+        pages = [int(p) for p in (args.get("pages") or [])][:10]
+        rows_ctx = []
+        for ref in refs[:40]:
+            m = re.match(r"^\s*'?([^'!]+)'?!([A-Z]{0,3})(\d+)\s*$", str(ref))
+            if not m:
+                continue
+            sheet_r = m.group(1)
+            row_r = int(m.group(3))
+            axis_r = spec["year_axis"].get(sheet_r) or {}
+            pc_r = (axis_r.get("columns") or {}).get(last_actual)
+            if sheet_r not in wb.sheetnames or not pc_r:
+                continue
+            pv_r = None
+            try:
+                pv_r = Evaluator(pre_wb).cell(sheet_r, f"{pc_r}{row_r}")
+            except Exception:
+                pass
+            rows_ctx.append({"sheet": sheet_r, "row": row_r,
+                             "label": objectives._row_label(wb[sheet_r], row_r) or f"row {row_r}",
+                             "prior_value": pv_r, "pages": pages})
+        if not rows_ctx:
+            return "ERROR: give rows like [\"Final!121\"] and pages like [187]"
+        if not pages:
+            rows_ctx = mapper.find_homes(rows_ctx, raw_cache)
+            pages = sorted({p for r in rows_ctx for p in r["pages"]})[:10]
+        block = {"sheet": rows_ctx[0]["sheet"], "pages": pages, "rows": rows_ctx}
+        try:
+            res = mapper.map_block(client, system, prompt_remap[0], block, raw_cache, cfg)
+        except Exception as ex:
+            return f"remap failed: {ex}"
+        out = []
+        for (s_r, r_r), m_r in res.items():
+            out.append(f"{s_r}!{r_r}: {m_r.get('value')} [{m_r.get('status')}] "
+                       f"p{m_r.get('page')} '{m_r.get('line', '')[:40]}' — use set_input "
+                       "to apply if you judge it right")
+        return "\n".join(out) or "no mappings returned"
+
     def t_request_review(args):
         if request_review is None:
             return "reviewer disabled for this run"
@@ -445,7 +490,7 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
              "prove_key": t_prove_key, "plug_key": t_plug_key,
              "set_input": t_set_input, "diagnose_balance": t_diagnose_balance,
              "apply_repair": t_apply_repair, "trace_cell": t_trace_cell,
-             "note": t_note, "todo": t_todo,
+             "note": t_note, "todo": t_todo, "remap": t_remap,
              "statement_diff": t_statement_diff, "read_bridge": t_read_bridge,
              "request_review": t_request_review, "list_flags": t_list_flags,
              "rescore": lambda a: _fmt_scorecard(_card())}
