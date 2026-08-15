@@ -177,6 +177,55 @@ def cmd_learn(company_dir, prior_period):
             n_rej += 1
     print(f"[L2] identified {len(identified)}; VERIFIED (both-years arithmetic) "
           f"{n_ver}; rejected {n_rej}", flush=True)
+    # ANALYST PRACTICE: rows that DON'T reconcile are findings, not failures.
+    # For each material non-reconciling row: try a composition recipe (the
+    # analyst's construction), else ask WHY in one reasoning batch — the
+    # hypothesis is stored as a QUIRK the cold run gets told about.
+    ver_keys = {(e["sheet"], e["row"]) for e in entries}
+    hard_rows = sorted((r_l for r_l in lrows
+                        if (r_l["sheet"], r_l["row"]) not in ver_keys
+                        and isinstance(r_l["prior_value"], (int, float))),
+                       key=lambda r: -abs(r["prior_value"]))[:20]
+    n_recipe2 = 0
+    for r_h in hard_rows[:]:
+        v23_h = r_h.get("v23")
+        rec_h = derive_mod.learn_composition(
+            r_h["prior_value"], v23_h if isinstance(v23_h, (int, float)) else None,
+            fy24_raw_l, [""], max_terms=3)
+        if rec_h:
+            entries.append({"sheet": r_h["sheet"], "row": r_h["row"],
+                            "kind": "bridge_row", "label": str(r_h["label"])[:60],
+                            "components": [{"label": l_h, "sign": s_h, "v24": v_h}
+                                           for (l_h, s_h, v_h, _p) in rec_h]})
+            hard_rows.remove(r_h)
+            n_recipe2 += 1
+    print(f"[L2d] non-reconciling rows: {n_recipe2} constructions recovered, "
+          f"{len(hard_rows)} sent to reasoning", flush=True)
+    if hard_rows:
+        import json as _jq
+        qlist = [{"id": f"{r_h['sheet']}!{r_h['row']}", "label": str(r_h["label"])[:50],
+                  "model_fy24": r_h["prior_value"],
+                  "nearest_lines": (r_h.get("candidate_lines") or [])[:2]}
+                 for r_h in hard_rows]
+        try:
+            qresp = client.json(
+                "You are an equity analyst studying a model you are inheriting.",
+                "These model rows do NOT reconcile to any disclosed line for the "
+                "known year. For each, give a one-line hypothesis WHY (reclassified"
+                " like interest in OCF? netted? analyst-derived from a ratio? "
+                "one-off reset?). Return {\"quirks\": [{\"id\": ..., "
+                "\"why\": \"...\"}]}\n" + _jq.dumps(qlist),
+                lambda o: [] if isinstance(o.get("quirks"), list) else ["missing quirks"],
+                repair_retries=1)
+            for q_h in qresp.get("quirks", []):
+                mm_q = re.match(r"^([^!]+)!(\d+)$", str(q_h.get("id", "")))
+                if mm_q:
+                    entries.append({"sheet": mm_q.group(1), "row": int(mm_q.group(2)),
+                                    "kind": "quirk",
+                                    "section": str(q_h.get("why", ""))[:170]})
+            print(f"[L2e] quirks reasoned: {len(qresp.get('quirks', []))}", flush=True)
+        except Exception as ex_q:
+            print(f"[L2e] quirk reasoning skipped ({ex_q})", flush=True)
     staging = {"items": [], "ties": []}
     census = {}
     merged = {(e["sheet"], e["row"]): e for e in entries}
@@ -822,7 +871,26 @@ def cmd_update(company_dir, period):
     # replay each stored recipe on FY25 by verified line names — no FY24 docs
     # are read at update time (the cold-run contract)
     for (s_b, r_b), m_b in memory.items():
-        if m_b.get("kind") != "bridge" or not m_b.get("components"):
+        if m_b.get("kind") == "quirk" and m_b.get("section"):
+            obj_notes.append(f"KNOWN QUIRK {s_b}!{r_b}: {m_b['section']}")
+            continue
+        if m_b.get("kind") not in ("bridge", "bridge_row") or not m_b.get("components"):
+            continue
+        if m_b.get("kind") == "bridge_row":
+            recipe_r = [(c_r["label"], c_r["sign"], c_r["v24"], None)
+                        for c_r in m_b["components"]]
+            v25_r, det_r = derive.replay_composition(recipe_r, raw_all)
+            if v25_r is not None:
+                ax_r = spec["year_axis"].get(s_b) or {}
+                tc_r = (ax_r.get("columns") or {}).get(target_year)
+                pc_r2 = (ax_r.get("columns") or {}).get(last_actual)
+                if tc_r:
+                    writer_obj.write(s_b, f"{tc_r}{r_b}", round(v25_r, 1),
+                                     prior_coord=f"{pc_r2}{r_b}" if pc_r2 else None,
+                                     note=f"learned construction: "
+                                          + " ".join(det_r or [])[:120],
+                                     flag="orange")
+                    backouts.append((s_b, f"{tc_r}{r_b}", "learned construction"))
             continue
         kind_b = m_b.get("label")
         if kind_b not in keymap or (proven.get(kind_b) or {}).get("status") == "proven":
