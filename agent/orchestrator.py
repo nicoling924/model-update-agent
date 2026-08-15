@@ -301,10 +301,28 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                 return (f"REFUSED: corrected value {new_v:,.1f} is not corroborated by the "
                         "disclosure — a repair that merely forces the check is forbidden")
         else:
-            if abs(new_v) > max(1.0, abs(base_in or 0) * 0.02):
-                return (f"REFUSED: forecast repair must be a one-off REMOVAL "
-                        f"(corrected value ~0), got {new_v:,.1f} — re-forecasting "
-                        "drivers is forbidden by house rules; flag for the analyst")
+            # legal forecast repairs: one-off removal (->~0) OR pattern
+            # continuity (matches the NEXT forecast year's value ±2% —
+            # propagation-compensation, not re-forecasting)
+            ok_zero = abs(new_v) <= max(1.0, abs(base_in or 0) * 0.02)
+            ok_cont = False
+            try:
+                ax_f = spec["year_axis"].get(sheet) or {}
+                yrs_f = sorted(ax_f.get("columns") or {})
+                col_f = re.match(r"[A-Z]+", coord).group(0)
+                yr_f = next((y for y in yrs_f if ax_f["columns"][y] == col_f), None)
+                nxt_f = yrs_f[yrs_f.index(yr_f) + 1] if yr_f else None
+                if nxt_f:
+                    row_f2 = int(re.sub(r"[A-Z]+", "", coord))
+                    nv_f = Evaluator(wb).cell(sheet, f"{ax_f['columns'][nxt_f]}{row_f2}")
+                    ok_cont = isinstance(nv_f, (int, float)) and nv_f != 0 \
+                        and abs(new_v - nv_f) <= abs(nv_f) * 0.02
+            except Exception:
+                pass
+            if not (ok_zero or ok_cont):
+                return (f"REFUSED: forecast repair must be a one-off REMOVAL (~0) "
+                        f"or PATTERN CONTINUITY (next year ±2%), got {new_v:,.1f} — "
+                        "re-forecasting drivers is forbidden; flag for the analyst")
         old = wb[sheet][coord].value
         ok, msg = _guarded_write(sheet, coord, objectives._plug_formula(old, adj),
                                  f"ORCHESTRATOR balance repair: "

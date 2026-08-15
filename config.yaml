@@ -22,14 +22,14 @@ budgets:
 mapper:
   # accuracy over speed: every block mapped N times, reconciled per row
   # (agreement -> confident; disagreement -> page-verified value or UNCERTAIN)
-  votes: 2
+  votes: 3
 
 orchestrator:
   # observe-decide-act loop: the LLM sees the objectives + live scorecard each
   # turn and picks ONE tool call; code validates and executes with guardrails.
   # Direct mapping freed ~45 min/run — spent here on deeper investigation.
   enabled: true
-  max_decisions: 60
+  max_decisions: 150
 
 objectives:
   # Tier ladder (strict priority): 0 balance all years, 1 key numbers 100%,
