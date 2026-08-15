@@ -1,0 +1,366 @@
+sheets:
+  Model:
+    role: statements
+    primary: true
+    evidence:
+    - Model!A3
+    - Model!A46
+    - Model!A104
+  Raw financials:
+    role: statements
+    primary: false
+    status: source_data_untouched
+    evidence:
+    - Raw financials!A3
+    - Raw financials!A53
+    - Raw financials!A183
+  Driver:
+    role: drivers
+    evidence:
+    - Driver!A3
+    - Driver!A91
+    - Driver!A127
+    - Driver!A141
+  Sensitvity:
+    role: drivers
+    evidence:
+    - Sensitvity!B4
+    - Sensitvity!B25
+  Fair Value - H:
+    role: valuation
+    calculation_only: true
+    evidence:
+    - Fair Value - H!A2
+    - Fair Value - H!D2
+  Fair Value - A:
+    role: valuation
+    calculation_only: true
+    evidence:
+    - Fair Value - A!A2
+    - Fair Value - A!D2
+  Cons:
+    role: valuation
+    calculation_only: true
+    evidence:
+    - Cons!A14
+    - Cons!A20
+  VA-Disclaimer:
+    role: untouched
+    evidence: []
+  Appendix:
+    role: untouched
+    evidence:
+    - Appendix!B2
+    - Appendix!B33
+  AH discount:
+    role: untouched
+    evidence:
+    - AH discount!A2
+    - AH discount!P1
+year_axis:
+  Model:
+    header_row: 2
+    columns:
+      '2006': B
+      '2007': C
+      '2008': D
+      '2009': E
+      '2010': F
+      '2011': G
+      '2012': H
+      '2013': I
+      '2014': J
+      '2015': K
+      '2016': L
+      '2017': M
+      '2018': N
+      '2019': O
+      '2020': P
+      '2021': Q
+      '2022': R
+      '2023': S
+      '2024': T
+      '2025': U
+      '2026': V
+      '2027': W
+      '2028': X
+      '2029': Y
+      '2030': Z
+    header_type: number
+    last_actual: '2024'
+  Raw financials:
+    header_row: 2
+    columns:
+      '2006': B
+      '2007': C
+      '2008': D
+      '2009': E
+      '2010': F
+      '2011': G
+      '2012': H
+      '2013': I
+      '2014': J
+      '2015': K
+      '2016': L
+      '2017': M
+      '2018': N
+      '2019': O
+      '2020': P
+      '2021': Q
+      '2022': R
+      '2023': S
+      '2024': T
+    header_type: text
+    last_actual: '2024'
+  Driver:
+    header_row: 2
+    columns:
+      '2017': B
+      '2018': C
+      '2019': D
+      '2020': E
+      '2021': F
+      '2022': G
+      '2023': H
+      '2024': I
+      '2025': J
+      '2026': K
+      '2027': L
+      '2028': M
+      '2029': N
+      '2030': O
+    header_type: number
+    last_actual: '2024'
+  Fair Value - H:
+    header_row: 2
+    columns:
+      '2025': L
+      '2026': M
+      '2027': N
+      '2028': O
+      '2029': P
+    header_type: text
+  Fair Value - A:
+    header_row: 2
+    columns:
+      '2025': L
+      '2026': M
+      '2027': N
+      '2028': O
+      '2029': P
+    header_type: text
+  Cons:
+    columns:
+      '2025': B
+      '2026': C
+      '2027': D
+    header_type: text
+    header_row: 2
+statement_rows:
+  revenue:
+    sheet: Model
+    row: 4
+    label_seen: Revenue
+  gross_profit:
+    sheet: Model
+    row: 7
+    label_seen: Gross Profit
+  net_profit:
+    sheet: Model
+    row: 28
+    label_seen: Reported net profit
+  eps_reported:
+    sheet: Model
+    row: 35
+    label_seen: EPS - basic
+  dps:
+    sheet: Model
+    row: 39
+    label_seen: DPS
+  cash:
+    sheet: Model
+    row: 47
+    label_seen: Cash
+  total_assets:
+    sheet: Model
+    row: 67
+    label_seen: Total Assets
+  cfo:
+    sheet: Model
+    row: 114
+    label_seen: Operating cash flow
+check_rows:
+- sheet: Model
+  row: 95
+  label: Check
+  formula: Total Assets - Total liabilities and equity
+  expect: 0
+- sheet: Model
+  row: 135
+  label: Diff vs. B/S
+  formula: Cash on balance sheet - cash at year end from cash flow statement
+  expect: 0
+- sheet: Driver
+  row: 109
+  label: Check
+  formula: Model PPE - Driver net PPE
+  expect: 0
+- sheet: Driver
+  row: 139
+  label: Check
+  formula: Model finance gain (cost) - Driver net finance costs
+  expect: 0
+- sheet: Raw financials
+  row: 114
+  label: 资产差额(合计平衡项目)
+  expect: 0
+- sheet: Raw financials
+  row: 180
+  label: 负债及股东权益差额(合计平衡项目)
+  expect: 0
+input_vs_formula: {}
+roll_forward_bases:
+- sheet: Driver
+  row: 94
+  label: Gross PPE - Beginning value
+  base: prior-year ending gross PPE
+  formula_evidence:
+  - Driver!F94
+  - Driver!J94
+  cell: J94
+- sheet: Driver
+  row: 101
+  label: Accumulated Depreciation - Beginning value
+  base: prior-year ending accumulated depreciation
+  formula_evidence:
+  - Driver!F101
+  - Driver!J101
+  cell: J101
+- sheet: Driver
+  row: 112
+  label: Construction in progress - Beginning value
+  base: prior-year ending construction in progress
+  formula_evidence:
+  - Driver!F112
+  - Driver!J112
+  cell: J112
+- sheet: Driver
+  row: 118
+  label: Intangible assets - Beginning value
+  base: prior-year ending intangible assets
+  formula_evidence:
+  - Driver!F118
+  - Driver!J118
+  cell: J118
+- sheet: Driver
+  row: 128
+  label: Borrowing
+  base: Model total debt
+  formula_evidence:
+  - Driver!E128
+  - Driver!J128
+  cell: J128
+- sheet: Driver
+  row: 129
+  label: 'Cash '
+  base: Model cash
+  formula_evidence:
+  - Driver!E129
+  - Driver!J129
+  cell: J129
+- sheet: Driver
+  row: 143
+  label: AR turnover days
+  base: prior-year turnover days
+  formula_evidence:
+  - Driver!J143
+  - Driver!K143
+  cell: J143
+- sheet: Driver
+  row: 147
+  label: Inventory turnover days
+  base: prior-year turnover days
+  formula_evidence:
+  - Driver!J147
+  - Driver!K147
+  cell: J147
+- sheet: Driver
+  row: 149
+  label: AP turnover days
+  base: prior-year turnover days
+  formula_evidence:
+  - Driver!J149
+  - Driver!K149
+  cell: J149
+- sheet: Driver
+  row: 151
+  label: Other AP turnover days
+  base: prior-year turnover days
+  formula_evidence:
+  - Driver!J151
+  - Driver!K151
+  cell: J151
+calc_mode: manual
+quirks:
+- type: forecast_columns_are_non_adjacent_to_visible_header_sample
+  description: Model's visible header sample ends at O, but valuation formulas identify
+    U:Z as FY2025-FY2030 forecast columns.
+  evidence:
+  - Model!O2
+  - Fair Value - A!L4
+  - Fair Value - A!P4
+- type: mixed_sign_convention
+  description: Expenses and some cash outflows are stored as negative values in Model,
+    while balance-sheet liabilities are stored as positive values and summed into
+    total liabilities and equity.
+  evidence:
+  - Model!B6
+  - Model!B17
+  - Model!B69
+  - Model!B93
+- type: source_sheet_multilingual
+  description: Raw financials uses Chinese labels and has sparse/non-contiguous populated
+    columns in later comparative data.
+  evidence:
+  - Raw financials!A4
+  - Raw financials!A55
+  - Raw financials!A183
+- type: formula_cells_reference_other_sheets
+  description: Model is extensively linked to Raw financials; Driver is linked to
+    Model; valuation sheets are linked to Model.
+  evidence:
+  - Model!B4
+  - Driver!E14
+  - Fair Value - A!L4
+- type: pre_existing_special_formula_cells
+  description: Sensitvity contains Excel data-table formulas represented as openpyxl
+    DataTableFormula objects.
+  evidence:
+  - Sensitvity!E6
+  - Sensitvity!N6
+- type: pre_existing_error_or_unsupported_formula_risk
+  description: AH discount contains _xlfn.STDEV.P formulas, which may be unsupported
+    in some calculation engines.
+  evidence:
+  - AH discount!R1
+  - AH discount!D3
+- type: header_and_label_typo
+  description: The sheet is named Sensitvity rather than Sensitivity; preserve the
+    existing sheet name and formulas.
+  evidence:
+  - Sensitvity!B4
+  - Driver!U18
+- type: check_rows_are_rounded
+  description: Several balance checks use ROUND(...,0), so small sub-unit differences
+    are intentionally suppressed.
+  evidence:
+  - Model!B95
+  - Model!B135
+  - Driver!E109
+draft: false
+model_file: DFE Model.xlsx
+aliases: []
+backout_rules: []
+analyst_rulings: []
+carried_flags: []
+tie_out_anchors: []
