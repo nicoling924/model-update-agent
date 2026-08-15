@@ -224,3 +224,28 @@ NEXT (designed, not built): (1) CL identity-anchor reliability (fire on every
 draw, not just when TA proves first), (2) MEMORY COMPOUNDING — persist each
 run's verified mappings to _UPDATE_MAP so runs stop re-reading from scratch;
 the permanent end of the draw lottery and the road to the 80 floor.
+
+**DFE GENERICITY LEG (runs 90-97, 08-15):** each failure a real generic gap, fixed
+in sequence — universal rollover (partial rollovers birth circular refs), stable
+tokens for Excel data-table objects (70 false clobbers), reviewer dump
+stringify, evaluator memo poisoning, structural self-awareness
+(`resolve_input_site` follows last year's formula to where the number is
+actually typed). Then two found by EXECUTING rather than reading:
+
+| 95 | 08-15 13:00 | crashed 4.6m | — | — | — | — | `site_labels` read above its assignment — the update leg died every run. Compile checks cannot see binding order; the (rebuilt, now committed) stubbed dry-run harness catches it in 90 seconds. Learner leg also showed VERIFIED **0 of 210** and all three CF bridges rejected at `FY24 0.0`. |
+| 96 | 08-15 13:09 | cancelled | — | — | — | — | Second session's dispatch: ran against a live model a run output had been committed over, and predates the scale fix. Cancelled to save budget. |
+| 97 | 08-15 13:28 | in flight | — | — | — | — | First DFE run with document-unit scaling. |
+
+**ROOT CAUSE OF THE DFE WALL — units, not reading.** The CN annual report prints
+yuan (`营业总收入 69,695,135,723.47`); the model holds millions (69,695.14). Every
+"does this line carry this value" test compared printed digits at scale 1, so
+retrieval-by-prior-value found **19/75** known values and the learner's
+both-years arithmetic proof verified **0 of 210** — not because the numbers were
+absent but because they were printed 1,000,000x larger. `_num_variants` had
+`for scale in (1,)`: the hypothesis had been narrowed to one. Fix: detect the
+document's scale ONCE per run by reconciliation (the scale that explains the
+most known model values), thread it through every value test, tell the reader,
+and convert document-unit answers back. Measured offline: DFE findability
+19/75 -> 69/75, retrieval 87 -> 161/210 (learn) and evidence candidates 34 ->
+137 (update); CLP detects scale 1, takes the original string path byte-for-byte,
+and is unchanged at 216/216.
