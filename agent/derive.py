@@ -212,6 +212,75 @@ def ctrlf_read(prior_value, raw_lines, row_label=None, tol=0.6):
     return best[0][0], best[0][2], best[0][3], False  # ambiguous — caller flags
 
 
+def llm_bridge(client, key_name, v24, v23, fy24_raw, fy25_raw, section_keywords,
+               log):
+    """The REASONING path for a model-vs-disclosed difference: show the LLM the
+    model's two prior-year values and the disclosed statement lines for both
+    years, ask it to EXPLAIN the bridge (which named lines, which signs, WHY).
+    Code then double-locks the hypothesis on FY24 AND FY23 — reasoning that does
+    not survive two years of arithmetic dies — and only then replays on FY25."""
+    lines24 = []
+    seen_b = set()
+    for pn, _s, ln in _section_lines(fy24_raw, section_keywords):
+        ns_b = lookup.line_nums(ln)
+        lab_b = lookup.label_of(ln)
+        if len(ns_b) < 2 or not lab_b or len(lab_b) < 5:
+            continue
+        k_b = lookup.norm(lab_b)
+        if k_b in seen_b:
+            continue
+        seen_b.add(k_b)
+        lines24.append((lab_b, ns_b[0], ns_b[1], pn))
+    lines24 = lines24[:45]
+    menu = "\n".join(f"L{i}: '{lab}' = {c:,.1f} (prior {pr:,.1f}) p{pn}"
+                     for i, (lab, c, pr, pn) in enumerate(lines24))
+    user = (
+        f"An equity research model holds '{key_name}' = {v24:,.1f} for FY24 and "
+        f"{v23:,.1f} for FY23. The company's disclosed lines (FY24 report) are the "
+        f"NUMBERED MENU below.\n\n"
+        f"The model differs from the headline figure because the analyst "
+        f"RECLASSIFIES items (commonly interest paid/received, dividends). REASON "
+        f"OUT the bridge: which menu lines, added or subtracted, reproduce the "
+        f"model's value in BOTH years? Check your arithmetic for both years "
+        f"before answering.\n\n{menu}\n\n"
+        'Return JSON: {"bridge": [{"idx": <L-number>, "sign": 1 or -1}], '
+        '"reasoning": "<one sentence: why these reclassifications>"}')
+    try:
+        resp = client.json("You reconcile model definitions to disclosed figures. "
+                           "Match definitions, not words.", user,
+                           lambda o: [] if isinstance(o.get("bridge"), list)
+                           else ["missing bridge"], repair_retries=1)
+    except Exception as ex:
+        log.append(f"bridge {key_name}: LLM error {ex}")
+        return None, None
+    s24 = s23 = 0.0
+    recipe = []
+    for term in resp.get("bridge", []):
+        try:
+            i_t = int(term.get("idx"))
+            lab_t, c_t, pr_t, _pn_t = lines24[i_t]
+        except (TypeError, ValueError, IndexError):
+            log.append(f"bridge {key_name}: bad menu index {term} — rejected")
+            return None, None
+        sign_t = 1 if term.get("sign", 1) >= 0 else -1
+        s24 += sign_t * c_t
+        s23 += sign_t * pr_t
+        recipe.append((lab_t, sign_t, c_t, None))
+    tol_b = max(1.5, abs(v24) * 0.002)
+    if abs(s24 - v24) > tol_b or abs(s23 - v23) > max(tol_b, abs(v23) * 0.002):
+        log.append(f"bridge {key_name}: hypothesis fails double-lock "
+                   f"(FY24 {s24:,.1f} vs {v24:,.1f}; FY23 {s23:,.1f} vs {v23:,.1f}) — rejected")
+        return None, None
+    v25, det = replay_composition(recipe, fy25_raw)
+    if v25 is None:
+        log.append(f"bridge {key_name}: verified on 2 years but not replayable — "
+                   + "; ".join(det or []))
+        return None, None
+    log.append(f"bridge {key_name}: REASONED + double-locked -> FY25 {v25:,.1f} "
+               f"({resp.get('reasoning', '')[:90]})")
+    return round(v25, 1), resp.get("reasoning", "")
+
+
 def replay_composition(recipe, fy25_raw):
     """Apply a learned recipe to FY25: find each line by name, VERIFY it is the
     right instance by last year's value sitting beside it (comparative column),
