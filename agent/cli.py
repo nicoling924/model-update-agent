@@ -368,6 +368,28 @@ def cmd_update(company_dir, period):
     last_actual = str(axis["last_actual"])
     target_year = years[years.index(last_actual) + 1]
     prior_col, target_col = cols[last_actual], cols[target_year]
+    # A HUMAN ROLLS EVERY TAB TOGETHER: any year-axis sheet missing the target
+    # period gets its column CREATED next to the last actual (the analyst's
+    # insert-new-year move) — partial rollovers are how circulars are born
+    from openpyxl.utils import column_index_from_string, get_column_letter
+    for sheet_x, ax_x in spec["year_axis"].items():
+        cols_x = ax_x.get("columns") or {}
+        la_x = str(ax_x.get("last_actual") or last_actual)
+        if target_year in cols_x or la_x not in cols_x:
+            continue
+        new_col_x = get_column_letter(column_index_from_string(cols_x[la_x]) + 1)
+        occupied = False
+        if sheet_x in pre_wb.sheetnames:
+            ws_x = pre_wb[sheet_x]
+            occupied = any(ws_x[f"{new_col_x}{r_x}"].value is not None
+                           for r_x in range(1, min(ws_x.max_row, 200) + 1))
+        if occupied:
+            print(f"[1x] {sheet_x}: cannot create {target_year} column "
+                  f"({new_col_x} occupied) — flagged for analyst", flush=True)
+            continue
+        cols_x[target_year] = new_col_x
+        print(f"[1x] {sheet_x}: {target_year} column {new_col_x} created "
+              "(axis extended, will roll over)", flush=True)
     spec["_target_cols"] = [cols_.get(target_year) for cols_ in
                             [a.get("columns", {}) for a in spec["year_axis"].values()]]
     spec["_target_cols"] = [c for c in spec["_target_cols"] if c]
