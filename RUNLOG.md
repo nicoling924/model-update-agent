@@ -318,3 +318,22 @@ threaded through every value test); learner SINGLE-YEAR identification
 never print two years on a line, which is why VERIFIED was 0); CN CF_SECT
 (bridge menu was empty on CN filings — offline, CFO now double-locks
 immediately); mixed-units mapper prompt (convert to each row's prior's units).
+
+| 102 (Luna, page scales + learner fallback) | 08-16 05:00 | 37.6m ✓ | 75.1% (Model 87.7 / Driver 60.9) | 2025 PASS; **fcst -10** (was -528); CF tie -585 | 44 | Keys 10/14: CF bridges LEARNED (CF_SECT fix — 3 double-locked) but replay OVERRODE better statement values (CFI/CFF drifted 1-8%); learner single-year stored 0 (first-filter break, 4 runs running — diagnostic ships next run). Whole-model oscillating 79/77/75 = the plateau trigger. |
+
+**COUNCIL PLATEAU SESSION (08-16 ~06:00, transcripts in council/):** Grok ranked
+#1 unanimously. Verdicts: (Q1) 90% vs this reference in 2 runs is implausible
+(~78-86% reachable); present THREE metrics — hard contract (met), printed-fact
+accuracy vs filing (run beats the reference 10-8), inter-model agreement
+(75-79%, "agreement, not completion"). (Q2) THE mechanism for single-year MD&A
+tables: implied_prior = current/(1+同比%) matched against the model's own prior
+= row identity with no comparative printed. (Q3) CF bridges: statement wins on
+conflict; the cash-tie is the oracle. (Q4) skip the PPE rolls and 亿-prose;
+never hardcode company rules.
+
+**BUILT + MEASURED for run 103:** structured-table lines reconnected (pdfs.pages
+renders headers-per-cell; raw_lines had been DROPPING them — the mapper read
+p14/p207 as bare number soup); implied-prior tie-out (13 right / 0 wrong on the
+reference's stats block after strict-pairing tightening; correctly refuses the
+one row where the model's own FY24 disagrees with the filing); bridge=additive;
+cross-language sector glossary; learner diagnostic.
