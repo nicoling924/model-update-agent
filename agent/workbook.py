@@ -259,6 +259,10 @@ def clobber_diff(pre_map, post_wb, allowed_cols, allowed_cells, skip_sheets=()):
             a, b = pre_map.get(sheet, {}).get(k), post.get(sheet, {}).get(k)
             if a == b:
                 continue
+            # openpyxl normalizes empty-string cells to None on save/load —
+            # a storage artifact, not a change to the analyst's model
+            if (a is None or a == "") and (b is None or b == ""):
+                continue
             if isinstance(a, (int, float)) and isinstance(b, (int, float)) and abs(a - b) < 1e-9:
                 continue
             if col_pat and col_pat.match(k):

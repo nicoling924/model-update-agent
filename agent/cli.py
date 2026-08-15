@@ -419,27 +419,11 @@ def cmd_update(company_dir, period):
                 rows_c.add(r)
         rows_c.discard(hr_c)
         census[sheet_c] = sorted(rows_c)
-    all_rows = []
-    for sheet_c, rows_c in census.items():
-        ax_c = spec["year_axis"][sheet_c]
-        pc_c = ax_c["columns"].get(last_actual)
-        wsp = pre_values[sheet_c]
-        for r in rows_c:
-            lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
-                        if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
-            m_e = memory.get((sheet_c, r)) or {}
-            hint_c = m_e.get("label")
-            view_c = site_labels.get((sheet_c, r))
-            if view_c:
-                hint_c = f"{hint_c or ''} [{view_c}]".strip()
-            all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
-                             "prior_value": pre_wb[sheet_c][f"{pc_c}{r}"].value,
-                             "memory_hint": hint_c,
-                             "memory_page": m_e.get("page")})
     # STRUCTURAL SELF-AWARENESS: follow each statement row's prior-year formula
     # to where its number is actually TYPED. On link-through models the Model
     # tab is a view — the input site is the source sheet — and the view's
     # English label is the best identifier for that (possibly Chinese) row.
+    # Built BEFORE the census loop that reads it (run-95 binding-order crash).
     site_labels = {}
     for sheet_v, ax_v in spec["year_axis"].items():
         if sheet_v not in pre_wb.sheetnames:
@@ -462,6 +446,23 @@ def cmd_update(company_dir, period):
         print(f"[1s] link-through model: {len(site_labels)} input sites identified "
               "in source sheets (view labels carried across)", flush=True)
 
+    all_rows = []
+    for sheet_c, rows_c in census.items():
+        ax_c = spec["year_axis"][sheet_c]
+        pc_c = ax_c["columns"].get(last_actual)
+        wsp = pre_values[sheet_c]
+        for r in rows_c:
+            lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
+                        if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
+            m_e = memory.get((sheet_c, r)) or {}
+            hint_c = m_e.get("label")
+            view_c = site_labels.get((sheet_c, r))
+            if view_c:
+                hint_c = f"{hint_c or ''} [{view_c}]".strip()
+            all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
+                             "prior_value": pre_wb[sheet_c][f"{pc_c}{r}"].value,
+                             "memory_hint": hint_c,
+                             "memory_page": m_e.get("page")})
     raw_all = lookup_mod.raw_lines(disclosures)
     # MAPPER view: document-qualified page ids (doc_i*1000 + page) so the AR's
     # p184 and the announcement's p25 never mix in one "page" — the run-45

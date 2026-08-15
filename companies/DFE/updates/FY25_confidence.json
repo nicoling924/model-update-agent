@@ -1,0 +1,47 @@
+{
+ "Raw financials!13": {
+  "conf": 0,
+  "status": "RECIPE",
+  "value": 61.2
+ },
+ "Raw financials!16": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 112.0
+ },
+ "Raw financials!19": {
+  "conf": 0,
+  "status": "RECIPE",
+  "value": 247.8
+ },
+ "Raw financials!25": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 38.9
+ },
+ "Raw financials!30": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 140.0
+ },
+ "Raw financials!31": {
+  "conf": 0,
+  "status": "RECIPE",
+  "value": 72.0
+ },
+ "Raw financials!45": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 14.0
+ },
+ "Raw financials!64": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 47.9
+ },
+ "Raw financials!90": {
+  "conf": 0,
+  "status": "UNCERTAIN",
+  "value": 14.0
+ }
+}
