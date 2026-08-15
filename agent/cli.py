@@ -79,76 +79,115 @@ def cmd_learn(company_dir, prior_period):
     system = _system(company_dir)
     client = Client(temperature=cfg["updater"]["temperature"],
                     max_output_tokens=cfg["updater"]["max_output_tokens"])
-    print(f"[L1] extracting prior-year disclosures ({prior_period}) ...", flush=True)
-    try:
-        staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
-        print(f"[L1] extracted {len(staging['items'])} items, "
-              f"{len(staging['ties'])} ties", flush=True)
-    except Exception as ex:
-        # the deterministic learners (identities, recipes, bridges) never
-        # needed the big extraction — degrade gracefully, don't die
-        print(f"[L1] extraction failed ({str(ex)[:110]}) — proceeding with "
-              "deterministic learning only", flush=True)
-        staging = {"items": [], "ties": []}
-    # census of prior-column hardcodes
-    census = {}
+    # THE LEARNER, Fable-shaped: the model's own actual column IS the answer
+    # key, so calibration is IDENTIFICATION — retrieval finds each row's home
+    # pages by its KNOWN value, one holistic call per block points to the line,
+    # and code verifies BOTH years' numbers on that line before storing.
+    from . import mapper
+    from . import lookup as lookup_mod
+    from .evaluator import Evaluator as _EvL
+    raw24_map = []
+    for d_i, d_p in enumerate(disclosures):
+        for pn_d, sec_d, ln_d in lookup_mod.raw_lines([d_p]):
+            raw24_map.append((d_i * 1000 + pn_d, sec_d, ln_d))
+    ev_learn = _EvL(wb)
+    lrows = []
     for sheet_c, ax_c in spec["year_axis"].items():
         pc_c = ax_c["columns"].get(str(ax_c.get("last_actual")))
+        yrs_c = sorted(ax_c.get("columns") or {})
+        try:
+            i_c = yrs_c.index(str(ax_c.get("last_actual")))
+            ppc_c = ax_c["columns"][yrs_c[i_c - 1]] if i_c > 0 else None
+        except ValueError:
+            ppc_c = None
         hr_c = ax_c.get("header_row", 1)
         if not pc_c or sheet_c not in wb.sheetnames:
             continue
-        wsf = wb[sheet_c]
-        rows_c = [r for r in range(1, min(wsf.max_row, 400) + 1)
-                  if isinstance(wsf[f"{pc_c}{r}"].value, (int, float)) and r != hr_c]
-        census[sheet_c] = rows_c
-    from . import pdfs as pdfs_mod
-    page_sections = {}
-    for d in disclosures:
-        page_sections.update(pdfs_mod.sections(pdfs_mod.pages(d)))
-    det = learn_mod.deterministic_identities(disclosures, wb, pre_values, spec)
-    print(f"[L1b] deterministic identities (code-only, literal labels): {len(det)}", flush=True)
-    entries = learn_mod.learn(wb, pre_values, spec, staging, census,
-                              page_sections=page_sections)
-    merged = {}
-    for e in entries:
-        if e.get("kind") == "input":
-            merged[(e["sheet"], e["row"])] = e
-    for k, e in det.items():
-        merged[k] = {"sheet": k[0], "row": k[1], **{kk: vv for kk, vv in e.items() if kk != "method"}}
-    recipes = learn_mod.component_recipes(disclosures, wb, pre_values, spec)
-    print(f"[L1c] component recipes (raw-text find-and-search, strict): {len(recipes)} composite rows", flush=True)
-    entries = recipes + list(merged.values())
-    # LLM MAP-AUDIT (one call): semantic sanity of the learned map — a row named
-    # "Working capital" mapped to a "Dividends paid" line passes every numeric
-    # lock yet is conceptually wrong; reasoning catches what arithmetic cannot
-    audit_pairs = []
-    for e in entries:
-        if e.get("kind") != "input" or not e.get("label"):
-            continue
-        wsx = pre_values[e["sheet"]]
-        rl = next((wsx[f"{lc}{e['row']}"].value for lc in "ABCDEF"
-                   if isinstance(wsx[f"{lc}{e['row']}"].value, str)), "")
-        audit_pairs.append({"id": f"{e['sheet']}!{e['row']}",
-                            "model_row": str(rl)[:60], "mapped_to": str(e["label"])[:60]})
-    if audit_pairs:
-        import json as _j
+        for r in range(1, min(wb[sheet_c].max_row, 400) + 1):
+            v24_c = wb[sheet_c][f"{pc_c}{r}"].value
+            if not isinstance(v24_c, (int, float)) or r == hr_c:
+                continue
+            lab_c = next((wb[sheet_c][f"{lc}{r}"].value for lc in "ABCDEF"
+                          if isinstance(wb[sheet_c][f"{lc}{r}"].value, str)), f"row {r}")
+            v23_c = None
+            if ppc_c:
+                try:
+                    v23_c = ev_learn.cell(sheet_c, f"{ppc_c}{r}")
+                except Exception:
+                    pass
+            lrows.append({"sheet": sheet_c, "row": r, "label": lab_c,
+                          "prior_value": v24_c, "v23": v23_c})
+    lrows = mapper.find_homes(lrows, raw24_map)
+    for r_l in lrows:
+        variants_l = mapper._num_variants(r_l["prior_value"])
+        r_l["candidate_lines"] = [f"p{pn_l}: {ln_l.strip()[:110]}"
+                                  for pn_l, _s_l, ln_l in raw24_map
+                                  if any(v_l in ln_l for v_l in variants_l)][:4]
+        if isinstance(r_l.get("v23"), (int, float)):
+            r_l["memory_hint"] = f"prior-prior year value: {r_l['v23']:,.1f}"
+    blocks_l = mapper.cluster(lrows)
+    print(f"[L1] retrieval: {sum(1 for r in lrows if r['pages'])}/{len(lrows)} "
+          f"rows located, {len(blocks_l)} blocks", flush=True)
+    lm_prompt = _prompt("learn_map")
+    identified = {}
+    for bi_l, b_l in enumerate(blocks_l):
         try:
-            resp = client.json(
-                "You audit financial line mappings.",
-                "For each pair, judge whether the model row plausibly corresponds to "
-                "the mapped disclosure line (synonyms are fine: sales=revenue). Return "
-                '{"suspects": ["<id>", ...]} listing ONLY conceptually implausible pairs.\n'
-                + _j.dumps(audit_pairs),
-                lambda o: [] if isinstance(o.get("suspects"), list) else ["missing suspects"],
-                repair_retries=1)
-            suspects = set(resp.get("suspects") or [])
-            for e in entries:
-                if e.get("kind") == "input" and f"{e['sheet']}!{e['row']}" in suspects:
-                    e["audit"] = "SUSPECT"
-            print(f"[L1d] map-audit: {len(suspects)} suspect mappings flagged of "
-                  f"{len(audit_pairs)}", flush=True)
-        except Exception as ex:
-            print(f"[L1d] map-audit skipped ({ex})", flush=True)
+            identified.update(mapper.map_block(client, system, lm_prompt, b_l,
+                                               raw24_map, cfg))
+        except Exception as ex_l:
+            print(f"    [L1] block failed ({ex_l})", flush=True)
+    # CODE VERIFICATION: the identified line must print the known FY24 value
+    # (and FY23 beside it when we know it) — identification without arithmetic
+    # proof is not stored
+    raw_by_page_l = {}
+    for pn_l, _s_l, ln_l in raw24_map:
+        raw_by_page_l.setdefault(pn_l, []).append(ln_l)
+    entries = []
+    n_ver = n_rej = 0
+    for r_l in lrows:
+        m_l = identified.get((r_l["sheet"], r_l["row"]))
+        if not m_l or m_l.get("status") != "OK" or not m_l.get("line"):
+            continue
+        try:
+            pg_l = int(m_l.get("page"))
+        except (TypeError, ValueError):
+            continue
+        window_l = sum((raw_by_page_l.get(q, []) for q in (pg_l - 1, pg_l, pg_l + 1)), [])
+        lab_norm_l = lookup_mod.norm(str(m_l["line"]))
+        verified = False
+        for ln_l in window_l:
+            if lab_norm_l[:24] not in lookup_mod.norm(ln_l):
+                continue
+            ns_l = lookup_mod.line_nums(ln_l)
+            if any(abs(abs(n_l) - abs(r_l["prior_value"])) <= 0.6 for n_l in ns_l):
+                v23_l = r_l.get("v23")
+                if isinstance(v23_l, (int, float)) and abs(v23_l) > 1:
+                    verified = any(abs(abs(n_l) - abs(v23_l)) <= 0.6 for n_l in ns_l)
+                else:
+                    verified = True
+                if verified:
+                    break
+        if verified:
+            entries.append({"sheet": r_l["sheet"], "row": r_l["row"],
+                            "kind": "input", "label": str(m_l["line"])[:80],
+                            "page": pg_l % 1000,
+                            "sign_flip": (r_l["prior_value"] < 0)})
+            n_ver += 1
+        else:
+            n_rej += 1
+    print(f"[L2] identified {len(identified)}; VERIFIED (both-years arithmetic) "
+          f"{n_ver}; rejected {n_rej}", flush=True)
+    staging = {"items": [], "ties": []}
+    census = {}
+    merged = {(e["sheet"], e["row"]): e for e in entries}
+    det = learn_mod.deterministic_identities(disclosures, wb, pre_values, spec)
+    for k, e in det.items():
+        merged.setdefault(k, {"sheet": k[0], "row": k[1],
+                              **{kk: vv for kk, vv in e.items() if kk != "method"}})
+    print(f"[L2b] deterministic identities added: {len(det)}", flush=True)
+    recipes = learn_mod.component_recipes(disclosures, wb, pre_values, spec)
+    print(f"[L2c] component recipes: {len(recipes)} composite rows", flush=True)
+    entries = recipes + list(merged.values())
     # v6: DEFINITIONAL BRIDGES for keys the disclosure prints differently
     # (model CFO = statutory CFO +/- reclassifications). Mechanical recipe
     # first; LLM REASONING fallback — every hypothesis double-locked on
