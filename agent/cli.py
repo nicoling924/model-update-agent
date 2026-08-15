@@ -121,12 +121,16 @@ def cmd_learn(company_dir, prior_period):
                     pass
             lrows.append({"sheet": sheet_c, "row": r, "label": lab_c,
                           "prior_value": v24_c, "v23": v23_c})
+    scale_l = mapper.set_doc_scale(
+        mapper.detect_scale([r["prior_value"] for r in lrows], raw24_map))
+    if scale_l != 1:
+        print(f"[L1u] document units: prints {scale_l:,.0f}x the model's units "
+              "(reconciled against the model's own prior-year values)", flush=True)
     lrows = mapper.find_homes(lrows, raw24_map)
     for r_l in lrows:
-        variants_l = mapper._num_variants(r_l["prior_value"])
         r_l["candidate_lines"] = [f"p{pn_l}: {ln_l.strip()[:110]}"
                                   for pn_l, _s_l, ln_l in raw24_map
-                                  if any(v_l in ln_l for v_l in variants_l)][:4]
+                                  if mapper.line_has_value(ln_l, r_l["prior_value"])][:4]
         if isinstance(r_l.get("v23"), (int, float)):
             r_l["memory_hint"] = f"prior-prior year value: {r_l['v23']:,.1f}"
     blocks_l = mapper.cluster(lrows)
@@ -163,10 +167,10 @@ def cmd_learn(company_dir, prior_period):
             if lab_norm_l[:24] not in lookup_mod.norm(ln_l):
                 continue
             ns_l = lookup_mod.line_nums(ln_l)
-            if any(abs(abs(n_l) - abs(r_l["prior_value"])) <= 0.6 for n_l in ns_l):
+            if mapper.num_matches(ns_l, r_l["prior_value"]):
                 v23_l = r_l.get("v23")
                 if isinstance(v23_l, (int, float)) and abs(v23_l) > 1:
-                    verified = any(abs(abs(n_l) - abs(v23_l)) <= 0.6 for n_l in ns_l)
+                    verified = mapper.num_matches(ns_l, v23_l)
                 else:
                     verified = True
                 if verified:
@@ -474,6 +478,14 @@ def cmd_update(company_dir, period):
     for r in all_rows:  # memory page hints (per-doc scheme) vote in every doc
         if r.get("memory_page"):
             r["memory_page"] = None  # ambiguous across docs — label/prior carry it
+    # DOCUMENT UNITS before any retrieval: on a filing printed in other units
+    # (a CN annual report in yuan vs a model in millions) prior-value Ctrl+F
+    # finds nothing and every proof fails, for no reason but the scale.
+    doc_scale = mapper.set_doc_scale(
+        mapper.detect_scale([r.get("prior_value") for r in all_rows], raw_map))
+    if doc_scale != 1:
+        print(f"[2u] document units: prints {doc_scale:,.0f}x the model's units "
+              "(reconciled against the model's own prior-year values)", flush=True)
     all_rows = mapper.find_homes(all_rows, raw_map)
     # statements-sheet rows with no home inherit their sheet's modal home pages
     from collections import Counter as _C0
@@ -487,10 +499,9 @@ def cmd_update(company_dir, period):
     for r in all_rows:
         pv_a = r.get("prior_value")
         if isinstance(pv_a, (int, float)) and abs(pv_a) >= 10:
-            variants_a = mapper._num_variants(pv_a)
             r["candidate_lines"] = [f"p{pn_a}: {ln_a.strip()[:110]}"
                                     for pn_a, _s_a, ln_a in raw_map
-                                    if any(v_a in ln_a for v_a in variants_a)][:4]
+                                    if mapper.line_has_value(ln_a, pv_a)][:4]
     blocks = mapper.cluster(all_rows)
     n_home = sum(1 for r in all_rows if r["pages"])
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
@@ -547,10 +558,9 @@ def cmd_update(company_dir, period):
             # row's prior-year value is printed in the new documents
             pv_nf = r.get("prior_value")
             if isinstance(pv_nf, (int, float)) and abs(pv_nf) >= 10:
-                variants_nf = mapper._num_variants(pv_nf)
                 cand_nf = [f"p{pn_c}: {ln_c.strip()[:110]}"
                            for pn_c, _s_c, ln_c in raw_map
-                           if any(v_c in ln_c for v_c in variants_nf)]
+                           if mapper.line_has_value(ln_c, pv_nf)]
                 r["candidate_lines"] = cand_nf[:4]
         rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
         got = 0
@@ -619,10 +629,9 @@ def cmd_update(company_dir, period):
         if not r_cv.get("candidate_lines"):
             pv_cv = r_cv.get("prior_value")
             if isinstance(pv_cv, (int, float)) and abs(pv_cv) >= 2:
-                variants_cv = mapper._num_variants(pv_cv)
                 r_cv["candidate_lines"] = [f"p{pn_v}: {ln_v.strip()[:110]}"
                                            for pn_v, _s_v, ln_v in raw_map
-                                           if any(vv in ln_v for vv in variants_cv)][:4]
+                                           if mapper.line_has_value(ln_v, pv_cv)][:4]
         if r_cv.get("candidate_lines"):
             cov_rows.append(r_cv)
     n_cov = 0
@@ -645,8 +654,7 @@ def cmd_update(company_dir, period):
                 if ctx_cv is None:
                     continue
                 # code check: the answered value must appear in the evidence lines
-                vv_set = mapper._num_variants(val_cv)
-                cited_cv = any(any(t in cl for t in vv_set)
+                cited_cv = any(mapper.line_has_value(cl, val_cv)
                                for cl in ctx_cv.get("candidate_lines") or [])
                 tc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(target_year)
                 pc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(last_actual)
