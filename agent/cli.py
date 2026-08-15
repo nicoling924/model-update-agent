@@ -209,6 +209,14 @@ def cmd_learn(company_dir, prior_period):
             n_rej += 1
     print(f"[L2] identified {len(identified)}; VERIFIED (both-years arithmetic) "
           f"{n_ver}; single-year identities {n_soft}; rejected {n_rej}", flush=True)
+    # diagnostic: verified+soft+rejected == 0 across runs 98-102 means every
+    # entry failed the FIRST filter — show what the identification actually said
+    from collections import Counter as _CL
+    st_l = _CL(str((m or {}).get("status")) for m in identified.values())
+    ex_l = [m for m in identified.values() if m][:2]
+    print(f"[L2x] identification statuses: {dict(st_l)}; "
+          f"examples: {[{k: str(v)[:40] for k, v in e.items()} for e in ex_l]}",
+          flush=True)
     # ANALYST PRACTICE: rows that DON'T reconcile are findings, not failures.
     # For each material non-reconciling row: try a composition recipe (the
     # analyst's construction), else ask WHY in one reasoning batch — the
@@ -632,6 +640,15 @@ def cmd_update(company_dir, period):
              if (r["sheet"], r["row"]) not in mapped
              or mapped[(r["sheet"], r["row"])].get("value") is None]
     rp_log = []
+    # SINGLE-YEAR TABLES first (deterministic): MD&A tables print current +
+    # 同比% only — the implied prior (current / (1+pct)) matched against the
+    # model's own prior identifies the row where Ctrl+F never can
+    for k_ip, m_ip in derive_mod.implied_prior_read(unres, raw_all, rp_log).items():
+        if k_ip not in mapped or mapped[k_ip].get("value") is None:
+            mapped[k_ip] = m_ip
+    unres = [r for r in unres
+             if (r["sheet"], r["row"]) not in mapped
+             or mapped[(r["sheet"], r["row"])].get("value") is None]
     for k_rp, m_rp in derive_mod.recipe_pass(unres, raw_all, rp_log).items():
         mapped[k_rp] = m_rp
     for ln_rp in rp_log:
@@ -1073,6 +1090,18 @@ def cmd_update(company_dir, period):
         if v25_b is None:
             obj_notes.append(f"bridge {kind_b}: not replayable — "
                              + "; ".join(det_b or [])[:100])
+            continue
+        # a bridge is ADDITIVE, never an override: replay can land on the
+        # wrong line instance in a new document (run 102: CFI/CFF drifted
+        # 1-8% off their statement values). If the statement offers ANY
+        # candidate that disagrees, the statement wins and the bridge stands
+        # down — bridges exist for rows the statements don't print.
+        stmt_v = (proven.get(kind_b) or {}).get("value")
+        if isinstance(stmt_v, (int, float)) and \
+                abs(stmt_v - v25_b) > max(1.0, abs(v25_b) * 0.005):
+            obj_notes.append(f"bridge {kind_b}: replay {v25_b:,.1f} conflicts "
+                             f"with statement candidate {stmt_v:,.1f} — "
+                             "statement wins, bridge skipped")
             continue
         proven[kind_b] = {"status": "proven", "value": round(v25_b, 1),
                           "sources": 3, "pages": ["bridge-memory"]}

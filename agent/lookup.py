@@ -159,17 +159,27 @@ def fmt_variants(c):
 
 
 def raw_lines(disclosure_paths):
-    """(page, section, line) for every digit-bearing raw-text line (flowed text
-    only — the analyst's Ctrl+F view of the document)."""
+    """(page, section, line) for every digit-bearing line: flowed text (the
+    analyst's Ctrl+F view) PLUS the structural table re-renders.
+
+    The table renders carry the column header attached to every cell
+    ("风电 | 营业收入(本期): 18,224,186,613.44 | ..."), which is exactly what a
+    weak reader needs on header-less multi-column note tables — the p14
+    production/sales/inventory triplets and the p207 four-column segment
+    splits were misread or skipped as bare number soup without them (the
+    direct-map rewrite had dropped these; run 102's Driver page paid)."""
     lines = []
     for p in disclosure_paths:
         pt = pdfs.pages(p)
         secs = pdfs.sections(pt)
         for pnum, text in pt:
-            body = text.split("[STRUCTURED TABLES")[0]
+            body, _, tables = text.partition("[STRUCTURED TABLES")
             for ln in body.splitlines():
                 if any(ch.isdigit() for ch in ln):
                     lines.append((pnum, secs.get(pnum) or "", ln.strip()))
+            for ln in tables.splitlines()[1:]:
+                if " | " in ln and any(ch.isdigit() for ch in ln):
+                    lines.append((pnum, "table", ln.strip()))
     return lines
 
 
