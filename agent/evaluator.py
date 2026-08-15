@@ -53,15 +53,21 @@ class Evaluator:
                 return 0
             return v
         self.memo[key] = Evaluator._IN_PROGRESS
-        v = self.wb[sheet][coord].value
-        if v is None:
-            r = 0
-        elif isinstance(v, (int, float)):
-            r = v
-        elif isinstance(v, str) and v.startswith("="):
-            r = self.formula(sheet, v[1:])
-        else:
-            r = v
+        try:
+            v = self.wb[sheet][coord].value
+            if v is None:
+                r = 0
+            elif isinstance(v, (int, float)):
+                r = v
+            elif isinstance(v, str) and v.startswith("="):
+                r = self.formula(sheet, v[1:])
+            else:
+                r = v
+        except Exception:
+            # NEVER leave the in-progress marker behind on failure — a poisoned
+            # memo makes every later touch look like a circular reference
+            self.memo.pop(key, None)
+            raise
         self.memo[key] = r
         return r
 
@@ -105,5 +111,9 @@ class Evaluator:
             "SUMPRODUCT": lambda x, y: sum(p * q for p, q in zip(x, y)),
             "ABS": abs,
             "ROUND": lambda x, n=0: round(x, int(n)),
+            "TODAY": lambda: (__import__("datetime").date.today()
+                              - __import__("datetime").date(1899, 12, 30)).days,
+            "YEAR": lambda serial: 1899 + int(serial // 365.25),
+            "MROUND": lambda x, m: m * round(x / m) if m else 0,
         }
         return eval(f, {"__builtins__": {}}, env)  # sandboxed: no builtins, refs resolved above
