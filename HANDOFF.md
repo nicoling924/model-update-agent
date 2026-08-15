@@ -66,8 +66,26 @@ Four failures were fixed in sequence, each a real generic gap:
   last year's formula to where the number is actually **typed**, and carries the
   view sheet's English label to the source row.
 
+Then two more, found by executing rather than reading (run 95 + the dry run):
+- `site_labels` was read above where it was assigned — the update leg crashed
+  4 min in, every time. A compile check cannot see this; the dry run can.
+- **document units**: the CN annual report prints yuan (69,695,135,723.47)
+  where the model holds millions (69,695.14), so retrieval-by-prior-value
+  found 19/75 known values and the learner verified **0 of 210** — the numbers
+  were present, printed 1,000,000x larger. Scale is now detected once per run
+  by reconciliation (the scale that explains the most known model values),
+  threaded through every "does this line carry this value" test, told to the
+  reader, and used to convert document-unit answers back. Scale 1 keeps the
+  original string path byte-for-byte, so CLP is provably untouched.
+
 There is **no ground-truth DFE model** — judge it by its own integrity checks
 (balance rows, tie-outs) and flag inventory.
+
+**The live model must be pristine at dispatch.** A run output had been
+committed over `companies/DFE/model/DFE Model.xlsx` (column U already rolled,
+`_REPORT` tab present); CI checks out what is committed, so the next benchmark
+would have started half-updated. Restored from `abe3232`. Check the live model
+has no `_REPORT` tab before dispatching.
 
 ## 5. How to operate
 
@@ -77,10 +95,27 @@ Runs happen **on GitHub Actions only** (the user's rule). Dispatch:
 sh dispatch.sh CLP FY25 FY24        # or: sh dispatch.sh DFE FY25 FY24
 ```
 
-A fresh session has **no GitHub token** (it lived in the old session's temp
-dir). Re-auth with GitHub's device flow (request a code, user approves at
-github.com/login/device, exchange at `https://github.com/login/oauth/access_token`
-— note: the `/login/oauth/` path, not `/login/access_token`).
+`dispatch.sh` reads the token from the **git credential helper**, which
+persists across sessions — no device-flow re-auth was needed on 08-15. If it
+ever prints "no stored GitHub credential found", fall back to the device flow
+(request a code, user approves at github.com/login/device, exchange at
+`https://github.com/login/oauth/access_token` — the `/login/oauth/` path).
+
+**Dry-run first — it is committed now** (`tools/dry_run.py`, previously lost
+with its session's temp dir). It stubs every LLM call and executes the real
+command against the real workbook on a throwaway copy:
+
+```bash
+python tools/dry_run.py DFE FY25 FY24
+```
+
+It proves the code PATHS execute, not that answers are right. It caught the
+run-95 crash and 80 false clobbers before either cost a dispatch.
+
+**One writer per repo.** On 08-15 two sessions worked this repo at once: the
+other committed mid-flight (sweeping in the first session's uncommitted edits)
+and dispatched a run against the contaminated model. Commit promptly, and check
+`git log` before assuming the tree is yours.
 
 Scoring a finished run: download the artifact, then
 
