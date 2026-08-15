@@ -61,10 +61,12 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         return objectives.scorecard(wb, spec, keymap, proven, cfg, t0)
 
     def _objective_state(card):
-        """(set of keys currently correct, |target-year balance gap|)."""
+        """(keys currently correct, total |balance gap| across ALL years —
+        an eval error counts as a huge gap so structural damage always reverts)."""
         ok = {e["kind"] for e in card["tier1"] if e["status"] in ("CORRECT", "MATCH-1SRC")}
-        gap = sum(abs(g) for _c, y, g in card["tier0"]
-                  if y == target_year and isinstance(g, (int, float)))
+        gap = 0.0
+        for _c, _y, g in card["tier0"]:
+            gap += abs(g) if isinstance(g, (int, float)) else 1e9
         return ok, gap
 
     class _Tx:
