@@ -337,3 +337,6 @@ p14/p207 as bare number soup); implied-prior tie-out (13 right / 0 wrong on the
 reference's stats block after strict-pairing tightening; correctly refuses the
 one row where the model's own FY24 disagrees with the filing); bridge=additive;
 cross-language sector glossary; learner diagnostic.
+
+| 103 (Luna, council mechanisms) | 08-16 07:30 | 34.9m ✓ | **79.9% (record; Model 90.4 / Driver 68.1)** | 2025 PASS; fcst -876; CF tie 19 | 43 | Keys 11/14 (CFI 0.18% off; op-profit definitional, correctly flag-only). Implied-prior tie-out banked its 13 stats rows live; bridge stood down where the statement disagreed. **The diagnostic solved the learner's 5-run zero in one log line: identification answers 'p46' (string) where the verifier called int(page) — 164 OK identifications dropped at the first filter every run since vision landed.** |
+| 104 (Luna, learner unlocked) | 08-16 08:20 | in flight | — | — | — | Digits-only page parse in learner verify + mapper audit; the identification path (164 OK answers) finally stores. |
