@@ -291,7 +291,12 @@ def transcribe_image_pages(pdf_path, client, known_values, cache_dir,
         for pn in image_pages:
             ck = cache_dir / f"{_cache_key(pdf_path, pn)}.json"
             cached = json.loads(ck.read_text()) if ck.exists() else None
-            if cached is not None and ("rows" in cached or "why" in cached):
+            # a cache entry is a TRANSCRIPTION, not a verdict: reuse only if
+            # the rows are there (or the page is structurally unreadable) —
+            # anything else, including transient call failures, re-calls
+            if cached is not None and (
+                    isinstance(cached.get("rows"), list)
+                    or str(cached.get("why", "")).startswith("no decodable")):
                 entries[pn] = cached
             else:
                 todo.append((pn, _page_image(pdf.pages[pn - 1])))
@@ -313,31 +318,39 @@ def transcribe_image_pages(pdf_path, client, known_values, cache_dir,
                        else f"UNREAD — {entry.get('why', '?')}"))
 
     # phase 3 (code): the gate. Pass 1 — self-standing pages (>=ANCHOR_MIN
-    # anchors). Pass 2 — block corroboration: a page whose scale AGREES with a
-    # self-standing sibling passes at ANCHOR_MIN_BLOCK (CF/P&L pages print
-    # fewer model-tracked rows than the BS; measured 2-3 anchors on real ones).
+    # anchors). Pass 2 — block corroboration: a substantial page whose scale
+    # AGREES with a self-standing sibling passes at ANCHOR_MIN_BLOCK (CF/P&L
+    # pages print fewer model-tracked rows than the BS; measured 2-3 anchors
+    # on real ones). The rows floor keeps small parent-company (母公司)
+    # fragments — measured 2 anchors on 5 rows — out of the corroborated set;
+    # zero-anchor parent statement pages reject on their own.
     judged = {}
     for pn, entry in entries.items():
         rows = entry.get("rows")
         if rows is None:
-            judged[pn] = (False, entry.get("why", "?"), None)
+            judged[pn] = {"ok": False, "why": entry.get("why", "?")}
             continue
         hits, scale, copy_frac = _checksum(rows, known_values)
-        ok = hits >= ANCHOR_MIN and copy_frac <= COPY_MAX
-        judged[pn] = (ok, f"anchors {hits}, copy {copy_frac:.0%}", scale,
-                      hits, copy_frac)
-    strong_scales = {j[2] for j in judged.values() if j[0]}
-    if strong_scales:
-        for pn, j in list(judged.items()):
-            if not j[0] and len(j) == 5 and j[2] in strong_scales \
-                    and j[3] >= ANCHOR_MIN_BLOCK and j[4] <= COPY_MAX:
-                judged[pn] = (True, j[1] + " — block-corroborated", j[2], j[3], j[4])
+        judged[pn] = {"ok": hits >= ANCHOR_MIN and copy_frac <= COPY_MAX,
+                      "why": f"anchors {hits}, copy {copy_frac:.0%}",
+                      "scale": scale, "hits": hits, "copy": copy_frac,
+                      "nrows": len(rows)}
+    strong_scales = {j["scale"] for j in judged.values() if j["ok"]}
+    for j in judged.values():
+        if (not j["ok"] and strong_scales and j.get("scale") in strong_scales
+                and j.get("hits", 0) >= ANCHOR_MIN_BLOCK
+                and j.get("copy", 1) <= COPY_MAX and j.get("nrows", 0) >= 10):
+            j["ok"] = True
+            j["why"] += " — block-corroborated"
 
     out, accepted, rejected = [], [], []
     for pn in image_pages:
-        j = judged.get(pn) or (False, "?", None)
-        if j[0]:
+        j = judged.get(pn) or {"ok": False, "why": "?"}
+        if j["ok"]:
             accepted.append(pn)
+            title = entries[pn].get("title")
+            if title:  # scope context for the reader (合并 vs 母公司)
+                out.append((pn, "vision", title))
             for r in entries[pn]["rows"]:
                 c, p = _parse_num(r.get("current")), _parse_num(r.get("prior"))
                 if c is None and p is None:
@@ -347,7 +360,7 @@ def transcribe_image_pages(pdf_path, client, known_values, cache_dir,
                             f"{nm} {_fmt(c) if c is not None else ''} "
                             f"{_fmt(p) if p is not None else ''}".strip()))
         else:
-            rejected.append((pn, j[1]))
+            rejected.append((pn, j["why"]))
     name = Path(pdf_path).name
     if accepted:
         log(f"[vision] {name}: {len(accepted)}/{len(image_pages)} scanned pages "
