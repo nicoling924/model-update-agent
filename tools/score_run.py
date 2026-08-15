@@ -56,6 +56,8 @@ def main():
 
     total = correct = wrong_fl = wrong_unfl = 0
     worst, rows_seen = [], []
+    by_sheet = {}  # sheet -> [correct, total] — the owner's criterion names
+    #                the Model and Driver pages explicitly
     for sheet, ax in spec["year_axis"].items():
         col = (ax.get("columns") or {}).get(a.year)
         if not col or sheet not in gt_wb.sheetnames or sheet not in ca_wb.sheetnames:
@@ -71,6 +73,7 @@ def main():
                 continue
             total += 1
             rows_seen.append((sheet, r, gv))
+            by_sheet.setdefault(sheet, [0, 0])[1] += 1
             try:
                 cv = ca_ev.cell(sheet, f"{col}{r}")
             except Exception:
@@ -83,6 +86,7 @@ def main():
             flagged = fill in FLAGS
             if ok:
                 correct += 1
+                by_sheet[sheet][0] += 1
             else:
                 worst.append((abs((cv or 0) - gv), f"{sheet}!{col}{r}", gv, cv, flagged))
                 if flagged:
@@ -96,6 +100,8 @@ def main():
           f"{'' if a.company in TRUSTED else '  [prior agent run — not analyst-verified]'}")
     print(f"cells={total} correct={correct} ({correct / total * 100:.1f}%) "
           f"wrong_flagged={wrong_fl} wrong_unflagged={wrong_unfl}")
+    for sh, (c_s, t_s) in sorted(by_sheet.items(), key=lambda kv: -kv[1][1]):
+        print(f"  {sh:16} {c_s}/{t_s}  ({c_s / t_s * 100:.1f}%)")
 
     if raw:
         mapper.set_doc_scale(mapper.detect_scale([g for _s, _r, g in rows_seen], raw))
