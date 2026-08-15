@@ -135,6 +135,9 @@ def cmd_learn(company_dir, prior_period):
             fy24_raw_l = fy24_raw_l + vl24
     scale_l = mapper.set_doc_scale(
         mapper.detect_scale([r["prior_value"] for r in lrows], raw24_map))
+    pv_l_all = [r["prior_value"] for r in lrows]
+    mapper.detect_page_scales(pv_l_all, raw24_map)
+    mapper.detect_page_scales(pv_l_all, fy24_raw_l)
     if scale_l != 1:
         print(f"[L1u] document units: prints {scale_l:,.0f}x the model's units "
               "(reconciled against the model's own prior-year values)", flush=True)
@@ -163,7 +166,7 @@ def cmd_learn(company_dir, prior_period):
     for pn_l, _s_l, ln_l in raw24_map:
         raw_by_page_l.setdefault(pn_l, []).append(ln_l)
     entries = []
-    n_ver = n_rej = 0
+    n_ver = n_rej = n_soft = 0
     for r_l in lrows:
         m_l = identified.get((r_l["sheet"], r_l["row"]))
         if not m_l or m_l.get("status") != "OK" or not m_l.get("line"):
@@ -172,31 +175,40 @@ def cmd_learn(company_dir, prior_period):
             pg_l = int(m_l.get("page"))
         except (TypeError, ValueError):
             continue
-        window_l = sum((raw_by_page_l.get(q, []) for q in (pg_l - 1, pg_l, pg_l + 1)), [])
+        window_l = [(q, ln_q) for q in (pg_l - 1, pg_l, pg_l + 1)
+                    for ln_q in raw_by_page_l.get(q, [])]
         lab_norm_l = lookup_mod.norm(str(m_l["line"]))
-        verified = False
-        for ln_l in window_l:
+        verified = prior_hit = False
+        for q_l, ln_l in window_l:
             if lab_norm_l[:24] not in lookup_mod.norm(ln_l):
                 continue
             ns_l = lookup_mod.line_nums(ln_l)
-            if mapper.num_matches(ns_l, r_l["prior_value"]):
+            if mapper.num_matches(ns_l, r_l["prior_value"], page=q_l):
+                prior_hit = True
                 v23_l = r_l.get("v23")
                 if isinstance(v23_l, (int, float)) and abs(v23_l) > 1:
-                    verified = mapper.num_matches(ns_l, v23_l)
+                    verified = mapper.num_matches(ns_l, v23_l, page=q_l)
                 else:
                     verified = True
                 if verified:
                     break
-        if verified:
+        if verified or prior_hit:
+            # SINGLE-YEAR identification is still an identity: MD&A stats and
+            # segment tables print one year + % changes, never two years on a
+            # line — demanding both years rejected every such row (the whole
+            # Driver operating block). Both-years stays the gold standard;
+            # single-year is stored as a hint (label+page), never a value.
             entries.append({"sheet": r_l["sheet"], "row": r_l["row"],
                             "kind": "input", "label": str(m_l["line"])[:80],
                             "page": pg_l % 1000,
+                            "soft": (not verified) or None,
                             "sign_flip": (r_l["prior_value"] < 0)})
-            n_ver += 1
+            n_ver += verified
+            n_soft += (not verified)
         else:
             n_rej += 1
     print(f"[L2] identified {len(identified)}; VERIFIED (both-years arithmetic) "
-          f"{n_ver}; rejected {n_rej}", flush=True)
+          f"{n_ver}; single-year identities {n_soft}; rejected {n_rej}", flush=True)
     # ANALYST PRACTICE: rows that DON'T reconcile are findings, not failures.
     # For each material non-reconciling row: try a composition recipe (the
     # analyst's construction), else ask WHY in one reasoning batch — the
@@ -515,6 +527,12 @@ def cmd_update(company_dir, period):
     if doc_scale != 1:
         print(f"[2u] document units: prints {doc_scale:,.0f}x the model's units "
               "(reconciled against the model's own prior-year values)", flush=True)
+    pv_all = [r.get("prior_value") for r in all_rows]
+    ps_u = mapper.detect_page_scales(pv_all, raw_map)
+    mapper.detect_page_scales(pv_all, raw_all)
+    if ps_u:
+        print(f"[2u] page units: {len(ps_u)} pages reconcile at their OWN scale "
+              f"(e.g. 万元 MD&A tables): {sorted(set(ps_u.values()))}", flush=True)
     all_rows = mapper.find_homes(all_rows, raw_map)
     # statements-sheet rows with no home inherit their sheet's modal home pages
     from collections import Counter as _C0
@@ -530,7 +548,7 @@ def cmd_update(company_dir, period):
         if isinstance(pv_a, (int, float)) and abs(pv_a) >= 10:
             r["candidate_lines"] = [f"p{pn_a}: {ln_a.strip()[:110]}"
                                     for pn_a, _s_a, ln_a in raw_map
-                                    if mapper.line_has_value(ln_a, pv_a)][:4]
+                                    if mapper.line_has_value(ln_a, pv_a, page=pn_a)][:4]
     blocks = mapper.cluster(all_rows)
     n_home = sum(1 for r in all_rows if r["pages"])
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
@@ -589,7 +607,7 @@ def cmd_update(company_dir, period):
             if isinstance(pv_nf, (int, float)) and abs(pv_nf) >= 10:
                 cand_nf = [f"p{pn_c}: {ln_c.strip()[:110]}"
                            for pn_c, _s_c, ln_c in raw_map
-                           if mapper.line_has_value(ln_c, pv_nf)]
+                           if mapper.line_has_value(ln_c, pv_nf, page=pn_c)]
                 r["candidate_lines"] = cand_nf[:4]
         rescue_blocks = mapper.cluster([r for r in nf_rows if r["pages"]])
         got = 0
@@ -660,7 +678,7 @@ def cmd_update(company_dir, period):
             if isinstance(pv_cv, (int, float)) and abs(pv_cv) >= 2:
                 r_cv["candidate_lines"] = [f"p{pn_v}: {ln_v.strip()[:110]}"
                                            for pn_v, _s_v, ln_v in raw_map
-                                           if mapper.line_has_value(ln_v, pv_cv)][:4]
+                                           if mapper.line_has_value(ln_v, pv_cv, page=pn_v)][:4]
         if r_cv.get("candidate_lines"):
             cov_rows.append(r_cv)
     n_cov = 0
@@ -735,8 +753,8 @@ def cmd_update(company_dir, period):
         # yuan-printed filing every triangulation silently failed (run 98:
         # vision delivered the evidence, the audit layer could not see it)
         staging["items"].append({"label": lab_r,
-                                 "value": mapper.to_model_units(ns_r[0]),
-                                 "prior": mapper.to_model_units(ns_r[1]),
+                                 "value": mapper.to_model_units(ns_r[0], page=pn_r),
+                                 "prior": mapper.to_model_units(ns_r[1], page=pn_r),
                                  "page": pn_r, "stmt": None, "_src": "rawline"})
         n_raw_items += 1
     print(f"[2c] audit staging: {len(staging['items'])} items "
@@ -851,7 +869,7 @@ def cmd_update(company_dir, period):
                     continue
                 cands_c = set()
                 for _pn_c, _sec_c, ln_c in raw_all:
-                    ns_c = [mapper.to_model_units(n_c)
+                    ns_c = [mapper.to_model_units(n_c, page=_pn_c)
                             for n_c in lookup_mod.line_nums(ln_c)]
                     for i_c in range(1, len(ns_c)):
                         if abs(abs(ns_c[i_c]) - tv) <= 0.6:

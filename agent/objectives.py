@@ -176,7 +176,7 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                 v = float(t)
             except ValueError:
                 continue
-            v = _mapper.to_model_units(-v if neg else v)
+            v = _mapper.to_model_units(-v if neg else v, page=pn)
             raw_num_pages.setdefault(round(abs(v), 1), set()).add(pn)
     ev_prior = Evaluator(pre_wb)
     for kind, loc in keymap.items():

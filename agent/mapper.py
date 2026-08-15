@@ -47,12 +47,55 @@ def _num_variants(v):
 # once per run by reconciliation (below), never guessed per number.
 DOC_SCALES = (1, 1e3, 1e4, 1e6, 1e8)  # units, thousands, 万, millions, 亿
 DOC_SCALE = 1.0
+PAGE_SCALES = {}  # page -> scale, where a PAGE reconciles at its own scale
 
 
 def set_doc_scale(scale):
     global DOC_SCALE
     DOC_SCALE = float(scale or 1.0)
+    PAGE_SCALES.clear()
     return DOC_SCALE
+
+
+def detect_page_scales(values, raw_lines, min_hits=3):
+    """Scale is a property of the PAGE, defaulting to the document's.
+
+    The statements print yuan (doc scale 1e6 to a millions model), but MD&A
+    tables print 万元 (1e4) — the product-segment splits the model's Driver
+    page needs live THERE and were invisible to every value test (run 100:
+    the whole class wrong). A page earns its own scale only by reconciling
+    >= min_hits known model values at it; everything else inherits DOC_SCALE.
+    """
+    vals = sorted({abs(v) for v in values
+                   if isinstance(v, (int, float)) and abs(v) > 100}, reverse=True)[:80]
+    if not vals:
+        return {}
+    by_page = {}
+    for pn, _sec, ln in raw_lines:
+        by_page.setdefault(pn, []).extend(abs(n) for n in lookup.line_nums(ln))
+    out = {}
+    for pn, nums in by_page.items():
+        nums.sort()
+        best, best_n = None, 0
+        for s in DOC_SCALES:
+            n = sum(1 for v in vals if _has_num(nums, v, s))
+            if n > best_n:
+                best, best_n = s, n
+        if best is not None and best != DOC_SCALE and best_n >= min_hits:
+            # only a DIFFERENT scale is worth recording, and only if the page
+            # ALSO fails to reconcile at the document scale (mixed pages keep
+            # the doc default rather than flipping wholesale)
+            doc_n = sum(1 for v in vals if _has_num(nums, v, DOC_SCALE))
+            if best_n > doc_n:
+                out[pn] = float(best)
+    PAGE_SCALES.update(out)
+    return out
+
+
+def page_scale(page):
+    if page is None:
+        return DOC_SCALE
+    return PAGE_SCALES.get(page, DOC_SCALE)
 
 
 def detect_scale(values, raw_lines, sample=60):
@@ -88,28 +131,30 @@ def _has_num(sorted_nums, v, scale):
     return i < len(sorted_nums) and sorted_nums[i] <= target + tol
 
 
-def to_model_units(n):
-    """A printed number in the MODEL's units. At doc scale 1 this is identity.
+def to_model_units(n, page=None):
+    """A printed number in the MODEL's units. At scale 1 this is identity.
 
     At other scales, only page-scale financial values convert: CN statements
     print yuan with cents, so any real aggregate is >= S/1000, while per-share
     figures, ratios and FX rates print small and stay as-is — the model holds
     those in their printed units too (EPS 0.62 is 0.62 in both worlds).
+    The scale is the PAGE's where one is proven, else the document's.
     """
-    if not isinstance(n, (int, float)) or DOC_SCALE == 1:
+    s = page_scale(page)
+    if not isinstance(n, (int, float)) or s == 1:
         return n
-    return n / DOC_SCALE if abs(n) >= DOC_SCALE / 1000 else n
+    return n / s if abs(n) >= s / 1000 else n
 
 
-def num_matches(nums, v, scale=None):
-    """Does any of these parsed numbers equal v (model units) at doc scale?"""
-    s = DOC_SCALE if scale is None else scale
+def num_matches(nums, v, scale=None, page=None):
+    """Does any of these parsed numbers equal v (model units) at the scale?"""
+    s = page_scale(page) if scale is None else scale
     target = abs(v) * s
     tol = max(0.6 * s, target * 5e-4)
     return any(abs(abs(n) - target) <= tol for n in nums)
 
 
-def line_has_value(line, v, scale=None):
+def line_has_value(line, v, scale=None, page=None):
     """Does this printed line carry v (model units)?
 
     At scale 1 this is the original printed-form string test, kept exactly so
@@ -117,7 +162,7 @@ def line_has_value(line, v, scale=None):
     cannot match (the model's value is rounded at its own precision), so the
     test becomes numeric with a scale-proportional tolerance.
     """
-    s = DOC_SCALE if scale is None else scale
+    s = page_scale(page) if scale is None else scale
     if not isinstance(v, (int, float)):
         return False
     if s == 1:
@@ -138,7 +183,7 @@ def find_homes(rows, raw_lines):
         if isinstance(pv, (int, float)) and abs(pv) > 1:
             for pn, lines in page_text.items():
                 for ln in lines:
-                    if line_has_value(ln, pv):
+                    if line_has_value(ln, pv, page=pn):
                         votes[pn] = votes.get(pn, 0) + 3
                         break
         lab = lookup.norm(str(r.get("label") or ""))
@@ -198,11 +243,13 @@ def map_block(client, system, prompt_tpl, block, raw_lines, cfg):
     user = (prompt_tpl
             .replace("{PAGES}", "\n".join(text[:600]))
             .replace("{ROWS}", "\n".join(rows_desc)))
-    if DOC_SCALE != 1:
-        user = (f"UNITS: this document prints numbers {DOC_SCALE:,.0f}x larger than the "
-                f"model's units (the model's prior-year values above are in model units). "
-                f"Divide every figure you read off the page by {DOC_SCALE:,.0f} before "
-                f"returning it, and sanity-check it against the prior year shown.\n\n") + user
+    if DOC_SCALE != 1 or PAGE_SCALES:
+        user = ("UNITS: these pages MIX unit scales — statements in full units "
+                "(元), MD&A tables in 万元 or 千元, volume tables in raw units. "
+                "The MODEL's units are whatever each row's prior-year value "
+                "uses: convert every figure you read into the same units as "
+                "that row's prior before returning it, and sanity-check the "
+                "magnitude against that prior.\n\n") + user
 
     def _validate(o):
         errs = []
@@ -269,8 +316,9 @@ def map_block_voted(client, system, prompt_tpl, block, raw_lines, cfg, votes=2):
             pg = int(page)
         except (TypeError, ValueError):
             return False
-        window = sum((raw_by_page.get(q, []) for q in (pg - 1, pg, pg + 1)), [])
-        return any(line_has_value(ln, v) for ln in window)
+        return any(line_has_value(ln, v, page=q)
+                   for q in (pg - 1, pg, pg + 1)
+                   for ln in raw_by_page.get(q, []))
 
     prior_by_key = {(r["sheet"], r["row"]): r.get("prior_value")
                     for r in block["rows"]}
@@ -365,7 +413,9 @@ def audit(mapped, rows, raw_lines, tol=1.0):
             window = []
             for q in (pg - 1, pg, pg + 1):
                 window += raw_by_page.get(q, [])
-            if window and not any(line_has_value(ln, v) for ln in window):
+            if window and not any(line_has_value(ln, v, page=q)
+                                  for q in (pg - 1, pg, pg + 1)
+                                  for ln in raw_by_page.get(q, [])):
                 m["status"] = "UNCITED"
                 m["note"] = "claimed value not found on cited page — verify"
     return mapped
