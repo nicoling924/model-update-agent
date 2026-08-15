@@ -582,6 +582,25 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         args = resp.get("args") or {}
         why = str(resp.get("why", ""))[:160]
         if action == "finish":
+            card_f = _card()
+            bad_years = [(c, y, g) for c, y, g in card_f["tier0"]
+                         if g is None or abs(g) > 1.0]
+            bad_keys = [e["kind"] for e in card_f["tier1"]
+                        if e["status"] == "MISMATCH"]
+            refusals = sum(1 for h in history if "FINISH REFUSED" in h)
+            time_left = deadline - time.time()
+            if (bad_years or bad_keys) and refusals < 3 and time_left > 300:
+                worklist = []
+                for c_f, y_f, g_f in bad_years[:4]:
+                    worklist.append(f"balance {y_f} gap {g_f}: trace_cell {c_f}, "
+                                    f"diagnose_balance year={y_f}")
+                for k_f in bad_keys[:4]:
+                    worklist.append(f"key {k_f}: remap its row, prove_key, "
+                                    "or document the cause in a note")
+                history.append("FINISH REFUSED — the goal is not met and time "
+                               f"remains ({time_left/60:.0f} min). Work the list: "
+                               + " | ".join(worklist))
+                continue
             decisions.append(f"finish: {str(args.get('summary', why))[:200]}")
             break
         key = (action, json.dumps(args, sort_keys=True))

@@ -122,8 +122,13 @@ class Writer:
                                   end_color="FF" + cfg["conventions"]["flag_backedout_fill"])
         self.log = {"written": [], "flags": [], "restatements": [], "skipped_merged": []}
 
-    def write(self, sheet, coord, value, prior_coord=None, note=None, flag=None):
+    def write(self, sheet, coord, value, prior_coord=None, note=None, flag=None,
+              force_lock=False):
         """Write one cell per the mark-to-actual recipe, then read it back."""
+        locked = getattr(self.wb, "_locked_cells", None)
+        if locked and f"{sheet}!{coord}" in locked and not force_lock:
+            self.log.setdefault("lock_refused", []).append(f"{sheet}!{coord}")
+            return False
         ws = self.wb[sheet]
         cell = ws[coord]
         if type(cell).__name__ == "MergedCell":
