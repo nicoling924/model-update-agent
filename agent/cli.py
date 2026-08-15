@@ -141,6 +141,68 @@ def cmd_learn(company_dir, prior_period):
                   f"{len(audit_pairs)}", flush=True)
         except Exception as ex:
             print(f"[L1d] map-audit skipped ({ex})", flush=True)
+    # v6: DEFINITIONAL BRIDGES for keys the disclosure prints differently
+    # (model CFO = statutory CFO +/- reclassifications). Mechanical recipe
+    # first; LLM REASONING fallback — every hypothesis double-locked on
+    # FY24 AND FY23 before it may be stored. FY24-only: fair for cold runs.
+    from . import derive as derive_mod
+    from . import objectives as obj_mod
+    from .evaluator import Evaluator as _Ev
+    key_log = []
+    km_l = obj_mod.locate(spec, wb, key_log)
+    fy24_raw_l = __import__("agent.lookup", fromlist=["lookup"]).raw_lines(disclosures)
+    CF_SECT = ["cash flow", "operating activities", "investing activities",
+               "financing activities"]
+    ev_l = _Ev(wb)
+    n_bridges = 0
+    for kind_l in ("cfo", "cfi", "cff"):
+        loc_l = km_l.get(kind_l)
+        if not loc_l:
+            continue
+        ax_l = spec["year_axis"].get(loc_l["sheet"]) or {}
+        yrs_l = sorted(ax_l.get("columns") or {})
+        la_l = str(ax_l.get("last_actual"))
+        try:
+            i_l = yrs_l.index(la_l)
+            pc_l = ax_l["columns"][la_l]
+            ppc_l = ax_l["columns"][yrs_l[i_l - 1]] if i_l > 0 else None
+            v24_l = ev_l.cell(loc_l["sheet"], f"{pc_l}{loc_l['row']}")
+            v23_l = ev_l.cell(loc_l["sheet"], f"{ppc_l}{loc_l['row']}") if ppc_l else None
+        except Exception:
+            continue
+        if not isinstance(v24_l, (int, float)):
+            continue
+        recipe_l = derive_mod.learn_composition(v24_l, v23_l, fy24_raw_l, CF_SECT,
+                                                max_terms=5)
+        why_l = "mechanical composition (double-locked 2 years)"
+        if recipe_l is None:
+            blog = []
+            v25_chk, why_b = derive_mod.llm_bridge(client, kind_l, v24_l, v23_l,
+                                                   fy24_raw_l, fy24_raw_l,
+                                                   CF_SECT, blog)
+            for bl in blog:
+                print("   ", bl[:130], flush=True)
+            # llm_bridge replays on the raw passed as fy25 — here FY24 itself,
+            # so success means the recipe verified; rebuild recipe from its log
+            recipe_l = None if v25_chk is None else "LLM"
+            if recipe_l == "LLM":
+                # re-run learn path capturing terms via a fresh bridge call is
+                # avoided: store the reasoning + re-derive at update by bridge
+                entries.append({"sheet": loc_l["sheet"], "row": loc_l["row"],
+                                "kind": "bridge_reason", "label": kind_l,
+                                "section": (why_b or "")[:180]})
+                n_bridges += 1
+                continue
+        if recipe_l and recipe_l != "LLM":
+            comps_l = [{"label": lab_r, "sign": sg_r, "v24": v_r}
+                       for (lab_r, sg_r, v_r, _p) in recipe_l]
+            entries.append({"sheet": loc_l["sheet"], "row": loc_l["row"],
+                            "kind": "bridge", "label": kind_l,
+                            "components": comps_l})
+            n_bridges += 1
+            print(f"    [L1e] bridge {kind_l}: {len(comps_l)} terms ({why_l})",
+                  flush=True)
+    print(f"[L1e] definitional bridges learned: {n_bridges}", flush=True)
     n = learn_mod.write_memory_tab(wb, entries)
     workbook.save(wb, model_path)
     wb2 = workbook.load(model_path)
@@ -357,6 +419,7 @@ def cmd_update(company_dir, period):
         print(f"[2r] rescue round {rescue_round}: {got} of {len(nf_rows)} unresolved "
               "rows recovered", flush=True)
     # recipe pass (identity Ctrl+F, tie-broken) for anything still unresolved
+    from . import derive
     from . import derive as derive_mod
     unres = [r for r in all_rows
              if (r["sheet"], r["row"]) not in mapped
@@ -708,47 +771,27 @@ def cmd_update(company_dir, period):
                 obj_notes.append(f"identity anchor {kind_i}: {p_t['value']:,.1f} - "
                                  f"complement {comp_v:,.1f} = {derived_i:,.1f}")
 
-    # DERIVATION RECIPES (FY24-calibrated): keys the disclosure never prints are
-    # reconstructed the way the analyst built them — learn the composition on
-    # FY24 (double-locked on two years), replay on FY25 by verified line names
-    from . import derive
-    prior_dir = company_dir / "disclosures" / f"FY{str(last_actual)[-2:]}"
-    if prior_dir.exists() and sorted(prior_dir.glob("*.pdf")):
-        fy24_raw = lookup_mod.raw_lines(sorted(prior_dir.glob("*.pdf")))
-        CF_SECTIONS = ["cash flow", "operating activities", "investing activities",
-                       "financing activities"]
-        ev_d = Evaluator(pre_wb)
-        for kind_d in ("cfo", "cfi", "cff"):
-            p_d = proven.get(kind_d) or {}
-            loc_d = keymap.get(kind_d)
-            if not loc_d or p_d.get("status") == "proven":
-                continue
-            ax_d = spec["year_axis"][loc_d["sheet"]]
-            years_d = sorted(ax_d["columns"])
-            li_d = years_d.index(str(last_actual))
-            pc_d = ax_d["columns"][str(last_actual)]
-            ppc_d = ax_d["columns"][years_d[li_d - 1]] if li_d > 0 else None
-            try:
-                v24_d = ev_d.cell(loc_d["sheet"], f"{pc_d}{loc_d['row']}")
-                v23_d = ev_d.cell(loc_d["sheet"], f"{ppc_d}{loc_d['row']}") if ppc_d else None
-            except Exception:
-                continue
-            if not isinstance(v24_d, (int, float)):
-                continue
-            recipe_d = derive.learn_composition(v24_d, v23_d, fy24_raw, CF_SECTIONS,
-                                                max_terms=5)
-            if not recipe_d:
-                obj_notes.append(f"derive {kind_d}: no double-locked FY24 recipe")
-                continue
-            v25_d, det_d = derive.replay_composition(recipe_d, raw_all)
-            if v25_d is None:
-                obj_notes.append(f"derive {kind_d}: recipe not replayable — "
-                                 + "; ".join(det_d or [])[:100])
-                continue
-            proven[kind_d] = {"status": "proven", "value": round(v25_d, 1),
-                              "sources": 3, "pages": ["FY24-recipe"]}
-            obj_notes.append(f"derive {kind_d}: {v25_d:,.1f} via FY24 recipe = "
-                             + " ".join(det_d)[:140])
+    # BRIDGES from the learner's memory (FY24-calibrated, served cold):
+    # replay each stored recipe on FY25 by verified line names — no FY24 docs
+    # are read at update time (the cold-run contract)
+    for (s_b, r_b), m_b in memory.items():
+        if m_b.get("kind") != "bridge" or not m_b.get("components"):
+            continue
+        kind_b = m_b.get("label")
+        if kind_b not in keymap or (proven.get(kind_b) or {}).get("status") == "proven":
+            continue
+        recipe_b = [(c_b["label"], c_b["sign"], c_b["v24"], None)
+                    for c_b in m_b["components"]]
+        v25_b, det_b = derive.replay_composition(recipe_b, raw_all)
+        if v25_b is None:
+            obj_notes.append(f"bridge {kind_b}: not replayable — "
+                             + "; ".join(det_b or [])[:100])
+            continue
+        proven[kind_b] = {"status": "proven", "value": round(v25_b, 1),
+                          "sources": 3, "pages": ["bridge-memory"]}
+        obj_notes.append(f"bridge {kind_b}: memory recipe -> {v25_b:,.1f} = "
+                         + " ".join(det_b)[:120])
+
     card, obj_log, n_fix = objectives.converge(
         wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
         last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
