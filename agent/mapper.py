@@ -38,6 +38,80 @@ def _num_variants(v):
     return out
 
 
+# -- document unit scale ----------------------------------------------------
+# The model's units and the filing's units need not agree: a Chinese annual
+# report prints yuan (69,695,135,723.47) where the model holds millions
+# (69,695.14). Retrieval-by-prior-value then finds NOTHING, and every
+# arithmetic proof fails — not because the number is absent but because it is
+# printed 1,000,000x larger. The scale is a property of the DOCUMENT, decided
+# once per run by reconciliation (below), never guessed per number.
+DOC_SCALES = (1, 1e3, 1e4, 1e6, 1e8)  # units, thousands, 万, millions, 亿
+DOC_SCALE = 1.0
+
+
+def set_doc_scale(scale):
+    global DOC_SCALE
+    DOC_SCALE = float(scale or 1.0)
+    return DOC_SCALE
+
+
+def detect_scale(values, raw_lines, sample=60):
+    """How many document units to one model unit — decided by RECONCILIATION.
+
+    For each candidate scale, count how many of the model's known prior-year
+    values actually appear in the document's printed numbers at that scale.
+    The scale that explains the most values wins; ties go to 1 (unchanged
+    behaviour), so a same-units filing never takes the scaled path.
+    """
+    vals = sorted({abs(v) for v in values
+                   if isinstance(v, (int, float)) and abs(v) > 100}, reverse=True)[:sample]
+    if not vals:
+        return 1.0
+    nums = []
+    for _pn, _sec, ln in raw_lines:
+        nums.extend(abs(n) for n in lookup.line_nums(ln))
+    nums.sort()
+    best, best_n = 1.0, -1
+    for s in DOC_SCALES:
+        n = sum(1 for v in vals if _has_num(nums, v, s))
+        if n > best_n:
+            best, best_n = float(s), n
+    return best
+
+
+def _has_num(sorted_nums, v, scale):
+    """Is v (model units) present among these printed numbers at `scale`?"""
+    import bisect
+    target = abs(v) * scale
+    tol = max(0.6 * scale, target * 5e-4)
+    i = bisect.bisect_left(sorted_nums, target - tol)
+    return i < len(sorted_nums) and sorted_nums[i] <= target + tol
+
+
+def num_matches(nums, v, scale=None):
+    """Does any of these parsed numbers equal v (model units) at doc scale?"""
+    s = DOC_SCALE if scale is None else scale
+    target = abs(v) * s
+    tol = max(0.6 * s, target * 5e-4)
+    return any(abs(abs(n) - target) <= tol for n in nums)
+
+
+def line_has_value(line, v, scale=None):
+    """Does this printed line carry v (model units)?
+
+    At scale 1 this is the original printed-form string test, kept exactly so
+    same-units models behave as before. At any other scale the printed digits
+    cannot match (the model's value is rounded at its own precision), so the
+    test becomes numeric with a scale-proportional tolerance.
+    """
+    s = DOC_SCALE if scale is None else scale
+    if not isinstance(v, (int, float)):
+        return False
+    if s == 1:
+        return any(t in line for t in _num_variants(v))
+    return num_matches(lookup.line_nums(line), v, s)
+
+
 def find_homes(rows, raw_lines):
     """rows: [{sheet,row,label,prior_value,...}] -> same rows + 'pages' (home
     candidates, best-first). Prior-value hits are the strong signal; label hits
@@ -49,10 +123,9 @@ def find_homes(rows, raw_lines):
         votes = {}
         pv = r.get("prior_value")
         if isinstance(pv, (int, float)) and abs(pv) > 1:
-            variants = _num_variants(pv)
             for pn, lines in page_text.items():
                 for ln in lines:
-                    if any(v in ln for v in variants):
+                    if line_has_value(ln, pv):
                         votes[pn] = votes.get(pn, 0) + 3
                         break
         lab = lookup.norm(str(r.get("label") or ""))
@@ -112,6 +185,11 @@ def map_block(client, system, prompt_tpl, block, raw_lines, cfg):
     user = (prompt_tpl
             .replace("{PAGES}", "\n".join(text[:600]))
             .replace("{ROWS}", "\n".join(rows_desc)))
+    if DOC_SCALE != 1:
+        user = (f"UNITS: this document prints numbers {DOC_SCALE:,.0f}x larger than the "
+                f"model's units (the model's prior-year values above are in model units). "
+                f"Divide every figure you read off the page by {DOC_SCALE:,.0f} before "
+                f"returning it, and sanity-check it against the prior year shown.\n\n") + user
 
     def _validate(o):
         errs = []
@@ -179,7 +257,7 @@ def map_block_voted(client, system, prompt_tpl, block, raw_lines, cfg, votes=2):
         except (TypeError, ValueError):
             return False
         window = sum((raw_by_page.get(q, []) for q in (pg - 1, pg, pg + 1)), [])
-        return any(any(s in ln for s in _num_variants(v)) for ln in window)
+        return any(line_has_value(ln, v) for ln in window)
 
     prior_by_key = {(r["sheet"], r["row"]): r.get("prior_value")
                     for r in block["rows"]}
@@ -241,6 +319,17 @@ def audit(mapped, rows, raw_lines, tol=1.0):
             continue
         r = ctx.get(key) or {}
         pv = r.get("prior_value")
+        # DOCUMENT UNITS: the reader quotes the page, so on a filing printed in
+        # other units it hands back a document-unit number. Convert it to the
+        # model's units whenever the prior year says that is what happened —
+        # this fires at every magnitude, including priors too small for the
+        # ratio guard below.
+        if (DOC_SCALE != 1 and v not in (None, 0)
+                and isinstance(pv, (int, float)) and abs(pv) > 0):
+            if 0.2 * DOC_SCALE <= abs(v) / abs(pv) <= 5 * DOC_SCALE:
+                v = m["value"] = v / DOC_SCALE
+                m["note"] = ((m.get("note") or "") +
+                             f" [document units /{DOC_SCALE:,.0f} -> model units]").strip()
         if isinstance(pv, (int, float)) and abs(pv) >= 100 and v != 0:
             ratio = abs(v) / abs(pv)
             if ratio > 20 or ratio < 0.05:
@@ -263,8 +352,7 @@ def audit(mapped, rows, raw_lines, tol=1.0):
             window = []
             for q in (pg - 1, pg, pg + 1):
                 window += raw_by_page.get(q, [])
-            variants = _num_variants(v)
-            if window and not any(any(s in ln for s in variants) for ln in window):
+            if window and not any(line_has_value(ln, v) for ln in window):
                 m["status"] = "UNCITED"
                 m["note"] = "claimed value not found on cited page — verify"
     return mapped
