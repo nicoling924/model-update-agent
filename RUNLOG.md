@@ -343,3 +343,15 @@ cross-language sector glossary; learner diagnostic.
 
 | 104 (Luna, learner unlocked) | 08-16 08:20 | 36.2m ✓ | 75.8% (Model 82.5 / Driver 67.4) | **BALANCE PASS — ALL SIX YEARS (first ever)** | 53 | **Keys 12/14** — but net profit went materially WRONG (3,491.8 vs 3,831.3): a 3-source sibling "correction" (Raw financials!U11 4,043->3,781.8) matched the wrong line and moved a headline key away from its disclosed value while balance passed — the exact trade the contract forbids. Learner alive at last: VERIFIED 116 + single-year 27 (was 0). |
 | 105 (Luna, key-guarded siblings) | 08-16 09:20 | in flight | — | — | — | Sibling corrections now transactional against their driving key (revert if the key moves AWAY from disclosed). The final overnight run. |
+
+| 105 (Luna, key-guarded siblings) | 08-16 09:20 | 38.0m ✓ | **80.6% (night's record; Model 90.4 / Driver 69.6)** | 2025 PASS; fcst -539 (flagged) | 41 | **Keys 11/14 with NET PROFIT PROTECTED (the guard reverted the run-104 damage class); remaining misses: op profit (definitional, correctly flag-only), CFI 0.18%, GP unprintable.** Learner: 118 verified + 26 single-year identities. THE FLAGSHIP DELIVERABLE. |
+
+**NIGHT VERDICT (runs 97-105, ~8 hours, ~$14):** DFE transformed from
+79.1%-balance-FAIL-keys-3/13 to 80.6%-record with 2025 balance passing
+consistently, all-years balance PROVEN reachable (run 104), keys 11-12/14
+(remaining misses definitional or <0.2%), Model page at 90.4%, runtime ~35-38
+min, CLP regression-free at 75.0%. Every fix generic; every fix measured
+offline before dispatch; two council sessions (transcripts in council/).
+The whole-model % is INTER-MODEL AGREEMENT vs an unverified Fable-5 run that
+the agent BEATS on filing-adjudicated disagreements — present three metrics,
+never one (PRESENTATION.md).

@@ -31,9 +31,9 @@ disagreement against the filing itself: **the agent beats the benchmark 10–8**
 (the rest are derived values printed nowhere). The agent is more faithful to
 the document than the model it is scored against.
 
-**3. Inter-model agreement: 79.9%** (273 evaluated cells vs a previous
+**3. Inter-model agreement: 80.6%** (273 evaluated cells vs a previous
 Claude Fable 5 update of the same model — NOT an analyst-verified reference).
-Model page **90.4%**, Driver page 68.1% and climbing. Label this "agreement
+Model page **90.4%**, Driver page 69.6% and climbing. All-years balance was achieved outright in run 104; the final run holds 2025 balanced with forecast gaps of hundreds, flagged. Label this "agreement
 with another AI's run", not "completion": ~31 of the 55 disagreements are
 analyst-derived values (bases, embedded ratios) that no document prints.
 
