@@ -555,6 +555,61 @@ def cmd_update(company_dir, period):
                         mapped[k_e] = v_e
                         got_e += 1
             print(f"[2f] escalation: {got_e} rows resolved by {esc_model}", flush=True)
+    # -- 6c. COVERAGE PASS: every still-carried row gets its Ctrl+F candidate
+    # lines handed to the model (evidence-to-reader); answers are code-verified
+    # against those lines before writing. Targets the completion rate directly.
+    cov_rows = []
+    for r_cv in all_rows:
+        m_cv = mapped.get((r_cv["sheet"], r_cv["row"])) or {}
+        if m_cv.get("value") is not None and m_cv.get("status") in ("OK", "DERIVED", "RECIPE", "RESCALED"):
+            continue
+        if not r_cv.get("candidate_lines"):
+            pv_cv = r_cv.get("prior_value")
+            if isinstance(pv_cv, (int, float)) and abs(pv_cv) >= 2:
+                variants_cv = mapper._num_variants(pv_cv)
+                r_cv["candidate_lines"] = [f"p{pn_v}: {ln_v.strip()[:110]}"
+                                           for pn_v, _s_v, ln_v in raw_map
+                                           if any(vv in ln_v for vv in variants_cv)][:4]
+        if r_cv.get("candidate_lines"):
+            cov_rows.append(r_cv)
+    n_cov = 0
+    if cov_rows and time.time() < deadline_map:
+        for i_cv in range(0, len(cov_rows), 30):
+            chunk_cv = cov_rows[i_cv:i_cv + 30]
+            block_cv = {"sheet": chunk_cv[0]["sheet"], "pages": [], "rows": chunk_cv}
+            try:
+                res_cv = mapper.map_block(client, system, map_prompt, block_cv,
+                                          raw_map, cfg)
+            except Exception as ex_cv:
+                print(f"    [6c] coverage block failed ({ex_cv})", flush=True)
+                continue
+            for (s_cv, r_cv2), v_cv in res_cv.items():
+                val_cv = v_cv.get("value")
+                if val_cv is None:
+                    continue
+                ctx_cv = next((x for x in chunk_cv
+                               if x["sheet"] == s_cv and x["row"] == r_cv2), None)
+                if ctx_cv is None:
+                    continue
+                # code check: the answered value must appear in the evidence lines
+                vv_set = mapper._num_variants(val_cv)
+                cited_cv = any(any(t in cl for t in vv_set)
+                               for cl in ctx_cv.get("candidate_lines") or [])
+                tc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(target_year)
+                pc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(last_actual)
+                if not tc_cv:
+                    continue
+                fl_cv = "orange" if cited_cv else "red"
+                mapped[(s_cv, r_cv2)] = {"value": val_cv,
+                                         "status": "RECIPE" if cited_cv else "UNCERTAIN",
+                                         "page": v_cv.get("page"),
+                                         "line": v_cv.get("line", ""),
+                                         "note": "coverage pass"}
+                n_cov += 1
+    print(f"[6c] coverage pass: {n_cov} carried rows decided "
+          f"({len(cov_rows)} candidates)", flush=True)
+
+
     mapped = mapper.audit(mapped, all_rows, raw_map)
     st_c = _Counter(m["status"] for m in mapped.values())
     print(f"[2b] direct map: {dict(st_c)} of {len(all_rows)} rows", flush=True)
@@ -1020,6 +1075,33 @@ def cmd_update(company_dir, period):
                     and abs(v_v - abs(p_a["value"])) <= max(1.0, v_v * 0.005)
         if loc_a and ok_anchor and isinstance(p_a.get("value"), (int, float)):
             anchors_a[(loc_a["sheet"], loc_a["row"])] = p_a["value"]
+    # NCL from fully-evidenced components: TA - CL - equity - MI (back-out
+    # through the formula, per the analyst contract; every term proven/read)
+    loc_ncl = keymap.get("non_current_liabilities")
+    if loc_ncl and (proven.get("non_current_liabilities") or {}).get("status") != "proven":
+        ok_terms = all((proven.get(k2) or {}).get("status") == "proven"
+                       for k2 in ("total_assets", "current_liabilities", "equity"))
+        mi_row = (spec.get("statement_rows") or {}).get("minority_interests")
+        mi_val = None
+        try:
+            eq_loc = keymap.get("equity")
+            ax_m = spec["year_axis"].get(eq_loc["sheet"]) or {}
+            tc_m = (ax_m.get("columns") or {}).get(target_year)
+            for r_mi in range(loc_ncl["row"], loc_ncl["row"] + 12):
+                lab_mi = objectives._row_label(wb[eq_loc["sheet"]], r_mi) or ""
+                if "minority" in lab_mi.lower() or "non-controlling" in lab_mi.lower():
+                    mi_val = Evaluator(wb).cell(eq_loc["sheet"], f"{tc_m}{r_mi}")
+                    break
+        except Exception:
+            pass
+        if ok_terms and isinstance(mi_val, (int, float)):
+            ncl_d = proven["total_assets"]["value"] - proven["current_liabilities"]["value"]                 - proven["equity"]["value"] - mi_val
+            proven["non_current_liabilities"] = {"status": "proven",
+                                                 "value": round(ncl_d, 1),
+                                                 "sources": 3,
+                                                 "pages": ["evidenced-identity"]}
+            obj_notes.append(f"NCL derived from evidenced components: {ncl_d:,.1f} "
+                             f"(TA - CL - equity - MI {mi_val:,.1f})")
     confident_a = set()
     for (s_m2, r_m2), m_m2 in mapped.items():
         if m_m2.get("conf", 0) >= 4:
@@ -1035,65 +1117,6 @@ def cmd_update(company_dir, period):
     print(f"[6a] allocation: {n_alloc} components structure-scaled to proven totals",
           flush=True)
 
-
-    # -- 6c. COVERAGE PASS: every still-carried row gets its Ctrl+F candidate
-    # lines handed to the model (evidence-to-reader); answers are code-verified
-    # against those lines before writing. Targets the completion rate directly.
-    cov_rows = []
-    for r_cv in all_rows:
-        m_cv = mapped.get((r_cv["sheet"], r_cv["row"])) or {}
-        if m_cv.get("value") is not None and m_cv.get("status") in ("OK", "DERIVED", "RECIPE", "RESCALED"):
-            continue
-        if not r_cv.get("candidate_lines"):
-            pv_cv = r_cv.get("prior_value")
-            if isinstance(pv_cv, (int, float)) and abs(pv_cv) >= 2:
-                variants_cv = mapper._num_variants(pv_cv)
-                r_cv["candidate_lines"] = [f"p{pn_v}: {ln_v.strip()[:110]}"
-                                           for pn_v, _s_v, ln_v in raw_map
-                                           if any(vv in ln_v for vv in variants_cv)][:4]
-        if r_cv.get("candidate_lines"):
-            cov_rows.append(r_cv)
-    n_cov = 0
-    if cov_rows and time.time() < obj_deadline:
-        for i_cv in range(0, len(cov_rows), 30):
-            chunk_cv = cov_rows[i_cv:i_cv + 30]
-            block_cv = {"sheet": chunk_cv[0]["sheet"], "pages": [], "rows": chunk_cv}
-            try:
-                res_cv = mapper.map_block(client, system, map_prompt, block_cv,
-                                          raw_map, cfg)
-            except Exception as ex_cv:
-                print(f"    [6c] coverage block failed ({ex_cv})", flush=True)
-                continue
-            for (s_cv, r_cv2), v_cv in res_cv.items():
-                val_cv = v_cv.get("value")
-                if val_cv is None:
-                    continue
-                ctx_cv = next((x for x in chunk_cv
-                               if x["sheet"] == s_cv and x["row"] == r_cv2), None)
-                if ctx_cv is None:
-                    continue
-                # code check: the answered value must appear in the evidence lines
-                vv_set = mapper._num_variants(val_cv)
-                cited_cv = any(any(t in cl for t in vv_set)
-                               for cl in ctx_cv.get("candidate_lines") or [])
-                tc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(target_year)
-                pc_cv = spec["year_axis"].get(s_cv, {}).get("columns", {}).get(last_actual)
-                if not tc_cv:
-                    continue
-                fl_cv = "orange" if cited_cv else "red"
-                writer_obj.write(s_cv, f"{tc_cv}{r_cv2}", val_cv,
-                                 prior_coord=f"{pc_cv}{r_cv2}" if pc_cv else None,
-                                 note=f"coverage pass: {v_cv.get('line','')[:70]} "
-                                      f"p{v_cv.get('page')}"
-                                      + ("" if cited_cv else " — NOT verified in evidence"),
-                                 flag=fl_cv)
-                if cited_cv:
-                    backouts.append((s_cv, f"{tc_cv}{r_cv2}", "coverage pass"))
-                else:
-                    flags.append((s_cv, f"{tc_cv}{r_cv2}", "coverage pass unverified"))
-                n_cov += 1
-    print(f"[6c] coverage pass: {n_cov} carried rows decided "
-          f"({len(cov_rows)} candidates)", flush=True)
 
     # forecast-propagation attribution: any year whose balance gap WIDENED
     # during the repair phase gets a ready-made task naming the repaired cells

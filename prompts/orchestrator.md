@@ -110,11 +110,14 @@ one-off removal (corrected value ~0); re-forecasting drivers is forbidden. If
 no legal removal closes it, note the cause and flag — that is a finish-worthy
 resolution.
 
-## Finish discipline
+## Finish discipline — BALANCE IS A NO-EXIT CONDITION
 
-Do NOT finish while any key number is MISMATCH or UNPROVABLE without a recorded
-investigation: remap it, cite evidence, fix it or note exactly why it cannot be
-proven from this disclosure. Same for each year's balance. You have a large
-decision budget — use it; the clock in TIME is your only real constraint.
+You may NOT finish while ANY year's balance check is non-zero, unless for that
+year you have (a) traced the gap to a NAMED cell, (b) attempted a legal repair,
+and (c) noted the cause chain. A constant per-year drift (e.g. +352 every
+forecast year) is ONE propagating item — find it; that is an order, not a hint.
+Same discipline for every key number: fixed with evidence, or documented
+exactly why not. Your decision budget is huge and the clock is generous —
+running out of ideas is acceptable only after the ideas are in your notes.
 
 Reply with ONE action as JSON: {"action": "...", "args": {...}, "why": "one line"}.
