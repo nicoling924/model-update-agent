@@ -271,3 +271,25 @@ text layer and OCR them into the raw-line stream. Secondary: the agent loop's
 redirects to the source-sheet input site, though `resolve_input_site` already
 knows where that is — 63 decisions produced no write. Worth fixing, but on this
 document it would only have moved a number the agent could not read.
+
+**EYES + HANDS (runs 98-99, 08-15/16, council plan #1+#2 then the audit-web fix):**
+
+| 98 (Luna, vision + resolver) | 08-15 15:56 | 50.9m ✓ | keys 6/13 (was 3) | balance FAIL -20,296 | 44 red | Eyes WORKED: the agent transcribed the scanned statements itself (checksum-gated, 7/16 pages FY25) and PROVED the values run 97 couldn't find (TA 162,674.2, CA 101,683.7, CFO/CFI/CFF exact). Hands worked as designed: set_input on derived SUMs returned structured MISSes, page reads exhausted at 2 — no 63-decision spiral. But converge banked 0 fixes: the evidence existed and the audit web could not SEE it. |
+
+**RUN-98 AUTOPSY — the units disease had EIGHT more homes.** Code-parsed staging
+items, prove()'s raw corroboration, ctrlf_read, the constants-Ctrl+F fallback,
+learn_composition, the bridge menu (why every CF bridge double-lock failed at
+`FY24 0.0` since run 95), replay_composition, and the learner's construction
+matcher all compared yuan-printed numbers to model millions. Plus three
+CLP-shaped assumptions: no Chinese captions in KEY_KINDS (and _norm DELETED
+CJK — a CN synonym normalized to "" and boundary-matched labels containing
+'&'), statement locality anchored on the earliest proven page (p5 five-year
+summary) discarding the real BS on p95-96 as "off-page", and the >=3-source
+plug gate blocking even sibling corrections for values a scanned BS prints
+exactly once. All fixed: mapper.to_model_units at every boundary (page-scale
+values convert, per-share stay printed; no-op at scale 1 — CLP untouched), CN
+glossary + CJK-preserving _norm, densest-cluster locality, thin-proof =
+sibling-only. REPLAY of run 98's own evidence through the fixed chain: 11/11
+key numbers prove at the exact disclosed values.
+
+| 99 (Luna, audit web sees) | 08-16 dispatched | — | — | — | — | The first run where the agent knows the right totals AND can repair the components that feed them. |
