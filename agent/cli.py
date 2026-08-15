@@ -264,8 +264,11 @@ def cmd_learn(company_dir, prior_period):
     from .evaluator import Evaluator as _Ev
     key_log = []
     km_l = obj_mod.locate(spec, wb, key_log)
+    # English AND Chinese section markers — English-only left the bridge menu
+    # EMPTY on CN filings (the LLM returned empty bridges; double-lock failed
+    # at 0.0 on every DFE run 95-99)
     CF_SECT = ["cash flow", "operating activities", "investing activities",
-               "financing activities"]
+               "financing activities", "现金流量", "经营活动", "投资活动", "筹资活动"]
     ev_l = _Ev(wb)
     n_bridges = 0
     for kind_l in ("cfo", "cfi", "cff"):
