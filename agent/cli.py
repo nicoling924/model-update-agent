@@ -80,8 +80,16 @@ def cmd_learn(company_dir, prior_period):
     client = Client(temperature=cfg["updater"]["temperature"],
                     max_output_tokens=cfg["updater"]["max_output_tokens"])
     print(f"[L1] extracting prior-year disclosures ({prior_period}) ...", flush=True)
-    staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
-    print(f"[L1] extracted {len(staging['items'])} items, {len(staging['ties'])} ties", flush=True)
+    try:
+        staging = extraction.extract(client, system, disclosures, _prompt("extraction"), cfg)
+        print(f"[L1] extracted {len(staging['items'])} items, "
+              f"{len(staging['ties'])} ties", flush=True)
+    except Exception as ex:
+        # the deterministic learners (identities, recipes, bridges) never
+        # needed the big extraction — degrade gracefully, don't die
+        print(f"[L1] extraction failed ({str(ex)[:110]}) — proceeding with "
+              "deterministic learning only", flush=True)
+        staging = {"items": [], "ties": []}
     # census of prior-column hardcodes
     census = {}
     for sheet_c, ax_c in spec["year_axis"].items():
