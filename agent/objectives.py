@@ -492,6 +492,12 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
             # more likely a scope difference (cash vs cash+deposits; company's
             # "operating earnings" vs the model's) — flag, never plug
             band = _DEFN_BAND.get(mismatch["kind"], _DEFN_DEFAULT)
+            pages_m = [str(x) for x in ((proven.get(mismatch["kind"]) or {}).get("pages") or [])]
+            reconciled = any(x.startswith(("bridge", "model-identity", "evidenced",
+                                           "FY24", "identity"))
+                             for x in pages_m)                 or (proven.get(mismatch["kind"]) or {}).get("sources", 0) >= 5
+            if reconciled:
+                band = 0.0  # the definition was already reconciled — fix exactly
             if not isinstance(mismatch["model"], (int, float)):
                 # no numeric baseline (eval error) — plugging would be blind
                 flags.append((s, coord, f"key {mismatch['kind']}: model value not "
