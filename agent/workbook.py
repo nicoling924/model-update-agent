@@ -277,3 +277,35 @@ def save(wb, path):
 def dump_json(obj, path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(obj, indent=1, default=str))
+
+
+_SINGLE_REF = re.compile(
+    r"^=\s*-?\s*(?:'([^']+)'|([A-Za-z][A-Za-z0-9 _]*))!(\$?[A-Z]{1,3})(\$?\d+)\s*$")
+
+
+def resolve_input_site(wb, sheet, row, prior_col, depth=0):
+    """Where is this row's number ACTUALLY typed?
+
+    The analyst's own prior-year column answers it: a hardcode means the input
+    lives here; a single cross-sheet reference means the input lives THERE
+    (follow it); anything composite means the row is derived, not an input.
+
+    Returns (sheet, row) of the true input site, or None for derived rows.
+    On direct-input models this returns the cell itself — identity — so the
+    behaviour only changes for link-through models.
+    """
+    if depth > 4 or sheet not in wb.sheetnames:
+        return None
+    try:
+        v = wb[sheet][f"{prior_col}{row}"].value
+    except Exception:
+        return None
+    if isinstance(v, (int, float)):
+        return (sheet, row)
+    if not isinstance(v, str) or not v.startswith("="):
+        return None
+    m = _SINGLE_REF.match(v.replace("$", "").strip())
+    if not m:
+        return None
+    tgt_sheet = (m.group(1) or m.group(2) or "").strip()
+    return resolve_input_site(wb, tgt_sheet, int(m.group(4)), m.group(3), depth + 1)
