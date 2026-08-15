@@ -123,9 +123,10 @@ def cmd_learn(company_dir, prior_period):
                           "prior_value": v24_c, "v23": v23_c})
     # EYES for the practice year too: the FY-prior AR may be a scan as well.
     from . import vision as vision_mod
+    vision_client_l = Client(temperature=0.0, max_output_tokens=8000)
     for d_i, d_p in enumerate(disclosures):
         vl24 = vision_mod.transcribe_image_pages(
-            d_p, client, [r["prior_value"] for r in lrows] +
+            d_p, vision_client_l, [r["prior_value"] for r in lrows] +
             [r.get("v23") for r in lrows if isinstance(r.get("v23"), (int, float))],
             ".cache/vision", log=lambda m: print(m, flush=True))
         raw24_map += [(d_i * 1000 + pn_v, sec_v, ln_v)
@@ -492,10 +493,14 @@ def cmd_update(company_dir, period):
     # EYES: image-only pages (scanned statements) transcribed by the SAME
     # engine's vision, checksum-verified against the model's own prior values,
     # then injected as ordinary raw lines — downstream works unchanged.
+    # Dedicated client: a 57-row statement page needs ~5k output tokens; the
+    # 3k mapping budget truncated the JSON mid-string and run 98 lost the
+    # consolidated CF page (p101) to "Unterminated string".
     from . import vision
+    vision_client = Client(temperature=0.0, max_output_tokens=8000)
     for d_i, d_p in enumerate(disclosures):
         vl = vision.transcribe_image_pages(
-            d_p, map_client, [r.get("prior_value") for r in all_rows],
+            d_p, vision_client, [r.get("prior_value") for r in all_rows],
             ".cache/vision", log=lambda m: print(m, flush=True))
         raw_map += [(d_i * 1000 + pn_v, sec_v, ln_v) for pn_v, sec_v, ln_v in vl]
         raw_all += vl

@@ -45,11 +45,14 @@ from . import lookup
 PROMPT_VERSION = "v1"
 LONG_EDGE = 2400
 LONG_EDGE_RETRY = 3072
-ANCHOR_MIN = 4          # known values a self-standing page must reproduce
-ANCHOR_MIN_BLOCK = 2    # enough when a sibling page proved the block's scale:
-                        # two 11-digit exact matches at a fixed scale are
-                        # already beyond coincidence (CF pages measured 2-3 —
-                        # the model simply tracks fewer CF rows than BS rows)
+ANCHOR_MIN = 4          # known prior values a page must reproduce IN ITS
+                        # PRIOR COLUMN. Measured separation on Dongfang FY25:
+                        # real consolidated statements anchor 17-29; parent-
+                        # company (母公司) twins and equity-movement pages 0-2.
+                        # Union-column counting diluted this to 2-3 and a
+                        # block-corroboration relaxation then admitted a parent
+                        # P&L — the run-98 Driver-page poisoning. Prior-only,
+                        # no ride-alongs.
 COPY_MAX = 0.8          # max fraction of rows where current == prior
 SCALES = (1, 1e3, 1e4, 1e6, 1e8)
 MAX_PAGES_PER_DOC = 24
@@ -192,13 +195,8 @@ def _fmt(v):
 def _checksum(rows, known_values):
     """(anchors_hit, scale, copy_fraction). Known values are in MODEL units;
     the page prints DOCUMENT units — try the standard scales, lock the best."""
-    nums = []
-    for r in rows:
-        for k in ("current", "prior"):
-            n = _parse_num(r.get(k))
-            if n is not None and abs(n) > 0:
-                nums.append(abs(n))
-    nums.sort()
+    nums = sorted(abs(n) for r in rows
+                  for n in [_parse_num(r.get("prior"))] if n)
     known = [abs(v) for v in known_values
              if isinstance(v, (int, float)) and abs(v) > 100]
     best_hits, best_scale = 0, 1
@@ -317,13 +315,10 @@ def transcribe_image_pages(pdf_path, client, known_values, cache_dir,
                        if entry.get("rows") is not None
                        else f"UNREAD — {entry.get('why', '?')}"))
 
-    # phase 3 (code): the gate. Pass 1 — self-standing pages (>=ANCHOR_MIN
-    # anchors). Pass 2 — block corroboration: a substantial page whose scale
-    # AGREES with a self-standing sibling passes at ANCHOR_MIN_BLOCK (CF/P&L
-    # pages print fewer model-tracked rows than the BS; measured 2-3 anchors
-    # on real ones). The rows floor keeps small parent-company (母公司)
-    # fragments — measured 2 anchors on 5 rows — out of the corroborated set;
-    # zero-anchor parent statement pages reject on their own.
+    # phase 3 (code): the gate, judged on the PRIOR column — the one column
+    # the harness can verify, because the model already holds last year. Real
+    # consolidated statements reproduce dozens of known values there; parent-
+    # company twins and multi-column equity tables reproduce almost none.
     judged = {}
     for pn, entry in entries.items():
         rows = entry.get("rows")
@@ -332,16 +327,9 @@ def transcribe_image_pages(pdf_path, client, known_values, cache_dir,
             continue
         hits, scale, copy_frac = _checksum(rows, known_values)
         judged[pn] = {"ok": hits >= ANCHOR_MIN and copy_frac <= COPY_MAX,
-                      "why": f"anchors {hits}, copy {copy_frac:.0%}",
+                      "why": f"prior-column anchors {hits}, copy {copy_frac:.0%}",
                       "scale": scale, "hits": hits, "copy": copy_frac,
                       "nrows": len(rows)}
-    strong_scales = {j["scale"] for j in judged.values() if j["ok"]}
-    for j in judged.values():
-        if (not j["ok"] and strong_scales and j.get("scale") in strong_scales
-                and j.get("hits", 0) >= ANCHOR_MIN_BLOCK
-                and j.get("copy", 1) <= COPY_MAX and j.get("nrows", 0) >= 10):
-            j["ok"] = True
-            j["why"] += " — block-corroborated"
 
     out, accepted, rejected = [], [], []
     for pn in image_pages:
