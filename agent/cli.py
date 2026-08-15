@@ -428,10 +428,40 @@ def cmd_update(company_dir, period):
             lab = next((wsp[f"{lc}{r}"].value for lc in "ABCDEF"
                         if isinstance(wsp[f"{lc}{r}"].value, str)), f"row {r}")
             m_e = memory.get((sheet_c, r)) or {}
+            hint_c = m_e.get("label")
+            view_c = site_labels.get((sheet_c, r))
+            if view_c:
+                hint_c = f"{hint_c or ''} [{view_c}]".strip()
             all_rows.append({"sheet": sheet_c, "row": r, "label": lab,
                              "prior_value": pre_wb[sheet_c][f"{pc_c}{r}"].value,
-                             "memory_hint": m_e.get("label"),
+                             "memory_hint": hint_c,
                              "memory_page": m_e.get("page")})
+    # STRUCTURAL SELF-AWARENESS: follow each statement row's prior-year formula
+    # to where its number is actually TYPED. On link-through models the Model
+    # tab is a view — the input site is the source sheet — and the view's
+    # English label is the best identifier for that (possibly Chinese) row.
+    site_labels = {}
+    for sheet_v, ax_v in spec["year_axis"].items():
+        if sheet_v not in pre_wb.sheetnames:
+            continue
+        pc_v = (ax_v.get("columns") or {}).get(last_actual)
+        if not pc_v:
+            continue
+        for r_v in range(1, min(pre_wb[sheet_v].max_row, 400) + 1):
+            cellv = pre_wb[sheet_v][f"{pc_v}{r_v}"].value
+            if not (isinstance(cellv, str) and cellv.startswith("=")):
+                continue
+            site = workbook.resolve_input_site(pre_wb, sheet_v, r_v, pc_v)
+            if not site or site == (sheet_v, r_v):
+                continue
+            lab_v = next((pre_wb[sheet_v][f"{lc}{r_v}"].value for lc in "ABCDEF"
+                          if isinstance(pre_wb[sheet_v][f"{lc}{r_v}"].value, str)), None)
+            if lab_v and site not in site_labels:
+                site_labels[site] = f"{sheet_v} row {r_v} calls this '{str(lab_v)[:40]}'"
+    if site_labels:
+        print(f"[1s] link-through model: {len(site_labels)} input sites identified "
+              "in source sheets (view labels carried across)", flush=True)
+
     raw_all = lookup_mod.raw_lines(disclosures)
     # MAPPER view: document-qualified page ids (doc_i*1000 + page) so the AR's
     # p184 and the announcement's p25 never mix in one "page" — the run-45
