@@ -234,7 +234,7 @@ actually typed). Then two found by EXECUTING rather than reading:
 
 | 95 | 08-15 13:00 | crashed 4.6m | — | — | — | — | `site_labels` read above its assignment — the update leg died every run. Compile checks cannot see binding order; the (rebuilt, now committed) stubbed dry-run harness catches it in 90 seconds. Learner leg also showed VERIFIED **0 of 210** and all three CF bridges rejected at `FY24 0.0`. |
 | 96 | 08-15 13:09 | cancelled | — | — | — | — | Second session's dispatch: ran against a live model a run output had been committed over, and predates the scale fix. Cancelled to save budget. |
-| 97 | 08-15 13:28 | in flight | — | — | — | — | First DFE run with document-unit scaling. |
+| 97 | 08-15 13:28 | 34.5m ✓ | **79.1%** (216/273 vs the completed Fable-5 model; adjudicated >=82%) | -16,548 (2025) / -16,909 fcst | 46 | 11 | **First scored DFE run.** Units fix landed: learner VERIFIED 19 rows (was 0), 40 identities stored; retrieval 210/210; mapper OK 131 + DERIVED 12 (was 0); 125 rows conf>=4; flags collapsed 207 red -> 56 red + 16 orange, 317 clean. Sales EXACT (78,615.28). Balance FAIL traced to a document limit, not the machinery — see below. |
 
 **ROOT CAUSE OF THE DFE WALL — units, not reading.** The CN annual report prints
 yuan (`营业总收入 69,695,135,723.47`); the model holds millions (69,695.14). Every
@@ -249,3 +249,25 @@ and convert document-unit answers back. Measured offline: DFE findability
 19/75 -> 69/75, retrieval 87 -> 161/210 (learn) and evidence candidates 34 ->
 137 (update); CLP detects scale 1, takes the original string path byte-for-byte,
 and is unchanged at 216/216.
+
+**DFE BALANCE FAILURE — ROOT CAUSE IS THE PDF, NOT THE AGENT.** Pages **95-106**
+of the FY25 annual report have **no text layer** (15 image-only pages in 280;
+the run 95-106 is exactly the statements block the index on p89 lists: balance
+sheet 1-4, income statement 5-6, cash flow 7-8, equity movement 9-12). So
+`流动资产合计` / `资产总计` / `负债合计` return ZERO hits anywhere in the document, and
+101,683.68 (total current assets) is unfindable. Everything the agent got, it
+got from the MD&A tables (资产构成 p21), the five-year highlights (总资产
+162,674,195,217.33, p5) and the notes.
+
+This explains every DFE symptom at once: total assets understated by exactly
+15,199 (built from partial components), 7 key numbers "not provable from
+disclosure", and the agent loop burning 63 decisions hunting pages that contain
+no text. It diagnosed its own gap correctly ("total assets understated by
+15,199.0") and could not close it because the number is a picture.
+
+**NEXT (highest leverage on DFE): OCR image-only pages.** Detect pages with no
+text layer and OCR them into the raw-line stream. Secondary: the agent loop's
+`set_input` refuses formula cells (`Model!U67 is not an input cell`) and never
+redirects to the source-sheet input site, though `resolve_input_site` already
+knows where that is — 63 decisions produced no write. Worth fixing, but on this
+document it would only have moved a number the agent could not read.
