@@ -18,44 +18,51 @@ from .evaluator import Evaluator
 
 # canonical key numbers (Objective 2) and the labels they wear in models
 KEY_KINDS = {
-    "sales": ["total revenue", "revenue", "turnover", "sales", "operating revenue"],
-    "gross_profit": ["gross profit", "gross margin (hk$", "gross income"],
+    "sales": ["total revenue", "revenue", "turnover", "sales", "operating revenue",
+              "营业总收入", "营业收入"],
+    "gross_profit": ["gross profit", "gross margin (hk$", "gross income", "毛利"],
     "operating_profit": ["operating profit", "operating income", "ebit",
-                         "profit from operations"],
+                         "profit from operations", "营业利润"],
     "net_profit": ["net profits (reported)", "net profit", "profit attributable",
-                   "net income", "profit for the year"],
+                   "net income", "profit for the year", "净利润"],
     "cash": ["cash and cash equivalents", "cash & cash equivalents", "cash and equivalents",
+             "货币资金", "现金及现金等价物余额",
              "cash & bank", "bank balances and cash", "cash balance", "cash at end",
              "ending cash"],
-    "current_assets": ["total current assets", "current assets"],
-    "current_liabilities": ["total current liabilities", "current liabilities"],
+    "current_assets": ["total current assets", "current assets", "流动资产合计"],
+    "current_liabilities": ["total current liabilities", "current liabilities",
+                            "流动负债合计"],
     "non_current_assets": ["total non-current assets", "non-current assets",
-                           "total non current assets"],
+                           "total non current assets", "非流动资产合计"],
     "non_current_liabilities": ["total non-current liabilities", "non-current liabilities",
                                 "total non current liabilities", "total long-term liabilities",
-                                "long-term liabilities"],
+                                "long-term liabilities", "非流动负债合计"],
     "equity": ["total equity", "total shareholders", "shareholders' funds",
-               "shareholders funds", "equity attributable", "net assets"],
-    "total_assets": ["total assets"],
+               "shareholders funds", "equity attributable", "net assets",
+               "所有者权益合计", "股东权益合计"],
+    "total_assets": ["total assets", "资产总计", "总资产"],
     "cfo": ["net cash flow from operations", "net cash from operating",
             "net cash flow from operating", "net cash generated from operating",
-            "cash flows from operating", "operating cash flow"],
+            "cash flows from operating", "operating cash flow",
+            "经营活动产生的现金流量净额"],
     "cfi": ["net cash flow from investing", "net cash used in investing",
             "net cash from investing", "cash flows from investing",
-            "investing cash flow"],
+            "investing cash flow", "投资活动产生的现金流量净额"],
     "cff": ["net cash flow from financing", "net cash used in financing",
             "net cash from financing", "cash flows from financing",
-            "financing cash flow"],
+            "financing cash flow", "筹资活动产生的现金流量净额"],
 }
 # guards: "current assets" must never match "non-current assets"; CF totals must
 # never match an "other …" or pre-subtotal line; BS totals must never match
 # derived lines like "total assets less current liabilities"
-_EXCLUDE = {"current_assets": ["non-current", "non current", "less", "net current"],
+_EXCLUDE = {"current_assets": ["non-current", "non current", "less", "net current",
+                               "非流动"],
             "current_liabilities": ["non-current", "non current", "less",
-                                    "total assets", "net current", "equity and"],
+                                    "total assets", "net current", "equity and",
+                                    "非流动"],
             "non_current_liabilities": ["less", "total assets", "other", "net",
                                         "equity and", "debts"],
-            "total_assets": ["liabilit", "return", "roa", "less"],
+            "total_assets": ["liabilit", "return", "roa", "less", "负债", "收益率"],
             "cfo": ["other", "before working capital"],
             "cfi": ["other"],
             "cff": ["other"]}
@@ -67,7 +74,9 @@ _DEFN_DEFAULT = 0.01
 
 
 def _norm(s):
-    return re.sub(r"[^a-z0-9& ]", "", str(s).lower()).strip()
+    # keep CJK: a Chinese synonym must not normalize to "" (an empty pattern
+    # boundary-matches labels containing '&' — every synonym would hit them)
+    return re.sub(r"[^a-z0-9& 一-鿿]", "", str(s).lower()).strip()
 
 
 def _syn_hit(syn, nl):
@@ -156,7 +165,8 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
     (sign-safe) or synonym label. Single-source values are provisional."""
     tol = cfg["conventions"]["rounding_tolerance"]
     proven = {}
-    raw_num_pages = {}  # rounded |value| -> set of pages it appears on
+    from . import mapper as _mapper
+    raw_num_pages = {}  # rounded |value| in MODEL units -> pages it appears on
     for pn, _sec, ln in raw_lines:
         for m in re.finditer(r"\(?-?[\d,]{3,}(?:\.\d+)?\)?", ln):
             t = m.group(0).replace(",", "")
@@ -166,7 +176,8 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                 v = float(t)
             except ValueError:
                 continue
-            raw_num_pages.setdefault(round(abs(-v if neg else v), 1), set()).add(pn)
+            v = _mapper.to_model_units(-v if neg else v)
+            raw_num_pages.setdefault(round(abs(v), 1), set()).add(pn)
     ev_prior = Evaluator(pre_wb)
     for kind, loc in keymap.items():
         axis = spec["year_axis"].get(loc["sheet"])
@@ -232,12 +243,16 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
     # drop it to honest-unproven rather than trust the wrong entity
     BS_KINDS = {"cash", "current_assets", "current_liabilities", "non_current_assets",
                 "non_current_liabilities", "equity", "total_assets"}
-    anchor_first = [min(int(x) for x in (proven[k].get("pages") or []) if str(x).isdigit())
-                    for k in BS_KINDS
+    anchor_pages = [int(x) for k in BS_KINDS
                     if proven.get(k, {}).get("status") == "proven"
-                    and any(str(x).isdigit() for x in proven[k].get("pages") or [])]
-    if anchor_first:
-        lo_p, hi_p = min(anchor_first) - 2, min(anchor_first) + 8
+                    for x in (proven[k].get("pages") or []) if str(x).isdigit()]
+    if anchor_pages:
+        # the statements sit where proven anchors CLUSTER — min-of-pages let a
+        # five-year-summary hit on p5 define the window while the actual BS
+        # lived on p95 (DFE), dropping every true statement value as "off-page"
+        center = max(anchor_pages,
+                     key=lambda c: sum(1 for x in anchor_pages if c - 2 <= x <= c + 8))
+        lo_p, hi_p = center - 2, center + 8
         for k in BS_KINDS:
             p = proven.get(k)
             if p and p.get("status") == "single-source":
@@ -512,17 +527,19 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                                "flagged as definition check, not plugged")
                 continue
             n_src = (proven.get(mismatch["kind"]) or {}).get("sources", 0)
-            if n_src < 3:
-                # thin proof never overwrites the model — flag for the agent,
-                # which can remap the row with page evidence and judge itself
+            plug_ok = n_src >= 3
+            if not plug_ok:
+                # thin proof never PLUGS the model — but sibling corrections
+                # carry their own per-component evidence, so they still run
+                # (run 98: CA/NCA proven only on the scanned statement page;
+                # this gate blocked even the component repair)
                 flags.append((s, coord, f"key {mismatch['kind']}: disclosed "
                               f"{dv:,.1f} has only {n_src} source(s) — verify, "
                               "not auto-plugged"))
-                obj_log.append(f"T1 {mismatch['kind']}: proof too thin "
-                               f"({n_src} src) — flagged, not plugged")
-                continue
+                obj_log.append(f"T1 {mismatch['kind']}: proof thin ({n_src} src) "
+                               "— plug disabled; sibling corrections only")
             residual = dv - mismatch["model"]
-            if (s, coord) in eligible_inputs:
+            if plug_ok and (s, coord) in eligible_inputs:
                 # the key cell is itself an input: set it to the proven value
                 fl = None if mismatch["proof"] == "proven" else "red"
                 writer.write(s, coord, dv,
@@ -584,7 +601,7 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                 break
             if done:
                 continue  # re-score; if the subtotal still misses, plug next pass
-            for ps, pco in ranked:
+            for ps, pco in (ranked if plug_ok else []):
                 coef, base_in = _sensitivity(wb, s, coord, ps, pco)
                 if not coef or abs(coef) < 0.01 or abs(coef) > 100:
                     continue

@@ -256,13 +256,16 @@ def component_recipes(disclosure_paths, wb, pre_values, spec, min_const=30, tol=
                     comps.append(None)
                     continue
                 c2 = float(tok2) if tok2 else None
+                # scale-aware: on yuan-printed filings the constant's printed
+                # form is 1e6x the model's — match numerically at doc scale
+                from . import mapper as _mapper
                 cands = [(pn, sec, ln) for pn, sec, ln in L
-                         if any(v in ln for v in lk.fmt_variants(c))
+                         if _mapper.line_has_value(ln, c)
                          and len(lk.label_of(ln)) > 6]
                 chosen = None
                 if c2:  # strong lock: year-before constant on the same line
                     locked = [h for h in cands
-                              if any(abs(abs(n) - c2) <= tol for n in lk.line_nums(h[2]))]
+                              if _mapper.num_matches(lk.line_nums(h[2]), c2)]
                     if locked:
                         chosen = locked[0]
                 if chosen is None:
@@ -272,7 +275,7 @@ def component_recipes(disclosure_paths, wb, pre_values, spec, min_const=30, tol=
                 if chosen is None:
                     comps.append(None)
                     continue
-                nums = lk.line_nums(chosen[2])
+                nums = [_mapper.to_model_units(n) for n in lk.line_nums(chosen[2])]
                 pos = next((ix for ix, n in enumerate(nums) if abs(abs(n) - c) <= tol), None)
                 if pos is None:
                     comps.append(None)

@@ -722,7 +722,13 @@ def cmd_update(company_dir, period):
         lab_r = lookup_mod.label_of(ln_r)
         if not lab_r or len(lab_r) < 4:
             continue
-        staging["items"].append({"label": lab_r, "value": ns_r[0], "prior": ns_r[1],
+        # MODEL UNITS at the boundary: staged items are the audit web's
+        # currency (prove, sibling correction, tie-web, allocation) — on a
+        # yuan-printed filing every triangulation silently failed (run 98:
+        # vision delivered the evidence, the audit layer could not see it)
+        staging["items"].append({"label": lab_r,
+                                 "value": mapper.to_model_units(ns_r[0]),
+                                 "prior": mapper.to_model_units(ns_r[1]),
                                  "page": pn_r, "stmt": None, "_src": "rawline"})
         n_raw_items += 1
     print(f"[2c] audit staging: {len(staging['items'])} items "
@@ -837,7 +843,8 @@ def cmd_update(company_dir, period):
                     continue
                 cands_c = set()
                 for _pn_c, _sec_c, ln_c in raw_all:
-                    ns_c = lookup_mod.line_nums(ln_c)
+                    ns_c = [mapper.to_model_units(n_c)
+                            for n_c in lookup_mod.line_nums(ln_c)]
                     for i_c in range(1, len(ns_c)):
                         if abs(abs(ns_c[i_c]) - tv) <= 0.6:
                             nb = abs(ns_c[i_c - 1])
