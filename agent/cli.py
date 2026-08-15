@@ -63,6 +63,8 @@ def cmd_learn(company_dir, prior_period):
     """Calibration: learn row->disclosure-line identities from the PRIOR year's
     report vs the workbook's own prior actual column; write hidden _UPDATE_MAP."""
     from . import learn as learn_mod
+    from . import derive as derive_mod
+    from . import objectives as obj_mod
     t0 = time.time()
     cfg = _load_cfg()
     company_dir = Path(company_dir)
@@ -86,10 +88,12 @@ def cmd_learn(company_dir, prior_period):
     from . import mapper
     from . import lookup as lookup_mod
     from .evaluator import Evaluator as _EvL
+    fy24_raw_l = None  # plain view, built once below
     raw24_map = []
     for d_i, d_p in enumerate(disclosures):
         for pn_d, sec_d, ln_d in lookup_mod.raw_lines([d_p]):
             raw24_map.append((d_i * 1000 + pn_d, sec_d, ln_d))
+    fy24_raw_l = lookup_mod.raw_lines(disclosures)
     ev_learn = _EvL(wb)
     lrows = []
     for sheet_c, ax_c in spec["year_axis"].items():
@@ -241,12 +245,9 @@ def cmd_learn(company_dir, prior_period):
     # (model CFO = statutory CFO +/- reclassifications). Mechanical recipe
     # first; LLM REASONING fallback — every hypothesis double-locked on
     # FY24 AND FY23 before it may be stored. FY24-only: fair for cold runs.
-    from . import derive as derive_mod
-    from . import objectives as obj_mod
     from .evaluator import Evaluator as _Ev
     key_log = []
     km_l = obj_mod.locate(spec, wb, key_log)
-    fy24_raw_l = __import__("agent.lookup", fromlist=["lookup"]).raw_lines(disclosures)
     CF_SECT = ["cash flow", "operating activities", "investing activities",
                "financing activities"]
     ev_l = _Ev(wb)
