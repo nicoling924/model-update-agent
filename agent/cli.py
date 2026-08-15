@@ -171,9 +171,9 @@ def cmd_learn(company_dir, prior_period):
         m_l = identified.get((r_l["sheet"], r_l["row"]))
         if not m_l or m_l.get("status") != "OK" or not m_l.get("line"):
             continue
-        try:
-            pg_l = int(m_l.get("page"))
-        except (TypeError, ValueError):
+        try:  # the reader answers "p46" as often as 46 — digits only
+            pg_l = int(re.sub(r"[^0-9]", "", str(m_l.get("page"))) or "x")
+        except ValueError:
             continue
         window_l = [(q, ln_q) for q in (pg_l - 1, pg_l, pg_l + 1)
                     for ln_q in raw_by_page_l.get(q, [])]

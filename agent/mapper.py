@@ -406,9 +406,9 @@ def audit(mapped, rows, raw_lines, tol=1.0):
                     m["note"] = f"magnitude {ratio:.0f}x vs prior — verify"
                 continue
         if m["status"] == "OK" and m.get("page"):
-            try:
-                pg = int(m["page"])
-            except (TypeError, ValueError):
+            try:  # "p46" and 46 both mean page 46
+                pg = int(re.sub(r"[^0-9]", "", str(m["page"])) or "x")
+            except ValueError:
                 continue
             window = []
             for q in (pg - 1, pg, pg + 1):
