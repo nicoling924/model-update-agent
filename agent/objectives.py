@@ -586,12 +586,29 @@ def converge(wb, spec, staging, cfg, writer, pre_wb, pre_values, target_year,
                         or abs(cur_s - dv_s) <= max(tol, abs(dv_s) * 0.001):
                     continue
                 fl_s = None if n_src >= 2 else "red"
+                old_cell = wb[ps][pco].value
                 writer.write(ps, pco, dv_s,
                              note=f"OBJECTIVE sibling correction: this component's "
                                   f"disclosed value is {dv_s:,.1f} ({n_src} source(s)); "
                                   f"was {cur_s:,.1f} — corrected while tying "
                                   f"{mismatch['kind']}",
                              flag=fl_s)
+                # TRANSACTIONAL against the DRIVING key: a sibling "correction"
+                # whose evidence matched the wrong line must not move the key
+                # away from its disclosed value (run 104: U11 4,043->3,781.8 on
+                # 3-source evidence took net profit from right to 339.5 wrong)
+                try:
+                    key_after = Evaluator(wb).cell(s, coord)
+                except Exception:
+                    key_after = None
+                if isinstance(key_after, (int, float)) and isinstance(dv, (int, float)) \
+                        and abs(key_after - dv) > abs(mismatch["model"] - dv) + tol:
+                    wb[ps][pco].value = old_cell
+                    obj_log.append(f"T1 {mismatch['kind']}: sibling {ps}!{pco} "
+                                   f"REVERTED — moved the key AWAY from disclosed "
+                                   f"({mismatch['model']:,.1f} -> {key_after:,.1f} "
+                                   f"vs {dv:,.1f})")
+                    continue
                 if fl_s:
                     flags.append((ps, pco, f"sibling correction for {mismatch['kind']}"))
                 obj_log.append(f"T1 {mismatch['kind']}: GUILTY SIBLING {ps}!{pco} "
