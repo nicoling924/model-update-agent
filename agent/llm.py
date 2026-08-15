@@ -38,13 +38,18 @@ class Client:
             max_output_tokens=cfg["reviewer"]["max_output_tokens"],
         )
 
-    def chat(self, system, user, force_json=True):
+    def chat(self, system, user, force_json=True, images=None):
+        # images: [(mime, base64), ...] -> OpenAI-compatible vision content parts
+        content = user if not images else (
+            [{"type": "text", "text": user}]
+            + [{"type": "image_url",
+                "image_url": {"url": f"data:{m};base64,{b}"}} for m, b in images])
         body = {
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_output_tokens,
             "messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": user}],
+                         {"role": "user", "content": content}],
         }
         if force_json:
             body["response_format"] = {"type": "json_object"}
@@ -112,12 +117,12 @@ class Client:
                 time.sleep(5 * (attempt + 1))
         raise LLMError(f"LLM call failed: {last_err}")
 
-    def json(self, system, user, validate, repair_retries=2):
+    def json(self, system, user, validate, repair_retries=2, images=None):
         """Call, parse JSON, run `validate(obj) -> list[str] of errors`.
         On parse/validation failure, re-ask once per retry with the errors quoted."""
         prompt = user
         for attempt in range(repair_retries + 1):
-            raw = self.chat(system, prompt)
+            raw = self.chat(system, prompt, images=images)
             try:
                 obj = json.loads(_strip_fences(raw))
             except json.JSONDecodeError as e:
