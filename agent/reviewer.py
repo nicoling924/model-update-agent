@@ -30,9 +30,14 @@ def column_dump(wb, spec, col_key="_target_cols"):
                 c = ws[f"{col}{r}"]
                 if c.value is None:
                     continue
+                # Excel array/data-table objects are not JSON-serializable —
+                # represent them as text so the reviewer dump never crashes
+                cv = c.value
+                if not isinstance(cv, (int, float, str, bool, type(None))):
+                    cv = f"<{type(cv).__name__}>"
                 rows.append({"row": r, "col": col, "label": label,
-                             "value": c.value if not isinstance(c.value, str) else None,
-                             "formula": c.value if isinstance(c.value, str) else None,
+                             "value": cv if not isinstance(cv, str) else None,
+                             "formula": cv if isinstance(cv, str) else None,
                              "flag": str(c.fill.start_color.rgb) if c.fill and c.fill.fill_type else None,
                              "note": c.comment.text if c.comment else None})
         out[sheet] = rows
