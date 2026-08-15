@@ -1,0 +1,7797 @@
+{
+ "items": [
+  {
+   "label": "61.151,45",
+   "value": 61.2,
+   "prior": 44.55,
+   "page": 227,
+   "stmt": null
+  },
+  {
+   "label": "\u6c34\u8f6e\u53d1\u7535\u673a\u7ec4 \u5146\u74e6 8,056.6 4,230 5,181.6 111.96 -26.64 282.4",
+   "value": 112.0,
+   "prior": 26.15,
+   "page": 14,
+   "stmt": null
+  },
+  {
+   "label": "\u80a1\u7968 600917 \u91cd\u5e86\u71c3\u6c14 247.84 \u81ea\u6709 187.46 -18.19 2.99 169.27",
+   "value": 247.8,
+   "prior": 186.94,
+   "page": 26,
+   "stmt": null
+  },
+  {
+   "label": "\u7d2f\u8ba1\u53d1\u7535\u88c5\u673a\u5bb9\u91cf38.9\u4ebf\u5343\u74e6\uff0c\u540c\u6bd4\u589e\u957f16.1%\u3002\u603b\u4f53\u4e0a\u770b\uff0c\u56fd\u5185\u7684\u7528\u7535\u9700\u6c42\u6301\u7eed\u4fdd\u6301\u9ad8\u589e\u957f\u6001",
+   "value": 38.9,
+   "prior": 16.45,
+   "page": 9,
+   "stmt": null
+  },
+  {
+   "label": "\u8def\u201d\uff0c\u56fd\u9645\u5e02\u573a\u65b0\u751f\u6548\u5408\u540c\u989d\u8d85140\u4ebf\u5143\uff0c\u767e\u4e07\u5343\u74e6\u6838\u7535\u673a\u7ec4\u300150\u5146\u74e6\u91cd\u578b\u71c3\u673a\u3001\u62bd\u6c34\u84c4\u80fd\u673a\u7ec4",
+   "value": 140.0,
+   "prior": 49.51,
+   "page": 10,
+   "stmt": null
+  },
+  {
+   "label": "71.990,53",
+   "value": 72.0,
+   "prior": 52.71,
+   "page": 178,
+   "stmt": null
+  },
+  {
+   "label": "\u6301\u7eed\u7763\u5bfc\u7684\u671f\u95f4 2025\u5e744\u670814\u65e5\u81f32026\u5e7412\u670831\u65e5",
+   "value": 14.0,
+   "prior": 11.6,
+   "page": 5,
+   "stmt": null
+  },
+  {
+   "label": "\u957f12.80%\uff1b\u5229\u6da6\u603b\u989d47.85\u4ebf\u5143\uff0c\u540c\u6bd4\u589e\u957f23.19%\uff1b\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u80a1\u4e1c\u7684\u51c0\u5229\u6da638.31\u4ebf\u5143\uff0c\u540c",
+   "value": 47.9,
+   "prior": 23.2971,
+   "page": 9,
+   "stmt": null
+  },
+  {
+   "label": "5,800,544.42 4,989,711.73 13.98 22.00 17.94",
+   "value": 14.0,
+   "prior": 21.8791,
+   "page": 13,
+   "stmt": null
+  },
+  {
+   "label": "\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u6240\u6709\u8005\u7684\u51c0\u5229\u6da6",
+   "value": 3831301222.13,
+   "prior": 1431920010.96,
+   "page": 2,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u62df\u4ee5\u5f53\u524d\u516c\u53f8\u603b\u80a1\u672c",
+   "value": 3458360326.0,
+   "prior": 10.0,
+   "page": 2,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8ba1\u6d3e\u53d1\u73b0\u91d1\u80a1\u5229",
+   "value": 1832930972.78,
+   "prior": 47.84,
+   "page": 2,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62a5\u544a\u671f \u6307",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 4,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8054\u7cfb\u5730\u5740 \u56db\u5ddd\u7701\u6210\u90fd\u5e02\u9ad8\u65b0\u897f\u533a\u897f\u82af\u5927\u9053",
+   "value": 18.0,
+   "prior": 18.0,
+   "page": 4,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6301\u7eed\u7763\u5bfc\u7684\u671f\u95f4",
+   "value": 4.0,
+   "prior": 14.0,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9999\u6e2fH\u80a1\u80a1\u4efd\u8fc7\u6237\u767b\u8bb0\u5904 \u9999\u6e2f\u6e7e\u4ed4\u7687\u540e\u5927\u9053\u4e1c",
+   "value": 183.0,
+   "prior": 17.0,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u603b\u6536\u5165",
+   "value": 78615277439.83,
+   "prior": 69695135723.47,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u6536\u5165",
+   "value": 77582624563.59,
+   "prior": 68592735741.35,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5229\u6da6\u603b\u989d",
+   "value": 4785135320.24,
+   "prior": 3884243745.66,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u7684\u6263\u9664\u975e\u7ecf\u5e38\u6027",
+   "value": 3191934809.53,
+   "prior": 1980447209.57,
+   "page": 5,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57fa\u672c\u6bcf\u80a1\u6536\u76ca\uff08\u5143\uff0f\u80a1\uff09",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7a00\u91ca\u6bcf\u80a1\u6536\u76ca\uff08\u5143\uff0f\u80a1\uff09",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u52a0\u6743\u5e73\u5747\u51c0\u8d44\u4ea7\u6536\u76ca\u7387\uff08%\uff09",
+   "value": 9.0,
+   "prior": 7.71,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u6536\u5165",
+   "value": 16290954843.58,
+   "prior": 21332672462.83,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u7684\u6263\u9664\u975e\u7ecf\u5e38\u6027",
+   "value": 1057975915.42,
+   "prior": 748393543.49,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6d3b\u52a8\u4ea7\u751f\u7684\u73b0",
+   "value": -3292867654.62,
+   "prior": 2736401225.68,
+   "page": 6,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea7\u548c\u91d1\u878d\u8d1f\u503a\u4ea7\u751f\u7684\u516c\u5141\u4ef7\u503c\u53d8\u52a8\u635f",
+   "value": 86561275.42,
+   "prior": -222815806.67,
+   "page": 7,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u52a1\u91cd\u7ec4\u635f\u76ca",
+   "value": 78733508.57,
+   "prior": 68357655.0,
+   "page": 7,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u6240\u5f97\u7a0e\u5f71\u54cd\u989d",
+   "value": 130056385.26,
+   "prior": 165952796.68,
+   "page": 8,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5c11\u6570\u80a1\u4e1c\u6743\u76ca\u5f71\u54cd\u989d\uff08\u7a0e\u540e\uff09",
+   "value": 67836526.45,
+   "prior": 281708291.17,
+   "page": 8,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u6613\u6027\u91d1\u878d\u8d44\u4ea7",
+   "value": 1697971178.52,
+   "prior": 1832489719.73,
+   "page": 8,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u6743\u76ca\u5de5\u5177\u6295\u8d44",
+   "value": 544594360.32,
+   "prior": 668320905.39,
+   "page": 8,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u7d2f\u8ba1\u4ea7\u51fa\u53d1\u7535\u8bbe\u5907\u89c4\u6a21\u8d85\u8fc7",
+   "value": 8.4,
+   "prior": 90.0,
+   "page": 8,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7d2f\u8ba1\u53d1\u7535\u88c5\u673a\u5bb9\u91cf",
+   "value": 38.9,
+   "prior": 16.1,
+   "page": 9,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8def\u201d\uff0c\u56fd\u9645\u5e02\u573a\u65b0\u751f\u6548\u5408\u540c\u989d\u8d85",
+   "value": 140.0,
+   "prior": 50.0,
+   "page": 10,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u98ce\u7535\u673a\u7ec4\u5e76\u7f51\u53d1\u7535\uff0c",
+   "value": 17.0,
+   "prior": 15.0,
+   "page": 10,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u5de5\u5382\uff1b\u62e5\u6709\u667a\u80fd\u5236\u9020\u6210\u719f\u5ea6\u56db\u7ea7\u4f01\u4e1a\uff08\u884c\u4e1a\u6700\u9ad8\u6c34\u5e73\uff09",
+   "value": 3.0,
+   "prior": 34.0,
+   "page": 11,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u603b\u6536\u5165",
+   "value": 78615277439.83,
+   "prior": 69695135723.47,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u6210\u672c",
+   "value": 65215256838.9,
+   "prior": 58876109012.73,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9500\u552e\u8d39\u7528",
+   "value": 847668020.81,
+   "prior": 822360688.77,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ba1\u7406\u8d39\u7528",
+   "value": 3781800254.95,
+   "prior": 3523054191.25,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u52a1\u8d39\u7528",
+   "value": 117694868.84,
+   "prior": 44547885.42,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7814\u53d1\u8d39\u7528",
+   "value": 3261156190.4,
+   "prior": 3009012872.14,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6295\u8d44\u6536\u76ca",
+   "value": 867118249.46,
+   "prior": 1577063838.88,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d44\u4ea7\u5904\u7f6e\u6536\u76ca\uff08\u635f\u5931\u4ee5\u201c-\u201d\u53f7\u586b\u5217\uff09",
+   "value": 5945079.55,
+   "prior": 16452695.37,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6d3b\u52a8\u4ea7\u751f\u7684\u73b0\u91d1\u6d41\u91cf\u51c0\u989d",
+   "value": 2014320912.85,
+   "prior": 10059491408.32,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6295\u8d44\u6d3b\u52a8\u4ea7\u751f\u7684\u73b0\u91d1\u6d41\u91cf\u51c0\u989d",
+   "value": -10587324054.32,
+   "prior": -2773695813.82,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7b79\u8d44\u6d3b\u52a8\u4ea7\u751f\u7684\u73b0\u91d1\u6d41\u91cf\u51c0\u989d",
+   "value": 5101688322.57,
+   "prior": 1088764448.85,
+   "page": 12,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5236\u9020\u670d\u52a1",
+   "value": 1290106.91,
+   "prior": 878787.59,
+   "page": 13,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b0\u5174\u4ea7\u4e1a",
+   "value": 770876.41,
+   "prior": 655617.55,
+   "page": 13,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c34\u8f6e\u53d1\u7535\u673a\u7ec4 \u5146\u74e6",
+   "value": 8056.6,
+   "prior": 4230.0,
+   "page": 14,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u98ce\u529b\u53d1\u7535\u673a\u7ec4 \u5146\u74e6",
+   "value": 14026.1,
+   "prior": 12656.6,
+   "page": 14,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c7d\u8f6e\u53d1\u7535\u673a \u5146\u74e6",
+   "value": 57852.0,
+   "prior": 51089.0,
+   "page": 14,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u7ad9\u6c7d\u8f6e\u673a \u5146\u74e6",
+   "value": 48330.0,
+   "prior": 49069.0,
+   "page": 14,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u7ad9\u9505\u7089 \u5146\u74e6",
+   "value": 28930.0,
+   "prior": 28930.0,
+   "page": 14,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7528\uff08\u91c7\u8d2d\u6210",
+   "value": 5508832.14,
+   "prior": 84.44,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eba\u5de5\u6210\u672c",
+   "value": 183574.86,
+   "prior": 2.81,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d39\u7528",
+   "value": 831709.87,
+   "prior": 12.75,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7528\uff08\u91c7\u8d2d\u6210",
+   "value": 4293450.44,
+   "prior": 65.81,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eba\u5de5\u6210\u672c",
+   "value": 148325.11,
+   "prior": 2.27,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d39\u7528",
+   "value": 547936.18,
+   "prior": 8.4,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7528\uff08\u91c7\u8d2d\u6210",
+   "value": 650663.73,
+   "prior": 9.97,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eba\u5de5\u6210\u672c",
+   "value": 20909.93,
+   "prior": 0.32,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d39\u7528",
+   "value": 206692.65,
+   "prior": 3.17,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7528\uff08\u91c7\u8d2d\u6210",
+   "value": 564717.97,
+   "prior": 8.66,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eba\u5de5\u6210\u672c",
+   "value": 14339.82,
+   "prior": 0.22,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d39\u7528",
+   "value": 77081.03,
+   "prior": 1.18,
+   "page": 15,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u524d\u4e94\u540d\u5ba2\u6237\u9500\u552e\u989d",
+   "value": 2197003.6,
+   "prior": 27.95,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u524d\u4e94\u540d\u4f9b\u5e94\u5546\u91c7\u8d2d\u989d",
+   "value": 1152555.19,
+   "prior": 17.67,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u91c7\u8d2d\u989d",
+   "value": 46503.2,
+   "prior": 7.13,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "B.\u62a5\u544a\u671f\u5185\u5411\u5355\u4e2a\u5ba2\u6237\u7684\u9500\u552e\u6bd4\u4f8b\u8d85\u8fc7\u603b\u989d\u7684",
+   "value": 50.0,
+   "prior": 5.0,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62a5\u544a\u671f\u5185\u5411\u5355\u4e2a\u4f9b\u5e94\u5546\u7684\u91c7\u8d2d\u6bd4\u4f8b\u8d85\u8fc7\u603b\u989d\u7684",
+   "value": 50.0,
+   "prior": 5.0,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6750\u6599\u8d2d\u9500\u7b49",
+   "value": 53195.73,
+   "prior": 45365.14,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9500\u552e\u8d39\u7528",
+   "value": 847668020.81,
+   "prior": 822360688.77,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ba1\u7406\u8d39\u7528",
+   "value": 3781800254.95,
+   "prior": 3523054191.25,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7814\u53d1\u8d39\u7528",
+   "value": 3261156190.4,
+   "prior": 3009012872.14,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u52a1\u8d39\u7528",
+   "value": 117694868.84,
+   "prior": 44547885.42,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6240\u5f97\u7a0e\u8d39\u7528",
+   "value": 819157357.06,
+   "prior": 596717889.35,
+   "page": 18,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6536\u5230\u7684\u7a0e\u8d39\u8fd4\u8fd8",
+   "value": 340943741.53,
+   "prior": 24819326.87,
+   "page": 19,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d2d\u4e70\u5546\u54c1\u3001\u63a5\u6536\u52b3\u52a1\u652f\u4ed8\u7684\u73b0\u91d1",
+   "value": 78710675811.83,
+   "prior": 56209490945.61,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25b3\u5ba2\u6237\u8d37\u6b3e\u53ca\u57ab\u6b3e\u51c0\u589e\u52a0\u989d",
+   "value": -4251524251.34,
+   "prior": -1791652622.96,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25b3\u652f\u4ed8\u5229\u606f\u3001\u624b\u7eed\u8d39\u53ca\u4f63\u91d1\u7684\u73b0\u91d1",
+   "value": 1947810.8,
+   "prior": 1300888.47,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u652f\u4ed8\u7684\u5404\u9879\u7a0e\u8d39",
+   "value": 3477346646.88,
+   "prior": 2777690323.72,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6536\u56de\u6295\u8d44\u6536\u5230\u7684\u73b0\u91d1",
+   "value": 25155704810.83,
+   "prior": 35262270217.8,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5438\u6536\u6295\u8d44\u6536\u5230\u7684\u73b0\u91d1",
+   "value": 5236179223.16,
+   "prior": 110017500.0,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d6\u5f97\u501f\u6b3e\u6240\u6536\u5230\u7684\u73b0\u91d1",
+   "value": 5569616084.31,
+   "prior": 2511723871.4,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u507f\u8fd8\u503a\u52a1\u6240\u652f\u4ed8\u7684\u73b0\u91d1",
+   "value": 1085686524.94,
+   "prior": 316217093.56,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25b3\u62c6\u51fa\u8d44\u91d1",
+   "value": 1016528514.62,
+   "prior": 0.62,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u7968\u636e",
+   "value": 1664057411.81,
+   "prior": 1.02,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u8d26\u6b3e",
+   "value": 15193794901.36,
+   "prior": 9.34,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u6b3e\u9879\u878d\u8d44",
+   "value": 2885613858.43,
+   "prior": 1.77,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u6536\u6b3e",
+   "value": 381686005.06,
+   "prior": 0.23,
+   "page": 20,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u540c\u8d44\u4ea7",
+   "value": 17158279769.81,
+   "prior": 10.55,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u6d41\u52a8\u8d44\u4ea7",
+   "value": 2156070817.67,
+   "prior": 1.33,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u6743\u6295\u8d44",
+   "value": 26277752083.33,
+   "prior": 16.15,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u5e94\u6536\u6b3e",
+   "value": 79867096.24,
+   "prior": 0.05,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u80a1\u6743\u6295\u8d44",
+   "value": 3623462354.53,
+   "prior": 2.23,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6295\u8d44\u6027\u623f\u5730\u4ea7",
+   "value": 227945511.81,
+   "prior": 0.14,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f00\u53d1\u652f\u51fa",
+   "value": 1718130.51,
+   "prior": 0.0,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u5f85\u644a\u8d39\u7528",
+   "value": 50817013.8,
+   "prior": 0.03,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u975e\u6d41\u52a8\u8d44\u4ea7",
+   "value": 10174941879.78,
+   "prior": 6.25,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u77ed\u671f\u501f\u6b3e",
+   "value": 141302980.52,
+   "prior": 0.09,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u6d41\u52a8\u8d1f\u503a",
+   "value": 1326771641.9,
+   "prior": 0.82,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u501f\u6b3e",
+   "value": 4541776479.47,
+   "prior": 2.79,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d1f\u503a",
+   "value": 149063975.25,
+   "prior": 0.09,
+   "page": 21,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u5883\u5916\u8d44\u4ea7",
+   "value": 1375072019.87,
+   "prior": 0.85,
+   "page": 23,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 / /",
+   "value": 248767.21,
+   "prior": 212860.96,
+   "page": 26,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b50\u516c\u53f8 \u8d22\u52a1\u516c\u53f8\u670d\u52a1",
+   "value": 209500.11,
+   "prior": 5997590.96,
+   "page": 27,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b50\u516c\u53f8 \u6c7d\u8f6e\u673a\u53ca\u8f85\u673a\u5236\u9020",
+   "value": 607489.5,
+   "prior": 4051228.24,
+   "page": 27,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b50\u516c\u53f8 \u98ce\u7535\u8bbe\u5907\u5236\u9020",
+   "value": 43812.16,
+   "prior": 3358735.95,
+   "page": 27,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b50\u516c\u53f8 \u7535\u529b\u7535\u5b50\u4e0e\u63a7\u5236",
+   "value": 104106.75,
+   "prior": 516456.75,
+   "page": 27,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b50\u516c\u53f8 \u6838\u80fd\u88c5\u5907\u5236\u9020\u670d\u52a1",
+   "value": 127947.96,
+   "prior": 447432.82,
+   "page": 27,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6d88\u8d39\u6bd4\u91cd\u8fbe\u5230",
+   "value": 25.0,
+   "prior": 50.0,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6839\u636e\u4e2d\u56fd\u7535\u529b\u4f01\u4e1a\u8054\u5408\u4f1a\u9884\u6d4b\uff0c",
+   "value": 10.9,
+   "prior": 11.0,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u540c\u6bd4\u589e\u957f",
+   "value": 5.0,
+   "prior": 6.0,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u671b\u8d85\u8fc7",
+   "value": 4.0,
+   "prior": 3.0,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5bb9\u91cf\u6709\u671b\u8fbe\u5230",
+   "value": 43.0,
+   "prior": 10.5,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u88c5\u673a\u7684\u4e00\u534a\uff0c\u975e\u5316\u77f3\u80fd\u6e90\u53d1\u7535\u88c5\u673a",
+   "value": 27.0,
+   "prior": 63.0,
+   "page": 29,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7b56\u7ae0\u7a0b\u4fee\u8ba2\u3001\u5206\u7ea2\u3001\u8463\u4e8b\u53d8\u66f4\u7b49\u4e8b\u9879\u3002\u62a5\u544a\u671f\u5185\uff0c\u516c\u53f8\u53ec\u5f00\u4e86",
+   "value": 3.0,
+   "prior": 1.0,
+   "page": 32,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u8463\u4e8b\u4f1a\u73b0\u7531",
+   "value": 7.0,
+   "prior": 3.0,
+   "page": 32,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f1a\u8bae\u3002\u8ba8\u8bba\u7814\u7a76\u5404\u7c7b\u8bae\u6848\u5171",
+   "value": 64.0,
+   "prior": 58.0,
+   "page": 32,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7f57\u4e7e\u5b9c \u8463\u4e8b\u957f \u7537",
+   "value": 60.0,
+   "prior": 6.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f20\u5f66\u519b \u8463\u4e8b\u3001\u603b\u88c1 \u7537",
+   "value": 55.0,
+   "prior": 6.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f20\u5c11\u5cf0 \u8463\u4e8b \u7537",
+   "value": 54.0,
+   "prior": 3.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b59\u56fd\u541b \u7537",
+   "value": 57.0,
+   "prior": 1.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9ec4\u5cf0 \u72ec\u7acb\u8463\u4e8b \u7537",
+   "value": 69.0,
+   "prior": 6.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u66fe\u9053\u8363 \u72ec\u7acb\u8463\u4e8b \u7537",
+   "value": 65.0,
+   "prior": 2.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9648\u5b87 \u72ec\u7acb\u8463\u4e8b \u5973",
+   "value": 62.0,
+   "prior": 6.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u738b\u519b \u9ad8\u7ea7\u526f\u603b\u88c1 \u7537",
+   "value": 53.0,
+   "prior": 10.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u674e\u5efa\u534e \u9ad8\u7ea7\u526f\u603b\u88c1 \u7537",
+   "value": 55.0,
+   "prior": 12.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5415\u53cc \u603b\u4f1a\u8ba1\u5e08 \u5973",
+   "value": 50.0,
+   "prior": 3.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51af\u52c7 \u8463\u4e8b\u4f1a\u79d8\u4e66 \u7537",
+   "value": 58.0,
+   "prior": 3.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f46\u519b \u526f\u603b\u88c1 \u7537",
+   "value": 58.0,
+   "prior": 9.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80e1\u4fee\u594e \u7537",
+   "value": 60.0,
+   "prior": 7.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8b\u81f4\u8fdc \u8463\u4e8b\uff08\u79bb\u4efb\uff09 \u7537",
+   "value": 61.0,
+   "prior": 2.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80e1\u8d24\u752b \u603b \u4f1a \u8ba1 \u5e08 \u7537",
+   "value": 56.0,
+   "prior": 10.0,
+   "page": 34,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 / / / / /",
+   "value": 182000.0,
+   "prior": 169000.0,
+   "page": 35,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u90e8\uff08\u53cc\u521b\u529e\u516c\u5ba4\uff09\u603b\u7ecf\u7406\uff1b\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8\u526f\u603b\u7ecf\u7406\u3001\u515a\u7ec4\u6210\u5458\u3002",
+   "value": 6.0,
+   "prior": 6.0,
+   "page": 35,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4efb\u672c\u516c\u53f8\u9ad8\u7ea7\u526f\u603b\u88c1\u3002",
+   "value": 3.0,
+   "prior": 4.0,
+   "page": 35,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\u603b\u4f1a\u8ba1\u5e08\u3001\u515a\u7ec4\u6210\u5458\u3002",
+   "value": 1.0,
+   "prior": 3.0,
+   "page": 35,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u66fe\u9053\u8363 \u957f\u3001\u5904\u957f\uff1b",
+   "value": 9.0,
+   "prior": 7.0,
+   "page": 36,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u603b\u7ecf\u7406\uff1b",
+   "value": 6.0,
+   "prior": 12.0,
+   "page": 36,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u4e1c\u65b9\u7535\u673a\u6709\u9650\u516c\u53f8\u8463\u4e8b\u957f\u3001\u515a\u59d4\u4e66\u8bb0\u3002",
+   "value": 9.0,
+   "prior": 10.0,
+   "page": 36,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56e2\u56fd\u9645\u5408\u4f5c\u6709\u9650\u516c\u53f8\u8463\u4e8b\u957f\u3001\u515a\u59d4\u4e66\u8bb0\u3002",
+   "value": 9.0,
+   "prior": 12.0,
+   "page": 36,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0e\u8d22\u52a1\u90e8\uff08\u8fd0\u8425\u76d1\u63a7\u4e2d\u5fc3\uff09\u603b\u7ecf\u7406\u3001\u4f01\u4e1a\u8fd0\u8425\u603b\u76d1\u7b49\u804c\u3002",
+   "value": 2.0,
+   "prior": 3.0,
+   "page": 37,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8\u5ba1\u8ba1\u76d1\u7763\u90e8\u90e8\u957f\u3002",
+   "value": 4.0,
+   "prior": 3.0,
+   "page": 37,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8463\u4e8b\u957f\u3001\u515a\u59d4\u4e66\u8bb0\u3002",
+   "value": 5.0,
+   "prior": 9.0,
+   "page": 37,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80e1\u4fee\u594e \u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u603b\u7ecf\u7406\u52a9\u7406",
+   "value": 9.0,
+   "prior": 2.0,
+   "page": 38,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8b\u81f4\u8fdc \u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u8463\u4e8b\u3001\u515a\u7ec4\u526f\u4e66\u8bb0",
+   "value": 10.0,
+   "prior": 12.0,
+   "page": 38,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80e1\u8d24\u752b \u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u603b\u4f1a\u8ba1\u5e08\u3001\u515a\u7ec4\u6210\u5458",
+   "value": 6.0,
+   "prior": 12.0,
+   "page": 38,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7f57\u4e7e\u5b9c \u5426",
+   "value": 6.0,
+   "prior": 4.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f20\u5f66\u519b \u5426",
+   "value": 11.0,
+   "prior": 4.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f20\u5c11\u5cf0 \u5426",
+   "value": 10.0,
+   "prior": 4.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b59\u56fd\u541b \u5426",
+   "value": 11.0,
+   "prior": 5.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9ec4\u5cf0 \u662f",
+   "value": 11.0,
+   "prior": 6.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u66fe\u9053\u8363 \u662f",
+   "value": 11.0,
+   "prior": 5.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9648\u5b87 \u662f",
+   "value": 11.0,
+   "prior": 6.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8b\u81f4\u8fdc \u5426",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 39,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7684\u901a\u77e5\u300b\uff08\u5385\u5b57\u3014",
+   "value": 19.0,
+   "prior": 23.0,
+   "page": 44,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u6240\u6709\u8005\u7684\u51c0\u5229\u6da6",
+   "value": 3831301222.13,
+   "prior": 1431920010.96,
+   "page": 44,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62df\u4ee5\u5f53\u524d\u516c\u53f8\u603b\u80a1\u672c",
+   "value": 3458360326.0,
+   "prior": 10.0,
+   "page": 44,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u73b0\u91d1\u80a1\u5229",
+   "value": 1832930972.78,
+   "prior": 47.84,
+   "page": 45,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6700\u8fd1\u4e09\u4e2a\u4f1a\u8ba1\u5e74\u5ea6\u7d2f\u8ba1\u73b0\u91d1\u5206\u7ea2\u91d1\u989d\uff08\u542b\u7a0e\uff09",
+   "value": -1.0,
+   "prior": 4680058426.24,
+   "page": 45,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6700\u8fd1\u4e09\u4e2a\u4f1a\u8ba1\u5e74\u5ea6\u5e74\u5747\u51c0\u5229\u6da6\u91d1\u989d",
+   "value": -4.0,
+   "prior": 3434598568.98,
+   "page": 45,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6700\u8fd1\u4e09\u4e2a\u4f1a\u8ba1\u5e74\u5ea6\u73b0\u91d1\u5206\u7ea2\u6bd4\u4f8b\uff08%\uff09",
+   "value": -5.0,
+   "prior": -3.0,
+   "page": 45,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u89c9\u79ef\u6781\u63a8\u8fdb",
+   "value": 4.0,
+   "prior": 21.5,
+   "page": 49,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ee3\u5a18\u4eba\u5747\u6708\u589e\u6536",
+   "value": 1000.0,
+   "prior": 35.0,
+   "page": 49,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e74\u589e\u6751\u96c6\u4f53\u6536\u5165",
+   "value": 5.0,
+   "prior": 22.0,
+   "page": 49,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5cf0\u5148\u751f\u3001\u9648\u5b87\u5973\u58eb\uff0c\u975e\u6267\u884c\u8463\u4e8b\u5f20\u5c11\u5cf0\u5148\u751f\uff08",
+   "value": 6.0,
+   "prior": 24.0,
+   "page": 50,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u66fe\u9053\u8363 \u59d4\u5458\u4f1a\u53ec\u96c6\u4eba",
+   "value": 7.0,
+   "prior": 7.0,
+   "page": 50,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u6267\u884c\u8463\u4e8b\u5f20\u5c11\u5cf0 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 50,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 7.0,
+   "prior": 7.0,
+   "page": 50,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9648\u5b87 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 7.0,
+   "prior": 7.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u751f\u3001\u5b59\u56fd\u541b\u5148\u751f\uff0c\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0\u5148\u751f\u3001\u66fe\u9053\u8363\u5148\u751f\u3001\u9648\u5b87\u5973\u58eb\uff08",
+   "value": 6.0,
+   "prior": 24.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8463\u4e8b\u957f\u7f57\u4e7e\u5b9c \u59d4\u5458\u4f1a\u53ec\u96c6\u4eba",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8463\u4e8b\u5f20\u5f66\u519b \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 3.0,
+   "prior": 3.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8463\u4e8b\u5b59\u56fd\u541b \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 3.0,
+   "prior": 3.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 3.0,
+   "prior": 3.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u66fe\u9053\u8363 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9648\u5b87 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 51,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0 \u59d4\u5458\u4f1a\u53ec\u96c6\u4eba",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 52,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u66fe\u9053\u8363 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 52,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9648\u5b87 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 52,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f20\u5c11\u5cf0\u5148\u751f\uff0c\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0\u5148\u751f\u3001\u66fe\u9053\u8363\u5148\u751f\uff08",
+   "value": 6.0,
+   "prior": 24.0,
+   "page": 52,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9648\u5b87 \u59d4\u5458\u4f1a\u53ec\u96c6\u4eba",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 53,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u6267\u884c\u8463\u4e8b\u5f20\u5c11\u5cf0 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 0.0,
+   "prior": 0.0,
+   "page": 53,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u9ec4\u5cf0 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 53,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u72ec\u7acb\u975e\u6267\u884c\u8463\u4e8b\u66fe\u9053\u8363 \u59d4\u5458\u4f1a\u59d4\u5458",
+   "value": 2.0,
+   "prior": 2.0,
+   "page": 53,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5230\u6cd5\u5b9a\u9000\u4f11\u5e74\u9f84\uff0c\u4e8e",
+   "value": 3.0,
+   "prior": 14.0,
+   "page": 54,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u6b21\u53d1\u884c\u5b9a\u4ef7\u57fa\u51c6\u65e5\u524d",
+   "value": 6.0,
+   "prior": 4.0,
+   "page": 55,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c \u53d1\u884c\u5b8c\u6210\u540e",
+   "value": 6.0,
+   "prior": 20.0,
+   "page": 55,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u653f\u90e8\u4e8e",
+   "value": 7.0,
+   "prior": 8.0,
+   "page": 59,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u91cf\u4fdd\u8bc1\u8d39\u7528\u6bd4\u4f8b\u7531\u539f\u201c\u98ce\u7535\u6574\u673a\u6309\u7167",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 60,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0e\u5ba1\u6838\u59d4\u5458\u4f1a\u5ba1\u8bae\u901a\u8fc7\uff0c\u5e76\u4e8e",
+   "value": 12.0,
+   "prior": 18.0,
+   "page": 60,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5ba1\u8ba1\u8d39\u7528\u8f83\u4e0a\u4e00\u5e74\u5ea6\u4e0b\u964d",
+   "value": 20.0,
+   "prior": 20.0,
+   "page": 61,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u4e0e\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u7b7e\u8ba2\u4e86\u300a",
+   "value": -2027.0,
+   "prior": -2027.0,
+   "page": 62,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea7\u670d\u52a1\u6846\u67b6\u534f\u8bae\u300b\u300a",
+   "value": -2027.0,
+   "prior": -2027.0,
+   "page": 62,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534f\u8bae\u300b\u300a",
+   "value": -2027.0,
+   "prior": -2027.0,
+   "page": 62,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8be6\u7ec6\u5185\u5bb9\u8bf7\u89c1\u672c\u516c\u53f8\u4e8e",
+   "value": 10.0,
+   "prior": 31.0,
+   "page": 62,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u751f\u6548\u3002\u622a\u81f3",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 62,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u53ca\u5176\u4e0b\u5c5e\u4f01\u4e1a\u91c7\u8d2d\u4ea7\u54c1",
+   "value": 180000.0,
+   "prior": 107286.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u53ca\u5176\u4e0b\u5c5e\u4f01\u4e1a\u9500\u552e\u4ea7\u54c1",
+   "value": 250000.0,
+   "prior": 67507.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5411\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u53ca\u5176\u4e0b\u5c5e\u4f01",
+   "value": 1000000.0,
+   "prior": 565037.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5411\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u53ca\u5176\u4e0b\u5c5e\u4f01",
+   "value": 500000.0,
+   "prior": 239646.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fdd\u51fd\u7b49\u5176\u4ed6\u91d1\u878d\u670d\u52a1\u4f59",
+   "value": 30000.0,
+   "prior": 29829.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u5411\u5305\u62ec\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u5728\u5185\u7684\u4e0d\u8d85\u8fc7",
+   "value": 35.0,
+   "prior": 272878203.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6570\uff09\uff0c\u52df\u96c6\u8d44\u91d1\u603b\u989d\u4e0d\u8d85\u8fc7",
+   "value": 500000.0,
+   "prior": 50000.0,
+   "page": 63,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80a1\u6743\u3001\u4e1c\u65b9\u6c7d\u8f6e\u673a",
+   "value": 8.7,
+   "prior": 4.55,
+   "page": 64,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7b56\u53ca\u5b9a\u4ef7\u4f9d\u636e\u8be6\u89c1\u672c\u516c\u53f8\u4e8e",
+   "value": 4.0,
+   "prior": 5.0,
+   "page": 64,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u884cA\u80a1\u80a1\u7968\u6784\u6210\u5173\u8054\u4ea4\u6613\u7684\u516c\u544a\u300b\uff08\u516c\u544a\u7f16\u53f7\uff1a",
+   "value": -25.0,
+   "prior": 11.0,
+   "page": 64,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u83b7\u5f97\u4e2d\u56fd\u8bc1\u76d1\u4f1a\u540c\u610f\u6ce8\u518c\u6279\u590d\u5e76\u4e8e",
+   "value": 4.0,
+   "prior": 4.0,
+   "page": 64,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14",
+   "value": 0.2,
+   "prior": -1.0,
+   "page": 64,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u83f1\u65e5\u9505\u7089 \u5408\u8425\u6216\u8054\u8425",
+   "value": 0.2,
+   "prior": -1.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd \u5408\u8425\u6216\u8054\u8425",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57ce\u53d1\u73af\u4fdd\u88c5\u5907",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6cc9\uff09\u5149\u4f0f\u53d1\u7535",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6cc9\uff09\u7efc\u5408\u667a\u6167 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5c71\uff09\u5ce8\u534a\u9ad8\u7eaf",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -1.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u6210\u90fd\uff09\u5171\u4eab",
+   "value": 1000000.0,
+   "prior": 5998.84,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -1.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6570\u5b57\u79d1\u6280\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 291.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u667a\u6167\u5149\u80fd\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 22036.41,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u6295\u8d44 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\uff09\u7535\u5b50\u6750\u6599",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u961c\u9633\uff09\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 2059.99,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u66f2\u9756\uff09\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u5f20\u5317\u53bf\uff09\u6709",
+   "value": 1000000.0,
+   "prior": 5148.68,
+   "page": 65,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u88c5\u5907\uff08\u6c5f\u82cf\uff09",
+   "value": 1000000.0,
+   "prior": 75.13,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79df\u8d41\uff08\u4e0a\u6d77\uff09",
+   "value": 1000000.0,
+   "prior": 408.34,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u4e0a\u6d77\uff09\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 19615.79,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6280\u672f\u670d\u52a1\u6709\u9650",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u53d1\u7535\u6709\u9650\u516c",
+   "value": 1000000.0,
+   "prior": 3472.65,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0f\u7535\u529b\u6709\u9650\u516c",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -0.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0f\u7535\u529b\u6709\u9650\u516c",
+   "value": 1000000.0,
+   "prior": 4275.54,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u79d1\u6280\u6709\u9650\u516c",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 0.2,
+   "prior": -1.0,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9 \u53d7\u540c\u4e00\u6bcd\u516c",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 66,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fbd\uff09\u98ce\u7535\u5de5\u7a0b",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u8bbe\u5907\uff08\u676d\u5dde\uff09",
+   "value": 1000000.0,
+   "prior": 0.2,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 / / /",
+   "value": 216287.74,
+   "prior": 556089.64,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 2.3,
+   "prior": -2.7,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\uff09\u7535\u5b50\u6750\u6599",
+   "value": 20000.0,
+   "prior": 0.0,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 2.28,
+   "prior": -2.4,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u88c5\u5907\uff08\u6c5f\u82cf\uff09",
+   "value": 53000.0,
+   "prior": 3000.0,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u53d1\u7535\u6709\u9650\u516c",
+   "value": 46480.0,
+   "prior": 2.76,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u79d1\u6280\u6709\u9650\u516c",
+   "value": 10000.0,
+   "prior": 3.0,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 2.08,
+   "prior": -2.3,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8054\u8425\u4f01\u4e1a",
+   "value": 40300.0,
+   "prior": 2.76,
+   "page": 67,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 170000.0,
+   "prior": 2.28,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u5236\u65b9\u63a7\u5236\u7684",
+   "value": 0.0,
+   "prior": 8.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8054\u8425\u4f01\u4e1a",
+   "value": 60000.0,
+   "prior": 2.41,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5c71\uff09\u5ce8\u534a\u9ad8\u7eaf",
+   "value": 6500.0,
+   "prior": 2.3,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14 \u53f8\u53ca\u6700\u7ec8\u63a7",
+   "value": 2.11,
+   "prior": -2.2,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 / / /",
+   "value": 179222.76,
+   "prior": 271675.15,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 700000.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u4e1c\u65b9\u6295 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 3000.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u4e1c\u6811\u65b0\u6750 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 80000.0,
+   "prior": 34803.85,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7eaf\u6750\u6599\u6709\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 6500.0,
+   "prior": 4700.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u79d1\u6280\u6709\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 500.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6167\u80fd\u6e90\u79d1\u6280\u6709\u9650\u516c\u53f8\uff08\u4ee5 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 19000.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u8862\u5dde\u60e0 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 10000.0,
+   "prior": 6950.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u7984\u529d\u592a \u6388\u4fe1\u4e1a\u52a1",
+   "value": 46480.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u4e1c\u65b9 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 20000.0,
+   "prior": 9695.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6388\u4fe1\u4e1a\u52a1",
+   "value": 13940.0,
+   "prior": 0.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650 \u53d7\u540c\u4e00\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 170000.0,
+   "prior": 130591.0,
+   "page": 68,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u5b8f\u534e \u6388\u4fe1\u4e1a\u52a1",
+   "value": 53000.0,
+   "prior": 20545.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u4e1c\u65b9 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 10000.0,
+   "prior": 0.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u5b8f\u534e\u56fd \u6388\u4fe1\u4e1a\u52a1",
+   "value": 14000.0,
+   "prior": 0.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u5b8f\u534e\u7535 \u6388\u4fe1\u4e1a\u52a1",
+   "value": 50000.0,
+   "prior": 6479.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9650\u516c\u53f8\uff08\u4ee5\u4e0b\u7b80\u79f0\u5fb7\u9633\u5e7f \u8054\u8425\u4f01\u4e1a \u6388\u4fe1\u4e1a\u52a1",
+   "value": 3000.0,
+   "prior": 0.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8054\u8425\u4f01\u4e1a \u6388\u4fe1\u4e1a\u52a1",
+   "value": 60000.0,
+   "prior": 45338.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u4f01\u4e1a \u6388\u4fe1\u4e1a\u52a1",
+   "value": 35000.0,
+   "prior": 7101.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8054\u8425\u4f01\u4e1a \u6388\u4fe1\u4e1a\u52a1",
+   "value": 40300.0,
+   "prior": 18086.0,
+   "page": 69,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u53d1\u7535\u7ea2",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80a1\u4efd\u6709\u9650 \u516c\u53f8\u672c\u90e8",
+   "value": 16000000.0,
+   "prior": 0.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6ce5\u4e95\u98ce\u7535 \u6708",
+   "value": 19.0,
+   "prior": 19.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u4e09\u5723\u592a",
+   "value": 6.0,
+   "prior": 6.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80a1\u4efd\u6709\u9650 \u516c\u53f8\u672c\u90e8",
+   "value": 16000000.0,
+   "prior": 0.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u98ce\u529b\u53d1\u7535 \u6708",
+   "value": 29.0,
+   "prior": 29.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u4e4c\u5170\u65b0",
+   "value": 8.0,
+   "prior": 8.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80a1\u4efd\u6709\u9650 \u516c\u53f8\u672c\u90e8",
+   "value": 36000000.0,
+   "prior": 0.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u6e90\u6709\u9650 \u6708",
+   "value": 26.0,
+   "prior": 26.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u4e1c\u65b9 \u5168\u8d44\u5b50\u516c",
+   "value": 9.0,
+   "prior": 9.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8f6e\u673a\uff08\u5e7f",
+   "value": 24500000.0,
+   "prior": 0.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c7d\u8f6e\u673a\u6709 \u53f8 \u6708",
+   "value": 22.0,
+   "prior": 22.0,
+   "page": 70,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ee5\u4e0a\u62c5\u4fdd\u4e8b\u9879\u8be6\u89c1\u516c\u53f8",
+   "value": 1.0,
+   "prior": 9.0,
+   "page": 71,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u91d1\u6765\u6e90 \uff08",
+   "value": 1.0,
+   "prior": 3.0,
+   "page": 73,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 /",
+   "value": 4123189647.33,
+   "prior": 4116565363.01,
+   "page": 73,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e01\u8d44\u91d1\u4e3a\u4eba\u6c11\u5e01",
+   "value": 4116167905.95,
+   "prior": 6624284.32,
+   "page": 73,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u6709\u7684\u4e1c \u662f \u5426",
+   "value": 73541.53,
+   "prior": 73541.53,
+   "page": 74,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u662f \u5426",
+   "value": 113340.78,
+   "prior": 113340.78,
+   "page": 74,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u6709\u7684\u4e1c \u662f \u5426",
+   "value": 48646.05,
+   "prior": 48646.05,
+   "page": 74,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u662f \u5426",
+   "value": 28927.73,
+   "prior": 25039.01,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u5236\u9020\u80fd \u662f \u5426",
+   "value": 5464.13,
+   "prior": 5464.13,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u662f \u5426",
+   "value": 26356.38,
+   "prior": 26356.38,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u95f4\u5efa\u8bbe \u5efa",
+   "value": 12.0,
+   "prior": 21.0,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u5b57\u5316\u5efa \u662f \u5426",
+   "value": 16070.96,
+   "prior": 16070.96,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1 \u662f \u5426",
+   "value": 82186.09,
+   "prior": 42769.52,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8ba1 / / / /",
+   "value": 411656.54,
+   "prior": 368351.26,
+   "page": 75,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f53\u67d4\u6027\u52a0\u5de5\u4e2d\u5fc3\u8986\u76d6",
+   "value": 85.0,
+   "prior": 60.0,
+   "page": 76,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6838\u7535\u6570\u5b57\u5316\u8f66\u95f4\u5df2\u5efa\u6210\u6295\u7528\uff0c\u5b9e\u73b0\u5168\u6d41\u7a0b\u6570\u5b57\u5316\u7ba1\u63a7\uff0c\u5173\u952e\u8bbe\u5907\u6570\u63a7\u5316\u7387",
+   "value": 100.0,
+   "prior": 25.78,
+   "page": 76,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u8ff0\u8d44\u91d1\u5229\u606f\u4e3a\u622a\u81f3",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 76,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u52df\u6295\u9879\u76ee\u81ea",
+   "value": 4.0,
+   "prior": 4.0,
+   "page": 77,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7f6e\u6362\u91d1\u989d\u4e3a",
+   "value": 66130.72,
+   "prior": 18275.0,
+   "page": 77,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5efa\u8bbe\u9879\u76ee\u7f6e\u6362\u5df2\u6295\u5165\u81ea\u6709\u8d44\u91d1",
+   "value": 26356.38,
+   "prior": 16035.21,
+   "page": 77,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u751f\u4e4b\u5176\u4ed6\u76f8\u5173\u6210\u672c\u4e0e\u5f00\u652f\u540e\uff09\u7528\u4f5c\u4e00\u822c\u8425\u8fd0\u8d44\u91d1\uff0c\u5176\u4e2d(i)\u7ea6",
+   "value": 50.0,
+   "prior": 537.42,
+   "page": 78,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u767e\u4e07\u6e2f\u5143\uff09\u7528\u4e8e\u7814\u53d1\u6295\u5165\uff1b\u53ca(ii)\u7ea6",
+   "value": 50.0,
+   "prior": 537.42,
+   "page": 78,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u81ea\u5f8b\u76d1\u7ba1\u6307\u5f15\u7b2c",
+   "value": 1.0,
+   "prior": 5.0,
+   "page": 78,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e09\u3001\u80a1\u4efd\u603b\u6570",
+   "value": 3117499457.0,
+   "prior": 100.0,
+   "page": 79,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b0\u589eH\u80a1",
+   "value": 68000000.0,
+   "prior": 3390360326.0,
+   "page": 80,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9500\u666e\u901a\u80a1\u4efd\u5408\u8ba1",
+   "value": 17334.0,
+   "prior": 0.0005,
+   "page": 80,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u822c\u6027\u6388\u6743\u4e8e",
+   "value": 9.0,
+   "prior": 68000000.0,
+   "page": 80,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c14\u96c6\u56e2\u6709\u9650",
+   "value": 753903063.0,
+   "prior": 0.0,
+   "page": 80,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1a\uff08\u6df1\u5733\uff09",
+   "value": 0.0,
+   "prior": 111131700.0,
+   "page": 80,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u6c14\u80a1\u7968\u8fde\u7eed",
+   "value": 20.0,
+   "prior": 6.0,
+   "page": 81,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "A\u80a1\u80a1\u7968",
+   "value": 4.0,
+   "prior": 14.0,
+   "page": 81,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "H\u80a1\u80a1\u7968",
+   "value": 9.0,
+   "prior": 24.0,
+   "page": 81,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c61\u53d1\u884c\u4eba\u6c11\u5e01\u666e\u901a\u80a1\uff08A\u80a1\uff09",
+   "value": 272878203.0,
+   "prior": 15.11,
+   "page": 81,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u80a1\u4efd\u603b\u6570\u7531",
+   "value": 3117482123.0,
+   "prior": 3390360326.0,
+   "page": 81,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6ce8\uff1a\u672c\u62a5\u544a\u4e8e",
+   "value": 3.0,
+   "prior": 31.0,
+   "page": 82,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u6240\u6709\u5236\u6539\u9769\u57fa",
+   "value": 103655835.0,
+   "prior": 3.0,
+   "page": 82,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6cf0\u67cf\u745e\u6caa\u6df1",
+   "value": 300.0,
+   "prior": 1000099.0,
+   "page": 82,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u606f\u79d1\u6280\u6df7\u5408\u578b\u53d1 +",
+   "value": 13732635.0,
+   "prior": 13732635.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9f9a\u4f51\u82b3 +",
+   "value": 4565700.0,
+   "prior": 11340900.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 989682463.0,
+   "prior": 989682463.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9999\u6e2f\u4e2d\u592e\u7ed3\u7b97\u6709\u9650\u516c\u53f8",
+   "value": 405956369.0,
+   "prior": 405956369.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u6cf0\u67cf\u745e\u6caa\u6df1",
+   "value": 300.0,
+   "prior": 20171032.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6613\u65b9\u8fbe\u6caa\u6df1",
+   "value": 300.0,
+   "prior": 14375456.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u606f\u79d1\u6280\u6df7\u5408\u578b\u53d1\u8d77\u5f0f\u8bc1\u5238\u6295",
+   "value": 13732635.0,
+   "prior": 13732635.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u590f\u6caa\u6df1",
+   "value": 300.0,
+   "prior": 10969500.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u57ce\u666f\u9890\u53cc\u5229\u503a\u5238\u578b\u8bc1\u5238\u6295\u8d44",
+   "value": 9713900.0,
+   "prior": 9713900.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u8ff0\u80a1\u4e1c\u5173\u8054\u5173\u7cfb\u6216\u4e00\u81f4\u884c\u52a8 \u516c\u53f8\u672a\u53d1\u73b0\u524d",
+   "value": 10.0,
+   "prior": 10.0,
+   "page": 83,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6210\u7acb\u65e5\u671f",
+   "value": 1984.0,
+   "prior": 11.0,
+   "page": 84,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u3001 \u5ba1\u8ba1\u62a5\u544a",
+   "value": 1.0,
+   "prior": -5.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u5e76\u8d44\u4ea7\u8d1f\u503a\u8868\u548c\u6bcd\u516c\u53f8\u8d44\u4ea7\u8d1f\u503a\u8868",
+   "value": 1.0,
+   "prior": -4.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u5e76\u5229\u6da6\u8868\u548c\u6bcd\u516c\u53f8\u5229\u6da6\u8868",
+   "value": 5.0,
+   "prior": -6.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u5e76\u73b0\u91d1\u6d41\u91cf\u8868\u548c\u6bcd\u516c\u53f8\u73b0\u91d1\u6d41\u91cf\u8868",
+   "value": 7.0,
+   "prior": -8.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u5e76\u6240\u6709\u8005\u6743\u76ca\u53d8\u52a8\u8868\u548c\u6bcd\u516c\u53f8\u6240\u6709\u8005\u6743\u76ca\u53d8\u52a8\u8868",
+   "value": 9.0,
+   "prior": -12.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u52a1\u62a5\u8868\u9644\u6ce8",
+   "value": 1.0,
+   "prior": -170.0,
+   "page": 89,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8868\uff0c\u5305\u62ec",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 90,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u89c4\u5b9a\u7f16\u5236\uff0c\u516c\u5141\u53cd\u6620\u4e86\u4e1c\u65b9\u7535\u6c14",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 90,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u2022\u4e0a\u6d77",
+   "value": 3.0,
+   "prior": 31.0,
+   "page": 94,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\uff0c\u4e8e",
+   "value": 12.0,
+   "prior": 67.0,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ec4\u5efa\u8bbe\u7acb\u7684\u80a1\u4efd\u6709\u9650\u516c\u53f8\u3002\u516c\u53f8\u4e8e",
+   "value": 6.0,
+   "prior": 6.0,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u6613\uff0c\u4e8e",
+   "value": 10.0,
+   "prior": 10.0,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8fc7\u5386\u5e74\u7684\u6d3e\u9001\u7ea2\u80a1\u3001\u914d\u552e\u65b0\u80a1\u3001\u8f6c\u589e\u80a1\u672c\u53ca\u589e\u53d1\u65b0\u80a1\uff0c\u622a\u6b62",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u7d2f\u8ba1\u53d1\u884c\u80a1\u672c\u603b\u6570",
+   "value": 345836.0326,
+   "prior": 345836.0326,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u8d22\u52a1\u62a5\u8868\u4e1a\u7ecf\u516c\u53f8\u8463\u4e8b\u4f1a\u4e8e",
+   "value": 3.0,
+   "prior": 31.0,
+   "page": 107,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u751f\u4ea7\u7528\u623f\u5c4b\u5efa\u7b51\u7269",
+   "value": 20.0,
+   "prior": 5.0,
+   "page": 124,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u751f\u4ea7\u7528\u623f\u5c4b\u5efa\u7b51\u7269 \u5e74\u9650\u5e73\u5747\u6cd5",
+   "value": 25.0,
+   "prior": 5.0,
+   "page": 124,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u673a\u5668\u8bbe\u5907",
+   "value": 10.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fd0\u8f93\u8bbe\u5907 \u5e74\u9650\u5e73\u5747\u6cd5",
+   "value": 6.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eea\u5668\u4eea\u8868",
+   "value": 6.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u5b50\u8ba1\u7b97\u673a",
+   "value": 5.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5149\u4f0f\u53d1\u7535\u8bbe\u5907 \u5e74\u9650\u5e73\u5747\u6cd5",
+   "value": 20.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8bbe\u5907",
+   "value": 6.0,
+   "prior": 5.0,
+   "page": 125,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u91cd\u8981\u7684\u5408\u8425\u6216\u8054\u8425\u4f01\u4e1a \u6301\u80a1\u6bd4\u4f8b\u8d85\u8fc7",
+   "value": 30.0,
+   "prior": 1.0,
+   "page": 143,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u653f\u90e8\u4e8e",
+   "value": 7.0,
+   "prior": 8.0,
+   "page": 143,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u4e8e",
+   "value": 12.0,
+   "prior": 18.0,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8463\u4e8b\u4f1a\u540c\u610f\u81ea",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u6b21\u4f1a\u8ba1\u4f30\u8ba1\u53d8\u66f4\u91c7\u7528\u672a\u6765\u9002\u7528\u6cd5\uff0c\u81ea",
+   "value": 1.0,
+   "prior": 1.0,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u52a1\u6536\u5165\u4e3a\u57fa\u7840\u8ba1\u7b97\u9500\u9879\u7a0e\u989d\uff0c\u5728\u6263\u9664",
+   "value": 3.0,
+   "prior": 5.0,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f53\u671f\u5141\u8bb8\u62b5\u6263\u7684\u8fdb\u9879\u7a0e\u989d\u540e\uff0c\u5dee\u989d\u90e8",
+   "value": 11.0,
+   "prior": 13.0,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6309\u7167\u623f\u4ea7\u539f\u503c\u7684",
+   "value": 70.0,
+   "prior": 1.2,
+   "page": 144,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6539\u9769\u59d4\u516c\u544a",
+   "value": 23.0,
+   "prior": 1.0,
+   "page": 146,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6539\u9769\u59d4\u516c\u544a",
+   "value": 23.0,
+   "prior": 1.0,
+   "page": 146,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b0\u6280\u672f\u4f01\u4e1a\u8ba4\u8bc1\uff0c\u8bc1\u4e66\u7f16\u53f7\u4e3a:GR",
+   "value": 202451002153.0,
+   "prior": 3.0,
+   "page": 146,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6539\u9769\u59d4\u516c\u544a",
+   "value": 23.0,
+   "prior": 1.0,
+   "page": 147,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u603b\u5c40\u516c\u544a",
+   "value": 12.0,
+   "prior": 25.0,
+   "page": 148,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9769\u59d4\u516c\u544a",
+   "value": 23.0,
+   "prior": 1.0,
+   "page": 149,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6539\u9769\u59d4\u516c\u544a",
+   "value": 23.0,
+   "prior": 1.0,
+   "page": 149,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f01\u4e1a\u6240\u5f97\u7a0e\u7a0e\u7387\u4e3a",
+   "value": 22.0,
+   "prior": 2.65,
+   "page": 149,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5357\u8292\u6cb3\u516c\u53f8\u6839\u636e",
+   "value": 1.0,
+   "prior": 9.0,
+   "page": 150,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u544a \u300b\uff08",
+   "value": 43.0,
+   "prior": 1.0,
+   "page": 150,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f01\u4e1a\u6240\u5f97\u7a0e\u653f\u7b56\u7684\u901a\u77e5\u300b\uff08\u8d22\u7a0e\u3014",
+   "value": 106.0,
+   "prior": 1.0,
+   "page": 150,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e93\u5b58\u73b0\u91d1",
+   "value": 81245.96,
+   "prior": 746278.67,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u94f6\u884c\u5b58\u6b3e",
+   "value": 21517655596.58,
+   "prior": 24730076014.44,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d27\u5e01\u8d44\u91d1",
+   "value": 1161857748.1,
+   "prior": 2125126776.82,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u5b58\u653e\u5728\u5883\u5916\u7684\u6b3e\u9879\u603b\u989d",
+   "value": 270314157.96,
+   "prior": 306171948.88,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62c6\u653e\u975e\u94f6\u884c\u91d1\u878d\u673a\u6784",
+   "value": 1024807562.42,
+   "prior": 836529745.3,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62c6\u51fa\u8d44\u91d1\u8d26\u9762\u4ef7\u503c",
+   "value": 1016528514.62,
+   "prior": 836529745.3,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ee5\u516c\u5141\u4ef7\u503c\u8ba1\u91cf\u4e14\u5176\u53d8\u52a8\u8ba1\u5165\u5f53\u671f\u635f\u76ca\u7684\u91d1\u878d\u8d44\u4ea7",
+   "value": 1832489719.73,
+   "prior": 1697971178.52,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u503a\u52a1\u5de5\u5177\u6295\u8d44",
+   "value": 313293300.0,
+   "prior": 319180200.0,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6743\u76ca\u5de5\u5177\u6295\u8d44",
+   "value": 1030798989.14,
+   "prior": 944237713.72,
+   "page": 151,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\uff08\u9999\u6e2f\u9664\u5916\uff09",
+   "value": 1030798989.14,
+   "prior": 944237713.72,
+   "page": 152,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u4e0a\u5e02\u91d1\u878d\u8d44\u4ea7",
+   "value": 801690730.59,
+   "prior": 753733464.8,
+   "page": 152,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u94f6\u884c\u627f\u5151\u6c47\u7968",
+   "value": 1200580395.68,
+   "prior": 884022860.66,
+   "page": 152,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5546\u4e1a\u627f\u5151\u6c47\u7968",
+   "value": 463477016.13,
+   "prior": 340330275.57,
+   "page": 152,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u7968\u636e",
+   "value": 56432100.89,
+   "prior": 26912253.55,
+   "page": 154,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u94f6\u884c\u627f\u5151\u6c47\u7968",
+   "value": 757941270.78,
+   "prior": 259537605.73,
+   "page": 154,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5546\u4e1a\u627f\u5151\u6c47\u7968",
+   "value": 250810.64,
+   "prior": 8171947.89,
+   "page": 154,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u574f\u8d26\u51c6\u5907",
+   "value": 3975096356.79,
+   "prior": 3621665242.31,
+   "page": 154,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5355\u4f4d\u5341\u516b",
+   "value": 25122142.87,
+   "prior": 25122142.87,
+   "page": 156,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5355\u4f4d\u4e8c\u5341",
+   "value": 18250000.0,
+   "prior": 18250000.0,
+   "page": 156,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5355\u4f4d\u4e8c\u5341\u516b",
+   "value": 11463428.06,
+   "prior": 11463428.06,
+   "page": 156,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u7968\u636e",
+   "value": 2885613858.43,
+   "prior": 1927567077.4,
+   "page": 159,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u80a1\u5229",
+   "value": 4210670.09,
+   "prior": 23297096.99,
+   "page": 159,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u6536\u6b3e\u9879",
+   "value": 377475334.97,
+   "prior": 522982666.43,
+   "page": 159,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u4ee5\u4e0a",
+   "value": 21586036.03,
+   "prior": 20957738.18,
+   "page": 160,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u574f\u8d26\u51c6\u5907",
+   "value": 17375365.94,
+   "prior": 7288939.04,
+   "page": 160,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u7535\u9f99\u53e3\u98ce\u7535\u6709\u9650\u516c\u53f8",
+   "value": 4210670.09,
+   "prior": 1.0,
+   "page": 160,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u90fd\u7ba1\u59d4\u4f1a\u81ea\u7136\u8d44",
+   "value": 12327367.5,
+   "prior": 12327367.5,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d",
+   "value": 127811644.62,
+   "prior": 179320549.29,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d\u5728\u672c\u671f",
+   "value": 127811644.62,
+   "prior": 179320549.29,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8ba1\u63d0",
+   "value": -4336781.07,
+   "prior": 3507256.39,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8f6c\u56de",
+   "value": 897481.97,
+   "prior": 897481.97,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8f6c\u9500",
+   "value": 21786920.64,
+   "prior": 21786920.64,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u53d8\u52a8",
+   "value": 23000.03,
+   "prior": 23000.03,
+   "page": 162,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u671f\u672b\u4f59\u989d",
+   "value": 123474863.55,
+   "prior": 160166403.1,
+   "page": 163,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fdd\u8bc1\u91d1\u53ca\u8d28\u4fdd\u91d1",
+   "value": 230690774.03,
+   "prior": 280963849.47,
+   "page": 164,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u7ecf\u8425\u4e1a\u52a1\u5e94\u6536\u6b3e",
+   "value": 59287860.02,
+   "prior": 110956960.71,
+   "page": 164,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u79d1\u6280\u8bc1\u5238\u6709\u9650\u516c\u53f8 \u6295\u8d44\u6b3e",
+   "value": 146064314.06,
+   "prior": 22.09,
+   "page": 164,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d26\u9f84\u7ec4\u5408",
+   "value": 9795420981.81,
+   "prior": 1026710302.24,
+   "page": 168,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u5185\u5230\u671f\u7684\u957f\u671f\u5e94\u6536\u6b3e",
+   "value": 152146984.79,
+   "prior": 241379530.86,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u5185\u5230\u671f\u7684\u53d1\u653e\u8d37\u6b3e\u53ca\u57ab\u6b3e",
+   "value": 395131000.0,
+   "prior": 2100000000.0,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9884\u7f34\u7a0e\u8d39\u53ca\u7559\u62b5\u7a0e\u989d",
+   "value": 934627210.81,
+   "prior": 814998004.08,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d1\u653e\u8d37\u6b3e\u53ca\u57ab\u6b3e\uff08\u77ed\u671f\uff09",
+   "value": 954715000.0,
+   "prior": 364800000.0,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d34\u73b0\u8d44\u4ea7",
+   "value": 263078551.26,
+   "prior": 87484560.67,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f01\u4e1a\u8d37\u6b3e\u548c\u57ab\u6b3e",
+   "value": 6897365391.75,
+   "prior": 5086347895.22,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fd\u6709\u4f01\u4e1a",
+   "value": 6897365391.75,
+   "prior": 5086347895.22,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u603b\u989d",
+   "value": 6897365391.75,
+   "prior": 5086347895.22,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u8d37\u6b3e\u635f\u5931\u51c6\u5907",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ec4\u5408\u8ba1\u63d0\u6570",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u8d26\u9762\u4ef7\u503c",
+   "value": 6320594750.29,
+   "prior": 4483911097.25,
+   "page": 169,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u529b\u8bbe\u5907\u884c\u4e1a",
+   "value": 6210865391.75,
+   "prior": 90.05,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5546\u52a1\u670d\u52a1\u4e1a",
+   "value": 686500000.0,
+   "prior": 9.95,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u603b\u989d",
+   "value": 6897365391.75,
+   "prior": 5086347895.22,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u8d37\u6b3e\u635f\u5931\u51c6\u5907",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ec4\u5408\u8ba1\u63d0\u6570",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u8d26\u9762\u4ef7\u503c",
+   "value": 6320594750.29,
+   "prior": 4483911097.25,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u5357\u5730\u533a",
+   "value": 239090436.44,
+   "prior": 3.47,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u5317\u5730\u533a",
+   "value": 2079227400.0,
+   "prior": 30.15,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u897f\u5357\u5730\u533a",
+   "value": 686500000.0,
+   "prior": 9.95,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u4e1c\u5730\u533a",
+   "value": 1613325782.0,
+   "prior": 23.39,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u90e8\u5730\u533a",
+   "value": 808780000.0,
+   "prior": 11.73,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u897f\u5317\u5730\u533a",
+   "value": 1470441773.31,
+   "prior": 21.32,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u603b\u989d",
+   "value": 6897365391.75,
+   "prior": 100.0,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u8d37\u6b3e\u635f\u5931\u51c6\u5907",
+   "value": 576770641.46,
+   "prior": 8.36,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ec4\u5408\u8ba1\u63d0\u6570",
+   "value": 576770641.46,
+   "prior": 8.36,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u8d26\u9762\u4ef7\u503c",
+   "value": 6320594750.29,
+   "prior": 91.64,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u7528\u8d37\u6b3e",
+   "value": 6374486219.33,
+   "prior": 3774127611.38,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9644\u62c5\u4fdd\u7269\u8d37\u6b3e",
+   "value": 522879172.42,
+   "prior": 623360283.84,
+   "page": 170,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d28\u62bc\u8d37\u6b3e",
+   "value": 522879172.42,
+   "prior": 623360283.84,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u603b\u989d",
+   "value": 6897365391.75,
+   "prior": 5086347895.22,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u8d37\u6b3e\u635f\u5931\u51c6\u5907",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ec4\u5408\u8ba1\u63d0\u6570",
+   "value": 576770641.46,
+   "prior": 602436797.97,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d37\u6b3e\u548c\u57ab\u6b3e\u8d26\u9762\u4ef7\u503c",
+   "value": 6320594750.29,
+   "prior": 4483911097.25,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d26\u9762\u4f59\u989d",
+   "value": 6897365391.75,
+   "prior": 6897365391.75,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u635f\u5931\u51c6\u5907",
+   "value": 576770641.46,
+   "prior": 576770641.46,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d26\u9762\u4ef7\u503c",
+   "value": 6320594750.29,
+   "prior": 6320594750.29,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8ba1\u63d0",
+   "value": -25666156.51,
+   "prior": -25666156.51,
+   "page": 171,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u671f\u672b\u4f59\u989d",
+   "value": 576770641.46,
+   "prior": 576770641.46,
+   "page": 172,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u6743\u6295\u8d44",
+   "value": 141750000.0,
+   "prior": -3951000.0,
+   "page": 172,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d",
+   "value": 141750000.0,
+   "prior": 141750000.0,
+   "page": 173,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d\u5728\u672c\u671f",
+   "value": 141750000.0,
+   "prior": 141750000.0,
+   "page": 173,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8ba1\u63d0",
+   "value": -3951000.0,
+   "prior": -3951000.0,
+   "page": 173,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u671f\u672b\u4f59\u989d",
+   "value": 137799000.0,
+   "prior": 137799000.0,
+   "page": 173,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8ba1\u63d0\u6216\u644a\u9500",
+   "value": 11985376.58,
+   "prior": 443288.51,
+   "page": 183,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u589e\u52a0",
+   "value": 145303907.76,
+   "prior": 145303907.76,
+   "page": 183,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u589e\u52a0",
+   "value": 5100690.93,
+   "prior": 5100690.93,
+   "page": 183,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7",
+   "value": 6453440048.42,
+   "prior": 5490826555.22,
+   "page": 183,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u6e05\u7406",
+   "value": 11993989.29,
+   "prior": 6180173.49,
+   "page": 183,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u3002\u6743\u6709\u6240\u5730\u571f\u7684\u5f97\u53d6\u5185\u56fd\u5ea6\u5370\u5728\u53f8\u516c\u5ea6\u5370\u65b9\u4e1c\u7cfb\uff0c\u4ea7\u8d44\u5730\u571f\u7684\u4e2d\u4ea7\u8d44\u5b9a\u56fa\u65e5",
+   "value": 13.0,
+   "prior": 21.0,
+   "page": 185,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u673a\u5668\u8bbe\u5907",
+   "value": 49925152.55,
+   "prior": 46832328.7,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fd0\u8f93\u5de5\u5177",
+   "value": 480000.0,
+   "prior": 456000.0,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u673a\u5668\u8bbe\u5907",
+   "value": 8761483.56,
+   "prior": 5085473.53,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u623f\u5c4b\u3001\u5efa\u7b51\u7269",
+   "value": 910178.34,
+   "prior": 57240.79,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fd0\u8f93\u5de5\u5177",
+   "value": 876215.77,
+   "prior": 251740.98,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7535\u5b50\u8bbe\u5907",
+   "value": 647718.9,
+   "prior": 518937.67,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4eea\u5668\u4eea\u8868",
+   "value": 415155.24,
+   "prior": 255985.39,
+   "page": 186,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b0\u589e\u79df\u8d41",
+   "value": 60614626.77,
+   "prior": 359008.85,
+   "page": 191,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u989d\u4f59\u672b\u5e74\u5e74\u4e0a\uff09",
+   "value": 1.0,
+   "prior": 2.0,
+   "page": 193,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6210\u90fd\u91d1\u725b\u5723\u706f\u4e61",
+   "value": 1.0,
+   "prior": 96367.17,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6210\u90fd\u91d1\u725b\u5723\u706f\u4e61",
+   "value": 3.0,
+   "prior": 1072056.21,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96f6\u661f\u5de5\u7a0b",
+   "value": 15213914.59,
+   "prior": 46492235.18,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d44\u4ea7\u51cf\u503c\u51c6\u5907",
+   "value": 10017353565.27,
+   "prior": 1688516853.66,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u62b5\u6263\u4e8f\u635f",
+   "value": 193867026.68,
+   "prior": 29546534.16,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9884\u8ba1\u8d1f\u503a",
+   "value": 6019485400.54,
+   "prior": 924704115.81,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u804c\u5de5\u85aa\u916c",
+   "value": 1361637386.05,
+   "prior": 208363775.59,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u653f\u5e9c\u8865\u52a9",
+   "value": 366153476.71,
+   "prior": 55111431.81,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u8d26\u6b3e",
+   "value": 2606441299.25,
+   "prior": 398856161.08,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u6298\u65e7",
+   "value": 23018986.13,
+   "prior": 3371034.79,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u5141\u4ef7\u503c\u53d8\u52a8",
+   "value": 9805012.36,
+   "prior": 1470751.86,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79df\u8d41\u8d1f\u503a",
+   "value": 640892529.39,
+   "prior": 111517897.08,
+   "page": 194,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u6298\u65e7",
+   "value": 456240891.77,
+   "prior": 69701039.5,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u5141\u4ef7\u503c\u53d8\u52a8",
+   "value": 347243919.83,
+   "prior": 54657181.03,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f7f\u7528\u6743\u8d44\u4ea7",
+   "value": 603250739.96,
+   "prior": 112715035.02,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d44\u4ea7",
+   "value": 88009280.3,
+   "prior": 3402890871.53,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d1f\u503a",
+   "value": 88009280.3,
+   "prior": 149063975.25,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u62b5\u6263\u6682\u65f6\u6027\u5dee\u5f02",
+   "value": 510207637.64,
+   "prior": 384303828.59,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u62b5\u6263\u4e8f\u635f",
+   "value": 1830439433.68,
+   "prior": 2415133557.3,
+   "page": 195,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d28\u62bc\u501f\u6b3e",
+   "value": 81302980.52,
+   "prior": 1080000.0,
+   "page": 197,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u7528\u501f\u6b3e",
+   "value": 60000000.0,
+   "prior": 74000000.0,
+   "page": 197,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u94f6\u884c\u627f\u5151\u6c47\u7968",
+   "value": 8009600977.02,
+   "prior": 4848571332.31,
+   "page": 197,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5546\u4e1a\u627f\u5151\u6c47\u7968",
+   "value": 7642640421.48,
+   "prior": 10786707295.76,
+   "page": 197,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6d3b\u671f\u5b58\u6b3e",
+   "value": 5243508815.54,
+   "prior": 1667995201.96,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u516c\u53f8",
+   "value": 5243508815.54,
+   "prior": 1667995201.96,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b9a\u671f\u5b58\u6b3e\uff08\u542b\u901a\u77e5\u5b58\u6b3e\uff09",
+   "value": 451600000.0,
+   "prior": 592600000.0,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u77ed\u671f\u85aa\u916c",
+   "value": 323504902.39,
+   "prior": 5113397441.79,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79bb\u804c\u540e\u798f\u5229-\u8bbe\u5b9a\u63d0\u5b58\u8ba1\u5212",
+   "value": 288452539.81,
+   "prior": 810899647.95,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8f9e\u9000\u798f\u5229",
+   "value": 347676515.44,
+   "prior": 258594699.07,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5de5\u4f24\u4fdd\u9669\u8d39",
+   "value": 71802.0,
+   "prior": 17650877.85,
+   "page": 198,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57fa\u672c\u517b\u8001\u4fdd\u9669",
+   "value": 329432.92,
+   "prior": 500628393.62,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5931\u4e1a\u4fdd\u9669\u8d39",
+   "value": 12353.21,
+   "prior": 19161301.7,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f01\u4e1a\u5e74\u91d1\u7f34\u8d39",
+   "value": 288110753.68,
+   "prior": 291109952.63,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56e2\u6709\u9650\u516c\u53f8\u7b49",
+   "value": 11.0,
+   "prior": 65.0,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f01\u4e1a\u6240\u5f97\u7a0e",
+   "value": 481655392.47,
+   "prior": 390254125.42,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2a\u4eba\u6240\u5f97\u7a0e",
+   "value": 53042384.24,
+   "prior": 51705981.89,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57ce\u5e02\u7ef4\u62a4\u5efa\u8bbe\u7a0e",
+   "value": 23984416.18,
+   "prior": 22964345.49,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6559\u80b2\u8d39\u9644\u52a0",
+   "value": 16878509.67,
+   "prior": 16296977.18,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u571f\u5730\u4f7f\u7528\u7a0e",
+   "value": 726031.39,
+   "prior": 514119.18,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u7a0e\u8d39",
+   "value": 22648253.24,
+   "prior": 26382284.66,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u80a1\u5229",
+   "value": 4876982.4,
+   "prior": 4568944.33,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u4ed8\u6b3e\u9879",
+   "value": 1622724958.26,
+   "prior": 1609809922.88,
+   "page": 199,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u666e\u901a\u80a1\u80a1\u5229",
+   "value": 4876982.4,
+   "prior": 4568944.33,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fdd\u8bc1\u91d1\u548c\u62bc\u91d1",
+   "value": 583334112.66,
+   "prior": 546669951.53,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u80a1\u6743\u6536\u8d2d\u6b3e",
+   "value": 149315280.97,
+   "prior": 167505076.96,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u4ee3\u57ab\u6b3e",
+   "value": 300332917.75,
+   "prior": 229790597.84,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u79df\u8d41\u3001\u52b3\u52a1\u53ca\u96f6\u661f\u91c7\u8d2d\u7b49\u6b3e",
+   "value": 78838212.87,
+   "prior": 82229167.45,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2a\u4eba\u627f\u62c5\u7684\u793e\u4f1a\u4fdd\u9669\u548c\u4f4f\u623f\u516c\u79ef\u91d1",
+   "value": 92098319.19,
+   "prior": 55257944.47,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u5185\u5230\u671f\u7684\u957f\u671f\u501f\u6b3e",
+   "value": 221276752.94,
+   "prior": 194058558.16,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u5185\u5230\u671f\u7684\u79df\u8d41\u8d1f\u503a",
+   "value": 89167183.74,
+   "prior": 137346525.02,
+   "page": 200,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f85\u8f6c\u9500\u9879\u7a0e",
+   "value": 1062187519.77,
+   "prior": 1217709102.42,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62b5\u62bc\u501f\u6b3e",
+   "value": 291121649.92,
+   "prior": 319458246.72,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u7528\u501f\u6b3e",
+   "value": 2134262384.37,
+   "prior": 2041777207.24,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u4e00\u5e74\u5185\u5230\u671f\u90e8\u5206",
+   "value": 221276752.94,
+   "prior": 194058558.16,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79df\u8d41\u4ed8\u6b3e\u989d",
+   "value": 546435741.12,
+   "prior": 653716006.24,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u672a\u786e\u8ba4\u7684\u878d\u8d44\u8d39\u7528",
+   "value": 83822337.26,
+   "prior": 100410581.42,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u91cd\u5206\u7c7b\u81f3\u4e00\u5e74\u5185\u5230\u671f\u7684\u975e\u6d41\u52a8\u8d1f\u503a",
+   "value": 89167183.74,
+   "prior": 137346525.02,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e13\u9879\u5e94\u4ed8\u6b3e",
+   "value": 240000.0,
+   "prior": 240000.0,
+   "page": 201,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e8c\u3001\u8f9e\u9000\u798f\u5229",
+   "value": 928767838.92,
+   "prior": 804489274.85,
+   "page": 202,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e09\u3001\u5176\u4ed6\u957f\u671f\u798f\u5229",
+   "value": 189209490.29,
+   "prior": 198616894.62,
+   "page": 202,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672a\u51b3\u8bc9\u8bbc",
+   "value": 718906.14,
+   "prior": 718906.14,
+   "page": 202,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8\u53c2\u4e0e\u8ba4\u8d2d",
+   "value": 239787535.0,
+   "prior": 10.0,
+   "page": 203,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c11\u5e01\u666e\u901a\u80a1\u589e\u52a0",
+   "value": 239787535.0,
+   "prior": 9.0,
+   "page": 203,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u8ff0\u60c5\u51b5\u6240\u6d89\u5df2\u83b7\u6388\u4f46\u5c1a\u672a\u89e3\u9664\u9650\u552e\u7684\u9650\u5236\u6027\u80a1\u7968",
+   "value": 17443.0,
+   "prior": 1.0,
+   "page": 203,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u8d44\u672c\u516c\u79ef",
+   "value": 94160416.88,
+   "prior": 19314395.91,
+   "page": 203,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b89\u5168\u751f\u4ea7\u8d39",
+   "value": 124193157.76,
+   "prior": 81388109.16,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6cd5\u5b9a\u76c8\u4f59\u516c\u79ef",
+   "value": 1424889201.23,
+   "prior": 143192001.1,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c03\u6574\u524d\u4e0a\u5e74\u5e74\u672b\u672a\u5206\u914d\u5229\u6da6",
+   "value": 22690605142.05,
+   "prior": 21337876676.79,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8c03\u6574\u540e\u5e74\u521d\u672a\u5206\u914d\u5229\u6da6",
+   "value": 22690605142.05,
+   "prior": 21337876676.79,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u52a0\uff1a\u672c\u671f\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u6240\u6709\u8005\u7684\u51c0\u5229\u6da6",
+   "value": 3831301222.13,
+   "prior": 2922100908.48,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u63d0\u53d6\u6cd5\u5b9a\u76c8\u4f59\u516c\u79ef",
+   "value": 143192001.1,
+   "prior": 87756382.31,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u4ed8\u666e\u901a\u80a1\u80a1\u5229",
+   "value": 1366315211.38,
+   "prior": 1480812259.51,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u671f\u672b\u672a\u5206\u914d\u5229\u6da6",
+   "value": 25012399151.7,
+   "prior": 22690605142.05,
+   "page": 206,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8425\u4e1a\u6536\u5165",
+   "value": 77582624563.59,
+   "prior": 65215256838.9,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5229\u606f\u6536\u5165",
+   "value": 1032429598.45,
+   "prior": 23763627.2,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u6e90\u88c5\u5907\u5236\u9020",
+   "value": 58005444217.16,
+   "prior": 49897117344.35,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7164\u7535",
+   "value": 24491584410.69,
+   "prior": 19424010583.58,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5236\u9020\u670d\u52a1",
+   "value": 12901069095.97,
+   "prior": 8787875861.71,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7535\u7ad9\u670d\u52a1",
+   "value": 5780904736.0,
+   "prior": 3620354560.63,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b0\u5174\u4ea7\u4e1a",
+   "value": 7708764126.7,
+   "prior": 6556175476.69,
+   "page": 207,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57ce\u5e02\u7ef4\u62a4\u5efa\u8bbe\u7a0e",
+   "value": 131876452.51,
+   "prior": 110038233.93,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6559\u80b2\u8d39\u9644\u52a0",
+   "value": 94706456.77,
+   "prior": 78781347.1,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u571f\u5730\u4f7f\u7528\u7a0e",
+   "value": 35241235.5,
+   "prior": 34614457.18,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u73af\u5883\u4fdd\u62a4\u7a0e",
+   "value": 515760.13,
+   "prior": 373269.03,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c34\u8d44\u6e90\u7a0e",
+   "value": 274425.69,
+   "prior": 996167.7,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8f66\u8239\u4f7f\u7528\u7a0e",
+   "value": 153827.96,
+   "prior": 63542.05,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u804c\u5de5\u85aa\u916c",
+   "value": 659520552.73,
+   "prior": 620018816.98,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1a\u52a1\u62db\u5f85\u8d39",
+   "value": 23417068.78,
+   "prior": 38471392.0,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u804c\u5de5\u85aa\u916c",
+   "value": 2144686163.75,
+   "prior": 2021463213.53,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b89\u5168\u751f\u4ea7\u8d39\u7528",
+   "value": 89829840.91,
+   "prior": 99665268.97,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7269\u4e1a\u7ba1\u7406\u8d39",
+   "value": 92694017.81,
+   "prior": 77473029.8,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u606f\u5316\u5efa\u8bbe\u8d39\u7528",
+   "value": 45450620.57,
+   "prior": 37805854.96,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65e0\u5f62\u8d44\u4ea7\u644a\u9500",
+   "value": 55266128.91,
+   "prior": 35330642.87,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c34\u7535\u52a8\u80fd\u8d39",
+   "value": 37087594.49,
+   "prior": 34971519.11,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u901a\u8fd0\u8f93\u8d39",
+   "value": 23656260.3,
+   "prior": 28836521.95,
+   "page": 208,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8058\u8bf7\u4e2d\u4ecb\u673a\u6784\u8d39\u7528",
+   "value": 28527928.58,
+   "prior": 24676537.12,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e7f\u544a\u5ba3\u4f20\u8d39",
+   "value": 28779528.02,
+   "prior": 33831658.35,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8ba1\u5e08\u4e8b\u52a1\u6240\u62a5\u916c",
+   "value": 200.0,
+   "prior": 40.0,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u804c\u5de5\u85aa\u916c",
+   "value": 1601220265.32,
+   "prior": 1556826302.72,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6298\u65e7\u4e0e\u644a\u9500",
+   "value": 202533602.51,
+   "prior": 199086616.56,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8bd5\u9a8c\u68c0\u9a8c\u3001\u8d28\u91cf\u9274\u5b9a\u8d39",
+   "value": 274146353.17,
+   "prior": 242430632.41,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5229\u606f\u8d39\u7528",
+   "value": 61582139.16,
+   "prior": 82971078.48,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u5229\u606f\u6536\u5165",
+   "value": 108208159.6,
+   "prior": 132705664.58,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c47\u5151\u635f\u76ca",
+   "value": 25210462.85,
+   "prior": 5925300.49,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u653f\u5e9c\u8865\u52a9",
+   "value": 358842788.25,
+   "prior": 271278496.88,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fdb\u9879\u7a0e\u52a0\u8ba1\u62b5\u51cf",
+   "value": 455477274.3,
+   "prior": 495274593.55,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ee3\u6263\u4e2a\u4eba\u6240\u5f97\u7a0e\u624b\u7eed\u8d39",
+   "value": 1798510.22,
+   "prior": 2218130.16,
+   "page": 209,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6743\u76ca\u6cd5\u6838\u7b97\u7684\u957f\u671f\u80a1\u6743\u6295\u8d44\u6536\u76ca",
+   "value": 169002789.77,
+   "prior": 186935311.74,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5904\u7f6e\u957f\u671f\u80a1\u6743\u6295\u8d44\u4ea7\u751f\u7684\u6295\u8d44\u6536\u76ca",
+   "value": 532912677.76,
+   "prior": 778666016.97,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u6613\u6027\u91d1\u878d\u8d44\u4ea7\u5728\u6301\u6709\u671f\u95f4\u7684\u6295\u8d44\u6536\u76ca",
+   "value": 35024901.03,
+   "prior": 14148798.13,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u6743\u6295\u8d44\u6301\u6709\u671f\u95f4\u53d6\u5f97\u7684\u5229\u606f\u6536\u5165",
+   "value": 39236029.08,
+   "prior": 47198390.21,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u6743\u76ca\u5de5\u5177\u6295\u8d44\u6301\u6709\u671f\u95f4\u53d6\u5f97\u7684\u80a1\u5229\u6536\u5165",
+   "value": 15799782.42,
+   "prior": 10203811.49,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u52a1\u91cd\u7ec4\u4ea7\u751f\u7684\u6295\u8d44\u6536\u76ca",
+   "value": 87354807.71,
+   "prior": 72942065.54,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5916\u6c47\u4e1a\u52a1\u6536\u5165",
+   "value": -3790000.42,
+   "prior": 6844738.21,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u6613\u6027\u91d1\u878d\u8d44\u4ea7",
+   "value": 84520941.21,
+   "prior": -204160425.88,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u7968\u636e\u574f\u8d26\u635f\u5931",
+   "value": 26912253.55,
+   "prior": 28936582.7,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u8d26\u6b3e\u574f\u8d26\u635f\u5931",
+   "value": 412715037.71,
+   "prior": -216409118.19,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u6b3e\u9879\u878d\u8d44\u51cf\u503c\u635f\u5931",
+   "value": -1467170.56,
+   "prior": 1467170.56,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u6536\u6b3e\u574f\u8d26\u635f\u5931",
+   "value": -1727006.65,
+   "prior": 7019046.15,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u6743\u6295\u8d44\u51cf\u503c\u635f\u5931",
+   "value": -3951000.0,
+   "prior": 51750000.0,
+   "page": 210,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u5e94\u6536\u6b3e\u574f\u8d26\u635f\u5931",
+   "value": 6653745.21,
+   "prior": -21254291.35,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fe1\u8d37\u8d44\u4ea7\u51cf\u503c\u635f\u5931",
+   "value": 88393387.44,
+   "prior": 294525749.32,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b58\u8d27\u8dcc\u4ef7\u635f\u5931\u53ca\u5408\u540c\u5c65\u7ea6\u6210\u672c\u51cf\u503c\u635f\u5931",
+   "value": 580368020.57,
+   "prior": 505097170.25,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u540c\u8d44\u4ea7\u51cf\u503c\u635f\u5931",
+   "value": 757698973.74,
+   "prior": 642747334.16,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u51cf\u503c\u635f\u5931",
+   "value": 2646503.98,
+   "prior": 125606.16,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u6d41\u52a8\u8d44\u4ea7\u5904\u7f6e\u635f\u76ca",
+   "value": 5945079.55,
+   "prior": 16452695.37,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u6d41\u52a8\u8d44\u4ea7\u6bc1\u635f\u62a5\u5e9f\u5229\u5f97",
+   "value": 2057968.77,
+   "prior": 715589.92,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0e\u4f01\u4e1a\u65e5\u5e38\u6d3b\u52a8\u65e0\u5173\u7684\u653f\u5e9c\u8865\u52a9",
+   "value": 196305.51,
+   "prior": 2159900.0,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8fdd\u7ea6\u8d54\u507f\u6536\u5165",
+   "value": 33902023.76,
+   "prior": 12238720.69,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5bf9\u5916\u6350\u8d60",
+   "value": 29250572.63,
+   "prior": 25903774.67,
+   "page": 211,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7f5a\u6b3e\u548c\u6ede\u7eb3\u91d1",
+   "value": 33623315.52,
+   "prior": 18678855.22,
+   "page": 212,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u76d8\u4e8f\u635f\u5931",
+   "value": 333.45,
+   "prior": 333.45,
+   "page": 212,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u975e\u6d41\u52a8\u8d44\u4ea7\u6bc1\u635f\u62a5\u5e9f\u635f\u5931",
+   "value": 7550432.88,
+   "prior": 6114853.31,
+   "page": 212,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f53\u671f\u6240\u5f97\u7a0e\u8d39\u7528",
+   "value": 966629284.39,
+   "prior": 639680886.92,
+   "page": 212,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d39\u7528",
+   "value": -147471927.33,
+   "prior": -42962997.57,
+   "page": 212,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u666e\u901a\u80a1\u80a1\u4e1c\u7684\u5408\u5e76\u51c0\u5229\u6da6",
+   "value": 3831301222.13,
+   "prior": 2922100908.48,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u53d1\u884c\u5728\u5916\u666e\u901a\u80a1\u7684\u52a0\u6743\u5e73\u5747\u6570",
+   "value": 3339140775.25,
+   "prior": 3118189017.0,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57fa\u672c\u6bcf\u80a1\u6536\u76ca",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u6301\u7eed\u7ecf\u8425\u57fa\u672c\u6bcf\u80a1\u6536\u76ca",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f52\u5c5e\u4e8e\u6bcd\u516c\u53f8\u666e\u901a\u80a1\u80a1\u4e1c\u7684\u5408\u5e76\u51c0\u5229\u6da6\uff08\u7a00\u91ca\uff09",
+   "value": 3831301222.13,
+   "prior": 2922100908.48,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u53d1\u884c\u5728\u5916\u666e\u901a\u80a1\u7684\u52a0\u6743\u5e73\u5747\u6570\uff08\u7a00\u91ca\uff09",
+   "value": 3339140775.25,
+   "prior": 3118189017.0,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7a00\u91ca\u6bcf\u80a1\u6536\u76ca",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u6301\u7eed\u7ecf\u8425\u7a00\u91ca\u6bcf\u80a1\u6536\u76ca",
+   "value": 1.15,
+   "prior": 0.94,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6027\u4e1a\u52a1\u4fdd\u8bc1\u91d1",
+   "value": 4927655093.44,
+   "prior": 3076884427.9,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62db\u6807\u670d\u52a1\u8d39",
+   "value": 214889841.22,
+   "prior": 199694478.0,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u57ab\u4ed8\u6b3e\u9879",
+   "value": 576418824.74,
+   "prior": 339279874.99,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u653f\u5e9c\u8865\u52a9",
+   "value": 438465847.78,
+   "prior": 393003726.09,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5229\u606f\u6536\u5165",
+   "value": 103572375.66,
+   "prior": 103513832.6,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7f5a\u6b3e\u6536\u5165",
+   "value": 3105013.6,
+   "prior": 4879739.81,
+   "page": 213,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u652f\u4ed8\u7ecf\u8425\u6027\u4e1a\u52a1\u4fdd\u8bc1\u91d1",
+   "value": 3906303322.85,
+   "prior": 3907128881.93,
+   "page": 214,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6027\u8d39\u7528\u652f\u51fa",
+   "value": 2382638937.88,
+   "prior": 1944854425.22,
+   "page": 214,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u57ab\u4ed8\u6b3e\u9879",
+   "value": 461672320.35,
+   "prior": 290941490.26,
+   "page": 214,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6027\u5907\u7528\u91d1",
+   "value": 252506124.89,
+   "prior": 145547737.89,
+   "page": 214,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u652f\u4ed8\u79df\u8d41\u8d1f\u503a\u672c\u91d1\u53ca\u5229\u606f",
+   "value": 97190579.87,
+   "prior": 136544823.32,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u52a0\uff1a\u4fe1\u7528\u51cf\u503c\u635f\u5931",
+   "value": 555208784.6,
+   "prior": 146035139.19,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d44\u4ea7\u51cf\u503c\u635f\u5931",
+   "value": 1341551009.39,
+   "prior": 1148012197.65,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u6298\u65e7",
+   "value": 849357468.03,
+   "prior": 780003631.51,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f7f\u7528\u6743\u8d44\u4ea7\u6298\u65e7",
+   "value": 152709448.06,
+   "prior": 199139706.74,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65e0\u5f62\u8d44\u4ea7\u644a\u9500",
+   "value": 158402644.5,
+   "prior": 134237989.04,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u5f85\u644a\u8d39\u7528\u644a\u9500",
+   "value": 10889135.97,
+   "prior": 2798924.84,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56fa\u5b9a\u8d44\u4ea7\u62a5\u5e9f\u635f\u5931\uff08\u6536\u76ca\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -2057968.77,
+   "prior": 5381986.62,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u5141\u4ef7\u503c\u53d8\u52a8\u635f\u5931\uff08\u6536\u76ca\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -84520941.21,
+   "prior": 204160425.88,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d22\u52a1\u8d39\u7528\uff08\u6536\u76ca\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": 61582139.16,
+   "prior": 88896378.97,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6295\u8d44\u635f\u5931\uff08\u6536\u76ca\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -867118249.46,
+   "prior": -1577063838.88,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d44\u4ea7\u51cf\u5c11\uff08\u589e\u52a0\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -82323794.8,
+   "prior": -92657298.72,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9012\u5ef6\u6240\u5f97\u7a0e\u8d1f\u503a\u589e\u52a0\uff08\u51cf\u5c11\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -80786430.22,
+   "prior": 49694301.15,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b58\u8d27\u7684\u51cf\u5c11\uff08\u589e\u52a0\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -4435004942.48,
+   "prior": -3548713185.02,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6027\u5e94\u6536\u9879\u76ee\u7684\u51cf\u5c11\uff08\u589e\u52a0\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": -4897453331.95,
+   "prior": 3151377842.03,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6027\u5e94\u4ed8\u9879\u76ee\u7684\u589e\u52a0\uff08\u51cf\u5c11\u4ee5\u201c\uff0d\u201d\u53f7\u586b\u5217\uff09",
+   "value": 5373853058.4,
+   "prior": 6097114046.38,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u6d3b\u52a8\u4ea7\u751f\u7684\u73b0\u91d1\u6d41\u91cf\u51c0\u989d",
+   "value": 2014320912.85,
+   "prior": 10059491408.32,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u73b0\u91d1\u7684\u671f\u672b\u4f59\u989d",
+   "value": 18980959402.69,
+   "prior": 22502857720.96,
+   "page": 215,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u73b0\u91d1\u7684\u671f\u521d\u4f59\u989d",
+   "value": 22502857720.96,
+   "prior": 14167585378.12,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u73b0\u91d1\u53ca\u73b0\u91d1\u7b49\u4ef7\u7269\u51c0\u589e\u52a0\u989d",
+   "value": -3521898318.27,
+   "prior": 8335272342.84,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u3001\u73b0\u91d1",
+   "value": 18980959402.69,
+   "prior": 22502857720.96,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u5e93\u5b58\u73b0\u91d1",
+   "value": 81245.96,
+   "prior": 746278.67,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u968f\u65f6\u7528\u4e8e\u652f\u4ed8\u7684\u94f6\u884c\u5b58\u6b3e",
+   "value": 3432809880.56,
+   "prior": 2976430305.28,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u968f\u65f6\u7528\u4e8e\u652f\u4ed8\u7684\u5176\u4ed6\u8d27\u5e01\u8d44\u91d1",
+   "value": 31511212.92,
+   "prior": 114897348.73,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53ef\u7528\u4e8e\u652f\u4ed8\u7684\u5b58\u653e\u4e2d\u592e\u94f6\u884c\u6b3e\u9879",
+   "value": 17621742.62,
+   "prior": 1346.44,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b58\u653e\u540c\u4e1a\u6b3e\u9879",
+   "value": 15498935320.63,
+   "prior": 19410782441.84,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e09\u3001\u671f\u672b\u73b0\u91d1\u53ca\u73b0\u91d1\u7b49\u4ef7\u7269\u4f59\u989d",
+   "value": 18980959402.69,
+   "prior": 22502857720.96,
+   "page": 216,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 70088693.77,
+   "prior": 7.0288,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5370\u5ea6\u5362\u6bd4",
+   "value": 1260022941.12,
+   "prior": 0.0783,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6ce2\u9ed1\u9a6c\u514b",
+   "value": 3516239.33,
+   "prior": 4.2093,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57c3\u585e\u4fc4\u6bd4\u4e9a\u6bd4\u5c14",
+   "value": 261800613.56,
+   "prior": 0.045,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8001\u631d\u57fa\u666e",
+   "value": 3936479600.0,
+   "prior": 0.0003,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65af\u91cc\u5170\u5361\u5362\u6bd4",
+   "value": 22802007.08,
+   "prior": 0.0226,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b5f\u52a0\u62c9\u5854\u5361",
+   "value": 41951446.15,
+   "prior": 0.0572,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u963f\u8054\u914b\u8fea\u62c9\u59c6",
+   "value": 61601.86,
+   "prior": 1.9071,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fc4\u7f57\u65af\u5362\u5e03",
+   "value": 93747.27,
+   "prior": 0.088,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0a\u62c9\u514b\u7b2c\u7eb3\u5c14",
+   "value": 8707000.0,
+   "prior": 0.0053,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9a6c\u6765\u897f\u4e9a\u6797\u5409\u7279",
+   "value": 105255.21,
+   "prior": 1.7319,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u585e\u5c14\u7ef4\u4e9a\u7b2c\u7eb3\u5c14",
+   "value": 119607.41,
+   "prior": 0.0702,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7eb3\u7c73\u6bd4\u4e9a\u5143",
+   "value": 35512318.62,
+   "prior": 0.4219,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 197922387.24,
+   "prior": 7.0288,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5370\u5ea6\u5362\u6bd4",
+   "value": 93061112.84,
+   "prior": 0.0783,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 1511628.38,
+   "prior": 7.0288,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5370\u5ea6\u5362\u6bd4",
+   "value": 1830185.44,
+   "prior": 0.0783,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6ce2\u9ed1\u9a6c\u514b",
+   "value": 16273.96,
+   "prior": 4.2093,
+   "page": 217,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57c3\u585e\u4fc4\u6bd4\u4e9a\u6bd4\u5c14",
+   "value": 15010634.67,
+   "prior": 0.045,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8001\u631d\u57fa\u666e",
+   "value": 9208533.33,
+   "prior": 0.0003,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65af\u91cc\u5170\u5361\u5362\u6bd4",
+   "value": 13259981.42,
+   "prior": 0.0226,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b5f\u52a0\u62c9\u5854\u5361",
+   "value": 8870780.24,
+   "prior": 0.0572,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5362\u83f2\u4e9a\u5e01",
+   "value": 19741.78,
+   "prior": 0.4526,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u963f\u8054\u914b\u8fea\u62c9\u59c6",
+   "value": 92298.46,
+   "prior": 1.9071,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4fc4\u7f57\u65af\u5362\u5e03",
+   "value": 92.96,
+   "prior": 0.0881,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0a\u62c9\u514b\u7b2c\u7eb3\u5c14",
+   "value": 1816428.3,
+   "prior": 0.0053,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9a6c\u6765\u897f\u4e9a\u6797\u5409\u7279",
+   "value": 32820.57,
+   "prior": 1.7319,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u585e\u5c14\u7ef4\u4e9a\u7b2c\u7eb3\u5c14",
+   "value": 4421.51,
+   "prior": 0.0702,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 38829030.41,
+   "prior": 7.0288,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 15247180.18,
+   "prior": 7.0288,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u745e\u58eb\u6cd5\u90ce",
+   "value": 450694.0,
+   "prior": 8.851,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57c3\u585e\u4fc4\u6bd4\u4e9a\u6bd4\u5c14",
+   "value": 45971846.22,
+   "prior": 0.045,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b5f\u52a0\u62c9\u5854\u5361",
+   "value": 20445664.16,
+   "prior": 0.0572,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e4c\u5179\u522b\u514b\u65af\u5766\u82cf\u59c6",
+   "value": 188238461379.55,
+   "prior": 0.0006,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80af\u5c3c\u4e9a\u5148\u4ee4",
+   "value": 85324212.89,
+   "prior": 0.0543,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 4114605.77,
+   "prior": 7.0288,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5370\u5ea6\u5362\u6bd4",
+   "value": 26673945.59,
+   "prior": 0.0783,
+   "page": 218,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65af\u91cc\u5170\u5361\u5362\u6bd4",
+   "value": 127157.08,
+   "prior": 0.0226,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b5f\u52a0\u62c9\u5854\u5361",
+   "value": 6395432.87,
+   "prior": 0.0572,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0a\u62c9\u514b\u7b2c\u7eb3\u5c14",
+   "value": 4888318.87,
+   "prior": 0.0053,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u7f8e\u5143",
+   "value": 41418400.0,
+   "prior": 7.0228,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79df\u8d41\u8d1f\u503a\u7684\u5229\u606f\u8d39\u7528",
+   "value": 20752721.56,
+   "prior": 27466760.89,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0e\u79df\u8d41\u76f8\u5173\u7684\u603b\u73b0\u91d1\u6d41\u51fa",
+   "value": 201492744.69,
+   "prior": 93267469.94,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u79df\u8d41\u6536\u5165",
+   "value": 11569351.79,
+   "prior": 17388608.28,
+   "page": 219,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u804c\u5de5\u85aa\u916c",
+   "value": 1601220265.32,
+   "prior": 1556826302.72,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8017\u7528\u6750\u6599",
+   "value": 385301764.29,
+   "prior": 311630057.83,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6298\u65e7\u644a\u9500",
+   "value": 202533602.51,
+   "prior": 199086616.56,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4e2d\uff1a\u8d39\u7528\u5316\u7814\u53d1\u652f\u51fa",
+   "value": 3261156190.4,
+   "prior": 3009012872.14,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d44\u672c\u5316\u7814\u53d1\u652f\u51fa",
+   "value": 1718130.51,
+   "prior": 5027241.19,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5f00\u53d1\u652f\u51fa",
+   "value": 5027241.19,
+   "prior": 1367677.28,
+   "page": 220,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56f4\u8303\u5e76\u5408\u5165\u7eb3\u5176\u5c06\u800c\u56e0\uff0c\u6743\u5236\u63a7\u8d28\u5b9e\u6709\u62e5\u5176\u5bf9\u53f8\u516c\u672c\u4f46\uff0c\u6570\u534a\u8fc7\u4e0d \u8ba4\uff08\u4efd\u80a1%",
+   "value": 64.0,
+   "prior": 50.86,
+   "page": 224,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u7968\u636e",
+   "value": 1747401766.25,
+   "prior": 83344354.44,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u8d26\u6b3e",
+   "value": 19168891258.15,
+   "prior": 3975096356.79,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u6536\u6b3e",
+   "value": 665327271.71,
+   "prior": 283641266.65,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u503a\u6743\u6295\u8d44",
+   "value": 26415551083.33,
+   "prior": 137799000.0,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u957f\u671f\u5e94\u6536\u6b3e\uff08\u542b\u4e00\u5e74\u5185\u5230\u671f\u6b3e\u9879\uff09",
+   "value": 465090807.44,
+   "prior": 233076726.41,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d1\u653e\u8d37\u6b3e\u53ca\u57ab\u6b3e",
+   "value": 1579760000.0,
+   "prior": 229914000.0,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7531\u4e8e\u672c\u516c\u53f8\u94f6\u884c\u4fe1\u7528\u826f\u597d\u5e76\u4e14\u4fe1\u7528\u7b49\u7ea7\u8f83\u9ad8\uff0c\u622a\u6b62",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 232,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u516c\u53f8\u7684\u5176\u5b83\u4e3b\u8981\u4e1a\u52a1\u6d3b\u52a8\u4ee5\u4eba\u6c11\u5e01\u8ba1\u4ef7\u7ed3\u7b97\u3002\u4e8e",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 234,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ecf\u8425\u4e1a\u7ee9\u4ea7\u751f\u5f71\u54cd\u3002",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 234,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e01\u5347\u503c\u6216\u8d2c\u503c",
+   "value": 5.0,
+   "prior": 126201792.56,
+   "page": 234,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25c6\u4ea4\u6613\u6027\u91d1\u878d\u8d44\u4ea7",
+   "value": 1832489719.73,
+   "prior": 1832489719.73,
+   "page": 235,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25c6\u5e94\u6536\u6b3e\u9879\u878d\u8d44",
+   "value": 2885613858.43,
+   "prior": 2885613858.43,
+   "page": 235,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u25c6\u5176\u4ed6\u6743\u76ca\u5de5\u5177\u6295\u8d44",
+   "value": 534893610.87,
+   "prior": 133427294.52,
+   "page": 235,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6301\u7eed\u4ee5\u516c\u5141\u4ef7\u503c\u8ba1\u91cf\u7684\u8d44\u4ea7\u603b\u989d",
+   "value": 2367383330.6,
+   "prior": 3019041152.95,
+   "page": 236,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u4e8e",
+   "value": 1984.0,
+   "prior": 11.0,
+   "page": 237,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ba1\u4f01\u4e1a\u3002\u622a\u81f3",
+   "value": 12.0,
+   "prior": 31.0,
+   "page": 237,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u53ca\u8054\u8425\u4f01\u4e1a",
+   "value": 1953517095.47,
+   "prior": 2958980338.72,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5fb7\u9633\u5e7f\u5927\u4e1c\u6c7d\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 1188065241.69,
+   "prior": 1023420321.17,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u83f1\u65e5\u9505\u7089\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 298313049.68,
+   "prior": 1685756649.3,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e09\u83f1\u91cd\u5de5\u4e1c\u65b9\u71c3\u6c14\u8f6e\u673a\uff08\u5e7f\u5dde\uff09\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 302214436.94,
+   "prior": 249803368.25,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d7\u540c\u4e00\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 1052043640.06,
+   "prior": 780687745.01,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 194145668.07,
+   "prior": 125695704.16,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u63a5\u53d7\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 1498815.33,
+   "prior": 52019983.11,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 37376056.98,
+   "prior": 44873350.49,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 430176990.83,
+   "prior": 435894635.12,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u63a5\u53d7\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 12520.0,
+   "prior": 106159.29,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c49\u6b63\u68c0\u6d4b\u6280\u672f\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 6106751.07,
+   "prior": 14503357.74,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c49\u6b63\u68c0\u6d4b\u6280\u672f\u6709\u9650\u516c\u53f8 \u63a5\u53d7\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 18997481.44,
+   "prior": 5241769.37,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7518\u8083\u5b8f\u817e\u6cb9\u6c14\u88c5\u5907\u5236\u9020\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 1643750.94,
+   "prior": 36727426.54,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6570\u5b57\u79d1\u6280\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 192773389.55,
+   "prior": 132743.36,
+   "page": 239,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\uff08\u6210\u90fd\uff09\u5171\u4eab\u670d\u52a1\u6709\u9650\u516c\u53f8 \u8d2d\u4e70\u5546\u54c1",
+   "value": 538563.76,
+   "prior": 488657.28,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\uff08\u6210\u90fd\uff09\u5171\u4eab\u670d\u52a1\u6709\u9650\u516c\u53f8 \u63a5\u53d7\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 54292147.37,
+   "prior": 62777708.87,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 455816.19,
+   "prior": 307466.67,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u63d0\u4f9b\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 455816.19,
+   "prior": 307466.67,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u53ca\u8054\u8425\u4f01\u4e1a",
+   "value": 88969028.71,
+   "prior": 448174503.53,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u6cd5\u9a6c\u901a\u6838\u6cf5\u6709\u9650\u8d23\u4efb\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 88969028.71,
+   "prior": 20617840.0,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\uff08\u9152\u6cc9\uff09\u5149\u4f0f\u53d1\u7535\u79d1\u6280\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 22342.16,
+   "prior": 7497.26,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7518\u8083\u5b8f\u817e\u6cb9\u6c14\u88c5\u5907\u5236\u9020\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 704623.77,
+   "prior": 48938.05,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c49\u6b63\u68c0\u6d4b\u6280\u672f\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 2484.25,
+   "prior": 107723.48,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 329084060.06,
+   "prior": 244912829.72,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79e6\u7687\u5c9b\u805a\u5174\u5149\u4f0f\u7535\u529b\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 140254809.18,
+   "prior": 555135539.73,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 1938008.85,
+   "prior": 1592920.35,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 36506244.53,
+   "prior": 32440263.84,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u9500\u552e\u5546\u54c1",
+   "value": 68147838.81,
+   "prior": 161738793.51,
+   "page": 240,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9500\u552e\u5546\u54c1",
+   "value": 2438871.24,
+   "prior": 17739956.3,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u63d0\u4f9b\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 249960.13,
+   "prior": 980767.26,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u56fd\u9645\u79d1\u8d38\u6709\u9650\u516c\u53f8 \u63d0\u4f9b\u52b3\u52a1\u53ca\u52a8\u80fd",
+   "value": 888775.34,
+   "prior": 1102843.54,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d7\u540c\u4e00\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 44601613.34,
+   "prior": 48041981.53,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\uff08\u4e2d\u56fd\uff09\u6295\u8d44\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 13968877.52,
+   "prior": 17843024.5,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 10612436.58,
+   "prior": 12973710.72,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 9909889.64,
+   "prior": 9961468.58,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 2028234.31,
+   "prior": 2389832.29,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8862\u5dde\u60e0\u6377\u65b0\u80fd\u6e90\u79d1\u6280\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 2420513.42,
+   "prior": 3130660.03,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7984\u529d\u4e1c\u7535\u592a\u9633\u80fd\u53d1\u7535\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 2187767.89,
+   "prior": 812923.99,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u6536\u5165",
+   "value": 2821515.96,
+   "prior": 801954.71,
+   "page": 241,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 17442071.65,
+   "prior": 23132053.13,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 17442071.65,
+   "prior": 23132053.13,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u53d7\u540c\u4e00\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 4447307.87,
+   "prior": 2527562.72,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90(\u5c71\u4e1c)\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 27608.79,
+   "prior": 12910.81,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u667a\u6167\u5149\u80fd\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 1071918.23,
+   "prior": 743740.73,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u6295\u8d44\u7ba1\u7406\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 48728.05,
+   "prior": 109598.32,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\uff08\u6210\u90fd\uff09\u5171\u4eab\u670d\u52a1\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 435375.94,
+   "prior": 328948.51,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\uff08\u9152\u6cc9\uff09 \u5149\u4f0f\u53d1\u7535\u79d1\u6280\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 11025.23,
+   "prior": 3859.64,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u878d\u8d44\u79df\u8d41\uff08\u4e0a\u6d77\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 263846.74,
+   "prior": 660625.78,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 65770.61,
+   "prior": 99013.66,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\uff08\u4e50\u5c71\uff09 \u5ce8\u534a\u9ad8\u7eaf\u6750\u6599\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 46479.43,
+   "prior": 111455.92,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8862\u5dde\u60e0\u5408\u65b0\u80fd\u6e90\u79d1\u6280\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 19629.58,
+   "prior": 25475.88,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\uff08\u9152\u6cc9\uff09 \u7efc\u5408\u667a\u6167\u80fd\u6e90\u79d1\u6280\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 281997.89,
+   "prior": 98946.35,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 31664.58,
+   "prior": 0.4,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\uff08\u4e2d\u56fd\uff09\u6295\u8d44\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 1938.64,
+   "prior": 5.42,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 352859.5,
+   "prior": 100977.65,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 190695.21,
+   "prior": 2419.57,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u56fd\u9645\u79d1\u8d38\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 22104.06,
+   "prior": 0.2,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u8000\u65b0\u80fd\u6e90\uff08\u5f20\u5317\u53bf\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 161092.73,
+   "prior": 101071.92,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79e6\u7687\u5c9b\u805a\u5174\u5149\u4f0f\u7535\u529b\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 60038.15,
+   "prior": 34578.99,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7984\u529d\u4e1c\u7535\u592a\u9633\u80fd\u53d1\u7535\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 121264.04,
+   "prior": 59720.89,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u8000\u65b0\u80fd\u6e90\uff08\u66f2\u9756\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 5558.61,
+   "prior": 5036.54,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6caa\u4e00\u878d\u8d44\u79df\u8d41\uff08\u4e0a\u6d77\uff09\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 6356.24,
+   "prior": 4356.34,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79e6\u7687\u5c9b\u5b8f\u805a\u5149\u4f0f\u7535\u529b\u6709\u9650\u516c\u53f8 \u5229\u606f\u652f\u51fa",
+   "value": 235.73,
+   "prior": 24819.2,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c49\u6b63\u68c0\u6d4b\u6280\u672f\u6709\u9650\u516c\u53f8 \u56fa\u5b9a\u8d44\u4ea7\u51fa\u79df",
+   "value": 59854.86,
+   "prior": 31182.16,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8 \u56fa\u5b9a\u8d44\u4ea7\u51fa\u79df",
+   "value": 398841.13,
+   "prior": 400295.76,
+   "page": 242,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u56fa\u5b9a\u8d44\u4ea7\u51fa\u79df",
+   "value": 313616.19,
+   "prior": 307466.67,
+   "page": 243,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 280000000.0,
+   "prior": 9.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 80000000.0,
+   "prior": 9.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 400000000.0,
+   "prior": 9.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 70000000.0,
+   "prior": 1.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 2.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 94900000.0,
+   "prior": 3.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 80000000.0,
+   "prior": 5.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 90000000.0,
+   "prior": 6.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 90000000.0,
+   "prior": 8.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 100000000.0,
+   "prior": 8.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 54000000.0,
+   "prior": 10.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 70000000.0,
+   "prior": 11.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 296000000.0,
+   "prior": 12.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 200000000.0,
+   "prior": 12.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 317500000.0,
+   "prior": 12.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 1.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 15000000.0,
+   "prior": 2.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 3.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 40000000.0,
+   "prior": 4.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 4.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 6.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 8.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 10.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 50000000.0,
+   "prior": 11.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 40000000.0,
+   "prior": 12.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 60250098.65,
+   "prior": 3.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 2545194.79,
+   "prior": 6.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 2643015.19,
+   "prior": 6.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 5700906.82,
+   "prior": 7.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 14402140.52,
+   "prior": 8.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 37809270.27,
+   "prior": 9.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 36008482.09,
+   "prior": 10.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u5409\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 21501274.56,
+   "prior": 12.0,
+   "page": 245,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 30000000.0,
+   "prior": 1.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 20000000.0,
+   "prior": 1.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 25000000.0,
+   "prior": 2.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 25000000.0,
+   "prior": 6.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 45000000.0,
+   "prior": 6.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u98de\u6e90\uff08\u5c71\u4e1c\uff09\u7535\u5b50\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 30000000.0,
+   "prior": 7.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8",
+   "value": 20000000.0,
+   "prior": 5.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8",
+   "value": 40000000.0,
+   "prior": 7.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8",
+   "value": 20000000.0,
+   "prior": 9.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8",
+   "value": 20000000.0,
+   "prior": 12.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5b8f\u534e\u6d77\u6d0b\u6cb9\u6c14\u88c5\u5907\uff08\u6c5f\u82cf\uff09\u6709\u9650\u516c\u53f8",
+   "value": 30000000.0,
+   "prior": 12.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u65b0\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 176077510.99,
+   "prior": 1.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6728\u5792\u4e1c\u65b0\u65b0\u80fd\u6e90\u6709\u9650\u516c\u53f8",
+   "value": 15413622.25,
+   "prior": 6.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8",
+   "value": 15000000.0,
+   "prior": 7.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8",
+   "value": 20000000.0,
+   "prior": 8.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5173\u952e\u7ba1\u7406\u4eba\u5458\u85aa\u916c",
+   "value": 1854503.67,
+   "prior": 2068923.0,
+   "page": 246,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9ec4\u5cf0 \u72ec\u7acb\u8463\u4e8b",
+   "value": 119004.0,
+   "prior": 119004.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u66fe\u9053\u8363 \u72ec\u7acb\u8463\u4e8b",
+   "value": 125004.0,
+   "prior": 125004.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9648\u5b87 \u72ec\u7acb\u8463\u4e8b",
+   "value": 119004.0,
+   "prior": 119004.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6881\u6714 \u76d1\u4e8b",
+   "value": 224763.0,
+   "prior": 401990.74,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5218\u767b\u6e05 \u72ec\u7acb\u8463\u4e8b",
+   "value": 49002.0,
+   "prior": 49002.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9ec4\u5cf0 \u72ec\u7acb\u8463\u4e8b",
+   "value": 113004.0,
+   "prior": 113004.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9a6c\u6c38\u5f3a \u72ec\u7acb\u8463\u4e8b",
+   "value": 13334.0,
+   "prior": 13334.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u66fe\u9053\u8363 \u72ec\u7acb\u8463\u4e8b",
+   "value": 100337.0,
+   "prior": 100337.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9648\u5b87 \u72ec\u7acb\u8463\u4e8b",
+   "value": 58669.0,
+   "prior": 58669.0,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u738b\u5fd7\u6587 \u76d1\u4e8b\u4f1a\u4e3b\u5e2d",
+   "value": 285168.0,
+   "prior": 605712.21,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6881\u6714 \u76d1\u4e8b",
+   "value": 245172.0,
+   "prior": 494169.73,
+   "page": 247,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5de5\u8d44\u53ca\u8865\u8d34",
+   "value": 936095.2,
+   "prior": 1576176.88,
+   "page": 248,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ee9\u6548\u85aa\u91d1",
+   "value": 6827333.0,
+   "prior": 8620319.0,
+   "page": 248,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9000\u4f11\u798f\u5229\u8ba1\u5212\u4f9b\u6b3e",
+   "value": 220204.8,
+   "prior": 209309.12,
+   "page": 248,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 4105017779.73,
+   "prior": 4105017779.73,
+   "page": 248,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u96c6\u56e2\u6709\u9650\u516c\u53f8 \u7f8e\u5143",
+   "value": 12034476.08,
+   "prior": 84587925.47,
+   "page": 248,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 1194229.86,
+   "prior": 1194229.86,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 10584.42,
+   "prior": 10584.42,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 23714316.41,
+   "prior": 23714316.41,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u57ce\u53d1\u73af\u4fdd\u88c5\u5907 \u4eba\u6c11\u5e01",
+   "value": 41382202.49,
+   "prior": 41382202.49,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u63a7\u5236\u7684\u5176\u4ed6\u4f01",
+   "value": 1346371721.37,
+   "prior": 1346371721.37,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ba1\u7406\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 7532387.79,
+   "prior": 7532387.79,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6599\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 32736441.26,
+   "prior": 32736441.26,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff09\u7535\u5b50\u6750\u6599\u6709 \u4eba\u6c11\u5e01",
+   "value": 10036546.17,
+   "prior": 10036546.17,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff09\u5ce8\u534a\u9ad8\u7eaf\u6750\u6599 \u4eba\u6c11\u5e01",
+   "value": 36086706.03,
+   "prior": 36086706.03,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u6210\u90fd\uff09\u5171\u4eab\u670d \u4eba\u6c11\u5e01",
+   "value": 62827856.7,
+   "prior": 62827856.7,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u667a\u6167\u5149\u80fd\u6709\u9650 \u4eba\u6c11\u5e01",
+   "value": 154705316.5,
+   "prior": 154705316.5,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff09\u5149\u4f0f\u53d1\u7535\u79d1 \u4eba\u6c11\u5e01",
+   "value": 17921469.42,
+   "prior": 17921469.42,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u79d1\u6280\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 1040735.32,
+   "prior": 1040735.32,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u79d1\u6280\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 57104756.64,
+   "prior": 57104756.64,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5317\u53bf)\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 34178426.42,
+   "prior": 34178426.42,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6280\u672f\u670d\u52a1\u6709\u9650 \u4eba\u6c11\u5e01",
+   "value": 36160197.91,
+   "prior": 36160197.91,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u8d23\u4efb\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 189940295.98,
+   "prior": 189940295.98,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8bbe\u5907\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 85657066.69,
+   "prior": 85657066.69,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79d1\u8d38\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 4254430.67,
+   "prior": 4254430.67,
+   "page": 249,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u8d44\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 2624209.49,
+   "prior": 2624209.49,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u88c5\u5907(\u6c5f\u82cf)\u6709\u9650 \u4eba\u6c11\u5e01",
+   "value": 199805973.37,
+   "prior": 199805973.37,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9633\uff09\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 10711621.18,
+   "prior": 10711621.18,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9756\uff09\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 3562208.18,
+   "prior": 3562208.18,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0f\u7535\u529b\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 21824400.34,
+   "prior": 21824400.34,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4f0f\u7535\u529b\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 221031.66,
+   "prior": 221031.66,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u88c5\u5907\u5236\u9020\u6709\u9650 \u4eba\u6c11\u5e01",
+   "value": 819669.62,
+   "prior": 819669.62,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u53d1\u7535\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 28709629.1,
+   "prior": 28709629.1,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\uff08\u4e0a\u6d77\uff09\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 19059145.29,
+   "prior": 19059145.29,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79df\u8d41\uff08\u4e0a\u6d77\uff09\u6709 \u4eba\u6c11\u5e01",
+   "value": 122607.58,
+   "prior": 122607.58,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6570\u5b57\u79d1\u6280\u6709\u9650 \u4eba\u6c11\u5e01",
+   "value": 315001694.13,
+   "prior": 315001694.13,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8 \u4eba\u6c11\u5e01",
+   "value": 13726897.93,
+   "prior": 13726897.93,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5236\u65b9\u63a7\u5236\u7684\u5b50",
+   "value": 10.6,
+   "prior": 10.6,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u98ce\u7535\u5de5\u7a0b\u6280\u672f \u4eba\u6c11\u5e01",
+   "value": 10.6,
+   "prior": 10.6,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u63a7\u5236\u4e14\u5904\u4e8e\u7834",
+   "value": 16.37,
+   "prior": 16.37,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u79d1\u6280\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 1.13,
+   "prior": 1.13,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u79d1\u6280\u6709\u9650\u516c \u4eba\u6c11\u5e01",
+   "value": 15.24,
+   "prior": 15.24,
+   "page": 250,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e90\u8bbe\u5907(\u676d\u5dde)\u6709 \u6b27\u5143",
+   "value": 7.7,
+   "prior": 57.95,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 2122618.37,
+   "prior": 106130.92,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 22525129.5,
+   "prior": 20532345.88,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 13070936.3,
+   "prior": 11516209.12,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 10394000.0,
+   "prior": 2078800.0,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5dde\uff09\u6709\u9650\u516c\u53f8",
+   "value": 182109.51,
+   "prior": 9105.48,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 266130779.09,
+   "prior": 18083614.06,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80fd\u6e90\u79d1\u6280\u6709\u9650\u516c\u53f8",
+   "value": 12210373.6,
+   "prior": 888718.22,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 368600.0,
+   "prior": 18430.0,
+   "page": 251,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 88236091.66,
+   "prior": 4411804.59,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u79d1\u6280\u6709\u9650\u516c\u53f8",
+   "value": 8397.75,
+   "prior": 419.89,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 89397696.88,
+   "prior": 89397696.88,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 2434748.78,
+   "prior": 121737.42,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 78843503.27,
+   "prior": 107496112.52,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 57473757.68,
+   "prior": 89390318.57,
+   "page": 252,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 109291107.28,
+   "prior": 19824238.13,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5dde\uff09\u6709\u9650\u516c\u53f8",
+   "value": 460653.93,
+   "prior": 23032.7,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 184789.06,
+   "prior": 9239.45,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 612696.39,
+   "prior": 32539.28,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u670d\u52a1\u6709\u9650\u516c\u53f8",
+   "value": 12696.39,
+   "prior": 2539.28,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 2845136.58,
+   "prior": 2845136.58,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 172693.56,
+   "prior": 35327.42,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5dde\uff09\u6709\u9650\u516c\u53f8",
+   "value": 1589596.41,
+   "prior": 12511694.78,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 43154740.02,
+   "prior": 1459679.28,
+   "page": 253,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 395326514.45,
+   "prior": 395326514.45,
+   "page": 254,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 1220857782.0,
+   "prior": 214541400.0,
+   "page": 254,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 1114900000.0,
+   "prior": 160185000.0,
+   "page": 254,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 78000000.0,
+   "prior": 11700000.0,
+   "page": 254,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 110000000.0,
+   "prior": 16500000.0,
+   "page": 254,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u65b9\u63a7\u5236\u7684\u5176\u4ed6\u4f01\u4e1a",
+   "value": 121989662.28,
+   "prior": 18298449.34,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u9650\u516c\u53f8",
+   "value": 121296642.28,
+   "prior": 18194496.34,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 6965427.2,
+   "prior": 926500.0,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 6965427.2,
+   "prior": 926500.0,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u53ca\u8054\u8425\u4f01\u4e1a",
+   "value": 1425803444.0,
+   "prior": 683038088.71,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u83f1\u65e5\u9505\u7089\u6709\u9650\u516c\u53f8",
+   "value": 863001505.41,
+   "prior": 159192328.8,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6e56\u5357\u5e73\u5b89\u73af\u4fdd\u80a1\u4efd\u6709\u9650\u516c\u53f8",
+   "value": 9260470.0,
+   "prior": 5212446.9,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6c49\u6b63\u68c0\u6d4b\u6280\u672f\u6709\u9650\u516c\u53f8",
+   "value": 5524376.13,
+   "prior": 410163.4,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u4e1c\u6811\u65b0\u6750\u6599\u6709\u9650\u516c\u53f8",
+   "value": 107564957.98,
+   "prior": 52679605.16,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u7535\u6c14\u6709\u9650\u8d23\u4efb\u516c\u53f8",
+   "value": 25110343.06,
+   "prior": 29388269.47,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 78758835.74,
+   "prior": 82082228.42,
+   "page": 255,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u91cd\u5927\u5f71\u54cd\u7684\u6295\u8d44\u65b9",
+   "value": 1582288.39,
+   "prior": 1517563.4,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u897f\u80fd\u6e90\u5de5\u4e1a\u80a1\u4efd\u6709\u9650\u516c\u53f8",
+   "value": 1582288.39,
+   "prior": 1517563.4,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 235556623.88,
+   "prior": 382527094.71,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 235556623.88,
+   "prior": 382527094.71,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6709\u91cd\u5927\u5f71\u54cd\u7684\u6295\u8d44\u65b9",
+   "value": 27407.73,
+   "prior": 112751.67,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u534e\u897f\u80fd\u6e90\u5de5\u4e1a\u80a1\u4efd\u6709\u9650\u516c\u53f8",
+   "value": 27407.73,
+   "prior": 112751.67,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u53ca\u8054\u8425\u4f01\u4e1a",
+   "value": 537625771.98,
+   "prior": 254396319.05,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u83f1\u65e5\u9505\u7089\u6709\u9650\u516c\u53f8",
+   "value": 18073102.75,
+   "prior": 468064.73,
+   "page": 256,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u56db\u5ddd\u5b8f\u534e\u77f3\u6cb9\u8bbe\u5907\u6709\u9650\u516c\u53f8",
+   "value": 573108.49,
+   "prior": 95084.93,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 39243907.76,
+   "prior": 50359093.09,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 39243907.76,
+   "prior": 50359093.09,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 149263942.65,
+   "prior": 225031311.06,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 149263942.65,
+   "prior": 225031311.06,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6bcd\u516c\u53f8\u53ca\u6700\u7ec8\u63a7\u5236\u65b9",
+   "value": 1851708500.0,
+   "prior": 1357248500.0,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e2d\u56fd\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u6709\u9650\u516c\u53f8",
+   "value": 1851708500.0,
+   "prior": 1357248500.0,
+   "page": 257,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e00\u5e74\u4ee5\u5185",
+   "value": 141829994.84,
+   "prior": 60651269.73,
+   "page": 258,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e94\u5e74\u4ee5\u4e0a",
+   "value": 200559065.68,
+   "prior": 185036575.52,
+   "page": 258,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u7ea2\u6ce5\u4e95\u98ce\u7535 \u4fe1\u7528\u62c5\u4fdd",
+   "value": 16000000.0,
+   "prior": 1.0,
+   "page": 259,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e09\u5723\u592a\u98ce\u7535 \u4fe1\u7528\u62c5\u4fdd",
+   "value": 16000000.0,
+   "prior": 6.0,
+   "page": 259,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u70cf\u5170\u65b0\u80fd\u6e90 \u4fe1\u7528\u62c5\u4fdd",
+   "value": 36000000.0,
+   "prior": 10.0,
+   "page": 259,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u62df\u7b7e\u8ba2\u300aM",
+   "value": 7.0,
+   "prior": 1.0,
+   "page": 259,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u516c\u53f8\u4e8e",
+   "value": 3.0,
+   "prior": 31.0,
+   "page": 261,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u9884\u6848\uff0c\u4ee5",
+   "value": 3.0,
+   "prior": 31.0,
+   "page": 261,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u80a1\u6d3e\u53d1\u73b0\u91d1\u80a1\u5229",
+   "value": 5.3,
+   "prior": 1832930972.78,
+   "page": 261,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u574f\u8d26\u51c6\u5907",
+   "value": 278158973.69,
+   "prior": 284340269.75,
+   "page": 264,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5e94\u6536\u80a1\u5229",
+   "value": 4210670.09,
+   "prior": 23297096.99,
+   "page": 266,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u5e94\u6536\u6b3e\u9879",
+   "value": 15538203.39,
+   "prior": 17621082.56,
+   "page": 266,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u574f\u8d26\u51c6\u5907",
+   "value": 17375365.94,
+   "prior": 7288939.04,
+   "page": 267,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u51cf\uff1a\u574f\u8d26\u51c6\u5907",
+   "value": 19130332.51,
+   "prior": 12842781.14,
+   "page": 267,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d",
+   "value": 12842781.14,
+   "prior": 12842781.14,
+   "page": 269,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e0a\u5e74\u5e74\u672b\u4f59\u989d\u5728\u672c\u671f",
+   "value": 12842781.14,
+   "prior": 12842781.14,
+   "page": 269,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u672c\u671f\u8ba1\u63d0",
+   "value": 6287551.37,
+   "prior": 6287551.37,
+   "page": 269,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u671f\u672b\u4f59\u989d",
+   "value": 19130332.51,
+   "prior": 19130332.51,
+   "page": 269,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e1c\u65b9\u7535\u6c14\u96c6\u56e2\u4e1c\u65b9\u7535 \u4ee3\u57ab\u6b3e",
+   "value": 3367946.64,
+   "prior": 1.0,
+   "page": 269,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5408\u8425\u4f01\u4e1a",
+   "value": 430144058.66,
+   "prior": 40845971.47,
+   "page": 270,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4e3b\u8425\u4e1a\u52a1",
+   "value": 5970009802.41,
+   "prior": 5677308499.59,
+   "page": 274,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u5176\u4ed6\u4e1a\u52a1",
+   "value": 1332475.73,
+   "prior": 1113360.26,
+   "page": 274,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6210\u672c\u6cd5\u6838\u7b97\u7684\u957f\u671f\u80a1\u6743\u6295\u8d44\u6536\u76ca",
+   "value": 1767051302.62,
+   "prior": 1476919409.47,
+   "page": 274,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u6743\u76ca\u6cd5\u6838\u7b97\u7684\u957f\u671f\u80a1\u6743\u6295\u8d44\u6536\u76ca",
+   "value": -22928677.84,
+   "prior": -1900383.08,
+   "page": 274,
+   "stmt": null,
+   "_src": "rawline"
+  },
+  {
+   "label": "\u4ea4\u6613\u6027\u91d1\u878d\u8d44\u4ea7\u5728\u6301\u6709\u671f\u95f4\u7684\u6295\u8d44\u6536\u76ca",
+   "value": 14918264.79,
+   "prior": 14118582.92,
+   "page": 274,
+   "stmt": null,
+   "_src": "rawline"
+  }
+ ],
+ "ties": [],
+ "_direct": true
+}
