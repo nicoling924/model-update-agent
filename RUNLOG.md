@@ -293,3 +293,7 @@ sibling-only. REPLAY of run 98's own evidence through the fixed chain: 11/11
 key numbers prove at the exact disclosed values.
 
 | 99 (Luna, audit web sees) | 08-16 dispatched | — | — | — | — | The first run where the agent knows the right totals AND can repair the components that feed them. |
+
+| 99 (Luna, audit-web sight) | 08-15 16:26 | cancelled @106m | — | — | — | — | Ran 2x normal (old vision code's JSON-truncation retries); cancelled at the grace window, superseded by 100 (a strict superset). Partial log still paid: sibling machinery LIVE (thin-proof -> sibling-only, GUILTY SIBLING writes firing), learner recovered 3 constructions + 4 recipes (was 0+1). Two watch-items for 100's score: junk-value sibling writes (U205 "disclosed 1.0, 12 src") and a wrong-scope thin proof (op profit 1,427 = quarterly-table line; correctly not plugged). CF bridges still 0.0 -> root-caused: CF_SECT section keywords were ENGLISH-ONLY, the bridge menu was EMPTY on CN filings for every DFE run ever. Fixed + CN markers; offline: CFO composition double-locks immediately. |
+| 100 (Luna, full fix set) | 08-16 ~02:20 HKT | in flight | — | — | — | — | Audit-web sight + prior-column vision gate + 8k vision client + analyst-alignment prompts (owner directive). |
+| 101 (Luna, CLP genericity) | 08-16 ~02:45 HKT | in flight | — | — | — | — | Same stack on CLP, parallel — the generic-agent read for Monday. All changes scale-gated or additive; CLP dry-run was byte-identical. |
