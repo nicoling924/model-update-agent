@@ -970,6 +970,11 @@ def cmd_update(company_dir, period):
     for ln in obj_notes + obj_log:
         print("  [OBJ]", ln, flush=True)
     print(f"[6] key-number converge (final word): {n_fix} fixes banked", flush=True)
+    # HARD LOCKS: every cell the objective machinery wrote is now immutable to
+    # later stages (the CFO/CFI drift class dies here)
+    obj_cells_lock = set(writer_obj.log["written"]) - set(writer.log["written"])
+    wb._locked_cells = set(getattr(wb, "_locked_cells", set())) | obj_cells_lock
+    print(f"[6L] {len(obj_cells_lock)} objective-written cells LOCKED", flush=True)
     obj_log = tw_log + obj_log
 
     # blind review as a TOOL: the loop calls it when it wants a second pair of
@@ -1088,7 +1093,9 @@ def cmd_update(company_dir, period):
     chk_i = next((c2 for c2 in spec.get("check_rows", [])
                   if (spec["sheets"].get(c2["sheet"]) or {}).get("role") == "statements"),
                  None)
-    if len(unproven_i) == 1 and chk_i:
+    members_strong = all((proven.get(k2) or {}).get("sources", 0) >= 3
+                         for k2 in present_i if k2 not in unproven_i)
+    if len(unproven_i) == 1 and chk_i and members_strong:
         kind_u = unproven_i[0]
         loc_u = keymap[kind_u]
         ax_u = spec["year_axis"].get(chk_i["sheet"]) or {}
