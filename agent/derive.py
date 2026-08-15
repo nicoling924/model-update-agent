@@ -322,3 +322,87 @@ def replay_composition(recipe, fy25_raw):
         total += sign * val
         details.append(f"{'+' if sign > 0 else '-'}{val:,.1f} '{lab[:32]}' p{best[1]}")
     return total, details
+
+
+def implied_prior_read(rows, raw_lines, log, tol=0.01):
+    """SINGLE-YEAR tables, solved deterministically (council's tie-out).
+
+    MD&A tables (segment splits in 万元, production/sales/inventory in MW)
+    print ONLY the current year plus a 同比 % change — no comparative column,
+    so prior-value Ctrl+F can never anchor them. But the % IS the comparative:
+        implied_prior = current / (1 + pct/100)
+    A structured table line whose implied prior reproduces the model's own
+    known prior (within tol — the %% prints 2dp) identifies the row with near
+    certainty, names the current value, and self-solves the unit scale (the
+    scale that makes the implied prior match IS the table's scale). Rows whose
+    model prior disagrees with the filing's implied prior are left alone —
+    an honest hole beats a silent wrong write (measured: the gate correctly
+    refuses 电站汽轮机 production, where the model's FY24 itself disagrees).
+    """
+    from . import mapper as _mapper
+    # (page, [(value, pct), ...]) per structured table line
+    cand_lines = []
+    for pn, sec, ln in raw_lines:
+        if sec != "table" or "%" not in ln and "％" not in ln:
+            continue
+        cells = []
+        for seg in ln.split(" | "):
+            if ":" not in seg:
+                continue
+            h, _, v = seg.partition(":")
+            n = lookup.line_nums(v, skip_years=False)
+            if len(n) == 1:
+                cells.append((h.strip(), n[0]))
+        pairs = []
+        import re as _re
+        for i, (h, v) in enumerate(cells):
+            if "增减" in h or "%" in h or "％" in h or "变动" in h:
+                continue
+            # year-headed columns (5-year summaries, quarterlies) pair with
+            # nothing — matching them produced FY23-as-FY24 coincidences
+            if _re.search(r"\d{4}", h) or h.endswith("年"):
+                continue
+            # STRICT pairing: the pct header must carry the value header's own
+            # token (生产量 ⊂ 生产量比上年增减) — positional guessing produced
+            # cross-metric coincidences (thermal prior == turbine inventory)
+            pct = next((v2 for h2, v2 in cells
+                        if ("增减" in h2 or "变动" in h2) and abs(v2) < 400
+                        and h[:3] and h[:3] in h2), None)
+            # a ~0% change makes implied==current==prior and matches every
+            # stagnant row — demand a real move
+            if pct is not None and pct > -100 and abs(pct) >= 0.5:
+                pairs.append((h, v, pct))
+        if pairs:
+            cand_lines.append((pn, ln, pairs))
+    out = {}
+    for r in rows:
+        pv = r.get("prior_value")
+        if not isinstance(pv, (int, float)) or abs(pv) < 2:
+            continue
+        best = None
+        for pn, ln, pairs in cand_lines:
+            for h, v, pct in pairs:
+                implied = v / (1 + pct / 100.0)
+                for s in (1, 1e3, 1e4, 1e6, 1e8):
+                    if abs(implied / s - abs(pv)) <= max(abs(pv) * 0.005, 0.6):
+                        cur = v / s * (1 if pv >= 0 else -1)
+                        hit = (cur, pn, f"{h}: {v:,.1f} ({pct:+.2f}%)", ln)
+                        if best is None:
+                            best = hit
+                        elif abs(best[0]) != abs(cur):
+                            best = "AMBIGUOUS"
+                        break
+                if best == "AMBIGUOUS":
+                    break
+            if best == "AMBIGUOUS":
+                break
+        if best and best != "AMBIGUOUS":
+            cur, pn, why, ln = best
+            out[(r["sheet"], r["row"])] = {
+                "value": cur, "status": "RECIPE", "page": pn,
+                "line": ln[:90],
+                "note": f"implied-prior tie-out: {why} -> implied FY-prior "
+                        f"matches model prior {pv:,.1f}"}
+    log.append(f"implied-prior tie-out: {len(out)} single-year rows identified "
+               f"({len(cand_lines)} candidate table lines)")
+    return out

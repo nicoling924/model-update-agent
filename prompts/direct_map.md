@@ -28,6 +28,12 @@ How to work, in priority order:
   year on the same line. This beats label matching — labels drift, numbers don't.
 - Labels are synonyms, not exact (turnover=revenue; PP&E=fixed assets). A row's
   memory hint (where it mapped last year) is strong evidence.
+- **The model's labels may be English while the filing is Chinese** — translate
+  before declaring NOT_FOUND (power sector: wind=风电, coal/thermal=煤电/火电,
+  hydro=水电, nuclear=核电, gas turbine=燃机, power station boiler=电站锅炉,
+  steam turbine=汽轮机, production/sales/inventory=生产量/销售量/库存量,
+  orders=订单, domestic/overseas=境内/境外). A "| header: value |" line is a
+  TABLE row with its column named — trust those column names.
 - **Respect the model's sign convention**: return the value with the SAME SIGN
   PATTERN as the prior-year value shown (if prior is positive and the report
   prints the figure in brackets, return it positive; costs shown negative stay
