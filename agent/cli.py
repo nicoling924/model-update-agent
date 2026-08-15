@@ -1129,9 +1129,14 @@ def cmd_update(company_dir, period):
     n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
                                      anchors_a, confident_a, eligible_inputs,
                                      writer_obj, flags, backouts, alloc_log,
-                                     raw_lines=raw_all)
+                                     raw_lines=raw_all,
+                                     protected=key_cells_prot
+                                     | set(getattr(wb, "_locked_cells", set())
+                                           and {tuple(c.split("!")) for c in wb._locked_cells}))
     for ln_a in alloc_log:
         print("  [ALLOC]", ln_a, flush=True)
+    wb._locked_cells = set(getattr(wb, "_locked_cells", set())) \
+        | (set(writer_obj.log["written"]) - set(writer.log["written"]))
     print(f"[6a] allocation: {n_alloc} components structure-scaled to proven totals",
           flush=True)
 

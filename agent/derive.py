@@ -46,7 +46,7 @@ def recipe_pass(unresolved_rows, fy25_raw, log, max_rows=60):
 
 def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                     confident, eligible_inputs, writer, flags, backouts, log,
-                    raw_lines=None):
+                    raw_lines=None, protected=frozenset()):
     """anchors: {(sheet,row): disclosed_total}. For each anchor row that is a
     same-column SUM over input cells, scale the non-confident inputs to prior
     proportions so the sum ties exactly."""
@@ -90,7 +90,9 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                 v_c, _pg, _ln, uniq = ctrlf_read(pri, raw_lines)
                 trusted = bool(uniq) and isinstance(v_c, (int, float)) \
                     and abs(abs(cur) - v_c) <= max(1.0, v_c * 0.005)
-            if trusted:
+            if (ps, pco) in protected:
+                fixed_sum += cur  # key-owned cells are NEVER scale targets
+            elif trusted:
                 fixed_sum += cur
             elif isinstance(pri, (int, float)) and pri != 0:
                 free.append((ps, pco, pri))
