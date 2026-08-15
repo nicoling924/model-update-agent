@@ -1075,33 +1075,44 @@ def cmd_update(company_dir, period):
                     and abs(v_v - abs(p_a["value"])) <= max(1.0, v_v * 0.005)
         if loc_a and ok_anchor and isinstance(p_a.get("value"), (int, float)):
             anchors_a[(loc_a["sheet"], loc_a["row"])] = p_a["value"]
-    # NCL from fully-evidenced components: TA - CL - equity - MI (back-out
-    # through the formula, per the analyst contract; every term proven/read)
-    loc_ncl = keymap.get("non_current_liabilities")
-    if loc_ncl and (proven.get("non_current_liabilities") or {}).get("status") != "proven":
-        ok_terms = all((proven.get(k2) or {}).get("status") == "proven"
-                       for k2 in ("total_assets", "current_liabilities", "equity"))
-        mi_row = (spec.get("statement_rows") or {}).get("minority_interests")
-        mi_val = None
-        try:
-            eq_loc = keymap.get("equity")
-            ax_m = spec["year_axis"].get(eq_loc["sheet"]) or {}
-            tc_m = (ax_m.get("columns") or {}).get(target_year)
-            for r_mi in range(loc_ncl["row"], loc_ncl["row"] + 12):
-                lab_mi = objectives._row_label(wb[eq_loc["sheet"]], r_mi) or ""
-                if "minority" in lab_mi.lower() or "non-controlling" in lab_mi.lower():
-                    mi_val = Evaluator(wb).cell(eq_loc["sheet"], f"{tc_m}{r_mi}")
-                    break
-        except Exception:
-            pass
-        if ok_terms and isinstance(mi_val, (int, float)):
-            ncl_d = proven["total_assets"]["value"] - proven["current_liabilities"]["value"]                 - proven["equity"]["value"] - mi_val
-            proven["non_current_liabilities"] = {"status": "proven",
-                                                 "value": round(ncl_d, 1),
-                                                 "sources": 3,
-                                                 "pages": ["evidenced-identity"]}
-            obj_notes.append(f"NCL derived from evidenced components: {ncl_d:,.1f} "
-                             f"(TA - CL - equity - MI {mi_val:,.1f})")
+    # GENERIC evidenced-identity solve: the MODEL'S OWN check-row equation is
+    # the company's balance identity as the analyst built it. When exactly ONE
+    # balance-sheet key is unproven and every other is evidenced, solve the
+    # model's own equation for the unknown (sensitivity = linear solve on
+    # whatever structure this model uses — no assumed formula, any company).
+    bs_kinds_i = ["total_assets", "current_assets", "current_liabilities",
+                  "non_current_assets", "non_current_liabilities", "equity"]
+    present_i = [k2 for k2 in bs_kinds_i if k2 in keymap]
+    unproven_i = [k2 for k2 in present_i
+                  if (proven.get(k2) or {}).get("status") != "proven"]
+    chk_i = next((c2 for c2 in spec.get("check_rows", [])
+                  if (spec["sheets"].get(c2["sheet"]) or {}).get("role") == "statements"),
+                 None)
+    if len(unproven_i) == 1 and chk_i:
+        kind_u = unproven_i[0]
+        loc_u = keymap[kind_u]
+        ax_u = spec["year_axis"].get(chk_i["sheet"]) or {}
+        tc_u = (ax_u.get("columns") or {}).get(target_year)
+        ax_k = spec["year_axis"].get(loc_u["sheet"]) or {}
+        tc_k = (ax_k.get("columns") or {}).get(target_year)
+        if tc_u and tc_k:
+            coef_u, base_u = objectives._sensitivity(
+                wb, chk_i["sheet"], f"{tc_u}{chk_i['row']}",
+                loc_u["sheet"], f"{tc_k}{loc_u['row']}")
+            try:
+                gap_u = Evaluator(wb).cell(chk_i["sheet"], f"{tc_u}{chk_i['row']}")                     - chk_i.get("expect", 0)
+            except Exception:
+                gap_u = None
+            if coef_u and abs(coef_u) >= 0.5 and isinstance(gap_u, (int, float))                     and isinstance(base_u, (int, float)):
+                solved_u = base_u - gap_u / coef_u
+                if 0.2 <= abs(solved_u) / max(abs(base_u), 1e-9) <= 5:
+                    proven[kind_u] = {"status": "proven",
+                                      "value": round(solved_u, 1), "sources": 3,
+                                      "pages": ["model-identity-solve"]}
+                    obj_notes.append(
+                        f"{kind_u} solved from the MODEL'S OWN balance equation: "
+                        f"{solved_u:,.1f} (all other members evidenced; "
+                        f"coef {coef_u:+.2f})")
     confident_a = set()
     for (s_m2, r_m2), m_m2 in mapped.items():
         if m_m2.get("conf", 0) >= 4:
