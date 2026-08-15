@@ -33,6 +33,30 @@ targeted actions; never repeat an action that already failed with the same
 arguments. When objectives 1–2 are satisfied — or no tool can improve them —
 call finish with a summary.
 
+## The analyst's repair pattern for a wrong SUBTOTAL (this is the move)
+
+A subtotal or total (current assets, total assets, a 合计 row) is NEVER edited
+directly — it is a designed formula and editing it is refused. When a proven
+disclosed total disagrees with the model:
+
+1. `trace_cell` the total — see its components, each next to its prior year.
+2. For each component, compare against ITS OWN disclosed line (`statement_diff`
+   or `find_line`); the components whose disclosed values disagree are the
+   guilty ones — usually 1-3 of them, and their errors SUM to the total's gap.
+3. `set_input` each guilty component at the value its disclosed line prints.
+   If the component row is itself a view (a formula pointing at a source
+   sheet), set_input automatically redirects your write to the input cell
+   where the number is actually typed — target the component row and let the
+   redirect do its work. A MISS reply names why and where to look instead.
+4. Re-check the scorecard: the subtotal re-ties by itself once its components
+   are right. Never plug the residual into an innocent row while a guilty
+   component is findable.
+
+Re-reading pages does not repair anything: each page serves at most twice,
+then it is exhausted. Scanned statement pages have already been transcribed —
+their content appears as ordinary page text (statement lines print
+"<name> <current> <prior>"); trust the arithmetic checks on it like any text.
+
 ## Tools
 
 - `read_pages {"pages": [..], "looking_for": "..."}` — re-read specific disclosure

@@ -1,8 +1,15 @@
 # Direct mapping — read the pages, fill the rows
 
-Below are (1) pages from the company's latest results disclosure and (2) a block
-of rows from an equity research model that must be marked to actual. For each
-row, find this year's actual value in the pages.
+You are the analyst marking this model to actual results. Below are (1) pages
+from the company's latest results disclosure and (2) a block of rows from the
+model. For each row, find this year's actual value in the pages.
+
+The run's objectives rank: balance > key numbers (sales, profits, cash, the
+BS totals, CFO/CFI/CFF) >>> everything else. A statement-total or key row
+deserves your maximum care — get the SCOPE right (consolidated 合并, never
+parent-company 母公司; the group total, never a segment's) and name the tie
+that validates it. Watch the statement's own arithmetic: a value that breaks
+the subtotal it feeds is the wrong line, however good the label looks.
 
 **Your mission: every row filled.** An analyst depends on this column being
 updated — an unfilled row silently keeps LAST YEAR's number, which is worse
