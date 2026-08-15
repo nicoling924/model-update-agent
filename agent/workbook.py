@@ -35,7 +35,18 @@ def formula_map(wb):
         for row in ws.iter_rows():
             for c in row:
                 if c.value is not None:
-                    m[c.coordinate] = c.value if isinstance(c.value, (int, float)) else str(c.value)
+                    v = c.value
+                    if isinstance(v, (int, float)):
+                        m[c.coordinate] = v
+                    elif isinstance(v, str):
+                        m[c.coordinate] = v
+                    else:
+                        # DataTableFormula/ArrayFormula: object repr carries a
+                        # memory address that differs every load — compare by a
+                        # STABLE token or every diff is a false clobber
+                        m[c.coordinate] = (f"<{type(v).__name__}:"
+                                           f"{getattr(v, 'ref', '')}:"
+                                           f"{getattr(v, 'text', '')}>")
         out[ws.title] = m
     return out
 
