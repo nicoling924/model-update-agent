@@ -297,3 +297,24 @@ key numbers prove at the exact disclosed values.
 | 99 (Luna, audit-web sight) | 08-15 16:26 | cancelled @106m | — | — | — | — | Ran 2x normal (old vision code's JSON-truncation retries); cancelled at the grace window, superseded by 100 (a strict superset). Partial log still paid: sibling machinery LIVE (thin-proof -> sibling-only, GUILTY SIBLING writes firing), learner recovered 3 constructions + 4 recipes (was 0+1). Two watch-items for 100's score: junk-value sibling writes (U205 "disclosed 1.0, 12 src") and a wrong-scope thin proof (op profit 1,427 = quarterly-table line; correctly not plugged). CF bridges still 0.0 -> root-caused: CF_SECT section keywords were ENGLISH-ONLY, the bridge menu was EMPTY on CN filings for every DFE run ever. Fixed + CN markers; offline: CFO composition double-locks immediately. |
 | 100 (Luna, full fix set) | 08-16 ~02:20 HKT | in flight | — | — | — | — | Audit-web sight + prior-column vision gate + 8k vision client + analyst-alignment prompts (owner directive). |
 | 101 (Luna, CLP genericity) | 08-16 ~02:45 HKT | in flight | — | — | — | — | Same stack on CLP, parallel — the generic-agent read for Monday. All changes scale-gated or additive; CLP dry-run was byte-identical. |
+
+| 100 (Luna, full fix set) | 08-16 02:20 | 55.3m ✓ | **77.3% whole / Model page 90.4%** | **2025 PASS (first on DFE)**; fcst -528; CF tie 19 | 43 unfl | **Keys 11/14** (op profit definitional 5.3%, CFI 0.18% off, GP unprovable). The audit-web + scope-gate stack worked: vision accepted exactly the consolidated statements (4+2 pages), no parent poisoning, sibling machinery repaired the BS chain. Adjudication: filing supports the RUN over the reference 10-8 (e.g. Driver!J6 58,005.4 printed verbatim; ref's 35,779.1 not in filing). Driver 63.0% is now the whole gap. |
+| 101 (Luna, CLP genericity) | 08-16 02:45 | 55.3m ✓ | **75.0% (no regression — historical band 74-76)** | 2025 PASS; fcst 2.3-3.7k | 120 | Keys 6/12 (draw at low end of 6-9 band). Identical stack, zero company-specific code: CLP unmoved while DFE transformed — the generic-agent claim holds. Vision correctly silent (photo pages transcribe 0 rows, rejected). |
+
+**DRIVER ANATOMY (run 100's 51 wrong cells, fully classified):** (1) ~17 cells:
+product-segment splits (Wind/Thermal/...) — the FY25 MD&A 分产品 table prints
+FY25-only values in 万元 with % changes, NO comparatives -> prior-triangulation
+impossible on the new doc; the ANALYST's basis values are printed only in the
+FY24 doc's own MD&A. (2) ~18 cells: operating-stats table (production/sales/
+inventory triplets, raw MW units) — same single-year structure. (3) ~12: note
+roll tables (PPE/intangibles). (4) ~4: 亿-narrative orders. Classes 1+2 share
+one key: the LEARNER must identify these rows on the FY24 doc (where the
+priors ARE printed) and hand (page, label) to the update mapper.
+
+**Fixes staged for the next DFE run:** page-scale detection (scale is a
+property of the PAGE — 万元/千元 note tables measured at 195/198/209/232;
+threaded through every value test); learner SINGLE-YEAR identification
+(both-years stays gold; single-year stored as label+page hint — MD&A tables
+never print two years on a line, which is why VERIFIED was 0); CN CF_SECT
+(bridge menu was empty on CN filings — offline, CFO now double-locks
+immediately); mixed-units mapper prompt (convert to each row's prior's units).
