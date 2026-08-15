@@ -88,6 +88,19 @@ def _has_num(sorted_nums, v, scale):
     return i < len(sorted_nums) and sorted_nums[i] <= target + tol
 
 
+def to_model_units(n):
+    """A printed number in the MODEL's units. At doc scale 1 this is identity.
+
+    At other scales, only page-scale financial values convert: CN statements
+    print yuan with cents, so any real aggregate is >= S/1000, while per-share
+    figures, ratios and FX rates print small and stay as-is — the model holds
+    those in their printed units too (EPS 0.62 is 0.62 in both worlds).
+    """
+    if not isinstance(n, (int, float)) or DOC_SCALE == 1:
+        return n
+    return n / DOC_SCALE if abs(n) >= DOC_SCALE / 1000 else n
+
+
 def num_matches(nums, v, scale=None):
     """Does any of these parsed numbers equal v (model units) at doc scale?"""
     s = DOC_SCALE if scale is None else scale

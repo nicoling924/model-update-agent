@@ -146,8 +146,9 @@ def learn_composition(target_cur, target_prior, fy24_raw, section_keywords,
     that only works one year is a coincidence and is rejected."""
     cands = []
     seen = set()
+    from . import mapper as _mapper
     for pn, sec, ln in _section_lines(fy24_raw, section_keywords):
-        ns = lookup.line_nums(ln)
+        ns = [_mapper.to_model_units(n) for n in lookup.line_nums(ln)]
         if len(ns) < 2:
             continue  # need current AND prior printed on the line
         lab = lookup.label_of(ln)
@@ -186,11 +187,13 @@ def ctrlf_read(prior_value, raw_lines, row_label=None, tol=0.6):
     prior value, take the left neighbour (magnitude-banded). If several survive,
     prefer primary-statement sections, then label similarity. Returns
     (value, page, line, unique) or (None, None, None, False)."""
+    from . import mapper as _mapper
     cands = []
     lab_n = lookup.norm(str(row_label or ""))
     lab_words = set(w for w in lab_n.split() if len(w) >= 4)
     for pn, sec, ln in raw_lines:
-        ns = lookup.line_nums(ln)
+        # printed numbers -> MODEL units, so the Ctrl+F works on yuan filings
+        ns = [_mapper.to_model_units(n) for n in lookup.line_nums(ln)]
         for i in range(1, len(ns)):
             if abs(abs(ns[i]) - abs(prior_value)) <= tol:
                 nb = ns[i - 1]
@@ -223,8 +226,9 @@ def llm_bridge(client, key_name, v24, v23, fy24_raw, fy25_raw, section_keywords,
     not survive two years of arithmetic dies — and only then replays on FY25."""
     lines24 = []
     seen_b = set()
+    from . import mapper as _mapper
     for pn, _s, ln in _section_lines(fy24_raw, section_keywords):
-        ns_b = lookup.line_nums(ln)
+        ns_b = [_mapper.to_model_units(n) for n in lookup.line_nums(ln)]
         lab_b = lookup.label_of(ln)
         if len(ns_b) < 2 or not lab_b or len(lab_b) < 5:
             continue
@@ -287,11 +291,12 @@ def replay_composition(recipe, fy25_raw):
     """Apply a learned recipe to FY25: find each line by name, VERIFY it is the
     right instance by last year's value sitting beside it (comparative column),
     and take the current value. Returns (value, details) or (None, why)."""
+    from . import mapper as _mapper
     by_label = {}
     for pn, sec, ln in fy25_raw:
         lab = lookup.norm(lookup.label_of(ln) or "")
         if lab:
-            ns = lookup.line_nums(ln)
+            ns = [_mapper.to_model_units(n) for n in lookup.line_nums(ln)]
             if ns:
                 by_label.setdefault(lab, []).append((ns, pn))
     total, details = 0.0, []
