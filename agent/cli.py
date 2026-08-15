@@ -121,6 +121,17 @@ def cmd_learn(company_dir, prior_period):
                     pass
             lrows.append({"sheet": sheet_c, "row": r, "label": lab_c,
                           "prior_value": v24_c, "v23": v23_c})
+    # EYES for the practice year too: the FY-prior AR may be a scan as well.
+    from . import vision as vision_mod
+    for d_i, d_p in enumerate(disclosures):
+        vl24 = vision_mod.transcribe_image_pages(
+            d_p, client, [r["prior_value"] for r in lrows] +
+            [r.get("v23") for r in lrows if isinstance(r.get("v23"), (int, float))],
+            ".cache/vision", log=lambda m: print(m, flush=True))
+        raw24_map += [(d_i * 1000 + pn_v, sec_v, ln_v)
+                      for pn_v, sec_v, ln_v in vl24]
+        if vl24:
+            fy24_raw_l = fy24_raw_l + vl24
     scale_l = mapper.set_doc_scale(
         mapper.detect_scale([r["prior_value"] for r in lrows], raw24_map))
     if scale_l != 1:
@@ -478,6 +489,16 @@ def cmd_update(company_dir, period):
     for r in all_rows:  # memory page hints (per-doc scheme) vote in every doc
         if r.get("memory_page"):
             r["memory_page"] = None  # ambiguous across docs — label/prior carry it
+    # EYES: image-only pages (scanned statements) transcribed by the SAME
+    # engine's vision, checksum-verified against the model's own prior values,
+    # then injected as ordinary raw lines — downstream works unchanged.
+    from . import vision
+    for d_i, d_p in enumerate(disclosures):
+        vl = vision.transcribe_image_pages(
+            d_p, map_client, [r.get("prior_value") for r in all_rows],
+            ".cache/vision", log=lambda m: print(m, flush=True))
+        raw_map += [(d_i * 1000 + pn_v, sec_v, ln_v) for pn_v, sec_v, ln_v in vl]
+        raw_all += vl
     # DOCUMENT UNITS before any retrieval: on a filing printed in other units
     # (a CN annual report in yuan vs a model in millions) prior-value Ctrl+F
     # finds nothing and every proof fails, for no reason but the scale.
@@ -916,7 +937,8 @@ def cmd_update(company_dir, period):
     obj_notes = []
     spec["_target_year"] = target_year
     keymap = objectives.locate(spec, pre_wb, obj_notes)
-    raw_all = lookup_mod.raw_lines(disclosures)
+    raw_all = (lookup_mod.raw_lines(disclosures)
+               + vision.cached_lines(disclosures, ".cache/vision"))
     proven = objectives.prove(keymap, staging, raw_all, pre_wb, spec,
                               last_actual, cfg, obj_notes)
     eligible_inputs = set()

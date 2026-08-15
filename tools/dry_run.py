@@ -47,12 +47,12 @@ def install_stub():
 
     calls = {"n": 0}
 
-    def chat(self, system, user, force_json=True):
+    def chat(self, system, user, force_json=True, **kw):
         calls["n"] += 1
         self.usage["calls"] += 1
         return "{}"
 
-    def json_(self, system, user, validate, repair_retries=2):
+    def json_(self, system, user, validate, repair_retries=2, **kw):
         calls["n"] += 1
         self.usage["calls"] += 1
         return Empty()

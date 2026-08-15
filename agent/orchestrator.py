@@ -51,7 +51,9 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
     spec["_target_year"] = target_year
     history = [f"[bootstrap] {ln}" for ln in (bootstrap_log or [])][-12:]
     decisions = []
-    raw_cache = lookup_mod.raw_lines(disclosures)
+    from . import vision as vision_mod
+    raw_cache = (lookup_mod.raw_lines(disclosures)
+                 + vision_mod.cached_lines(disclosures, ".cache/vision"))
     tried = set()
     from pathlib import Path as _P
     prompt_remap = [(_P(__file__).resolve().parent.parent / "prompts"
@@ -126,20 +128,25 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         extra = f"; downstream keys re-plugged: {replugged}" if replugged else ""
         return (True, extra)
 
-    pages_served = set()
+    page_reads = {}  # ANTI-THRASH: a page serves at most twice, then exhausts
 
     def t_read_pages(args):
         pages = [int(p) for p in (args.get("pages") or [])][:12]
         if not pages:
             return "ERROR: no pages given"
-        if set(pages) <= pages_served:
-            return ("ALREADY READ these pages this run — the text does not change; "
-                    "act on what you saw, or read DIFFERENT pages")
-        pages_served.update(pages)
+        fresh = [p for p in pages if page_reads.get(p, 0) < 2]
+        if not fresh:
+            return ("PAGES EXHAUSTED — each already served twice; re-reading "
+                    "cannot change the text. Take a WRITE action instead: "
+                    "set_input (formula cells auto-redirect to the input cell "
+                    "that feeds them), remap, or move to the next blocker.")
+        for p in fresh:
+            page_reads[p] = page_reads.get(p, 0) + 1
         lines = [f"p{pn}: {ln.strip()}" for pn, _s, ln in raw_cache
-                 if pn in pages and re.search(r"\d", ln)][:80]
+                 if pn in fresh and re.search(r"\d", ln)][:80]
         return "PAGE TEXT (numeric lines):\n" + "\n".join(lines) if lines \
-            else "no numeric lines on those pages"
+            else ("NO TEXT on those pages (and no accepted vision transcription)"
+                  " — the content is unreadable; do not re-request it")
 
     def t_find_line(args):
         name = lookup_mod.norm(str(args.get("name", "")))
@@ -202,8 +209,31 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
             return "ERROR: cell must be Sheet!COLROW"
         sheet, col, row = m.group(1), m.group(2), int(m.group(3))
         coord = f"{col}{row}"
+        redirect = ""
         if (sheet, coord) not in eligible_inputs:
-            return f"REFUSED: {ref} is not an input cell (designed formulas are protected)"
+            # HANDS: a formula cell is a VIEW. Resolve to where the number is
+            # actually typed and redirect the write there — refusing outright
+            # is how run 97 spent 63 decisions producing zero writes.
+            from . import workbook as workbook_mod
+            pc_r = (spec["year_axis"].get(sheet, {}).get("columns") or {}).get(last_actual)
+            site = (workbook_mod.resolve_input_site(pre_wb, sheet, row, pc_r)
+                    if pc_r else None)
+            if site and site != (sheet, row):
+                s2, r2 = site
+                col2 = (spec["year_axis"].get(s2, {}).get("columns") or {}).get(str(target_year))
+                if col2 and (s2, f"{col2}{r2}") in eligible_inputs:
+                    redirect = f" [REDIRECTED: {ref} is a view; input site is {s2}!{col2}{r2}]"
+                    sheet, col, row, coord = s2, col2, r2, f"{col2}{r2}"
+                else:
+                    return (f"MISS: {ref} is a formula cell; its input site "
+                            f"{s2}!row{r2} is not an eligible input "
+                            f"({'no ' + str(target_year) + ' column there' if not col2 else 'locked or not a rolled hardcode'}). "
+                            "Target a different cell or flag for the analyst.")
+            else:
+                return (f"MISS: {ref} is a formula cell (designed formulas are "
+                        "protected) and it does not resolve to a unique input "
+                        "site — it is a DERIVED row. Fix its components "
+                        "instead; use trace to list them.")
         try:
             val = float(args.get("value"))
         except (TypeError, ValueError):
@@ -225,7 +255,8 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
         if not ok:
             return msg
         flags.append((sheet, coord, f"orchestrator set: {why[:80]}"))
-        return f"written {ref} = {val} (red-flagged; self-check passed{msg or ''})"
+        return (f"written {sheet}!{coord} = {val} (red-flagged; self-check "
+                f"passed{msg or ''}){redirect}")
 
     def _year_inputs(year):
         """Hardcode cells in a given year's columns — legal repair sites there."""
