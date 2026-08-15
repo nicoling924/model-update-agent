@@ -597,9 +597,11 @@ def run(client, system, prompt, wb, spec, staging, cfg, writer, pre_wb,
                 for k_f in bad_keys[:4]:
                     worklist.append(f"key {k_f}: remap its row, prove_key, "
                                     "or document the cause in a note")
-                history.append("FINISH REFUSED — the goal is not met and time "
-                               f"remains ({time_left/60:.0f} min). Work the list: "
-                               + " | ".join(worklist))
+                msg_fr = ("FINISH REFUSED — the goal is not met and time "
+                          f"remains ({time_left/60:.0f} min). Work the list: "
+                          + " | ".join(worklist))
+                history.append(msg_fr)
+                log_print(f"  [ORCH] {msg_fr[:180]}")
                 continue
             decisions.append(f"finish: {str(args.get('summary', why))[:200]}")
             break
