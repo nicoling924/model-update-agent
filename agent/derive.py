@@ -179,7 +179,8 @@ def learn_composition(target_cur, target_prior, fy24_raw, section_keywords,
 
 
 _STMT_HINTS = ("statement of", "balance sheet", "income statement", "cash flow",
-               "financial position", "comprehensive income")
+               "financial position", "comprehensive income",
+               "资产负债表", "利润表", "现金流量表", "vision")  # vision lines ARE statements
 
 
 def ctrlf_read(prior_value, raw_lines, row_label=None, tol=0.6):
