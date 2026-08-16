@@ -376,8 +376,11 @@ def audit(mapped, rows, raw_lines, tol=1.0):
     ctx = {(r["sheet"], r["row"]): r for r in rows}
     for key, m in mapped.items():
         v = m.get("value")
-        if v is None or m.get("status") not in ("OK", "DERIVED"):
+        if v is None or m.get("status") not in ("OK", "DERIVED", "UNCERTAIN"):
             continue
+        # UNCERTAIN values get the UNITS conversion too (they are still
+        # WRITTEN, red-flagged): run 109 shipped a raw-yuan -570,000,000 into
+        # a Driver cell because uncertain items skipped this whole block
         r = ctx.get(key) or {}
         pv = r.get("prior_value")
         # DOCUMENT UNITS: the reader quotes the page, so on a filing printed in
