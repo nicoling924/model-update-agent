@@ -25,6 +25,15 @@ diff) — do not re-prove arithmetic. Spend your effort on what code cannot judg
 6. **Restatement scope** — were prior-period comparatives restated everywhere the
    disclosure changed them?
 
+**Evidence discipline — a verdict without the printed figure is VOID.** For
+every finding INCLUDING `confirmed_ok`, `disclosure_says` must hold the figure
+AS PRINTED in the disclosure text and `page` the page you read it on. Never
+write "matches the disclosed value" without quoting that value — a reviewer
+once confirmed an EPS cell holding 3,831.3 (net profit pasted into a per-share
+row; the page prints 1.15) because it validated the label instead of reading
+the number. Sanity of scale is your job too: a value ~1,000x its prior-year
+neighbour is wrong even if a same-labelled line somewhere carries it.
+
 Output schema (JSON): a list of findings, each
 `{severity: "genuine_error" | "needs_analyst_ruling" | "confirmed_ok",
   cell, model_holds, disclosure_says, page, evidence}`,

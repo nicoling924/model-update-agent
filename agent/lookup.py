@@ -86,11 +86,13 @@ def lookup_rows(table_index, memory, rows_ctx, target_year, prior_year, tol=1.0)
         if not cands:
             results[key] = {"status": "miss"}
             continue
+        from .workbook import row_tol
+        tol_r = row_tol(pv, base=tol) if isinstance(pv, (int, float)) else tol
         # rank: prior corroboration first, then section match
         def score(c):
             s = 0
             if isinstance(pv, (int, float)) and isinstance(c["pri"], (int, float)) \
-                    and abs(abs(c["pri"]) - abs(pv)) <= tol:
+                    and abs(abs(c["pri"]) - abs(pv)) <= tol_r:
                 s += 10
             if sec and sec in (c["section"] or ""):
                 s += 3
@@ -104,7 +106,7 @@ def lookup_rows(table_index, memory, rows_ctx, target_year, prior_year, tol=1.0)
         v, pri = best["cur"], best["pri"]
         status = "clean"
         if isinstance(pv, (int, float)) and pv:
-            if isinstance(pri, (int, float)) and abs(abs(pri) - abs(pv)) > tol:
+            if isinstance(pri, (int, float)) and abs(abs(pri) - abs(pv)) > tol_r:
                 ratio = abs(pri) / abs(pv) if pv else 0
                 if 0.05 <= ratio <= 20:
                     status = "restated"       # same line, history moved
@@ -198,13 +200,15 @@ def raw_lookup_rows(rawlines, memory, rows_ctx, tol=1.0):
         pv = ctx.get("prior_value")
         if not isinstance(pv, (int, float)) or pv == 0:
             continue
+        from .workbook import row_tol
+        tol_r = row_tol(pv, base=tol)
         founds = []
         for pn, sec, ln in by_lab.get(norm(mem["label"]), []):
             ns = line_nums(ln)
             for i in range(1, len(ns)):
-                if abs(abs(ns[i]) - abs(pv)) <= tol:
+                if abs(abs(ns[i]) - abs(pv)) <= tol_r:
                     founds.append((abs(ns[i - 1]), pn, ln))
-        changed = [f for f in founds if abs(f[0] - abs(pv)) > tol]
+        changed = [f for f in founds if abs(f[0] - abs(pv)) > tol_r]
         pick = (changed or founds or [None])[0]
         if pick is None:
             results[key] = {"status": "miss"}

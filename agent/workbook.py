@@ -124,6 +124,16 @@ def rollover_column(wb, sheet, from_col, to_col, header_rows=()):
     return hardcode_rows
 
 
+def row_tol(pv, base=0.6):
+    """The tolerance for tying a value to a row is the ROW'S OWN WORLD:
+    `base` absorbs statement rounding on aggregate rows (millions), but a
+    per-share/ratio row's world is ~1 — an absolute 1.0 there accepts
+    anything (run 112: 'prior 1.15' corroborated a 0.94 EPS row and net
+    profit 3,831.3 was swapped in). Small rows tie at 0.5% or a cent."""
+    a = abs(pv) if isinstance(pv, (int, float)) else 0.0
+    return max(a * 5e-3, base if a >= 10 else 0.01)
+
+
 class Writer:
     def __init__(self, wb, cfg):
         self.wb = wb
@@ -132,9 +142,10 @@ class Writer:
         self.orange = PatternFill("solid", start_color="FF" + cfg["conventions"]["flag_backedout_fill"],
                                   end_color="FF" + cfg["conventions"]["flag_backedout_fill"])
         self.log = {"written": [], "flags": [], "restatements": [], "skipped_merged": []}
+        self.prior_lookup = None  # optional (sheet, coord) -> prior actual value
 
     def write(self, sheet, coord, value, prior_coord=None, note=None, flag=None,
-              force_lock=False):
+              force_lock=False, trusted=False):
         """Write one cell per the mark-to-actual recipe, then read it back."""
         locked = getattr(self.wb, "_locked_cells", None)
         if locked and f"{sheet}!{coord}" in locked and not force_lock:
@@ -145,6 +156,25 @@ class Writer:
         if type(cell).__name__ == "MergedCell":
             self.log["skipped_merged"].append(f"{sheet}!{coord}")
             return False
+        # WORLD-BAND GUARD (the run-112 law, enforced at the ONE chokepoint
+        # every writer passes through): a mechanical write may never leave
+        # the row's order of magnitude vs the prior actual. Checksum-tied
+        # writes pass trusted=True — their magnitude is proven by the tie.
+        if not trusted and isinstance(value, (int, float)) and value != 0:
+            pv_g = None
+            if prior_coord is not None:
+                pv_c = ws[prior_coord].value
+                pv_g = pv_c if isinstance(pv_c, (int, float)) else None
+            if pv_g is None and self.prior_lookup is not None:
+                try:
+                    pv_g = self.prior_lookup(sheet, coord)
+                except Exception:
+                    pv_g = None
+            if isinstance(pv_g, (int, float)) and pv_g != 0 and (
+                    abs(value) > 100 * abs(pv_g) or abs(value) * 100 < abs(pv_g)):
+                self.log.setdefault("band_refused", []).append(
+                    f"{sheet}!{coord}: {value!r} vs prior {pv_g!r}")
+                return False
         cell.value = value
         if prior_coord is not None:  # inherit prior actual column's format
             prior = ws[prior_coord]

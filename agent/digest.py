@@ -57,7 +57,11 @@ def build(client, system, disclosure_paths, extraction_prompt, cfg, out_path, si
     for k, entries in buckets.items():
         by_val = {}
         for pi, it in entries:
-            slot = next((v for v in by_val if abs(v - it["value"]) <= 1.0), None)
+            # merge tolerance is the value's own world: 1.0 absorbs rounding
+            # on aggregates, but per-share values 0.94 and 1.15 are DIFFERENT
+            slot = next((v for v in by_val
+                         if abs(v - it["value"]) <=
+                         (1.0 if abs(it["value"]) >= 10 else 0.005)), None)
             by_val.setdefault(slot if slot is not None else round(it["value"], 1),
                               []).append((pi, it))
         # winner: the value most passes agree on; ties broken by raw-text presence

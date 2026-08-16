@@ -191,7 +191,10 @@ def region_read(client, pdf_paths, all_rows, log):
                         # serve the printed figure flipped. Never force last
                         # year's sign onto this year's figure.
                         for s in (1, 1e3, 1e4, 1e6, 1e8):
-                            tol = max(abs(pv) * 5e-3, 0.6)
+                            # row-relative: 0.6 absorbs rounding on aggregate
+                            # rows; a per-share row's world is ~1 and ties at
+                            # 0.5% or a cent (never let 1.15 "tie" 0.94)
+                            tol = max(abs(pv) * 5e-3, 0.6 if abs(pv) >= 10 else 0.01)
                             if abs(comp / s - pv) <= tol:
                                 v = cur / s
                             elif abs(comp / s + pv) <= tol:

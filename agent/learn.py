@@ -81,6 +81,8 @@ def learn(wb, pre_values, spec, staging, census, tol=1.0, page_sections=None):
 def _identify(items, v, v2, tol):
     """Find the line whose value matches v (either sign); disambiguate with the
     year-before value v2 when several match. Returns (item, sign_flipped)."""
+    from .workbook import row_tol
+    tol = row_tol(v, base=tol)  # per-share rows identify in their own world
     for flip in (False, True):
         target = -v if flip else v
         cands = [it for it in items if abs(it["value"] - target) <= tol]
@@ -182,12 +184,15 @@ def deterministic_identities(disclosure_paths, wb, pre_values, spec, tol=1.0):
                 continue  # small values collide; leave them to other paths
             v2 = wsv[f"{p2c}{r}"].value if p2c else None
             v2 = v2 if isinstance(v2, (int, float)) else None
+            from .workbook import row_tol
+            tol_v = row_tol(v, base=tol)
             hits = []
             for flip in (1, -1):
                 for row in by_val.get(round(flip * v), []):
-                    if abs(row[3] - flip * v) > tol:
+                    if abs(row[3] - flip * v) > tol_v:
                         continue
-                    lock2 = (v2 is None or row[4] is None or abs(row[4] - flip * v2) <= tol)
+                    lock2 = (v2 is None or row[4] is None
+                             or abs(row[4] - flip * v2) <= tol_v)
                     hits.append((row, flip, lock2))
             strong = [h for h in hits if h[2]]
             use = strong if strong else hits
