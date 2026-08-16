@@ -15,3 +15,7 @@ companies/*/transcripts/
 !companies/DFE/disclosures/**
 !companies/CLP/disclosures/
 !companies/CLP/disclosures/**
+
+# pipeline run artifacts (pinned snapshots are committed deliberately, not by default)
+pipeline_live_*.log
+companies/*/replay/
