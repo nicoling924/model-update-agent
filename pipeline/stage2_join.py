@@ -194,6 +194,16 @@ def _world_tol(pv):
     return row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
 
 
+def _in_world(sv, pv):
+    """The world-band law AT JOIN TIME (the CLP dividend poison): a line can
+    print a per-share figure adjacent to the total ('Fourth interim dividend
+    declared 1.26 ... 3,183'), so slot-by-tie can pair (per-share, prior-
+    total) and serve the per-share number into a totals row with every gate
+    passing. A served value that leaves the prior's order of magnitude is
+    not a join — it is Stage 3's row now."""
+    return abs(sv) <= 100 * abs(pv) and abs(sv) * 100 >= abs(pv)
+
+
 def join(ledger, targets, log=None):
     """-> (served, decisions).
 
@@ -243,6 +253,8 @@ def join(ledger, targets, log=None):
                 continue                   # no tie, or ambiguous line — refuse
             if _is_elimination_line(ns, tol):
                 continue
+            if not _in_world(prs[0][0], pv):
+                continue                   # per-share-next-to-total class
             cands.append((prs[0][0], it, s))
         if not cands:
             continue                       # unbound -> Stage 3
@@ -326,7 +338,8 @@ def join(ledger, targets, log=None):
                         continue
                     ns = [to_model_units(n, s) for n in it.nums]
                     prs = _tying_pairs(ns, pv, tol)
-                    if len(prs) == 1 and not _is_elimination_line(ns, tol):
+                    if len(prs) == 1 and not _is_elimination_line(ns, tol) \
+                            and _in_world(prs[0][0], pv):
                         hits.append((prs[0][0], it))
                 if len(hits) == 1 and hits[0][0] != 0:
                     sv, it = hits[0]

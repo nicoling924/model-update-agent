@@ -157,6 +157,24 @@ def test_to_model_units_small_world_passthrough():
     assert to_model_units(500.0, 1.0) == 500.0
 
 
+# ── The CLP dividend poison: per-share printed next to the total ─────────
+# 'Fourth interim dividend declared 1.26 ... 3,183' — slot-by-tie pairs
+# (1.26, 3183), the 3,183 ties the model's totals row, kinship passes on
+# 'dividend', and a per-share number lands in a HK$M row with every gate
+# green. The world-band law at join time refuses it (caught live on CLP,
+# first dry run, by the delivery gate's magnitude sweep).
+
+def test_clp_dividend_per_share_next_to_total_refused():
+    items = _anchors() + [
+        _item(95, 5, "Fourth interim dividend declared", [1.26, 3183.0]),
+    ]
+    targets = _anchor_targets() + [
+        TargetRow("Model", 5, "Final ordinary dividend", 3183.0)]
+    served, _ = join(_ledger(items), targets)
+    assert ("Model", 5) not in served, \
+        "CLP dividend poison re-admitted: per-share value joined a totals row"
+
+
 # ── The kinship doctrine: positive evidence only ─────────────────────────
 
 def test_vacuous_kinship_confirms_nothing():

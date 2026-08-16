@@ -46,7 +46,13 @@ jobs:
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
         run: |
-          if [ "${{ inputs.action || 'chain' }}" = "chain" ]; then
+          if [ "${{ inputs.action || 'chain' }}" = "pipeline" ]; then
+            # THE CLEAN PIPELINE (rebuild branch): stages 1-4 + delivery gate.
+            # Target year derived from the period (FY25 -> 2025).
+            YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
+            python -m pipeline.cli "companies/${{ inputs.company }}" \
+              "${{ inputs.period }}" "20${YY}"
+          elif [ "${{ inputs.action || 'chain' }}" = "chain" ]; then
             # one go: learner (skips itself if the memory tab already exists),
             # then the objective-driven update on the same working copy
             python run.py learn "companies/${{ inputs.company }}" "${{ inputs.prior_period || 'FY24' }}"
@@ -74,4 +80,5 @@ jobs:
             companies/${{ inputs.company }}/model/
             companies/${{ inputs.company }}/model-archive/
             companies/${{ inputs.company }}/updates/
+            companies/${{ inputs.company }}/replay/
           if-no-files-found: warn
