@@ -376,7 +376,10 @@ def audit(mapped, rows, raw_lines, tol=1.0):
     ctx = {(r["sheet"], r["row"]): r for r in rows}
     for key, m in mapped.items():
         v = m.get("value")
-        if v is None or m.get("status") not in ("OK", "DERIVED"):
+        # UNCERTAIN values get the UNITS conversion too (they are still
+        # WRITTEN, red-flagged): run 109 shipped a raw-yuan -570,000,000 into
+        # a Driver cell because uncertain items skipped this whole block
+        if v is None or m.get("status") not in ("OK", "DERIVED", "UNCERTAIN"):
             continue
         r = ctx.get(key) or {}
         pv = r.get("prior_value")
@@ -391,6 +394,16 @@ def audit(mapped, rows, raw_lines, tol=1.0):
                 v = m["value"] = v / DOC_SCALE
                 m["note"] = ((m.get("note") or "") +
                              f" [document units /{DOC_SCALE:,.0f} -> model units]").strip()
+        # SMALL-WORLD rows (per-share, ratios): the >=100 gate below exempts
+        # them from the ratio check entirely — that is how a net profit lands
+        # in an EPS row and no code blinks. Judge them in their own band.
+        if (isinstance(pv, (int, float)) and 0 < abs(pv) < 100 and v != 0
+                and m.get("status") == "OK"):
+            ratio_s = abs(v) / abs(pv)
+            if ratio_s > 50 or ratio_s < 0.02:
+                m["status"] = "UNCERTAIN"
+                m["note"] = ((m.get("note") or "") +
+                             f" [magnitude implausible vs prior {pv}]").strip()
         if isinstance(pv, (int, float)) and abs(pv) >= 100 and v != 0:
             ratio = abs(v) / abs(pv)
             if ratio > 20 or ratio < 0.05:
