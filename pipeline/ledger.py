@@ -114,6 +114,37 @@ def tag_faces(page_lines):
     return out, parents
 
 
+_FACE_ROW_PATTERNS = (
+    ("bs", ("资产总计", "负债合计", "所有者权益合计", "负债和所有者权益",
+            "total assets", "total liabilities", "total equity")),
+    ("pl", ("营业总收入", "营业总成本", "净利润", "利润总额", "每股收益",
+            "revenue", "profit for the year", "profit before tax",
+            "earnings per share")),
+    ("cf", ("经营活动产生的现金流量", "投资活动产生的现金流量",
+            "筹资活动产生的现金流量", "现金及现金等价物",
+            "operating activities", "investing activities",
+            "financing activities")),
+)
+
+
+def face_from_row_labels(labels):
+    """A statement page identifies itself by its OWN rows even when the
+    caption is cropped or printed on an earlier page (scanned pages often
+    transcribe a title of just '项目'). >= 2 pattern hits on one face and
+    strictly more than any other face -> that face; anything weaker -> None.
+    Structure of statements, not knowledge of a company — generic across
+    languages by pattern table."""
+    text = " | ".join(str(x).lower() for x in labels)
+    scores = {}
+    for face, pats in _FACE_ROW_PATTERNS:
+        scores[face] = sum(1 for p in pats if p.lower() in text)
+    best = max(scores, key=lambda f: scores[f])
+    n = scores[best]
+    if n >= 2 and all(scores[f] < n for f in scores if f != best):
+        return best
+    return None
+
+
 # -- scale hints --------------------------------------------------------------
 
 # Ordered: longer/larger markers first so 百万 wins over 万, '000 over 0.
