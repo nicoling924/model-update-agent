@@ -106,9 +106,28 @@ def scorecard(wb, spec, target_year, served=None, flags=None):
     return out
 
 
-def summarize(card, target_year):
+def summarize(card, target_year, flags=None, spec=None, wb=None):
     """One-screen scorecard text for the objective loop's state block."""
     lines = []
+    # the FLAG BUDGET is a delivery-gate objective — the loop must SEE it:
+    # >15% of a sheet's filled target-column cells flagged = the run FAILS
+    # that sheet. Clearing a stale flag = set_input with a cited disclosed
+    # value (which unflags), or confirming the line is absent (flag stays,
+    # honestly).
+    if flags and spec and wb is not None:
+        per_sheet = {}
+        for ref in flags:
+            per_sheet[ref.split("!", 1)[0]] = per_sheet.get(ref.split("!", 1)[0], 0) + 1
+        for sheet, nf in sorted(per_sheet.items()):
+            tcol = year_columns(spec, sheet).get(str(target_year))
+            if not tcol or sheet not in wb.sheetnames:
+                continue
+            ws = wb[sheet]
+            filled = sum(1 for r in range(1, ws.max_row + 1)
+                         if ws[f"{tcol}{r}"].value is not None)
+            pct = nf / filled if filled else 0
+            lines.append(f"FLAG BUDGET {sheet}: {nf}/{filled} flagged "
+                         f"({pct:.0%}) — {'FAILING (>15%)' if pct > 0.15 else 'ok'}")
     fails = [c for c in card["checks"] if c["status"] == "FAIL"]
     errs = [c for c in card["checks"] if c["status"] == "EVAL_ERROR"]
     ty = str(target_year)

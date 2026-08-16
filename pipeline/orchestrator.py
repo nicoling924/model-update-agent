@@ -76,7 +76,9 @@ class ObjectiveLoop:
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
         return "\n".join([
             f"TARGET YEAR: {self.ty}   ACTIONS LEFT: {self.budget}",
-            "== SCORECARD ==", summarize(card, self.ty),
+            "== SCORECARD ==",
+            summarize(card, self.ty, flags=self.writer.log["flags"],
+                      spec=self.spec, wb=self.wb),
             "== OPEN TODOS ==", *(todos or ["  (none)"]),
             "== YOUR NOTES ==", *(notes or ["  (none)"]),
             "== ACTION HISTORY (newest last) ==", *(hist or ["  (none)"]),
