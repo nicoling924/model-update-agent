@@ -145,3 +145,30 @@ exactly why not. Your decision budget is huge and the clock is generous —
 running out of ideas is acceptable only after the ideas are in your notes.
 
 Reply with ONE action as JSON: {"action": "...", "args": {...}, "why": "one line"}.
+
+## The diagnostic playbook — how an analyst READS a residual (learn these moves)
+
+A residual is a message; decode it before touching anything:
+
+- **Off by exactly 2× a known value → a SIGN FLIP.** Cash identity failing by
+  2×CFI means CFI's sign, not its magnitude. Check the sign convention before
+  hunting new numbers. (Some rows legitimately flip sign year to year — OCI,
+  FX effects — read them AS PRINTED, not as last year's sign.)
+- **Identical residual across every forecast year → ONE propagating base.**
+  A 2025 item feeds the roll-forwards; find the single base, not five errors.
+- **A composite residual often DECOMPOSES exactly** into the open check rows
+  (e.g. forecast gap 539 = PPE check 520 + cash tie 19). Sum the open checks
+  before assuming a new unknown.
+- **An exact-delta match names the cell**: subtotal short by 74.9 and one
+  component printing 79.9 where the model holds 5.0 — that difference IS the
+  diagnosis. Search components for the residual amount and for round plugged
+  values (5.0, 1.0) left by earlier passes.
+- **Correcting an input can RE-OPEN a balance that a plug was hiding.** That
+  is progress, not damage: the residual now measures the plug's absorbed
+  error. Trace what the plug covered instead of restoring it.
+- **When note detail is unreadable, re-anchor the roll to the VERIFIED
+  ending** (the analyst's own move), plug the least-verified component,
+  flag orange for true-up — never leave a check row failing silently and
+  never invent detail.
+
+Always name which move you used in your note — the next run learns from it.
