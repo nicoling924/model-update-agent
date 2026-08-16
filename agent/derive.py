@@ -527,7 +527,9 @@ def statement_align(rows, raw_lines, log):
                    or (i + 1 < len(anchors) and anchors[i+1][0] - a[0] <= 4
                        and anchors[i+1][1] - a[1] <= 4)]
         if len(anchors) < 4:
-            continue  # this sheet does not mirror the statements
+            log.append(f"statement-align {sheet}: only {len(anchors)} consistent "
+                       "anchors — sheet does not mirror the statements, skipped")
+            continue
         served = 0
         for (r1, l1), (r2, l2) in zip(anchors, anchors[1:]):
             rows_gap = srows[r1 + 1:r2]

@@ -659,10 +659,24 @@ def cmd_update(company_dir, period):
              or mapped[(r["sheet"], r["row"])].get("value") is None]
     # STATEMENT ALIGNMENT (the clean-room tester's core move): the statements
     # mirror the source sheet in print order — prior-anchored, order-forced,
-    # full line precision; measured 24/24 vs an independent answer key
-    for k_sa, m_sa in derive_mod.statement_align(unres, raw_map, rp_log).items():
-        if k_sa not in mapped or mapped[k_sa].get("value") is None:
+    # full line precision; measured 24/24 vs an independent answer key.
+    # Anchors need the FULL census (run 108: fed only unresolved rows, found
+    # <4 anchors, silently skipped); serves fill gaps AND correct mapped rows
+    # that disagree with an anchored line (anchor-grade evidence outranks a
+    # holistic read).
+    n_sa_fill = n_sa_fix = 0
+    for k_sa, m_sa in derive_mod.statement_align(all_rows, raw_map, rp_log).items():
+        cur_sa = (mapped.get(k_sa) or {}).get("value")
+        if cur_sa is None:
             mapped[k_sa] = m_sa
+            n_sa_fill += 1
+        elif abs(cur_sa - m_sa["value"]) > max(1.0, abs(m_sa["value"]) * 0.005):
+            m_sa["note"] += f" [corrected mapped {cur_sa:,.1f}]"
+            mapped[k_sa] = m_sa
+            n_sa_fix += 1
+        elif abs(cur_sa - m_sa["value"]) > 1e-9:
+            mapped[k_sa]["value"] = m_sa["value"]  # snap to full line precision
+    rp_log.append(f"statement-align applied: {n_sa_fill} filled, {n_sa_fix} corrected")
     unres = [r for r in unres
              if (r["sheet"], r["row"]) not in mapped
              or mapped[(r["sheet"], r["row"])].get("value") is None]
@@ -1137,6 +1151,21 @@ def cmd_update(company_dir, period):
                              f"with statement candidate {stmt_v:,.1f} — "
                              "statement wins, bridge skipped")
             continue
+        if stmt_v is None and kind_b in ("cfo", "cfi", "cff"):
+            # no statement candidate to arbitrate: the bridge value must
+            # itself satisfy CFO+CFI+CFF+FX = ΔCash (run 108: an unarbitrated
+            # CFF bridge served a wrong-instance 5,553)
+            fx_b, end_b, beg_b = objectives.cf_pieces(staging)
+            others = [(proven.get(x) or {}).get("value")
+                      for x in ("cfo", "cfi", "cff") if x != kind_b]
+            if end_b is not None and beg_b is not None \
+                    and all(isinstance(o, (int, float)) for o in others):
+                resid_b = sum(others) + v25_b + (fx_b or 0.0) - (end_b - beg_b)
+                if abs(resid_b) > max(1.0, abs(end_b - beg_b) * 0.01):
+                    obj_notes.append(f"bridge {kind_b}: replay {v25_b:,.1f} fails "
+                                     f"the cash-tie identity by {resid_b:,.1f} — "
+                                     "skipped, row stays flagged")
+                    continue
         proven[kind_b] = {"status": "proven", "value": round(v25_b, 1),
                           "sources": 3, "pages": ["bridge-memory"]}
         obj_notes.append(f"bridge {kind_b}: memory recipe -> {v25_b:,.1f} = "

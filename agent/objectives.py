@@ -722,6 +722,35 @@ def render(card, obj_log):
     return L
 
 
+def cf_pieces(staging):
+    """(fx, cash_end, cash_begin) in model units from staged lines.
+    Opening cash needs no label of its own: it is the PRIOR of the closing-
+    cash line (the statement's comparative column) — the 期初 caption never
+    survives line extraction cleanly (measured run 108), the identity does."""
+    def _pick(syns):
+        cands = {}
+        for it in staging.get("items", []):
+            lab = _norm(it.get("label", ""))
+            v = it.get("value")
+            if not isinstance(v, (int, float)) or not lab:
+                continue
+            if any(_syn_hit(s_, lab) for s_ in syns):
+                cands.setdefault(round(v, 1), set()).add(
+                    (it.get("page"), it.get("prior")
+                     if isinstance(it.get("prior"), (int, float)) else None))
+        if not cands:
+            return None, None
+        val, srcs = max(cands.items(), key=lambda kv: len(kv[1]))
+        priors = [p_ for _pg, p_ in srcs if p_ is not None]
+        return val, (sorted(priors)[len(priors) // 2] if priors else None)
+
+    fx, _ = _pick(["汇率变动对现金及现金等价物的影响", "汇率变动",
+                   "effect of exchange rate", "effect of foreign exchange"])
+    end, end_prior = _pick(["期末现金及现金等价物余额", "期末现金", "年末现金",
+                            "cash and cash equivalents at end", "cash at end"])
+    return fx, end, end_prior
+
+
 def cash_tie_oracle(proven, staging, log, tol_frac=0.005):
     """The CF identity as an ACTIVE verifier (council): CFO + CFI + CFF + FX
     must equal ΔCash (end − begin). All five pieces are printed; the model's
@@ -735,27 +764,7 @@ def cash_tie_oracle(proven, staging, log, tol_frac=0.005):
       the right caption — the run-102 CFI/CFF class), logged for the loop.
     - pieces missing -> do nothing loudly.
     """
-    def _mode(syns, exclude=()):
-        cands = {}
-        for it in staging.get("items", []):
-            lab = _norm(it.get("label", ""))
-            v = it.get("value")
-            if not isinstance(v, (int, float)) or not lab:
-                continue
-            if any(_syn_hit(x, lab) for x in exclude):
-                continue
-            if any(_syn_hit(s_, lab) for s_ in syns):
-                cands.setdefault(round(v, 1), set()).add(it.get("page"))
-        if not cands:
-            return None
-        return max(cands.items(), key=lambda kv: len(kv[1]))[0]
-
-    fx = _mode(["汇率变动对现金及现金等价物的影响", "汇率变动", "effect of exchange rate",
-                "effect of foreign exchange"])
-    end = _mode(["期末现金及现金等价物余额", "期末现金", "年末现金",
-                 "cash and cash equivalents at end", "cash at end"])
-    beg = _mode(["期初现金及现金等价物余额", "期初现金", "年初现金",
-                 "cash and cash equivalents at beginning", "cash at beginning"])
+    fx, end, beg = cf_pieces(staging)
     cfs = {k: (proven.get(k) or {}).get("value") for k in ("cfo", "cfi", "cff")}
     if end is None or beg is None or any(not isinstance(v, (int, float))
                                          for v in cfs.values()):
