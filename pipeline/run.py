@@ -49,10 +49,17 @@ def _disclosures(company_dir, period):
     return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
 
 
-def _write_served(wb, spec_d, target_year, served, writer, hardcodes, log):
+def _write_served(wb, spec_d, target_year, served, writer, priors, log):
     """Served values -> input cells, per the mark-to-actual law: only where
     the number is actually TYPED. Formula rows redirect to their input site
-    (link-through models) or stay computed (derived rows)."""
+    (link-through models) or stay computed (derived rows).
+
+    THE REDIRECT SIGN LAW (run-1 autopsy: GP = revenue + |COGS|): a served
+    value is signed for the ORIGINAL row's convention; the input site may
+    hold the opposite convention behind a negating link (Model COGS -18,615
+    <- Raw financials +18,615). Re-sign by the SITE's own prior. And a site
+    that is itself directly served is never overwritten by a redirect — the
+    direct serving is the authoritative read of that cell."""
     from .checks import prior_column, year_columns
     n_written = n_redirect = n_skip = 0
     for (sheet, row), entry in sorted(served.items()):
@@ -61,6 +68,7 @@ def _write_served(wb, spec_d, target_year, served, writer, hardcodes, log):
         if not tcol or sheet not in wb.sheetnames:
             continue
         site = (sheet, row)
+        value = entry["value"]
         held = wb[sheet][f"{tcol}{row}"].value
         if isinstance(held, str) and held.startswith("=") and pcol:
             site = resolve_input_site(wb, sheet, row, pcol) or (None, None)
@@ -68,6 +76,9 @@ def _write_served(wb, spec_d, target_year, served, writer, hardcodes, log):
                 n_skip += 1     # derived row: its formula computes it
                 continue
             if site != (sheet, row):
+                if site in served:
+                    n_skip += 1     # the site has its own authoritative read
+                    continue
                 n_redirect += 1
         s_sheet, s_row = site
         s_tcol = year_columns(spec_d, s_sheet).get(str(target_year))
@@ -75,8 +86,15 @@ def _write_served(wb, spec_d, target_year, served, writer, hardcodes, log):
         if not s_tcol:
             n_skip += 1
             continue
+        if site != (sheet, row) and s_pcol:
+            row_pv = (priors or {}).get((sheet, row))
+            site_pv = wb[s_sheet][f"{s_pcol}{s_row}"].value
+            if isinstance(row_pv, (int, float)) and row_pv != 0 \
+                    and isinstance(site_pv, (int, float)) and site_pv != 0 \
+                    and (row_pv < 0) != (site_pv < 0):
+                value = -value      # the link between site and row negates
         ok = writer.write(
-            s_sheet, f"{s_tcol}{s_row}", entry["value"],
+            s_sheet, f"{s_tcol}{s_row}", value,
             prior_coord=f"{s_pcol}{s_row}" if s_pcol else None,
             note=entry.get("note"), flag=entry.get("flag"),
             trusted=int(entry.get("conf") or 0) >= 4)
@@ -155,13 +173,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             nh = roll_year_headers(writer, sheet, pcol, tcol, py, target_year)
             log(f"[run] rolled {sheet}: {pcol}->{tcol}, {len(hard)} hardcode "
                 f"inputs, {nh} year headers rolled")
-    _write_served(wb, spec_d, target_year, served, writer, None, log)
+    prior_map = {t.key: t.prior_value for t in targets}
+    _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
 
     # -- Stage 3 (LLM, checksummed) — only what Stage 2 left
     if client is not None:
         gap_served = read_gaps(ledger, targets, served, client, docs, run_log)
         served.update(gap_served)
-        _write_served(wb, spec_d, target_year, gap_served, writer, None, log)
+        _write_served(wb, spec_d, target_year, gap_served, writer, prior_map, log)
     else:
         log("[run] stage 3 skipped: no client (dry run)")
 
@@ -222,6 +241,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     (replay_dir / "decisions.json").write_text(decisions_to_json(decisions),
                                                encoding="utf-8")
     targets_mod.save(targets, replay_dir / "targets.json")
+    (replay_dir / "run_log.txt").write_text("\n".join(run_log), encoding="utf-8")
 
     tag = "" if ok else " QUARANTINE"
     out_path = (company_dir / "model"

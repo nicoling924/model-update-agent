@@ -84,8 +84,15 @@ def check_year_headers(wb, spec, target_year):
     return fails
 
 
-def magnitude_sweep(wb, spec, target_year, written):
-    """Gate 2. Every written target-column cell vs its prior actual."""
+def magnitude_sweep(wb, spec, target_year, written, served=None):
+    """Gate 2. Every written target-column cell vs its prior actual.
+
+    Rows served at conf 5 are exempt: their SAME-LINE comparative tied the
+    model's prior at a proven scale, so a huge ratio there is real news
+    (tiny-prior investing lines legitimately explode 10,000x), not the
+    raw-scale disease. Everything else — joins, loop writes, rollover
+    leftovers — stays swept."""
+    served = served or {}
     fails = []
     by_sheet = {}
     for ref in written:
@@ -100,6 +107,9 @@ def magnitude_sweep(wb, spec, target_year, written):
         for coord in coords:
             m = re.match(rf"^{tcol}(\d+)$", coord) if tcol else None
             if not m:
+                continue
+            if int((served.get((sheet, int(m.group(1)))) or {})
+                   .get("conf") or 0) >= 5:
                 continue
             v = ws[coord].value
             pv = ws[f"{pcol}{m.group(1)}"].value
@@ -204,7 +214,8 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     deliver the workbook as the model — quarantine it with this list."""
     failures = []
     failures += check_year_headers(wb, spec, target_year)
-    failures += magnitude_sweep(wb, spec, target_year, writer_log.get("written", ()))
+    failures += magnitude_sweep(wb, spec, target_year,
+                                writer_log.get("written", ()), served=served)
     failures += flag_budget(wb, spec, target_year, writer_log.get("flags", ()))
     failures += driver_roll(wb, spec, target_year, pre_map)
     failures += error_scan(wb, pre_map)
