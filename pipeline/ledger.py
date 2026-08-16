@@ -116,7 +116,10 @@ def tag_faces(page_lines):
 
 _FACE_ROW_PATTERNS = (
     ("bs", ("资产总计", "负债合计", "所有者权益合计", "负债和所有者权益",
-            "total assets", "total liabilities", "total equity")),
+            "流动资产合计", "非流动资产合计", "流动负债合计", "非流动负债合计",
+            "total assets", "total liabilities", "total equity",
+            "total current assets", "total non-current assets",
+            "total current liabilities")),
     ("pl", ("营业总收入", "营业总成本", "净利润", "利润总额", "每股收益",
             "revenue", "profit for the year", "profit before tax",
             "earnings per share")),
@@ -270,9 +273,94 @@ class Ledger:
     def join_pool(self):
         """Items eligible to even be CONSIDERED by Stage 2: structurally
         joinable AND on a statement-face page (face authority is a pool
-        property — parent pages were never admitted to the map)."""
+        property — parent pages were never admitted to the map) AND not
+        from a prior-period document."""
+        prior_docs = self.prior_period_docs()
         return [it for it in self.items
-                if it.joinable() and self.faces.get((it.doc, it.page)) in JOIN_FACES]
+                if it.joinable() and it.doc not in prior_docs
+                and self.faces.get((it.doc, it.page)) in JOIN_FACES]
+
+    def classify_doc_periods(self, priors, deep_priors=None):
+        """{doc: 'current'|'prior'|'unknown'} — deterministic, language-free.
+
+        VINTAGE test: in every filing, the comparative column dominates the
+        second number slot of a line. The question is which YEAR fills it.
+        The current-period document's comparatives are the model's PRIOR
+        year; a prior-period document's comparatives are the year BEFORE
+        that (the deep priors — the negative key). Whichever vintage
+        dominates a doc's second slots names its period. Slot-ORDER voting
+        alone fails on real filings (opening-balance notes and five-year
+        tables vote both ways — measured). Without deep priors every doc is
+        'unknown' (safe: nothing is excluded on a guess). Cached."""
+        if getattr(self, "_doc_periods", None) is not None:
+            return self._doc_periods
+        import bisect
+        from .numerics import SCALES, to_model_units
+
+        def _absset(vals):
+            return {abs(v) for v in vals
+                    if isinstance(v, (int, float)) and abs(v) > 100}
+
+        P, D = _absset(priors), _absset(deep_priors or [])
+
+        def _distinct(A, B):
+            """Values of one vintage NOT present in the other — unmoved
+            balances and shared subtotals carry no vintage signal (measured:
+            with the full sets the two counts are near-equal everywhere)."""
+            sb = sorted(B)
+            out = []
+            for a in A:
+                i = bisect.bisect_left(sb, a * 0.995)
+                if not any(abs(a - b) <= max(0.6, a * 5e-3)
+                           for b in sb[max(0, i - 1):i + 3]):
+                    out.append(a)
+            return sorted(out)
+
+        def make_ties(sorted_abs):
+            def ties(n):
+                # identity-grade window (0.6 absolute / 0.05% relative) —
+                # same law as the vision checksum; resemblances vote nothing
+                for s in SCALES:
+                    if s > 1 and abs(n) < s / 1000:
+                        continue
+                    a = abs(to_model_units(n, s))
+                    tol_a = max(0.6, a * 5e-4)
+                    i = bisect.bisect_left(sorted_abs, a - tol_a - 1.0)
+                    while i < len(sorted_abs) and sorted_abs[i] <= a + tol_a + 1.0:
+                        if abs(a - sorted_abs[i]) <= max(0.6, sorted_abs[i] * 5e-4):
+                            return True
+                        i += 1
+                return False
+            return ties
+
+        p_only, d_only = _distinct(P, D), _distinct(D, P)
+        out = {}
+        for doc in {it.doc for it in self.items}:
+            if not p_only or not d_only:
+                out[doc] = "unknown"
+                continue
+            tie_p, tie_d = make_ties(p_only), make_ties(d_only)
+            n_prior = n_deep = 0
+            for it in self.items:
+                if it.doc != doc or len(it.nums) < 2:
+                    continue
+                second = it.nums[1]
+                if tie_p(second):
+                    n_prior += 1
+                if tie_d(second):
+                    n_deep += 1
+            if n_prior >= 1.5 * max(n_deep, 1) and n_prior >= 5:
+                out[doc] = "current"
+            elif n_deep >= 1.5 * max(n_prior, 1) and n_deep >= 5:
+                out[doc] = "prior"
+            else:
+                out[doc] = "unknown"
+        self._doc_periods = out
+        return out
+
+    def prior_period_docs(self):
+        return {d for d, k in (getattr(self, "_doc_periods", None) or {}).items()
+                if k == "prior"}
 
     # -- pinned-snapshot serialization ---------------------------------------
 

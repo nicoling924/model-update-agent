@@ -445,6 +445,29 @@ def test_stage3_regions_gap_fill_and_parent_exclusion():
     assert 100 not in grp, "parent page entered a read region"
 
 
+# ── The prior-period document (run-3 autopsy): slot-tie classification ───
+# In the CURRENT-period doc, model priors print in the second slot (the
+# comparative column); in a PRIOR-period doc they print in the first (its
+# current column IS the model's prior year). The classifier names each doc
+# deterministically, and prior docs never join, read, or serve citations.
+
+def test_prior_period_doc_classified_and_excluded():
+    priors = [58000.0, 39000.0, 3600.0, 22679.59, 18000.0, 4900.0]
+    deep = [v * 0.9 for v in priors]        # the year before prior
+    cur_items = [_item(95, i, f"当前年报第{i}行栏", [v * 1.1, v])
+                 for i, v in enumerate(priors)]     # comparatives = priors
+    pri_items = [Item(doc="old_ar.pdf", page=95, table_id=0, row_ord=i,
+                      label=f"上年年报第{i}行栏", nums=[v, v * 0.9])
+                 for i, v in enumerate(priors)]     # comparatives = DEEP priors
+    led = _ledger(cur_items + pri_items,
+                  face_pages=((95, "pl"),))
+    led.faces[("old_ar.pdf", 95)] = "pl"      # even face-tagged...
+    periods = led.classify_doc_periods(priors, deep)
+    assert periods[DOC] == "current" and periods["old_ar.pdf"] == "prior", periods
+    assert all(it.doc != "old_ar.pdf" for it in led.join_pool()), \
+        "prior-period document entered the join pool"
+
+
 # ── Scanned pages self-identify by their rows (cropped-caption class) ────
 
 def test_face_from_row_labels():

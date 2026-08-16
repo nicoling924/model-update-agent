@@ -131,8 +131,9 @@ def row_homes(ledger, targets):
     homes = defaultdict(set)
     if not sorted_abs:
         return homes
+    prior_docs = ledger.prior_period_docs()
     for it in ledger.items:
-        if it.disputed:
+        if it.disputed or it.doc in prior_docs:
             continue
         page = (it.doc, it.page)
         for n in it.nums:
@@ -193,9 +194,13 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
                 and (t.label or isinstance(t.prior_value, (int, float)))]
     if not unserved:
         return {}
-    homes = row_homes(ledger, targets)
     priors = [t.prior_value for t in targets
               if isinstance(t.prior_value, (int, float))]
+    deep = [t.prior2_value for t in targets
+            if isinstance(t.prior2_value, (int, float))]
+    ledger.classify_doc_periods(priors, deep)
+    prior_docs = ledger.prior_period_docs()
+    homes = row_homes(ledger, targets)
     block_scales = ratify_page_scales(ledger.join_pool(), priors)
     text_by_page = defaultdict(list)
     for it in ledger.items:
@@ -203,6 +208,9 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
 
     out = {}
     for doc, path in by_name.items():
+        if doc in prior_docs:
+            log.append(f"stage-3: {doc} skipped (prior-period document)")
+            continue
         for grp in regions_from_ledger(ledger, doc):
             grp_pages = {(doc, pn) for pn in grp}
             rows = [t for t in unserved if t.key not in out
