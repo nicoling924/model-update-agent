@@ -562,6 +562,23 @@ def cmd_update(company_dir, period):
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
           f"({len(blocks)} blocks) across {len(raw_all)} raw lines", flush=True)
     mapped = {}
+    # FABLE-MODE FIRST READ: whole pages (images where layout matters), the
+    # row block in model order with priors, one large call per region, and a
+    # PER-ROW checksum — the returned comparative must tie the model's own
+    # prior. Rows served here are done; the fragmented mapper only sees the
+    # remainder. This is the 96%-run's working conditions, given to Luna.
+    from . import fablemode
+    fm_log = []
+    fable_client = Client(temperature=0.0, max_output_tokens=14000)
+    for k_fm, m_fm in fablemode.region_read(fable_client, disclosures,
+                                            all_rows, fm_log).items():
+        mapped[k_fm] = m_fm
+    for ln_fm in fm_log:
+        print(f"[2f] {ln_fm}", flush=True)
+    for b in blocks:  # the old mapper reads only what fable-mode left
+        b["rows"] = [r for r in b["rows"]
+                     if (r["sheet"], r["row"]) not in mapped]
+    blocks = [b for b in blocks if b["rows"]]
     map_prompt = _prompt("direct_map")
     deadline_map = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.70
     for bi, b in enumerate(blocks):
