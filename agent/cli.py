@@ -628,6 +628,19 @@ def cmd_update(company_dir, period):
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
           f"({len(blocks)} blocks) across {len(raw_all)} raw lines", flush=True)
     mapped = {}
+    # STAGE-2 DETERMINISTIC JOIN FIRST (the council's inversion, scoped to
+    # where the replay ledger proved it surgical — the statement faces):
+    # pure code joins face items to rows through hard gates (prior identity,
+    # signed; parent-entity exclusion; block-scale ratification; label
+    # kinship; agreement-or-nothing). 15/15 precision in offline validation.
+    # Rows it serves never reach the mapper's label-matching at all.
+    from . import join as join_mod
+    s2_log = []
+    for k_s2, m_s2 in join_mod.stage2_join(all_rows, raw_map, spec,
+                                           target_year, s2_log).items():
+        mapped[k_s2] = m_s2
+    for ln_s2 in s2_log:
+        print(f"[2j] {ln_s2}", flush=True)
     # FABLE-MODE FIRST READ: whole pages (images where layout matters), the
     # row block in model order with priors, one large call per region, and a
     # PER-ROW checksum — the returned comparative must tie the model's own
