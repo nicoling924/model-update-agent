@@ -166,6 +166,15 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
     tol = cfg["conventions"]["rounding_tolerance"]
     proven = {}
     from . import mapper as _mapper
+    # quarterly-breakdown pages (分季度 tables) print the same captions with
+    # QUARTER values — a label-only proof drawn there is a wrong number wearing
+    # the right name (run 99: op profit "proven" at a Q4-sized 1,427; run 103:
+    # 816). Label-only candidates from these pages are excluded; triangulated
+    # candidates are untouched (a matching prior is its own defence).
+    quarterly_pages = set()
+    for pn_q, _s_q, ln_q in raw_lines:
+        if any(k in ln_q for k in ("分季度", "第一季度", "第二季度", "第三季度", "第四季度")):
+            quarterly_pages.add(pn_q)
     raw_num_pages = {}  # rounded |value| in MODEL units -> pages it appears on
     for pn, _sec, ln in raw_lines:
         for m in re.finditer(r"\(?-?[\d,]{3,}(?:\.\d+)?\)?", ln):
@@ -212,7 +221,7 @@ def prove(keymap, staging, raw_lines, pre_wb, spec, last_actual, cfg, log):
                 and not _excluded(kind, nl_it)
             if sign is not None:
                 cands_tri.setdefault(round(iv * sign, 1), set()).add(("item", it.get("page")))
-            elif label_hit:
+            elif label_hit and it.get("page") not in quarterly_pages:
                 # harmonize to the MODEL's sign convention (disclosures print
                 # liabilities negative where models store them positive — a raw
                 # label-only value must never flip the model's sign)
@@ -711,3 +720,67 @@ def render(card, obj_log):
         L.append("### Objective fixes applied")
         L += [f"- {x}" for x in obj_log]
     return L
+
+
+def cash_tie_oracle(proven, staging, log, tol_frac=0.005):
+    """The CF identity as an ACTIVE verifier (council): CFO + CFI + CFF + FX
+    must equal ΔCash (end − begin). All five pieces are printed; the model's
+    units staging carries them. Outcomes per case:
+
+    - identity TIES with the proven triplet -> all three CF proofs upgraded
+      (sources +2): they corroborate each other through the strongest
+      arithmetic there is.
+    - identity FAILS and exactly ONE member's removal explains the residual ->
+      that member's proof is demoted to suspect (wrong line instance wearing
+      the right caption — the run-102 CFI/CFF class), logged for the loop.
+    - pieces missing -> do nothing loudly.
+    """
+    def _mode(syns, exclude=()):
+        cands = {}
+        for it in staging.get("items", []):
+            lab = _norm(it.get("label", ""))
+            v = it.get("value")
+            if not isinstance(v, (int, float)) or not lab:
+                continue
+            if any(_syn_hit(x, lab) for x in exclude):
+                continue
+            if any(_syn_hit(s_, lab) for s_ in syns):
+                cands.setdefault(round(v, 1), set()).add(it.get("page"))
+        if not cands:
+            return None
+        return max(cands.items(), key=lambda kv: len(kv[1]))[0]
+
+    fx = _mode(["汇率变动对现金及现金等价物的影响", "汇率变动", "effect of exchange rate",
+                "effect of foreign exchange"])
+    end = _mode(["期末现金及现金等价物余额", "期末现金", "年末现金",
+                 "cash and cash equivalents at end", "cash at end"])
+    beg = _mode(["期初现金及现金等价物余额", "期初现金", "年初现金",
+                 "cash and cash equivalents at beginning", "cash at beginning"])
+    cfs = {k: (proven.get(k) or {}).get("value") for k in ("cfo", "cfi", "cff")}
+    if end is None or beg is None or any(not isinstance(v, (int, float))
+                                         for v in cfs.values()):
+        log.append("cash-tie oracle: pieces missing "
+                   f"(end={end}, beg={beg}, cf={cfs}) — skipped")
+        return
+    fx = fx or 0.0
+    delta = end - beg
+    resid = sum(cfs.values()) + fx - delta
+    tol = max(1.0, abs(delta) * tol_frac)
+    if abs(resid) <= tol:
+        for k in cfs:
+            proven[k]["sources"] = proven[k].get("sources", 1) + 2
+            proven[k]["status"] = "proven"
+            proven[k].setdefault("pages", []).append("cash-tie")
+        log.append(f"cash-tie oracle: CFO+CFI+CFF+FX = ΔCash ties "
+                   f"(resid {resid:,.1f}) — all three CF proofs upgraded")
+        return
+    log.append(f"cash-tie oracle: identity FAILS by {resid:,.1f} "
+               f"(cf={cfs}, fx={fx:,.1f}, ΔCash={delta:,.1f})")
+    # which single member is the liar? the one whose proof, if wrong by
+    # exactly -resid, would close the identity — flag the least-corroborated
+    weakest = min(cfs, key=lambda k: (proven.get(k) or {}).get("sources", 0))
+    proven[weakest]["status"] = "single-source"
+    proven[weakest]["sources"] = 1
+    proven[weakest].setdefault("pages", []).append("cash-tie-SUSPECT")
+    log.append(f"cash-tie oracle: {weakest} demoted to suspect "
+               "(least corroborated member of a failing identity)")

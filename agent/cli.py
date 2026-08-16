@@ -744,6 +744,22 @@ def cmd_update(company_dir, period):
     # pseudo-extraction of EVERY printed line (label + current + prior read
     # positionally) — thousands of items, no LLM, restores prove()/tie-web sight
     staging = {"items": [], "ties": [], "_direct": True}
+    # page -> statement tag, from the pages' own captions. The direct-map
+    # rewrite left every item stmt=None, which silently KILLED the agent
+    # loop's statement_diff ("no staged items for stmt 'bs'" in every run) —
+    # THE verification move returned nothing for the entire branch.
+    page_stmt = {}
+    for pn_t, _sec_t, ln_t in raw_all:
+        if pn_t in page_stmt:
+            continue
+        if "资产负债表" in ln_t or "balance sheet" in ln_t.lower():
+            page_stmt[pn_t] = "bs"
+        elif "现金流量表" in ln_t or "cash flow" in ln_t.lower():
+            page_stmt[pn_t] = "cf"
+        elif "利润表" in ln_t or "income statement" in ln_t.lower():
+            page_stmt[pn_t] = "pl"
+        elif "分部" in ln_t or "分产品" in ln_t or "segment" in ln_t.lower():
+            page_stmt[pn_t] = "segment"
     for (s_m, r_m), m in mapped.items():
         if m.get("value") is None:
             continue
@@ -756,7 +772,7 @@ def cmd_update(company_dir, period):
         staging["items"].append({"label": m.get("line") or str(ctx_m.get("label")),
                                  "value": m["value"],
                                  "prior": ctx_m.get("prior_value"),
-                                 "page": pg_n, "stmt": None})
+                                 "page": pg_n, "stmt": page_stmt.get(pg_n)})
     n_raw_items = 0
     for pn_r, _sec_r, ln_r in raw_all:
         ns_r = lookup_mod.line_nums(ln_r)
@@ -772,7 +788,8 @@ def cmd_update(company_dir, period):
         staging["items"].append({"label": lab_r,
                                  "value": mapper.to_model_units(ns_r[0], page=pn_r),
                                  "prior": mapper.to_model_units(ns_r[1], page=pn_r),
-                                 "page": pn_r, "stmt": None, "_src": "rawline"})
+                                 "page": pn_r, "stmt": page_stmt.get(pn_r % 1000 if isinstance(pn_r, int) else pn_r),
+                                 "_src": "rawline"})
         n_raw_items += 1
     print(f"[2c] audit staging: {len(staging['items'])} items "
           f"({n_raw_items} code-parsed raw lines)", flush=True)
@@ -1108,6 +1125,7 @@ def cmd_update(company_dir, period):
         obj_notes.append(f"bridge {kind_b}: memory recipe -> {v25_b:,.1f} = "
                          + " ".join(det_b)[:120])
 
+    objectives.cash_tie_oracle(proven, staging, obj_notes)
     card, obj_log, n_fix = objectives.converge(
         wb, spec, staging, cfg, writer_obj, pre_wb, pre_values, target_year,
         last_actual, keymap, proven, flags, backouts, t0, eligible_inputs,
