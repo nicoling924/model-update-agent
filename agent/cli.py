@@ -607,9 +607,13 @@ def cmd_update(company_dir, period):
     from . import fablemode
     fm_log = []
     fable_client = Client(temperature=0.0, max_output_tokens=14000)
+    fable_served = set()  # checksum-verified reads — LOCKED against later
+    # mechanical "improvement" (run 112: the closing loop swapped a correct,
+    # self-verified EPS 1.15 for a misaligned note line's 3,831.3)
     for k_fm, m_fm in fablemode.region_read(fable_client, disclosures,
                                             all_rows, fm_log).items():
         mapped[k_fm] = m_fm
+        fable_served.add(k_fm)
     for ln_fm in fm_log:
         print(f"[2f] {ln_fm}", flush=True)
     for b in blocks:  # the old mapper reads only what fable-mode left
@@ -1305,8 +1309,14 @@ def cmd_update(company_dir, period):
             breadth_log.append(f"reviewer-applied {sheet_f}!{coord_f} = {val}")
             applied_b += 1
     from . import closing
+    fable_locked = set()
+    for s_fs, r_fs in fable_served:
+        ax_fs = spec["year_axis"].get(s_fs) or {}
+        tc_fs = (ax_fs.get("columns") or {}).get(str(target_year))
+        if tc_fs:
+            fable_locked.add(f"{s_fs}!{tc_fs}{r_fs}")
     eligible_cl = {f"{s_}!{c_}" for s_, c_, _n in flags} - obj_written \
-        - {f"{s_}!{c_}" for s_, c_ in key_cells_prot}
+        - {f"{s_}!{c_}" for s_, c_ in key_cells_prot} - fable_locked
     writer_cl = workbook.Writer(wb, cfg)
     writer_cl.log["written"] = list(writer_obj.log["written"])
     cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
