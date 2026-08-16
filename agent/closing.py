@@ -103,28 +103,50 @@ def _build_suspects(wb, spec, staging, writer, target_year, tol, pre_values=None
         if not (isinstance(pv, (int, float)) and pv != 0 and row_label):
             continue
         from .mapping import _overlap, norm, _STOP
+        # Corroboration ties are RELATIVE to the row's own world. The 0.6
+        # floor absorbs statement rounding on aggregate rows (millions), but
+        # a per-share row's world is ~1: the old absolute tol=1.0 let
+        # "prior 1.15" corroborate a 0.94 row, and the closing loop swapped
+        # net profit (3,831.3) into EPS. Small rows tie at 0.5% or a cent.
+        tol_row = max(abs(pv) * 5e-3, 0.6 if abs(pv) >= 10 else 0.01)
         # A) sign suspect — only with a label-related item confirming the flipped value
         if v != 0 and (v < 0) != (pv < 0):
             confirm = any(_overlap(row_label, str(it.get("label", "")))
-                          and abs(it["value"] - (-v)) <= tol for it in items)
+                          and abs(it["value"] - (-v)) <= tol_row for it in items)
             if confirm:
                 suspects.append((sheet_f, coord_f, -v,
                                  f"sign flipped to prior-year convention (was {v}, "
                                  "flipped value confirmed by extraction)", 3.0))
+        # STATEMENT-WINS: if a statement-face line (pl/bs/cf) already ties
+        # this cell on BOTH years, the cell is confirmed by the statement —
+        # no note-page extraction may swap it away.
+        stmt_confirmed = any(
+            it.get("stmt") and isinstance(it.get("prior"), (int, float))
+            and abs(abs(it["prior"]) - abs(pv)) <= tol_row
+            and abs(abs(it["value"]) - abs(v)) <= tol_row
+            for it in items)
+        if stmt_confirmed:
+            continue
         # B) corroborated swap: prior match + label kinship, quality-scored
         for it in items:
             pr = it.get("prior")
-            if not isinstance(pr, (int, float)) or abs(abs(pr) - abs(pv)) > tol:
+            if not isinstance(pr, (int, float)) or abs(abs(pr) - abs(pv)) > tol_row:
                 continue
             lbl = str(it.get("label", ""))
             if not _overlap(row_label, lbl):
                 continue
             nv = abs(it["value"]) * (1 if pv > 0 else -1)  # prior's sign wins
-            if abs(nv - v) <= tol:
+            if abs(nv - v) <= tol_row:
+                continue
+            # WORLD-BAND GUARD: a swap may never leave the row's order of
+            # magnitude — the "does 3,831 live in a 0.94 world?" question a
+            # thinking reader asks before writing anything.
+            if abs(nv) > 50 * max(abs(pv), 0.01) or abs(nv) * 50 < abs(pv):
                 continue
             shared = len({w for w in norm(row_label).split() if w not in _STOP and len(w) > 2}
                          & {w for w in norm(lbl).split() if w not in _STOP and len(w) > 2})
-            quality = shared + (1.0 if abs(pr - pv) <= tol else 0.0)
+            quality = shared + (1.0 if abs(pr - pv) <= tol_row else 0.0) \
+                + (2.0 if it.get("stmt") else 0.0)  # statement face outranks notes
             suspects.append((sheet_f, coord_f, nv,
                              f"swapped to extracted '{lbl[:38]}' p{it.get('page')} "
                              f"(prior corroborated {pr}, label-related)", quality))
