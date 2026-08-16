@@ -539,6 +539,34 @@ def cmd_update(company_dir, period):
                              "prior_value": pre_wb[sheet_c][f"{pc_c}{r}"].value,
                              "memory_hint": hint_c,
                              "memory_page": m_e.get("page")})
+    # NO-PRIOR HOLES (run-115 reflection): labeled rows with an EMPTY prior
+    # sitting INSIDE a dense census block are new line items (使用权资产折旧 had
+    # no prior year and was never even asked). Add them for fable-mode's
+    # complete-coverage read — marked so the mapper machinery ignores them.
+    n_holes = 0
+    for sheet_c, rows_c in census.items():
+        if not rows_c or sheet_c not in pre_values.sheetnames:
+            continue
+        wsp = pre_values[sheet_c]
+        have = set(rows_c)
+        for i_h in range(len(rows_c) - 1):
+            a_h, b_h = rows_c[i_h], rows_c[i_h + 1]
+            if not (1 < b_h - a_h <= 8):
+                continue
+            for r_h in range(a_h + 1, b_h):
+                if r_h in have:
+                    continue
+                lab_h = next((wsp[f"{lc}{r_h}"].value for lc in "ABCDEF"
+                              if isinstance(wsp[f"{lc}{r_h}"].value, str)), None)
+                if lab_h and str(lab_h).strip():
+                    all_rows.append({"sheet": sheet_c, "row": r_h,
+                                     "label": str(lab_h).strip(),
+                                     "prior_value": None,
+                                     "no_prior_hole": True})
+                    n_holes += 1
+    if n_holes:
+        print(f"[1h] {n_holes} no-prior rows inside census blocks added for "
+              "the complete-coverage read (new line items)", flush=True)
     raw_all = lookup_mod.raw_lines(disclosures)
     # MAPPER view: document-qualified page ids (doc_i*1000 + page) so the AR's
     # p184 and the announcement's p25 never mix in one "page" — the run-45
@@ -594,7 +622,8 @@ def cmd_update(company_dir, period):
             r["candidate_lines"] = [f"p{pn_a}: {ln_a.strip()[:110]}"
                                     for pn_a, _s_a, ln_a in raw_map
                                     if mapper.line_has_value(ln_a, pv_a, page=pn_a)][:4]
-    blocks = mapper.cluster(all_rows)
+    # no-prior holes are fable-only: the mapper machinery never sees them
+    blocks = mapper.cluster([r for r in all_rows if not r.get("no_prior_hole")])
     n_home = sum(1 for r in all_rows if r["pages"])
     print(f"[2] retrieval: {n_home}/{len(all_rows)} rows located "
           f"({len(blocks)} blocks) across {len(raw_all)} raw lines", flush=True)
@@ -610,10 +639,17 @@ def cmd_update(company_dir, period):
     fable_served = set()  # checksum-verified reads — LOCKED against later
     # mechanical "improvement" (run 112: the closing loop swapped a correct,
     # self-verified EPS 1.15 for a misaligned note line's 3,831.3)
+    fm_cov = {}
     for k_fm, m_fm in fablemode.region_read(fable_client, disclosures,
-                                            all_rows, fm_log).items():
+                                            all_rows, fm_log,
+                                            coverage=fm_cov).items():
         mapped[k_fm] = m_fm
-        fable_served.add(k_fm)
+        if m_fm.get("conf") == 5:      # only checksummed reads earn the lock
+            fable_served.add(k_fm)
+    # STATEMENT-BLOCK LAW (run-115 reflection): on these rows the LLM reads,
+    # machinery may not guess. Uncited/uncertain mapper answers are WITHHELD
+    # there (flag-only); a hole beats a megawatt number in a P&L row.
+    stmt_block_rows = fm_cov.get("stmt_rows", set())
     for ln_fm in fm_log:
         print(f"[2f] {ln_fm}", flush=True)
     for b in blocks:  # the old mapper reads only what fable-mode left
@@ -954,6 +990,20 @@ def cmd_update(company_dir, period):
                          flag="orange")
             backouts.append((s_w, coord_w, m.get("line", "")[:60]))
             n_der += 1
+        elif (s_w, r_w) in stmt_block_rows and "fable-mode" not in str(m.get("note", "")):
+            # STATEMENT-BLOCK LAW: an uncited/uncertain MACHINE answer on a
+            # statement row is withheld — the hole is flagged for the analyst
+            # instead (run 115: a megawatt figure from a production table was
+            # "UNCERTAIN"-written into a P&L row and poisoned six cells).
+            writer.write(s_w, coord_w, wb[s_w][coord_w].value,
+                         prior_coord=f"{pcol_w}{r_w}",
+                         note=f"STATEMENT ROW UNRESOLVED — machine answer "
+                              f"withheld ({m['status']}: {m.get('line','')[:40]} "
+                              f"p{m.get('page')}); verify from the statement",
+                         flag="red")
+            flags.append((s_w, coord_w, f"withheld {m['status']}: "
+                                        f"{m.get('line','')[:40]}"))
+            n_unc += 1
         else:  # UNCERTAIN / UNCITED — write but red-flag
             writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
                          note=f"direct-map {m['status']}: {m.get('line','')} "
