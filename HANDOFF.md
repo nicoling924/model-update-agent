@@ -26,15 +26,27 @@ image), generic across teams (no per-company code; per-company memory tab OK).
 genericity check. On plateau or major decisions: convene the council
 (`~/.claude/skills/llm-council`, reads the repo .env key).
 
-## 3. State (see RUNLOG for full table)
+## 3. State (2026-08-16 night's end — full arc in RUNLOG.md)
 
-- **CLP**: 74–76% vs analyst GT, keys 8–9/12, balance passes most draws.
-- **DFE**: run 97 = 79.1% (273-cell reference = `companies/Dongfang Electric/
-  model/Dongfang Electric Claude Fable 5.xlsx` in Project M — a Fable 5 run,
-  not analyst-verified, so score with `--docs` adjudication). Run 98 = 63.0%
-  (regression, autopsied). Run 99 in flight = audit-web fixes only.
-- Score: `python tools/score_run.py "<artifact>/model/DFE Model.xlsx" --company
-  DFE --docs companies/DFE/disclosures/FY25` (per-sheet breakdown included).
+- **DFE FINAL DELIVERABLE**: `companies/Dongfang Electric/model/Dongfang
+  Electric FY25 (agent final).xlsx` — **85.7% whole model, Model tab 98.2%
+  (112/114; both misses = one FLAGGED dividend-definition choice + its echo),
+  balance 0 on every check row in every year, all 9 statement keys tie.**
+  Built by: run-105 base + frozen fable-mode reads (validated 103/103) +
+  the post-eval assembly pass (every residual fingerprint-attributed, every
+  correction page-cited, back-outs orange-flagged).
+- Unattended single-run best: 80.6% (run 105). Clean-room Fable ceiling:
+  96.0% (audited). CLP genericity: 75.0%, unmoved (its historical band).
+- **fable-mode** (agent/fablemode.py) is the read architecture now: whole
+  pages + ordered row ledger + per-row comparative checksum — Luna measured
+  ZERO-wrong on served rows across three validation rounds. Next builds, in
+  order: (1) the post-eval assembly as an in-run phase (council posteval
+  session); (2) LEARNER REFOCUS — learner budget only on rows fable-mode
+  fails to self-verify on the PRIOR year (the discovered hard set);
+  (3) sign rule: serve AS PRINTED when the signed comparative ties (the
+  pv-sign forcing broke sign-flipping rows: OCI, CF-supplement gains).
+- Score: `python tools/score_run.py "<file>" --company DFE --docs
+  companies/DFE/disclosures/FY25` (per-sheet + adjudication).
 
 ## 4. What was built on 08-15/16 (the vision + units arc)
 
