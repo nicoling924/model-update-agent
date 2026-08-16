@@ -148,9 +148,46 @@ def cmd_learn(company_dir, prior_period):
                                   if mapper.line_has_value(ln_l, r_l["prior_value"])][:4]
         if isinstance(r_l.get("v23"), (int, float)):
             r_l["memory_hint"] = f"prior-prior year value: {r_l['v23']:,.1f}"
-    blocks_l = mapper.cluster(lrows)
+    # LEARNER REFOCUS (owner directive): budget goes ONLY to the HARD rows,
+    # and difficulty is DISCOVERED, never assumed. Probe: fable-mode reads
+    # the PRIOR year's report with the prior-prior value (v23) as the row
+    # checksum; a served row whose result ties the workbook's own known
+    # prior actual (v24) is EASY — next year's update read will get it
+    # unaided, and its memory hint would be redundant (fable-mode serves
+    # before the mapper ever looks). Everything else — unserved, mistied,
+    # or unprobeable (no v23) — is the discovered hard set (for DFE this
+    # surfaced the Driver/PPE blocks; other companies differ), and the
+    # whole identification budget concentrates there.
+    from . import fablemode
+    probe_rows = [dict(r_p, prior_value=r_p["v23"]) for r_p in lrows
+                  if isinstance(r_p.get("v23"), (int, float))]
+    easy = set()
+    if probe_rows:
+        probe_client = Client(temperature=0.0, max_output_tokens=14000)
+        plog = []
+        try:
+            probe = fablemode.region_read(probe_client, disclosures,
+                                          probe_rows, plog)
+        except Exception as ex_p:
+            probe, plog = {}, plog + [f"probe failed: {ex_p}"]
+        for ln_p in plog:
+            print(f"    [L0] {ln_p}", flush=True)
+        known_l = {(r_p["sheet"], r_p["row"]): r_p["prior_value"]
+                   for r_p in lrows}
+        for key_p, e_p in probe.items():
+            pv_p = known_l.get(key_p)
+            if isinstance(pv_p, (int, float)) and \
+                    abs(e_p["value"] - pv_p) <= max(abs(pv_p) * 5e-3, 0.6):
+                easy.add(key_p)
+    lrows_hard = [r_p for r_p in lrows
+                  if (r_p["sheet"], r_p["row"]) not in easy]
+    print(f"[L0] refocus probe: {len(easy)}/{len(lrows)} rows EASY "
+          f"(fable-read of the prior report ties the known actual — no "
+          f"learner budget spent); {len(lrows_hard)} in the discovered "
+          f"HARD set", flush=True)
+    blocks_l = mapper.cluster(lrows_hard)
     print(f"[L1] retrieval: {sum(1 for r in lrows if r['pages'])}/{len(lrows)} "
-          f"rows located, {len(blocks_l)} blocks", flush=True)
+          f"rows located, {len(blocks_l)} blocks (hard set only)", flush=True)
     lm_prompt = _prompt("learn_map")
     identified = {}
     for bi_l, b_l in enumerate(blocks_l):
