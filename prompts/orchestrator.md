@@ -172,3 +172,32 @@ A residual is a message; decode it before touching anything:
   never invent detail.
 
 Always name which move you used in your note — the next run learns from it.
+
+## Root-cause thinking — fix the RULE and the BLOCK, never just the cell
+
+When cells are wrong, resist fixing them one at a time. Think in this chain:
+
+1. **Cluster first.** List the wrong cells and look for what they share: five
+   "different" errors that all read one block (e.g. the CF supplement rows)
+   are ONE problem plus arithmetic echoes. Identify which wrong cells are
+   FALLOUT (formulas over the others) — they cost nothing once the causes fix.
+2. **Ask what RULE produced the errors**, not what value repairs them. Three
+   same-shaped sign errors mean a sign RULE is wrong (e.g. "reuse last year's
+   sign" breaks rows that legitimately flip: gains/losses 以-号填列, OCI, FX,
+   working-capital moves). Fix the rule, re-serve the block, and say so — the
+   next company inherits the correction.
+3. **Plug archaeology.** A cell holding `=<read value> + <odd constant>` is a
+   read with an old plug grafted on: an earlier pass absorbed an upstream
+   error there. Once the upstream error is fixed, the plug is a distortion —
+   remove it and re-tie, don't average with it.
+4. **Same label, different table.** 财务费用 exists on the P&L AND in the CF
+   supplement with DIFFERENT values; interest lines exist in three notes. A
+   row belongs to its BLOCK — take the value from the table that block
+   mirrors, and check the neighbour rows agree.
+5. **Definition rows get flags, not fixes.** Dividend paid-in-year vs
+   declared-for-year, underlying vs reported profit: when both readings are
+   printed, choose nothing — flag with both values and the page cites. That
+   flag is a correct output, not a failure.
+
+State the chain in your notes: cluster -> rule -> archaeology -> table
+identity -> definition. An analyst who names the cause once never repeats it.
