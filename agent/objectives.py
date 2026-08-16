@@ -784,12 +784,7 @@ def cash_tie_oracle(proven, staging, log, tol_frac=0.005):
                    f"(resid {resid:,.1f}) — all three CF proofs upgraded")
         return
     log.append(f"cash-tie oracle: identity FAILS by {resid:,.1f} "
-               f"(cf={cfs}, fx={fx:,.1f}, ΔCash={delta:,.1f})")
-    # which single member is the liar? the one whose proof, if wrong by
-    # exactly -resid, would close the identity — flag the least-corroborated
-    weakest = min(cfs, key=lambda k: (proven.get(k) or {}).get("sources", 0))
-    proven[weakest]["status"] = "single-source"
-    proven[weakest]["sources"] = 1
-    proven[weakest].setdefault("pages", []).append("cash-tie-SUSPECT")
-    log.append(f"cash-tie oracle: {weakest} demoted to suspect "
-               "(least corroborated member of a failing identity)")
+               f"(cf={cfs}, fx={fx:,.1f}, ΔCash={delta:,.1f}) — LOG ONLY: the "
+               "failing piece can be the picked end/beg, not a CF value "
+               "(run 109 demoted a CORRECT cfi on a mispicked ΔCash); "
+               "upgrades on success remain the oracle's teeth")
