@@ -42,7 +42,7 @@ import re
 from pathlib import Path
 
 from .ledger import (Item, Ledger, parse_scale_hint, tag_faces, unit_dim_of)
-from .numerics import SCALES, label_of, line_numbers, parse_number, row_tol
+from .numerics import SCALES, label_of, line_numbers, parse_number
 
 PROMPT_VERSION = "p1-v1"
 VOTES = 2                    # transcription passes per scanned page
@@ -207,7 +207,11 @@ def checksum_page(rows, known_values):
         hits = 0
         for k in known:
             t = k * s
-            tol = max(row_tol(k) * s, t * 5e-4)
+            # the MEASURED law: 0.6 document-units absolute or 0.05%
+            # relative. A 0.5% window (row_tol at scale) measured 10x
+            # looser and admitted 4 coincidences on a dense prior-year
+            # summary page — an anchor is an identity, not a resemblance.
+            tol = max(0.6 * s, t * 5e-4)
             i = bisect.bisect_left(nums, t - tol)
             if i < len(nums) and nums[i] <= t + tol:
                 hits += 1
@@ -440,16 +444,44 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                 image_pages = image_pages[:MAX_VISION_PAGES]
             # pixels come out sequentially (pdfplumber pages are not
             # thread-safe); the PAID calls run 3-wide — sequential vision
-            # measured ~6 min/page, a 2-hour Stage 1 on a scanned AR
+            # measured ~6 min/page, a 2-hour Stage 1 on a scanned AR.
+            # EARLY ABORT (generic): a prior-period document's scans can
+            # never anchor the model's priors in their prior column — if the
+            # first ABORT_AFTER transcribed pages of a doc all fail the
+            # checksum, stop paying for its remaining scans and report them
+            # unread. (Measured live: the FY24 AR burned ~12 pages x 3 votes
+            # producing correct refusals that one batch already proved.)
+            ABORT_AFTER = 6
             with pdfplumber.open(path) as pdf:
                 imgs = {pn: _page_image(pdf.pages[pn - 1]) for pn in image_pages}
             from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(min(3, max(1, len(image_pages)))) as ex:
-                entries = dict(zip(image_pages, ex.map(
-                    lambda pn: _transcribe(path, pn, imgs[pn], client,
-                                           known_values, votes, cache_dir, log),
-                    image_pages)))
-            for pn in image_pages:
+            entries, judged_pages, accepted_any = {}, 0, False
+            with ThreadPoolExecutor(3) as ex:
+                for i in range(0, len(image_pages), 3):
+                    batch = image_pages[i:i + 3]
+                    for pn, entry in zip(batch, ex.map(
+                            lambda pn: _transcribe(path, pn, imgs[pn], client,
+                                                   known_values, votes,
+                                                   cache_dir, log), batch)):
+                        entries[pn] = entry
+                        judged_pages += 1
+                        rows = merge_votes(entry.get("votes") or [])[1]
+                        hits, _s, _c = checksum_page(
+                            [r for r in rows if not r.get("disputed")],
+                            known_values)
+                        if hits >= ANCHOR_MIN:
+                            accepted_any = True
+                    if not accepted_any and judged_pages >= ABORT_AFTER:
+                        skipped = image_pages[i + 3:]
+                        unread += [(pn, "doc aborted: first "
+                                    f"{judged_pages} scanned pages anchor no "
+                                    "model prior (prior-period document?)")
+                                   for pn in skipped]
+                        log(f"[stage1] {doc}: vision ABORTED after "
+                            f"{judged_pages} anchorless pages "
+                            f"({len(skipped)} pages saved)")
+                        break
+            for pn in [p for p in image_pages if p in entries]:
                 entry = entries[pn]
                 if not entry.get("votes"):
                     unread.append((pn, entry.get("why", "?")))

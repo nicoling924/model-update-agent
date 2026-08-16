@@ -335,6 +335,22 @@ def test_merge_votes_consensus_and_dispute():
     assert disputed and not disputed[0].joinable()
 
 
+def test_checksum_anchors_are_identities_not_resemblances():
+    """The FY24-AR coincidence (caught live): a dense prior-period page with
+    values within 0.5% of model priors must NOT anchor — the window is 0.6
+    absolute document units or 0.05% relative, never looser."""
+    known = [22679.59, 18000.0, 4900.0, 3600.0]
+    near = [{"name": f"line{i}", "current": "1,000,000",
+             "prior": f"{v * 1000 * 1.004:,.0f}"}   # 0.4% off at scale 1e3
+            for i, v in enumerate(known)]
+    hits, _s, _c = checksum_page(near, known)
+    assert hits == 0, f"near-miss values anchored: {hits}"
+    exact = [{"name": f"line{i}", "current": "1,000,000",
+              "prior": f"{v * 1000:,.0f}"} for i, v in enumerate(known)]
+    hits2, s2, _ = checksum_page(exact, known)
+    assert hits2 == 4 and s2 == 1e3
+
+
 def test_checksum_gate_prior_column_only():
     known = [22679.59, 18000.0, 4900.0, 3600.0, 990.0]   # model units (millions)
     real = [{"name": "货币资金", "current": "24,000,000,000", "prior": "22,679,594,590.64"},
