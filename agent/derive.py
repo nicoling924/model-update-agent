@@ -406,3 +406,153 @@ def implied_prior_read(rows, raw_lines, log, tol=0.01):
     log.append(f"implied-prior tie-out: {len(out)} single-year rows identified "
                f"({len(cand_lines)} candidate table lines)")
     return out
+
+
+_PROSE_NUM = re.compile(
+    r"([\d,]+(?:\.\d+)?)\s*(亿|万)?元?[^0-9%％]{0,30}?(?:同比)?(?:增长|增减|下降|减少)\s*"
+    r"(-?[\d.]+)\s*[%％]")
+
+
+def prose_growth_read(rows, raw_lines, log, tol=0.01):
+    """The clean-room tester's move, mechanized: narrative sentences print
+    "新生效订单1172.51亿元，同比增长15.93%" — value ± unit suffix ± growth.
+    implied_prior = value/(1±pct) against the model's own prior identifies the
+    row exactly as the table tie-out does, for numbers that live in PROSE
+    (the orders block; MD&A highlights). 下降/减少 mean the pct is a decline.
+    """
+    from . import mapper as _mapper
+    cands = []
+    for pn, sec, ln in raw_lines:
+        if sec == "table":
+            continue
+        for m in _PROSE_NUM.finditer(ln):
+            try:
+                v = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            unit = {"亿": 100.0, "万": 0.01}.get(m.group(2), 1.0)  # -> RMB m
+            try:
+                pct = float(m.group(3))
+            except ValueError:
+                continue
+            if "下降" in m.group(0) or "减少" in m.group(0):
+                pct = -abs(pct)
+            if abs(pct) < 0.5 or pct <= -100:
+                continue
+            cands.append((pn, ln, v * unit, pct))
+    out = {}
+    for r in rows:
+        pv = r.get("prior_value")
+        if not isinstance(pv, (int, float)) or abs(pv) < 2:
+            continue
+        best = None
+        for pn, ln, vm, pct in cands:
+            # the prose value may be in RMB m already or need no suffix scale —
+            # try as-is plus plain-scale variants
+            for v_try in (vm, vm * 100, vm / 100):
+                implied = v_try / (1 + pct / 100.0)
+                if abs(implied - abs(pv)) <= max(abs(pv) * tol, 0.6):
+                    cur = v_try * (1 if pv >= 0 else -1)
+                    if best is None:
+                        best = (cur, pn, ln)
+                    elif abs(best[0] - cur) > 1:
+                        best = "AMBIGUOUS"
+                    break
+            if best == "AMBIGUOUS":
+                break
+        if best and best != "AMBIGUOUS":
+            cur, pn, ln = best
+            out[(r["sheet"], r["row"])] = {
+                "value": cur, "status": "RECIPE", "page": pn, "line": ln[:90],
+                "note": f"prose growth tie-out: implied prior matches model "
+                        f"prior {pv:,.1f} (printed growth reconciles)"}
+    log.append(f"prose growth tie-out: {len(out)} rows identified "
+               f"({len(cands)} candidate sentences)")
+    return out
+
+
+def statement_align(rows, raw_lines, log):
+    """The clean-room tester's core move, mechanized: a statements-mirror sheet
+    lists its rows in the SAME ORDER the statements print. Anchor every row
+    whose prior matches a transcribed line's comparative (two-pointer, so
+    matches are monotonic); between consecutive anchors, when the number of
+    unmatched model rows EQUALS the number of unmatched statement lines, the
+    pairing is forced — serve those current values deterministically. No
+    search lottery, no per-row LLM call; a gap that doesn't count-match is
+    left alone (holes over guesses).
+    """
+    from . import lookup as _lookup
+    from . import mapper as _mapper
+    # statement lines, in print order, per page run (vision lines only — they
+    # are complete, ordered, and carry (current, prior) per line)
+    lines = []
+    for pn, sec, ln in raw_lines:
+        if sec != "vision":
+            continue
+        ns = [_mapper.to_model_units(n, page=pn) for n in _lookup.line_nums(ln)]
+        if len(ns) >= 2:
+            lines.append((pn, ln.strip()[:80], ns[0], ns[1]))  # cur, prior
+        elif len(ns) == 1:
+            # single-number lines hold their PLACE in print order (gap counting)
+            lines.append((pn, ln.strip()[:80], ns[0], None))
+    if not lines:
+        log.append("statement-align: no transcribed statement lines — skipped")
+        return {}
+    by_sheet = {}
+    for r in rows:
+        if isinstance(r.get("prior_value"), (int, float)):
+            by_sheet.setdefault(r["sheet"], []).append(r)
+    out = {}
+    for sheet, srows in by_sheet.items():
+        srows.sort(key=lambda r: r["row"])
+        # two-pointer anchor pass
+        anchors = []  # (row_idx, line_idx)
+        li = 0
+        for ri, r in enumerate(srows):
+            pv = abs(r["prior_value"])
+            if pv < 2:
+                continue
+            for lj in range(li, len(lines)):
+                if lines[lj][3] is not None and \
+                        abs(abs(lines[lj][3]) - pv) <= max(0.6, pv * 5e-4):
+                    anchors.append((ri, lj))
+                    li = lj + 1
+                    break
+        # LOCAL CONSISTENCY: a true anchor sits in a run of neighbours (the
+        # statement mirrors the sheet); an isolated match is a prior-value
+        # coincidence (measured: 3 of 27 v1 anchors were exactly that)
+        anchors = [a for i, a in enumerate(anchors)
+                   if (i > 0 and a[0] - anchors[i-1][0] <= 4
+                       and a[1] - anchors[i-1][1] <= 4)
+                   or (i + 1 < len(anchors) and anchors[i+1][0] - a[0] <= 4
+                       and anchors[i+1][1] - a[1] <= 4)]
+        if len(anchors) < 4:
+            continue  # this sheet does not mirror the statements
+        served = 0
+        for (r1, l1), (r2, l2) in zip(anchors, anchors[1:]):
+            rows_gap = srows[r1 + 1:r2]
+            lines_gap = lines[l1 + 1:l2]
+            pairs = list(zip(rows_gap, lines_gap)) if len(rows_gap) == len(lines_gap) else []
+            for r, (pn, ln, cur, pri) in pairs:
+                if cur is None:
+                    continue
+                pv = r["prior_value"]
+                v = cur if pv >= 0 else -abs(cur)
+                out[(r["sheet"], r["row"])] = {
+                    "value": v, "status": "RECIPE", "page": pn, "line": ln,
+                    "note": ("statement-aligned: forced pairing between two "
+                             "prior-anchored neighbours (order-preserving)")}
+                served += 1
+        # anchors themselves: serve current value at FULL LINE PRECISION
+        for ri, lj in anchors:
+            r = srows[ri]
+            pn, ln, cur, pri = lines[lj]
+            pv = r["prior_value"]
+            v = cur if pv >= 0 else -abs(cur)
+            out.setdefault((r["sheet"], r["row"]), {
+                "value": v, "status": "RECIPE", "page": pn, "line": ln,
+                "note": "statement-aligned: prior-anchored line, current read "
+                        "across at full precision"})
+        log.append(f"statement-align {sheet}: {len(anchors)} anchors, "
+                   f"{served} gap rows forced, {len(out)} total served")
+    return out
