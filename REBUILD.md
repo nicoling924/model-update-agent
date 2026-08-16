@@ -20,6 +20,42 @@ showable, and rebuild clean.
   encoded in tests/test_museum.py.
 - **objective-driven** — the legacy line, closed.
 
+## Owner objectives (standing mandate, 2026-08-17 overnight ruling)
+
+The benchmark: **Fable 5 completed ~95% of the DFE model in one clean run.**
+That is what the agent chases, on pure gpt-5.6-luna. In priority order:
+
+1. **The model balances — or is flagged. No exception.** Every period,
+   historical and forecast.
+2. **The key numbers are present and correct-or-flagged**: revenue, profit,
+   current and non-current assets, liabilities, equity, and operating /
+   investing / financing cash flows. These are what the analyst reads
+   first; they must never be silently wrong.
+3. **Completion: 80-90% of the entire model filled, minimum**; 95% is the
+   Fable-5 parity target.
+4. **The column convention**: the new actual column is the prior actual
+   column carried forward — same formulas (Excel-shifted), same formats,
+   same cell types — with ONLY the hardcoded inputs, and numeric constants
+   embedded inside formulas, updated to the new financials. The analyst
+   must find everything exactly where they left it.
+
+**Objective-based, not a workflow machine.** Luna runs the way Fable 5
+works free-form: one objective loop, tools as hands, state external. The
+deterministic stages are the ASSISTANCE handed to that loop — they gather
+evidence, bind what is provable, check what is checkable, and constrain
+what may be written — but the LLM pursues the objective; a fixed call-graph
+of scripted steps is the failed legacy design. Deterministic machinery
+never invents a number.
+
+**Generic across the whole department.** The agent will be deployed to
+every analyst; every analyst's model is different — language, format,
+style, company, industry. Therefore: NO company-specific logic in code, no
+remembered formulas, no template assumptions. Per-company knowledge lives
+in the workbook's own `_SPEC` tab and travels with the file. Mechanisms
+must be NUMBER-ANCHORED (prior-identity triangulation, block-scale
+ratification, checksums) rather than label- or layout-bound — labels vary
+across languages and house styles; last year's numbers do not.
+
 ## The champion/challenger law
 
 The champion (stable-run105) is only ever replaced by a challenger that

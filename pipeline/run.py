@@ -1,0 +1,237 @@
+"""The run — one update, end to end, through every stage and gate.
+
+    archive -> census -> STAGE 1 read once -> STAGE 2 join -> rollover +
+    guarded writes -> STAGE 3 checksummed gap reads -> STAGE 4 verify web +
+    objective loop -> delivery gate -> _REPORT / _SPEC -> deliver or refuse
+
+Everything the run learns is persisted: the evidence ledger and join
+decisions to replay/ (the pinned snapshots the validation protocol needs),
+the spec back into the workbook's _SPEC tab, the analyst report as the
+first sheet. A gate refusal saves to a QUARANTINE name — a refused run is
+a result, not a delivery.
+
+client=None runs every deterministic stage and skips the LLM ones (the
+dry-run path); the museum plus a dry run is the pre-flight bar before any
+dispatch.
+"""
+import shutil
+from pathlib import Path
+
+from . import gate as gate_mod
+from . import report as report_mod
+from . import spec as spec_mod
+from . import targets as targets_mod
+from .ledger import Ledger
+from .orchestrator import ObjectiveLoop
+from .stage1_read import read_documents
+from .stage2_join import decisions_to_json, join
+from .stage3_read import read_gaps
+from .writer import (Writer, formula_map, load, resolve_input_site,
+                     roll_year_headers, rollover_column, save)
+
+
+def _model_path(company_dir, spec):
+    mdir = Path(company_dir) / "model"
+    if spec.get("model_file") and (mdir / spec["model_file"]).exists():
+        return mdir / spec["model_file"]
+    cands = sorted([p for p in mdir.glob("*.xls[xm]")
+                    if not p.name.startswith("~$")],
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    if not cands:
+        raise FileNotFoundError(f"no model workbook in {mdir}")
+    return cands[0]
+
+
+def _disclosures(company_dir, period):
+    d = Path(company_dir) / "disclosures"
+    sub = d / period
+    root = sub if sub.is_dir() else d
+    return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
+
+
+def _write_served(wb, spec_d, target_year, served, writer, hardcodes, log):
+    """Served values -> input cells, per the mark-to-actual law: only where
+    the number is actually TYPED. Formula rows redirect to their input site
+    (link-through models) or stay computed (derived rows)."""
+    from .checks import prior_column, year_columns
+    n_written = n_redirect = n_skip = 0
+    for (sheet, row), entry in sorted(served.items()):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if not tcol or sheet not in wb.sheetnames:
+            continue
+        site = (sheet, row)
+        held = wb[sheet][f"{tcol}{row}"].value
+        if isinstance(held, str) and held.startswith("=") and pcol:
+            site = resolve_input_site(wb, sheet, row, pcol) or (None, None)
+            if site == (None, None):
+                n_skip += 1     # derived row: its formula computes it
+                continue
+            if site != (sheet, row):
+                n_redirect += 1
+        s_sheet, s_row = site
+        s_tcol = year_columns(spec_d, s_sheet).get(str(target_year))
+        s_pcol = prior_column(spec_d, s_sheet, target_year)
+        if not s_tcol:
+            n_skip += 1
+            continue
+        ok = writer.write(
+            s_sheet, f"{s_tcol}{s_row}", entry["value"],
+            prior_coord=f"{s_pcol}{s_row}" if s_pcol else None,
+            note=entry.get("note"), flag=entry.get("flag"),
+            trusted=int(entry.get("conf") or 0) >= 4)
+        if ok:
+            n_written += 1
+            if int(entry.get("conf") or 0) >= 5:
+                writer.lock(s_sheet, f"{s_tcol}{s_row}")
+    log(f"[run] wrote {n_written} served values "
+        f"({n_redirect} redirected to input sites, {n_skip} derived/skipped)")
+
+
+def update(company_dir, period, target_year, client=None, loop_budget=60,
+           log=print):
+    """One model update. Returns dict with paths + outcome."""
+    company_dir = Path(company_dir)
+    run_log = []
+
+    # -- load model + spec, archive the pre-update state. No spec anywhere ->
+    # the agent works the anatomy out itself (deterministic discovery; the
+    # draft persists to the _SPEC tab for the analyst to review).
+    wb_probe = None
+    if not (company_dir / "spec.yaml").exists() \
+            and not (company_dir / "spec.json").exists():
+        wb_probe = load(_model_path(company_dir, {}), data_only=False)
+    try:
+        spec_d = spec_mod.load(company_dir, wb_probe)
+    except spec_mod.SpecError:
+        from .discover import discover
+        kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+                else "Q" if "Q" in str(period).upper() else "FY")
+        probe_path = _model_path(company_dir, {})
+        spec_d = discover(load(probe_path), load(probe_path, data_only=True),
+                          target_year=target_year, period_kind=kind)
+        log(f"[run] no spec found — anatomy AUTO-DISCOVERED "
+            f"({len(spec_d['year_axis'])} sheets, "
+            f"{len(spec_d['check_rows'])} check rows, "
+            f"{len(spec_d['key_rows'])} key rows); review lands in _SPEC tab")
+    model_path = _model_path(company_dir, spec_d)
+    archive = company_dir / "model-archive" / f"{model_path.stem}_{period}_pre{model_path.suffix}"
+    archive.parent.mkdir(exist_ok=True)
+    shutil.copy2(model_path, archive)
+    log(f"[run] model: {model_path.name} (archived pre-update copy)")
+
+    wb = load(model_path)                       # formulas
+    wb_values = load(model_path, data_only=True)  # cached values
+    pre_map = formula_map(wb)
+    pre_estimates = report_mod.snapshot_estimates(wb_values, spec_d, target_year)
+
+    # -- census + Stage 1
+    targets = targets_mod.from_workbook(wb_values, spec_d, target_year)
+    known = targets_mod.known_prior_values(targets)
+    log(f"[run] census: {len(targets)} target rows, {len(known)} priors")
+    docs = _disclosures(company_dir, period)
+    if not docs:
+        raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
+    ledger = read_documents(docs, client=client, known_values=known, log=log)
+
+    # -- Stage 2 (pure code)
+    served, decisions = join(ledger, targets, run_log)
+    for ln in run_log[-3:]:
+        log(f"[run] {ln}")
+
+    # -- the owner's column convention, then guarded writes
+    writer = Writer(wb)
+    from .checks import prior_column, year_columns
+    hardcode_census = {}          # sheet -> rows that arrived as hardcodes
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if tcol and pcol and sheet in wb.sheetnames:
+            hard = rollover_column(wb, sheet, pcol, tcol)
+            hardcode_census[sheet] = hard
+            cols = year_columns(spec_d, sheet)
+            years = sorted(cols)
+            py = years[years.index(str(target_year)) - 1]
+            nh = roll_year_headers(writer, sheet, pcol, tcol, py, target_year)
+            log(f"[run] rolled {sheet}: {pcol}->{tcol}, {len(hard)} hardcode "
+                f"inputs, {nh} year headers rolled")
+    _write_served(wb, spec_d, target_year, served, writer, None, log)
+
+    # -- Stage 3 (LLM, checksummed) — only what Stage 2 left
+    if client is not None:
+        gap_served = read_gaps(ledger, targets, served, client, docs, run_log)
+        served.update(gap_served)
+        _write_served(wb, spec_d, target_year, gap_served, writer, None, log)
+    else:
+        log("[run] stage 3 skipped: no client (dry run)")
+
+    # -- SILENT STALENESS is illegal: a rolled-over hardcode that no proven
+    # read overwrote still holds LAST year's number — flag every one red.
+    # (Volume is honesty: if too many stay stale, the flag budget refuses
+    # delivery, which is the correct verdict for that sheet.)
+    n_stale = 0
+    for sheet, rows in hardcode_census.items():
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        for r in rows:
+            if (sheet, r) in served or f"{sheet}!{tcol}{r}" in writer.log["written"]:
+                continue
+            cell = wb[sheet][f"{tcol}{r}"]
+            if not isinstance(cell.value, (int, float)):
+                continue
+            from openpyxl.comments import Comment
+            cell.fill = writer.fills["red"]
+            cell.comment = Comment(
+                "STALE INPUT: rolled from the prior actual column; no proven "
+                "disclosure read replaced it — review or accept.", "Model Update Agent")
+            writer.log["flags"].append(f"{sheet}!{tcol}{r}")
+            n_stale += 1
+    if n_stale:
+        log(f"[run] {n_stale} unserved hardcode inputs flagged STALE (red)")
+
+    # -- Stage 4: the objective loop (Luna owns it), then the gate
+    loop_summary = ""
+    if client is not None:
+        loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
+                             writer, client, run_log, budget=loop_budget)
+        loop_summary = loop.run()
+        log(f"[run] objective loop: {loop_summary[:150]}")
+    else:
+        log("[run] stage 4 loop skipped: no client (dry run)")
+
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if tcol and pcol and sheet in wb.sheetnames:
+            writer.format_rollover(sheet, pcol, tcol)
+
+    ok, failures, card = gate_mod.deliver_or_refuse(
+        wb, spec_d, target_year, pre_map, writer.log, served=served)
+
+    # -- report + spec-tab memory + snapshots
+    report_mod.build_report(wb, spec_d, target_year, writer.log, served,
+                            pre_estimates, failures, loop_summary)
+    spec_d.setdefault("_last_run", {})
+    spec_d["_last_run"] = {"period": period, "served": len(served),
+                           "flags": len(writer.log["flags"]),
+                           "gate": "PASS" if ok else "REFUSED"}
+    spec_mod.write_spec_tab(wb, spec_d)
+
+    replay_dir = company_dir / "replay" / str(period)
+    replay_dir.mkdir(parents=True, exist_ok=True)
+    ledger.save(replay_dir / "ledger.json")
+    (replay_dir / "decisions.json").write_text(decisions_to_json(decisions),
+                                               encoding="utf-8")
+    targets_mod.save(targets, replay_dir / "targets.json")
+
+    tag = "" if ok else " QUARANTINE"
+    out_path = (company_dir / "model"
+                / f"{model_path.stem} {period} (pipeline{tag}){model_path.suffix}")
+    save(wb, out_path)
+    log(f"[run] {'DELIVERED' if ok else 'GATE REFUSED — quarantined'}: "
+        f"{out_path.name}")
+    for f in failures[:12]:
+        log(f"[run]   gate: {f}")
+    return {"ok": ok, "out": str(out_path), "archive": str(archive),
+            "served": len(served), "failures": failures,
+            "completion": card["completion"].get("_overall_pct"),
+            "replay": str(replay_dir)}
