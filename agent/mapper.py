@@ -334,7 +334,8 @@ def map_block_voted(client, system, prompt_tpl, block, raw_lines, cfg, votes=2):
         vals = [c["value"] for c in cands]
         # confidence 0-5: agreement + page-cited + prior-beside-it (the
         # "found at last year's position" signal). >=4 = solid, skippable later.
-        if len(cands) >= 2 and max(vals) - min(vals) <= 1.0:
+        if len(cands) >= 2 and max(vals) - min(vals) <= \
+                (1.0 if max(abs(v_) for v_ in vals) >= 10 else 0.005):
             best = max(cands, key=lambda c: c.get("status") == "OK")
             best["note"] = f"agreed across {len(cands)} independent reads"
             conf = 2
@@ -394,6 +395,17 @@ def audit(mapped, rows, raw_lines, tol=1.0):
                 v = m["value"] = v / DOC_SCALE
                 m["note"] = ((m.get("note") or "") +
                              f" [document units /{DOC_SCALE:,.0f} -> model units]").strip()
+        # SMALL-WORLD rows (per-share, ratios): the >=100 gate below exempts
+        # them from the ratio check entirely — that is how a net profit
+        # lands in an EPS row and no code blinks. Judge them in their own
+        # band: >50x either way vs prior = implausible, downgrade.
+        if (isinstance(pv, (int, float)) and 0 < abs(pv) < 100 and v != 0
+                and m.get("status") == "OK"):
+            ratio_s = abs(v) / abs(pv)
+            if ratio_s > 50 or ratio_s < 0.02:
+                m["status"] = "UNCERTAIN"
+                m["note"] = ((m.get("note") or "") +
+                             f" [magnitude implausible vs prior {pv}]").strip()
         if isinstance(pv, (int, float)) and abs(pv) >= 100 and v != 0:
             ratio = abs(v) / abs(pv)
             if ratio > 20 or ratio < 0.05:

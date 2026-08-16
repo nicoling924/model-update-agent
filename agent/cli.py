@@ -177,7 +177,7 @@ def cmd_learn(company_dir, prior_period):
         for key_p, e_p in probe.items():
             pv_p = known_l.get(key_p)
             if isinstance(pv_p, (int, float)) and \
-                    abs(e_p["value"] - pv_p) <= max(abs(pv_p) * 5e-3, 0.6):
+                    abs(e_p["value"] - pv_p) <= workbook.row_tol(pv_p):
                 easy.add(key_p)
     lrows_hard = [r_p for r_p in lrows
                   if (r_p["sheet"], r_p["row"]) not in easy]
@@ -894,6 +894,22 @@ def cmd_update(company_dir, period):
     # -- 3. rollover + write the mapped column --------------------------------
     wb = workbook.load(model_path)
     writer = workbook.Writer(wb, cfg)
+
+    def _prior_of(sheet_pl, coord_pl):
+        """Prior-actual value for a target-column coord — feeds the Writer's
+        world-band guard on writes that carry no prior_coord."""
+        ax_pl = spec["year_axis"].get(sheet_pl) or {}
+        tc_pl = (ax_pl.get("columns") or {}).get(str(target_year))
+        pc_pl = (ax_pl.get("columns") or {}).get(str(last_actual))
+        if not (tc_pl and pc_pl):
+            return None
+        m_pl = re.match(rf"^{tc_pl}(\d+)$", coord_pl)
+        if not m_pl or sheet_pl not in pre_values.sheetnames:
+            return None
+        v_pl = pre_values[sheet_pl][f"{pc_pl}{m_pl.group(1)}"].value
+        return v_pl if isinstance(v_pl, (int, float)) else None
+
+    writer.prior_lookup = _prior_of
     restatements = []
     rollover_hardcodes = {}
     for sheet_rv, ax_rv in spec["year_axis"].items():
@@ -921,13 +937,14 @@ def cmd_update(company_dir, period):
         m = mapped.get((s_w, r_w))
         if m is None or m.get("value") is None or m["status"] in ("NOT_FOUND",):
             continue  # rollover carry stands; [4d] flags it
+        tr_w = (s_w, r_w) in fable_served  # checksum-tied: magnitude proven
         if m["status"] in ("OK", "RESCALED"):
             fl_w = None if m["status"] == "OK" else "red"
             writer.write(s_w, coord_w, m["value"], prior_coord=f"{pcol_w}{r_w}",
                          note=(f"direct-map [conf {m.get('conf', '?')}/5]: "
                                f"'{m.get('line','')}' p{m.get('page')}"
                                + (f"; {m.get('note')}" if m.get('note') else "")),
-                         flag=fl_w)
+                         flag=fl_w, trusted=tr_w)
             if fl_w:
                 flags.append((s_w, coord_w, m.get("note") or "rescaled"))
             n_ok += 1
@@ -1068,6 +1085,19 @@ def cmd_update(company_dir, period):
 
     # -- 6. verify (gate) ----------------------------------------------------
     wb = workbook.load(model_path)  # fresh load: verify what was SAVED
+    # FABLE-LOCK, applied to the RELOADED wb (a lock set pre-save dies with
+    # the old object): checksum-verified reads are DONE — no later mechanical
+    # pass (bridges, breadth repairs, closing loop, plugs) may overwrite one.
+    # Run 112: the closing loop swapped a correct, self-verified EPS 1.15
+    # for a misaligned note line's 3,831.3.
+    fable_lock_cells = set()
+    for s_fl, r_fl in fable_served:
+        tc_fl = (spec["year_axis"].get(s_fl, {}).get("columns") or {}).get(target_year)
+        if tc_fl:
+            fable_lock_cells.add(f"{s_fl}!{tc_fl}{r_fl}")
+    wb._locked_cells = set(getattr(wb, "_locked_cells", set())) | fable_lock_cells
+    print(f"[4L] {len(fable_lock_cells)} fable-served (checksum-verified) cells "
+          "LOCKED against later mechanical writes", flush=True)
     allowed = {(s.split("!")[0], s.split("!")[1]) for s in
                [x.split(":")[0] for x in writer.log["restatements"]]}
     results, hard, soft = verify.run_checks(wb, spec, staging, cfg, pre_map, allowed)
@@ -1104,6 +1134,7 @@ def cmd_update(company_dir, period):
             eligible_inputs |= {(sh_o, f"{tc_o}{r}") for r in rows_o}
     eligible_inputs |= {(cs_o, pc_o["coord"]) for (cs_o, _r), pc_o in pending_consts.items()}
     writer_obj = workbook.Writer(wb, cfg)
+    writer_obj.prior_lookup = _prior_of
     writer_obj.log["written"] = list(writer.log["written"])
     obj_deadline = t0 + cfg["budgets"]["max_run_minutes"] * 60 * 0.92
 
@@ -1292,7 +1323,9 @@ def cmd_update(company_dir, period):
                 val = float(nums[0].replace(",", ""))
             except ValueError:
                 continue
-            if not any(abs(val - sv) <= 1.0 or abs(-val - sv) <= 1.0 for sv in staged_vals_b):
+            if not any(abs(val - sv) <= workbook.row_tol(sv, base=1.0)
+                       or abs(-val - sv) <= workbook.row_tol(sv, base=1.0)
+                       for sv in staged_vals_b):
                 continue
             pv_chk = pre_values[sheet_f][f"{prior_col}{row_f}"].value \
                 if sheet_f in pre_values.sheetnames else None
@@ -1318,6 +1351,7 @@ def cmd_update(company_dir, period):
     eligible_cl = {f"{s_}!{c_}" for s_, c_, _n in flags} - obj_written \
         - {f"{s_}!{c_}" for s_, c_ in key_cells_prot} - fable_locked
     writer_cl = workbook.Writer(wb, cfg)
+    writer_cl.prior_lookup = _prior_of
     writer_cl.log["written"] = list(writer_obj.log["written"])
     cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
                                      target_year, pre_values=pre_values,

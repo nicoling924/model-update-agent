@@ -67,7 +67,8 @@ def _majority(passes):
             if not isinstance(v, (int, float)):
                 continue
             grp = [(pj, jt) for pj, jt in cands
-                   if isinstance(jt.get("value"), (int, float)) and abs(jt["value"] - v) <= 1.0]
+                   if isinstance(jt.get("value"), (int, float))
+                   and abs(jt["value"] - v) <= (1.0 if abs(v) >= 10 else 0.005)]
             if len({pj for pj, _ in grp}) > len({pj for pj, _ in best_group}):
                 best_group = grp
         if len({pj for pj, _ in best_group}) >= 2:
@@ -100,9 +101,11 @@ def _consensus(a, b):
         for cand in bmap.get(key(it), []):
             va, vb = it.get("value"), cand.get("value")
             if isinstance(va, (int, float)) and isinstance(vb, (int, float)) \
-                    and abs(va - vb) <= 1.0 and abs(int(it.get("page", 0)) - int(cand.get("page", 0))) <= 2:
+                    and abs(va - vb) <= (1.0 if abs(va) >= 10 else 0.005) \
+                    and abs(int(it.get("page", 0)) - int(cand.get("page", 0))) <= 2:
                 pa, pb = it.get("prior"), cand.get("prior")
-                if isinstance(pa, (int, float)) and isinstance(pb, (int, float)) and abs(pa - pb) > 1.0:
+                if isinstance(pa, (int, float)) and isinstance(pb, (int, float)) \
+                        and abs(pa - pb) > (1.0 if abs(pa) >= 10 else 0.005):
                     it = dict(it, prior=None)  # values agree, priors don't — keep value only
                 matched = True
                 break

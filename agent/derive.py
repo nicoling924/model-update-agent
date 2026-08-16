@@ -189,6 +189,8 @@ def ctrlf_read(prior_value, raw_lines, row_label=None, tol=0.6):
     prefer primary-statement sections, then label similarity. Returns
     (value, page, line, unique) or (None, None, None, False)."""
     from . import mapper as _mapper
+    from .workbook import row_tol
+    tol = row_tol(prior_value, base=tol)  # per-share rows tie in their own world
     cands = []
     lab_n = lookup.norm(str(row_label or ""))
     lab_words = set(w for w in lab_n.split() if len(w) >= 4)
@@ -301,16 +303,18 @@ def replay_composition(recipe, fy25_raw):
             if ns:
                 by_label.setdefault(lab, []).append((ns, pn))
     total, details = 0.0, []
+    from .workbook import row_tol
     for lab, sign, v24, _pg in recipe:
         hits = by_label.get(lookup.norm(lab)) or []
+        tol_v = row_tol(v24, base=1.0)
         # 1st choice: the line whose SECOND number equals the FY24 value we
         # learned (current | prior layout) — proof it is the same line
         best = next(((ns, pn) for ns, pn in hits
-                     if len(ns) >= 2 and abs(abs(ns[1]) - abs(v24)) <= 1.0), None)
+                     if len(ns) >= 2 and abs(abs(ns[1]) - abs(v24)) <= tol_v), None)
         if best is None:  # fall back: old value anywhere on the line, neighbour left
             for ns, pn in hits:
                 for i in range(1, len(ns)):
-                    if abs(abs(ns[i]) - abs(v24)) <= 1.0:
+                    if abs(abs(ns[i]) - abs(v24)) <= tol_v:
                         best = ([ns[i - 1]], pn)
                         break
                 if best:
