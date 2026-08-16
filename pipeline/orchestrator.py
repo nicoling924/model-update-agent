@@ -167,7 +167,8 @@ class ObjectiveLoop:
                 break
         # current-period evidence first; prior-period doc lines are context,
         # never citations for a current-year write
-        hits.sort(key=lambda it: it.doc in prior_docs)
+        hits.sort(key=lambda it: (it.doc in prior_docs,
+                                  self.ledger.face(it.doc, it.page) is None))
         hits = hits[:MAX_FINDS]
         if not hits:
             return (f"MISS: '{q}' not in the evidence ledger. Try ONE synonym, "
@@ -221,6 +222,60 @@ class ObjectiveLoop:
                     break
         return "\n".join(out[:40]) or f"no diffs: {stmt} lines tie the model"
 
+    def _diff_value(self, t):
+        """The disclosed value for one target row, by prior identity on a
+        ratified current-doc face page — Stage-2-grade evidence, computed
+        fresh. -> (value, item, scale) or None. Single agreeing candidate
+        in the row's world, or nothing."""
+        from .stage2_join import ratify_page_scales, _tying_pairs, _in_world
+        pv = t.prior_value
+        if not isinstance(pv, (int, float)) or pv == 0:
+            return None
+        priors = [x.prior_value for x in self.targets.values()
+                  if isinstance(x.prior_value, (int, float))]
+        pool = self.ledger.join_pool()
+        scales = ratify_page_scales(pool, priors)
+        tol = row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
+        cands = []
+        for it in pool:
+            s = scales.get((it.doc, it.page))
+            if s is None:
+                continue
+            ns = [to_model_units(n, s) for n in it.nums]
+            prs = _tying_pairs(ns, pv, tol)
+            if len(prs) == 1 and _in_world(prs[0][0], pv):
+                cands.append((prs[0][0], it, s))
+        if not cands:
+            return None
+        vals = [v for v, _i, _s in cands]
+        if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
+            return None
+        return cands[0]
+
+    def t_apply_diff(self, args):
+        """One action from finding to fixing: write the disclosed value for
+        a DIFF/EMPTY/STALE row, evidence and citation auto-built, through
+        the same transactional guards as set_input. The loop's primary
+        repair move."""
+        ref = str(args.get("row") or args.get("cell") or "")
+        m = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", ref.replace("$", ""))
+        if not m:
+            return f"MISS: row ref '{ref}' unparseable (Sheet!row form, e.g. Model!49)"
+        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(3))
+        t = self.targets.get((sheet, row))
+        if t is None:
+            return f"MISS: {sheet}!{row} is not a census row"
+        got = self._diff_value(t)
+        if got is None:
+            return (f"MISS: no unique prior-identity evidence for {sheet}!{row} "
+                    "on a ratified face — use find_line + set_input with your "
+                    "own citation, or flag it")
+        dv, it, s = got
+        tcol = self._tcol(sheet)
+        why = f"p{it.page}: {it.doc} '{it.label[:40]}' (prior-identity tie)"
+        return self.t_set_input({"cell": f"{sheet}!{tcol}{row}", "value": dv,
+                                 "why": why})
+
     def t_set_input(self, args):
         ref = str(args.get("cell", ""))
         why = str(args.get("why", ""))
@@ -238,10 +293,37 @@ class ObjectiveLoop:
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
         held = self.wb[sheet][f"{col}{row}"].value
-        if isinstance(held, str) and held.startswith("=") \
-                and re.search(r"SUM|[+\-]", held[1:], re.IGNORECASE):
-            return (f"REFUSED: {ref} is a designed formula ({held[:40]}) — "
-                    "repair its COMPONENTS, never the total (trace_cell it)")
+        redirected = ""
+        if isinstance(held, str) and held.startswith("="):
+            # a single-reference view row redirects to the cell where the
+            # number is actually typed (the legacy tool's own behavior);
+            # composite designed formulas are refused — repair components
+            from .writer import resolve_input_site
+            pcol0 = prior_column(self.spec, sheet, self.ty)
+            site = (resolve_input_site(self.wb, sheet, row, pcol0)
+                    if pcol0 else None)
+            if site is None or site == (sheet, row):
+                return (f"REFUSED: {ref} is a designed formula ({held[:40]}) — "
+                        "repair its COMPONENTS, never the total (trace_cell it)")
+            s_sheet, s_row = site
+            s_tcol = self._tcol(s_sheet)
+            if not s_tcol:
+                return (f"REFUSED: input site {s_sheet}!{s_row} has no target "
+                        "column in the year axis")
+            # the link may negate: re-sign to the SITE's own prior world
+            row_pv = (self.targets.get((sheet, row)).prior_value
+                      if (sheet, row) in self.targets else None)
+            s_pcol = prior_column(self.spec, s_sheet, self.ty)
+            site_pv = (self.wb[s_sheet][f"{s_pcol}{s_row}"].value
+                       if s_pcol else None)
+            if isinstance(row_pv, (int, float)) and row_pv != 0 \
+                    and isinstance(site_pv, (int, float)) and site_pv != 0 \
+                    and (row_pv < 0) != (site_pv < 0):
+                value = -value
+            redirected = f" (redirected from {ref} to its input cell)"
+            sheet, col, row = s_sheet, s_tcol, s_row
+            ref = f"{sheet}!{col}{row}"
+            held = self.wb[sheet][f"{col}{row}"].value
         pcol = prior_column(self.spec, sheet, self.ty)
         before_card = self._card()
         before_fails = {c["name"] for c in before_card["checks"]
@@ -272,7 +354,8 @@ class ObjectiveLoop:
                                      "line": why[:60],
                                      "note": f"objective loop: {why[:120]}"}
         fixed = sorted(before_fails - after_fails)
-        return "WRITTEN" + (f"; checks now passing: {fixed[:4]}" if fixed else "")
+        return ("WRITTEN" + redirected
+                + (f"; checks now passing: {fixed[:4]}" if fixed else ""))
 
     def t_flag_cell(self, args):
         ref = str(args.get("cell", ""))
@@ -316,6 +399,7 @@ class ObjectiveLoop:
 
     TOOLS = {"rescore": t_rescore, "trace_cell": t_trace_cell,
              "find_line": t_find_line, "statement_diff": t_statement_diff,
+             "apply_diff": t_apply_diff,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
              "finish": t_finish}
