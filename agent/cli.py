@@ -662,7 +662,13 @@ def cmd_update(company_dir, period):
     # STATEMENT-BLOCK LAW (run-115 reflection): on these rows the LLM reads,
     # machinery may not guess. Uncited/uncertain mapper answers are WITHHELD
     # there (flag-only); a hole beats a megawatt number in a P&L row.
-    stmt_block_rows = fm_cov.get("stmt_rows", set())
+    # Membership from the join's page tagger x row homes (the reverted
+    # fablemode stubs its coverage — workflow review caught the dead law).
+    stmt_block_rows = set(fm_cov.get("stmt_rows") or set())
+    _stmt_pages = set(join_mod._page_stmt(raw_map))
+    for r_sb in all_rows:
+        if set(r_sb.get("pages") or []) & _stmt_pages:
+            stmt_block_rows.add((r_sb["sheet"], r_sb["row"]))
     for ln_fm in fm_log:
         print(f"[2f] {ln_fm}", flush=True)
     for b in blocks:  # the old mapper reads only what fable-mode left
@@ -704,10 +710,13 @@ def cmd_update(company_dir, period):
                 except (TypeError, ValueError):
                     pass
         nf_rows = [r for r in all_rows
-                   if (r["sheet"], r["row"]) not in mapped
-                   or mapped[(r["sheet"], r["row"])].get("value") is None
-                   or (mapped[(r["sheet"], r["row"])].get("conf", 5) == 0
-                       and rescue_round == 1)]
+                   if not r.get("no_prior_hole")  # holes are read-only rows:
+                   # a label-matched guess on a row with NO prior has no
+                   # magnitude guard anywhere (workflow review, run-A audit)
+                   and ((r["sheet"], r["row"]) not in mapped
+                        or mapped[(r["sheet"], r["row"])].get("value") is None
+                        or (mapped[(r["sheet"], r["row"])].get("conf", 5) == 0
+                            and rescue_round == 1))]
         if not nf_rows or time.time() > deadline_map:
             break
         for r in nf_rows:
