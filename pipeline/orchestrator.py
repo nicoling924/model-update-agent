@@ -118,13 +118,29 @@ class ObjectiveLoop:
                     cur = ev.cell(sh, f"{c2}{r2}")
                 except Exception:
                     cur = "?"
-                pv = (self.wb[sh][f"{pcol}{r2}"].value
-                      if pcol and c2 == self._tcol(sh) else None)
+                # the component's OWN sheet's prior column, evaluated
+                pv = None
+                sh_pcol = prior_column(self.spec, sh, self.ty)
+                if sh_pcol and c2 == self._tcol(sh):
+                    try:
+                        pv = ev.cell(sh, f"{sh_pcol}{r2}")
+                    except Exception:
+                        pv = None
                 lab = next((self.wb[sh][f"{lc}{r2}"].value
                             for lc in ("A", "B", "C")
                             if isinstance(self.wb[sh][f"{lc}{r2}"].value, str)), "")
+                mark = ""
+                if isinstance(cur, (int, float)) and isinstance(pv, (int, float)) \
+                        and pv != 0:
+                    move = (cur - pv) / abs(pv)
+                    if (cur < 0) != (pv < 0) and abs(pv) > 1:
+                        mark = "  <== SIGN FLIPPED vs prior — suspect"
+                    elif abs(move) > 0.5:
+                        mark = f"  <== moved {move:+.0%} YoY — suspect"
                 out.append(f"  {sh}!{c2}{r2} '{str(lab)[:30]}' = {cur}"
-                           + (f"  (prior {pv:,.2f})" if isinstance(pv, (int, float)) else ""))
+                           + (f"  (prior {pv:,.2f})"
+                              if isinstance(pv, (int, float)) else "")
+                           + mark)
         return "\n".join(out)
 
     def t_find_line(self, args):
@@ -136,6 +152,7 @@ class ObjectiveLoop:
             qnum = float(q.replace(",", ""))
         except ValueError:
             pass
+        prior_docs = self.ledger.prior_period_docs()
         hits = []
         for it in self.ledger.items:
             if q.lower() in it.label.lower() or q.lower() in it.source_line.lower():
@@ -144,22 +161,31 @@ class ObjectiveLoop:
                     abs(abs(to_model_units(n, s)) - abs(qnum)) <= row_tol(qnum)
                     for n in it.nums for s in SCALES):
                 hits.append(it)
-            if len(hits) >= MAX_FINDS:
+            if len(hits) >= MAX_FINDS * 2:
                 break
+        # current-period evidence first; prior-period doc lines are context,
+        # never citations for a current-year write
+        hits.sort(key=lambda it: it.doc in prior_docs)
+        hits = hits[:MAX_FINDS]
         if not hits:
             return (f"MISS: '{q}' not in the evidence ledger. Try ONE synonym, "
                     "then move on.")
         return "\n".join(
-            f"{it.doc} p{it.page} [{self.ledger.face(it.doc, it.page) or 'no-face'}]"
+            f"{it.doc} p{it.page} "
+            f"[{'PRIOR-PERIOD DOC — not citable' if it.doc in prior_docs else self.ledger.face(it.doc, it.page) or 'no-face'}]"
             f" {it.source_line[:110]}" for it in hits)
 
     def t_statement_diff(self, args):
         stmt = str(args.get("stmt", "bs"))
-        pages = [(d, p) for (d, p), f in self.ledger.faces.items() if f == stmt]
+        prior_docs = self.ledger.prior_period_docs()
+        pages = [(d, p) for (d, p), f in self.ledger.faces.items()
+                 if f == stmt and d not in prior_docs]
         if not pages:
             return f"MISS: no {stmt} face pages in the ledger"
+        # ratio/margin rows (|prior| < 1) tie junk — statements print money
         rows = [t for t in self.targets.values()
-                if isinstance(t.prior_value, (int, float)) and t.prior_value != 0]
+                if isinstance(t.prior_value, (int, float))
+                and abs(t.prior_value) >= 1.0]
         out, seen = [], set()
         for it in self.ledger.items:
             if (it.doc, it.page) not in pages or not it.joinable():
@@ -312,10 +338,19 @@ class ObjectiveLoop:
                 break
             name = act["action"]
             args = act.get("args") or {}
-            try:
-                result = self.TOOLS[name](self, args)
-            except Exception as e:
-                result = f"TOOL ERROR: {e}"
+            fingerprint = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
+            if name not in ("rescore", "note", "todo", "finish") \
+                    and fingerprint in getattr(self, "_done", set()):
+                result = ("REPEAT: you already ran exactly this action — the "
+                          "result has not changed. Take a DIFFERENT action "
+                          "(your history shows what you learned).")
+            else:
+                self._done = getattr(self, "_done", set())
+                self._done.add(fingerprint)
+                try:
+                    result = self.TOOLS[name](self, args)
+                except Exception as e:
+                    result = f"TOOL ERROR: {e}"
             snip = json.dumps(args, ensure_ascii=False)[:90]
             first = str(result).splitlines()[0][:110] if result else ""
             self.history.append(f"{name} {snip} -> {first}")

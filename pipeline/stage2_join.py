@@ -213,9 +213,14 @@ def join(ledger, targets, log=None):
     Pure code — no LLM call anywhere, no workbook access, no writes.
     """
     log = log if log is not None else []
-    pool = ledger.join_pool()
     priors = [t.prior_value for t in targets
               if isinstance(t.prior_value, (int, float))]
+    deep = [t.prior2_value for t in targets
+            if isinstance(t.prior2_value, (int, float))]
+    periods = ledger.classify_doc_periods(priors, deep)
+    log.append("stage-2: doc periods " + ", ".join(
+        f"{d}={k}" for d, k in sorted(periods.items())))
+    pool = ledger.join_pool()
     page_scales = ratify_page_scales(pool, priors, log)
     pool = [it for it in pool if (it.doc, it.page) in page_scales]
     log.append(f"stage-2: {len(pool)} face items on {len(page_scales)} "

@@ -24,6 +24,7 @@ class TargetRow:
     row: int
     label: str = ""
     prior_value: float = None    # prior-year ACTUAL, model units (None = no-prior row)
+    prior2_value: float = None   # the year BEFORE prior — the doc-vintage negative key
     memory_hint: str = ""        # learned alias from the workbook _SPEC tab
     is_backout: bool = False     # spec-declared composition row: never joins
 
@@ -64,6 +65,7 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
         if i == 0:
             continue
         pcol = cols[years[i - 1]]
+        p2col = cols[years[i - 2]] if i >= 2 else None
         if sheet not in wb_values.sheetnames:
             continue
         ws = wb_values[sheet]
@@ -76,10 +78,13 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
                     break
             pv = ws[f"{pcol}{r}"].value
             prior = float(pv) if isinstance(pv, (int, float)) else None
+            p2 = ws[f"{p2col}{r}"].value if p2col else None
+            prior2 = float(p2) if isinstance(p2, (int, float)) else None
             if not label and prior is None:
                 continue
             targets.append(TargetRow(
                 sheet=sheet, row=r, label=label, prior_value=prior,
+                prior2_value=prior2,
                 memory_hint=str(hints.get((sheet, r)) or ""),
                 is_backout=(sheet, r) in backouts))
     return targets
