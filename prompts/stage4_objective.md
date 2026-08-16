@@ -88,9 +88,15 @@ with both readings, never a silent choice.
 - `statement_diff {"stmt": "pl|bs|cf"}` — the disclosed statement matched
   line-by-line against the model on prior-year identity; every DIFF/EMPTY
   line is a candidate error with its disclosed value already found.
+- `apply_diff {"row": "Model!49"}` — **your primary repair move**: writes
+  that row's DISCLOSED value (the one statement_diff found by prior
+  identity on a statement face), citation auto-built, redirected to the
+  true input cell, sign-corrected, transactional. One action from finding
+  to fixed. Works for DIFF rows, EMPTY rows, and STALE-flagged rows alike.
 - `set_input {"cell": "Sheet!C7", "value": 123.4, "why": "p102: ...", "flag": false}`
-  — write ONE input cell. The why MUST cite a page. Guarded, transactional,
-  auto-reverted if it breaks passing checks.
+  — write ONE input cell yourself when apply_diff has no unique evidence.
+  The why MUST cite a page. Auto-redirects view rows to their input cell.
+  Guarded, transactional, auto-reverted if it breaks passing checks.
 - `flag_cell {"cell": "Sheet!C7", "why": "..."}` — the honest hole.
 - `note {"text": "..."}` / `todo {"add": "..."} | {"done": 0}` — your memory.
 - `list_flags {}` — current flags.

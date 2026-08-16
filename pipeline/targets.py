@@ -18,6 +18,18 @@ from dataclasses import dataclass, asdict
 _CELL_REF = re.compile(r"^\s*'?([^'!]+)'?!\D*(\d+)")
 
 
+def _is_year_mark(v):
+    """A year-axis cell: a 1990-2100 number, a date, or text carrying one
+    ('FY2024', '2024-12-31', '1H2025')."""
+    if isinstance(v, bool) or v is None:
+        return False
+    if isinstance(v, (int, float)):
+        return 1990 <= v <= 2100 and abs(v - int(v)) < 0.5
+    if hasattr(v, "year"):
+        return 1990 <= v.year <= 2100
+    return bool(re.search(r"(19\d{2}|20\d{2})", str(v)))
+
+
 @dataclass
 class TargetRow:
     sheet: str
@@ -77,6 +89,11 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
                     label = v.strip()
                     break
             pv = ws[f"{pcol}{r}"].value
+            # a top-of-sheet row whose prior cell is a YEAR MARK is the year
+            # axis, not data — serving it wrote 2,025/1e6 = 0.002025 into a
+            # header (measured live, run 5)
+            if r <= 12 and _is_year_mark(pv):
+                continue
             prior = float(pv) if isinstance(pv, (int, float)) else None
             p2 = ws[f"{p2col}{r}"].value if p2col else None
             prior2 = float(p2) if isinstance(p2, (int, float)) else None
