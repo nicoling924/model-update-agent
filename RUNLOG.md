@@ -395,3 +395,28 @@ serve there = the company's HARD SET — Driver/PPE for DFE, different
 elsewhere — and get recipes/locations/reasoning in the memory tab; rows that
 serve easily get nothing). Generic by construction: difficulty is discovered,
 never assumed.
+**08-16 (day) — THE COLD-RUN TEST OF THE TEACHING.** Two of the three next
+builds landed and validated before dispatch:
+- **Sign rule (fablemode.py)**: the checksum tie is now SIGNED — comp ~ +pv
+  serves AS PRINTED (rows legitimately flip: OCI, 投资损失 以-号填列, net CF
+  section totals), comp ~ -pv serves flipped (page prints expenses positive
+  where the model stores negative). Replay over the 156 frozen reads: 148
+  identical, 8 sign-family diffs — four reproduce the assembly's hand
+  corrections exactly (Raw 167/258/259/261); the fifth, **Raw!U219 CFI, was a
+  NEW catch: the deliverable held +10,587.3 where the filing prints
+  -10,587,324,054.32** — confirmed by the reference AND by CFO+CFI+CFF+FX=
+  ΔCash tying to 0.0000 only with the negative. Deliverable corrected in
+  place (both copies), read-back verified.
+- **Learner refocus (cli.py cmd_learn)**: fable-mode probe of the PRIOR-year
+  report (checksum = v23) discovers the EASY set (served value ties known
+  v24); identification budget concentrates on the discovered hard set.
+  Fail-open (probe serves nothing -> unchanged behavior). Bridges/recipes
+  untouched.
+- Deliverable rescored post-fix: 85.7% whole model (Raw sheet unscored — the
+  U219 fix improves the statement tie, not the count), Model 112/114 (98.2%),
+  Cons + both Fair Value tabs 100%, **Driver 101/138 (73.2%) = the entire
+  remaining gap** — exactly what the refocus targets.
+- **Cold run dispatched** (chain, branch head 3795b61 = sign rule + both
+  playbooks; refocus landed post-dispatch at 11a5f30, so it rides the NEXT
+  run). The question this run answers: does the taught thinking close the
+  gap unattended?
