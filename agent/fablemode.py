@@ -181,20 +181,33 @@ def region_read(client, pdf_paths, all_rows, log):
                             continue
                         # the row-level checksum: the comparative must tie the
                         # model's own prior at SOME standard scale; that scale
-                        # then converts the current figure
+                        # then converts the current figure. The tie is SIGNED:
+                        # comp ~ +pv means the page prints this row in the
+                        # model's own sign convention -> serve AS PRINTED
+                        # (rows may legitimately flip sign year to year: OCI,
+                        # FX, gains 以-号填列, working-capital moves);
+                        # comp ~ -pv means the page prints the opposite
+                        # convention (expenses positive, model negative) ->
+                        # serve the printed figure flipped. Never force last
+                        # year's sign onto this year's figure.
                         for s in (1, 1e3, 1e4, 1e6, 1e8):
-                            if abs(abs(comp) / s - abs(pv)) <= max(abs(pv) * 5e-3, 0.6):
-                                v = cur / s * (1 if pv >= 0 else -1)
-                                sh, rw = rid.split("!")
-                                served[(sh, int(rw))] = {
-                                    "value": v, "status": "OK",
-                                    "page": grp[0] if len(grp) == 1 else grp[0],
-                                    "line": f"{a.get('current')} | {a.get('comparative')}",
-                                    "conf": 5,
-                                    "note": "fable-mode read: comparative ties "
-                                            "the model's prior (row checksum)"}
-                                n_tie += 1
-                                break
+                            tol = max(abs(pv) * 5e-3, 0.6)
+                            if abs(comp / s - pv) <= tol:
+                                v = cur / s
+                            elif abs(comp / s + pv) <= tol:
+                                v = -cur / s
+                            else:
+                                continue
+                            sh, rw = rid.split("!")
+                            served[(sh, int(rw))] = {
+                                "value": v, "status": "OK",
+                                "page": grp[0] if len(grp) == 1 else grp[0],
+                                "line": f"{a.get('current')} | {a.get('comparative')}",
+                                "conf": 5,
+                                "note": "fable-mode read: comparative ties "
+                                        "the model's prior (row checksum, signed)"}
+                            n_tie += 1
+                            break
                     answered += n_ok
                     log.append(f"fable-mode p{grp[0]}-{grp[-1]} rows {len(chunk)}: "
                                f"{n_ok} answered, {n_tie} self-verified")
