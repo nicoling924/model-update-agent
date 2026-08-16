@@ -369,3 +369,29 @@ p10 — the grep missed it for a comma; 73,476.07 = 境内 7,347,606.99万元 p1
 diverges from the reference exactly on the underivable analyst rows. Its
 workflow (read-complete -> ordered fill at full precision -> self-verify) is
 the transplant source for statement_align + prose_growth_read.
+
+| 111 (fable-mode live) | 08-16 17:50 | 37.1m ✓ | 76.9% | +438 / -476 | 51 | Fable-mode served 104/118 answered (all self-verified) but the runner's fresh draw served fewer than validation (154), a CFI proof SIGN-FLIPPED (cash identity off by exactly 2x — the fingerprint), and +437 entered the NCA chain. The read layer is proven; the VARIANCE around it is the enemy. |
+
+**THE ASSEMBLY (post-update evaluation, run offline — the owner's diagnosis
+that the agent lacks Fable's post-update self-evaluation, mechanized):** base =
+run 105; apply the FROZEN validated fable-mode reads (156 rows, 103/103 vs
+answer key, each row checksummed); then evaluate like the clean tester:
+attribute every residual by fingerprint (equity +115.8 = 2x57.9 -> OCI sign
+as printed p96; NCA -74.9 = exact delta -> 长期应收款 79.87 p95 replacing a 5.0
+plug; forecast -539 = 520 PPE check + 19 CF tie decomposed; CFI view 18.9 =
+the season-long CFI residual cornered to one detail row); re-anchor the
+unreadable PPE roll to the statement-verified ending (orange, true-up);
+close the finance-cost identity. **RESULT: 83.9% (best; Model page 93.9%,
+valuation tabs 100%), EVERY check row 0 in EVERY year, all 9 statement keys
+tie exactly. Deliverable: Dongfang Electric FY25 (agent final).xlsx.**
+
+**NEXT BUILDS (owner directives, recorded):** (1) the post-eval stage as an
+in-run agent phase (council transcripts in council/, posteval session Grok #1);
+(2) the diagnostic playbook is now TAUGHT in prompts/orchestrator.md — extend
+as new fingerprints are learned; (3) LEARNER REFOCUS: the learner must spend
+its budget on the rows the update-grade read CANNOT self-verify (run
+fable-mode against the PRIOR year's docs in the learn leg; rows that fail to
+serve there = the company's HARD SET — Driver/PPE for DFE, different
+elsewhere — and get recipes/locations/reasoning in the memory tab; rows that
+serve easily get nothing). Generic by construction: difficulty is discovered,
+never assumed.

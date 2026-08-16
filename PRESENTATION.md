@@ -17,7 +17,7 @@ learned memory tab inside the workbook itself.
 ## The three numbers (never blend them)
 
 **1. The hard contract — MET (Dongfang Electric, FY25, a scanned Chinese AR):**
-- 2025 balance sheet: **balances** (passing consistently since run 100)
+- Balance: **every check row 0, in every year — actuals and forecasts** (final deliverable; every correction evidence-cited to a page and colour-flagged)
 - Forecast years: gaps of tens vs an opening position of −27,743
 - Key numbers: **11/14** — of the misses, operating profit is a genuine
   definitional scope difference the agent correctly FLAGS rather than
@@ -31,9 +31,9 @@ disagreement against the filing itself: **the agent beats the benchmark 10–8**
 (the rest are derived values printed nowhere). The agent is more faithful to
 the document than the model it is scored against.
 
-**3. Inter-model agreement: 80.6%** (273 evaluated cells vs a previous
+**3. Inter-model agreement: 83.9%** (final assembled deliverable; unattended single-run best 80.6%) (273 evaluated cells vs a previous
 Claude Fable 5 update of the same model — NOT an analyst-verified reference).
-Model page **90.4%**, Driver page 69.6% and climbing. All-years balance was achieved outright in run 104; the final run holds 2025 balanced with forecast gaps of hundreds, flagged. Label this "agreement
+Model page **93.9%**, valuation tabs 100%, Driver 73.2% and climbing. All-years balance was achieved outright in run 104; the final run holds 2025 balanced with forecast gaps of hundreds, flagged. Label this "agreement
 with another AI's run", not "completion": ~31 of the 55 disagreements are
 analyst-derived values (bases, embedded ratios) that no document prints.
 
