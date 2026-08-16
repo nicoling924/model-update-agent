@@ -160,7 +160,16 @@ class Writer:
         # every writer passes through): a mechanical write may never leave
         # the row's order of magnitude vs the prior actual. Checksum-tied
         # writes pass trusted=True — their magnitude is proven by the tie.
-        if not trusted and isinstance(value, (int, float)) and value != 0:
+        # NUMERIC PREVIEW (run-114 law): a pure-arithmetic formula string is
+        # a number wearing an '=' — evaluate it and guard the NUMBER, else
+        # formula writers (allocation) bypass the guard entirely.
+        guard_v = value
+        if isinstance(value, str) and re.match(r"^=[\d+\-*/(). eE]+$", value):
+            try:
+                guard_v = float(eval(value[1:], {"__builtins__": {}}, {}))
+            except Exception:
+                guard_v = None
+        if not trusted and isinstance(guard_v, (int, float)) and guard_v != 0:
             pv_g = None
             if prior_coord is not None:
                 pv_c = ws[prior_coord].value
@@ -171,9 +180,9 @@ class Writer:
                 except Exception:
                     pv_g = None
             if isinstance(pv_g, (int, float)) and pv_g != 0 and (
-                    abs(value) > 100 * abs(pv_g) or abs(value) * 100 < abs(pv_g)):
+                    abs(guard_v) > 100 * abs(pv_g) or abs(guard_v) * 100 < abs(pv_g)):
                 self.log.setdefault("band_refused", []).append(
-                    f"{sheet}!{coord}: {value!r} vs prior {pv_g!r}")
+                    f"{sheet}!{coord}: {value!r} (≈{guard_v:,.1f}) vs prior {pv_g!r}")
                 return False
         cell.value = value
         if prior_coord is not None:  # inherit prior actual column's format

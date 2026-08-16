@@ -88,14 +88,36 @@ def allocation_pass(wb, pre_wb, spec, target_year, last_actual, anchors,
                 # components are adjustable (an unverifiable "confident" cell
                 # blocking a proven total is how run 62 stalled)
                 v_c, _pg, _ln, uniq = ctrlf_read(pri, raw_lines)
+                from .workbook import row_tol
                 trusted = bool(uniq) and isinstance(v_c, (int, float)) \
-                    and abs(abs(cur) - v_c) <= max(1.0, v_c * 0.005)
+                    and abs(abs(cur) - v_c) <= row_tol(v_c, base=1.0)
             if (ps, pco) in protected:
                 fixed_sum += cur  # key-owned cells are NEVER scale targets
             elif trusted:
                 fixed_sum += cur
             elif isinstance(pri, (int, float)) and pri != 0:
-                free.append((ps, pco, pri))
+                # STATEMENT-WINS (run-114 law): before a component may be
+                # scaled, look for its OWN printed line — prior-anchored
+                # Ctrl+F. A component the filing prints is FROZEN at the
+                # printed value (使用权资产 462.8 and 长期应收款 79.87 were on
+                # the BS face while allocation scaled them x4.82). Only
+                # truly undisclosed components share the scaling.
+                v_pr = pg_pr = uniq_pr = None
+                if raw_lines:
+                    v_pr, pg_pr, _ln_pr, uniq_pr = ctrlf_read(pri, raw_lines)
+                if uniq_pr and isinstance(v_pr, (int, float)) and v_pr != 0:
+                    sv = abs(v_pr) * (1 if pri > 0 else -1)
+                    if isinstance(cur, (int, float)) and abs(cur - sv) <= 0.6:
+                        fixed_sum += cur  # already the printed value
+                    elif writer.write(ps, pco, round(sv, 6),
+                                      note=f"statement-wins: printed "
+                                           f"{abs(v_pr):,.2f} beside prior "
+                                           f"{pri:,.1f} p{pg_pr}"):
+                        fixed_sum += sv
+                    else:
+                        fixed_sum += cur if isinstance(cur, (int, float)) else 0.0
+                else:
+                    free.append((ps, pco, pri))
             else:
                 fixed_sum += cur
         if not free:

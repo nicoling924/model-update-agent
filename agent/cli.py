@@ -1447,6 +1447,22 @@ def cmd_update(company_dir, period):
     print(f"[6a] allocation: {n_alloc} components structure-scaled to proven totals",
           flush=True)
 
+    # POST-WRITE STATEMENT RECONCILIATION (the run finishes like the analyst):
+    # deterministic triple-lock join — prior ties (row identity) + statement
+    # face (authority) + label kinship (confirmation) — of the WRITTEN column
+    # against the extraction's statement-face items. Offline replay on run
+    # 114: found and fixed both allocation-inflated cells from the printed
+    # face (2025 balance +2,239 -> +1), zero false repairs, idempotent.
+    from . import posteval
+    fr_log = []
+    n_fr = posteval.face_reconcile(wb, pre_values, spec, staging,
+                                   {d.name: i for i, d in enumerate(disclosures)},
+                                   writer_obj, flags, target_year, last_actual,
+                                   fr_log, rows=all_rows)
+    for ln_f in fr_log:
+        print("  [FACE]", ln_f, flush=True)
+    print(f"[6f] face reconciliation: {n_fr} statement-cited repairs", flush=True)
+
 
     # forecast-propagation attribution: any year whose balance gap WIDENED
     # during the repair phase gets a ready-made task naming the repaired cells
