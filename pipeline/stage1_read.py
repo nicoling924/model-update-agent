@@ -41,7 +41,8 @@ import json
 import re
 from pathlib import Path
 
-from .ledger import (Item, Ledger, parse_scale_hint, tag_faces, unit_dim_of)
+from .ledger import (Item, Ledger, face_from_row_labels, parse_scale_hint,
+                     tag_faces, unit_dim_of)
 from .numerics import SCALES, label_of, line_numbers, parse_number
 
 PROMPT_VERSION = "p1-v1"
@@ -432,6 +433,7 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
         # -- vision channel
         image_pages = [pn for pn, c in classes.items() if c == "image"]
         unread = []
+        vision_faces = {}   # accepted scan pages self-identify by their rows
         if image_pages and client is None:
             unread = [(pn, "no vision client") for pn in image_pages]
         elif image_pages:
@@ -500,14 +502,25 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                     continue
                 for it in vision_items(doc, pn, title, rows, scale):
                     led.add(it)
+                inferred = face_from_row_labels(
+                    [r.get("name") for r in rows if r.get("name")])
+                if inferred:
+                    vision_faces[pn] = inferred
                 log(f"[stage1] {doc} p{pn}: vision accepted — anchors {hits} "
-                    f"at scale {scale:g}, {len(rows)} rows")
+                    f"at scale {scale:g}, {len(rows)} rows"
+                    + (f", face {inferred} (from rows)" if inferred else ""))
         for pn, why in unread:
             log(f"[stage1] {doc} p{pn}: UNREAD — {why}")
-        # -- deterministic structure: faces + parent eviction
+        # -- deterministic structure: faces + parent eviction. Caption tags
+        # win; an accepted scan page whose caption was cropped falls back to
+        # its row-label self-identification. Parent eviction stays SENIOR:
+        # an evicted page never gets a face from any source.
         faces, parents = tag_faces(face_lines)
         for pn, f in faces.items():
             led.faces[(doc, pn)] = f
+        for pn, f in vision_faces.items():
+            if pn not in parents:
+                led.faces.setdefault((doc, pn), f)
         led.parent_pages |= {(doc, pn) for pn in parents}
         led.doc_meta[doc] = {
             "pages": len(classes),

@@ -445,6 +445,23 @@ def test_stage3_regions_gap_fill_and_parent_exclusion():
     assert 100 not in grp, "parent page entered a read region"
 
 
+# ── Scanned pages self-identify by their rows (cropped-caption class) ────
+
+def test_face_from_row_labels():
+    from pipeline.ledger import face_from_row_labels
+    assert face_from_row_labels(
+        ["流动资产", "货币资金", "资产总计", "负债合计"]) == "bs"
+    assert face_from_row_labels(
+        ["Revenue", "Profit for the year", "Earnings per share"]) == "pl"
+    assert face_from_row_labels(
+        ["经营活动产生的现金流量净额", "投资活动产生的现金流量净额"]) == "cf"
+    # one hit is a coincidence, not an identity
+    assert face_from_row_labels(["净利润", "存货", "其他"]) is None
+    # a mixed summary page (P&L + BS highlights) identifies as nothing
+    assert face_from_row_labels(
+        ["营业总收入", "净利润", "资产总计", "负债合计"]) is None
+
+
 # ── The write chokepoint (exhibits 112b / 114 on the NEW layer) ──────────
 
 def _wb(cells):
