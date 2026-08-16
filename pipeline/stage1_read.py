@@ -390,6 +390,10 @@ def _transcribe(pdf_path, page_no, img, client, known_values, votes, cache_dir, 
                     edges.append(LONG_EDGE_RETRY)   # weak page: one hi-res retry
     ck.parent.mkdir(parents=True, exist_ok=True)
     ck.write_text(json.dumps(entry, ensure_ascii=False))
+    log(f"[stage1] {Path(pdf_path).name} p{page_no}: transcribed "
+        f"({len(entry['votes'])} vote(s))"
+        if entry.get("votes") else
+        f"[stage1] {Path(pdf_path).name} p{page_no}: {entry.get('why', '?')}")
     return entry
 
 
@@ -434,11 +438,19 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                 unread += [(pn, "over page budget")
                            for pn in image_pages[MAX_VISION_PAGES:]]
                 image_pages = image_pages[:MAX_VISION_PAGES]
+            # pixels come out sequentially (pdfplumber pages are not
+            # thread-safe); the PAID calls run 3-wide — sequential vision
+            # measured ~6 min/page, a 2-hour Stage 1 on a scanned AR
             with pdfplumber.open(path) as pdf:
                 imgs = {pn: _page_image(pdf.pages[pn - 1]) for pn in image_pages}
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(min(3, max(1, len(image_pages)))) as ex:
+                entries = dict(zip(image_pages, ex.map(
+                    lambda pn: _transcribe(path, pn, imgs[pn], client,
+                                           known_values, votes, cache_dir, log),
+                    image_pages)))
             for pn in image_pages:
-                entry = _transcribe(path, pn, imgs[pn], client, known_values,
-                                    votes, cache_dir, log)
+                entry = entries[pn]
                 if not entry.get("votes"):
                     unread.append((pn, entry.get("why", "?")))
                     continue
