@@ -355,3 +355,17 @@ offline before dispatch; two council sessions (transcripts in council/).
 The whole-model % is INTER-MODEL AGREEMENT vs an unverified Fable-5 run that
 the agent BEATS on filing-adjudicated disagreements — present three metrics,
 never one (PRESENTATION.md).
+
+| 106 (warm) | 08-16 11:00 | 39.4m ✓ | 75.5% | fcst -1,101 | 55 | Memory hints net-NEGATIVE (-5pp vs cold 105): the hint path lacks a statement-wins guard; NP drifted again. Warm serving REMOVED from the critical path; cold is the production recommendation until guarded. |
+| 107 | — | cancelled | — | — | — | Superseded mid-flight (owner's batch directive); payload inside 108. |
+| 108 (finishing batch v1) | 08-16 13:00 | 38.7m ✓ | 78.8% (Model 86.8/Driver 68.8) | -75/-157 | 43 | Aligner SILENTLY SKIPPED (fed only unresolved rows -> <4 anchors); oracle skipped (期初 caption never survives extraction); CFF bridge served unarbitrated (5,553 wrong instance). All three root-caused same hour. |
+| 109 (batch v2) | 08-16 14:30 | 41.9m ✓ | 78.8% | fcst **-570,000,035** | 43 | Aligner LIVE (20 anchors, 1 correction); oracle had pieces but MISPICKED ΔCash and demoted a correct cfi. The -570M: the mapper wrote a raw-yuan UNCERTAIN value into Driver!J97 — audit's units conversion SKIPPED non-OK statuses. Two-line hole, validated fix. |
+| 110 (units hole + oracle log-only) | 08-16 15:50 | in flight | — | — | — | UNCERTAIN values get units conversion (poison case -570,000,000 -> -570.0 verified); oracle failure arm log-only, upgrade arm stays. |
+
+**CLEAN-ROOM FABLE TEST (sealed room, audited): 96.0% — Model page 100%,
+Driver 92.0%, ~50 min.** Audit CLEAN: complete file log; FY24 doc never
+opened; every "suspect" value traced to print (117,251 = 新生效订单1172.51亿元
+p10 — the grep missed it for a comma; 73,476.07 = 境内 7,347,606.99万元 p14);
+diverges from the reference exactly on the underivable analyst rows. Its
+workflow (read-complete -> ordered fill at full precision -> self-verify) is
+the transplant source for statement_align + prose_growth_read.
