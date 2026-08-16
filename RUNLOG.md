@@ -420,3 +420,25 @@ builds landed and validated before dispatch:
   playbooks; refocus landed post-dispatch at 11a5f30, so it rides the NEXT
   run). The question this run answers: does the taught thinking close the
   gap unattended?
+
+**08-16 late — RUNS 115/116 AND THE ARCHITECTURE RULING.** Run 115 (all
+guards + posteval stage): 76.9% raw, FIRST-EVER cold-run 2025 balance zero,
+keys 9/14, Model 86.0%. Post-eval finish of 115 (page-cited, ~40 min):
+83.9% / **Model tab 113/114 = 99.1%** (the 1 = flagged dividend definition
+row) / balance -0.0 / cash tie 0.0 / net profit 3,831.3 exact — saved as
+"Dongfang Electric FY25 (cold run + posteval).xlsx". Run 116
+(complete-coverage build): REGRESSION — serve collapse 104->67 (bigger mixed
+chunks) + a no-prior read wrote a wrong-scale figure (the checksum WAS the
+scale anchor; removing it removed the anchor). Discarded.
+
+**COUNCIL RULING (council/architecture-council.md): INVERT THE ARCHITECTURE.**
+Evidence: zero errors all week from checksummed reads; 100% of failures from
+heuristic middle-layer writers. Blueprint: Stage 1 read-once extraction
+(evidence ledger: table_id/row_ord/col_bind/unit_dim) -> Stage 2
+deterministic join (hard gates: prior identity x block-scale invariant x
+face authority x unit dimension; ambiguity -> blank) -> Stage 3 whole-page
+reader as gap-filler only -> Stage 4 deterministic verify + playbook chase.
+Validation: pinned extraction snapshots + adversarial museum (112-116 as CI
+negative tests) + canary contract — vision never in the local pre-flight
+path. Day 0 (DONE): WRITE FIREWALL — allocation, closing loop, reviewer
+auto-apply behind config flags, default OFF.
