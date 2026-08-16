@@ -1,8 +1,41 @@
-# Model Update Agent — state of play (overnight sprint, 2026-08-16)
+# Model Update Agent — state of play (2026-08-16, end of day)
 
 One-page brief for the management presentation. Full evidence: RUNLOG.md
 (every run, every autopsy), council/ (design-review transcripts), git history
 (every fix with its measurement).
+
+## Sunday's five-run campaign, in one paragraph
+
+Five cold runs (112–116) with a fix batch validated offline before each:
+72.9% → 75.5% → 76.9% → (116 regressed and was discarded). Along the way the
+agent crossed milestones no earlier run had: **2025 balance sheet closed to
+zero fully unattended** (run 115), keys 9/14 cold, zero catastrophic writes
+after the write-guards landed, 35-minute runtime. The post-update evaluation
+stage (the analyst's residual chase — its mechanization is the next build)
+applied to run 115's output lands **83.9% overall with the Model tab at
+113/114 = 99.1%** — the one exception is a dividend definition row correctly
+FLAGGED with both printed values (paid 1,366.32 vs declared 1,832.93), which
+is the designed behaviour. Balance −0.0, cash tie 0.0, net profit 3,831.3
+exact, EPS 1.15. Deliverables: "Dongfang Electric FY25 (agent final).xlsx"
+(best overall, all years balanced) and "Dongfang Electric FY25 (cold run +
+posteval).xlsx" (cleanest provenance: one cold run + one page-cited pass).
+
+## The architecture finding (the week's most important result)
+
+Across every failure this week, one pattern held without exception: **the
+LLM's checksummed reads were never wrong — 104/104, 103/103, zero errors
+across five runs — while 100% of the damage came from the heuristic
+middle-layer software between the reads and the cells** (a label-matcher
+once wrote a megawatt capacity figure into a P&L money row). The design
+council's ruling (council/architecture-council.md): amputate the middle
+layer — the LLM reads the documents once completely into an evidence
+ledger; pure code joins ledger to cells through hard gates (prior identity,
+block-level scale, statement authority, unit dimension); the proven
+whole-page reader fills only gaps; deterministic checks verify; everything
+unproven is flagged, never guessed. Day 0 is already live: the heuristic
+writers are OFF behind a write firewall, and this week's five failures are
+being encoded as permanent regression tests. Target state: **every cell
+verified or cleanly flagged.**
 
 ## What it is
 
