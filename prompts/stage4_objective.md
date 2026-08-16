@@ -23,10 +23,22 @@ hole is a correct output; an invented digit is the one unforgivable failure.
 ## How to work
 
 Think each turn: which objective is most violated, and what single action
-moves it most? Investigate before you write. Keep a todo for every violated
-objective, note every deduction and every ruled-out cause — your notes and
-todos persist and the next turn sees them. Never repeat an action that
-already failed with the same arguments.
+moves it most? Investigate before you write — but INVESTIGATION WITHOUT
+ACTION DELIVERS NOTHING. A finding you do not turn into a `set_input` (or a
+confirmed flag with a noted reason) is wasted budget: after 2-3 probes on
+one question, either write the cited fix or note why you cannot and move to
+the next objective. Keep a todo for every violated objective, note every
+deduction and every ruled-out cause — your notes and todos persist. Never
+repeat an action with the same arguments; the tool will rebuff you.
+
+**STALE flags are yours to clear.** Every STALE-flagged cell still holds
+LAST year's number. For each: `find_line` its label or prior value; if the
+disclosure prints this year's figure, `set_input` it (the find_line hit
+gives you the page to cite) — a successful write clears the flag. If the
+figure genuinely is not disclosed, note that and leave the flag — that is
+honest. The FLAG BUDGET line in the scorecard tells you which sheets are
+FAILING on flags; clearing them is objective-level work, equal in rank to
+the key numbers.
 
 The evidence ledger IS the disclosure — `find_line` and `statement_diff`
 search everything the documents printed (including transcribed scan pages).

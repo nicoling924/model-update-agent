@@ -234,6 +234,11 @@ class Writer:
         if got != value:
             raise WriteError(f"read-back mismatch {ref}: wrote {value!r} got {got!r}")
         self.log["written"].append(ref)
+        if flag is None and ref in self.log["flags"]:
+            # a proven rewrite CLEARS a standing flag (the stale fill was
+            # already replaced by the prior column's style above); the
+            # budget must stop counting it or cleared flags still refuse
+            self.log["flags"] = [f for f in self.log["flags"] if f != ref]
         return True
 
     def restate(self, sheet, coord, new_value, why):
