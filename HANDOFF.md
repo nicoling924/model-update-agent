@@ -62,19 +62,38 @@ across the whole department.
   the repo's companies/DFE|CLP data; auto-discovery covers their legacy
   spec format).
 
-## Next session
+## Overnight live-iteration results (5 Luna runs, 2026-08-17 ~01-06 HKT)
 
-1. Read the live run result (`pipeline_live_run1.log`, `_REPORT` tab in
-   the delivered/quarantined workbook, run summary at the end of the
-   conversation log). Score it against the champion (stable-run105:
-   80.6% / balance / keys 11-14 / 38 min) + the delivery gate — the
-   champion/challenger law decides.
-2. Not yet built (known gaps): restatement scan (prior-period comparatives
-   vs model history — surface via loop statement_diff for now), true-up
-   pass for FFC000 backouts, reviewer pass wiring (prompts/reviewer.md),
-   _UPDATE_MAP migration into _SPEC.
-3. Owner directives stand: pure gpt-5.6-luna, museum green always, dry
-   runs before dispatch, one dispatch = one challenger evaluation, council
-   on major decisions.
+Full story: MORNING_REPORT.md. Headline: **challenger scored 70.3% whole /
+82.5% Model tab, balance gap 59 (0.04%), GATE REFUSED (its own honest
+verdict) — the champion (80.6% / 90.4% / PASS / delivered) KEEPS the
+title.** Trajectory across the night's iterations: balance 645 -> 446 ->
+59; six real diseases found live, fixed, and pinned as museum exhibits
+(FY24-doc checksum coincidence + early abort; cropped-caption faces;
+redirect sign law; CLP dividend per-share poison; year-axis census rows;
+doc-vintage classifier). Luna diagnoses excellently in the loop; its
+remaining weakness is CONVERTING findings to writes — apply_diff (the
+find-to-act bridge) landed in the final run and fired 5 times.
+
+## Next session (ranked)
+
+1. **The Driver/MD&A serving path** — 55.8% on Driver is the whole gap
+   (as it was for the champion). Driver rows live in MD&A tables the
+   join's face-authority correctly refuses; they need either a bound-table
+   Stage-2 extension (council's two-level table binding) or loop-driven
+   apply_diff over an MD&A-scoped diff.
+2. **The loop's endgame authority** — the 59 residual needs the analyst's
+   documented plug/re-anchor move (orange-flagged); decide (owner/council)
+   whether the loop gets that move with proof requirements, as legacy
+   plug_key had.
+3. **Flag-budget clearing** — 80 stale inputs remain the delivery blocker;
+   apply_diff works on them but Luna prioritizes balance; consider a
+   pre-loop deterministic apply_diff sweep over STALE rows that have
+   unique face evidence (it is stage-2-grade evidence; zero LLM).
+4. Not yet built: restatement scan, true-up pass for FFC000 backouts,
+   reviewer pass wiring, _UPDATE_MAP -> _SPEC migration.
+5. Owner directives stand: pure gpt-5.6-luna, museum green always (43
+   exhibits), dry runs before dispatch, one dispatch = one challenger
+   evaluation, council on major decisions.
 
 History and autopsies: RUNLOG.md. Presentation: PRESENTATION.md.
