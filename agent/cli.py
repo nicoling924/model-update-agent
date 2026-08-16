@@ -1350,7 +1350,8 @@ def cmd_update(company_dir, period):
     obj_written = {c for c in writer_obj.log["written"]
                    if c not in set(writer.log["written"])}
     breadth_log = []
-    if cfg["reviewer"]["enabled"]:
+    _hw = cfg.get("heuristic_writers") or {}
+    if cfg["reviewer"]["enabled"] and _hw.get("reviewer_auto_apply"):
         fnd = request_review()
         staged_vals_b = [it["value"] for it in staging["items"]
                         if isinstance(it.get("value"), (int, float))]
@@ -1400,14 +1401,18 @@ def cmd_update(company_dir, period):
             fable_locked.add(f"{s_fs}!{tc_fs}{r_fs}")
     eligible_cl = {f"{s_}!{c_}" for s_, c_, _n in flags} - obj_written \
         - {f"{s_}!{c_}" for s_, c_ in key_cells_prot} - fable_locked
-    writer_cl = workbook.Writer(wb, cfg)
-    writer_cl.prior_lookup = _prior_of
-    writer_cl.log["written"] = list(writer_obj.log["written"])
-    cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
-                                     target_year, pre_values=pre_values,
-                                     eligible=eligible_cl)
-    writer_obj.log["written"] = list(writer_cl.log["written"])
-    breadth_log += cl_log or []
+    if _hw.get("closing_loop"):
+        writer_cl = workbook.Writer(wb, cfg)
+        writer_cl.prior_lookup = _prior_of
+        writer_cl.log["written"] = list(writer_obj.log["written"])
+        cl_log = closing.close_residuals(wb, spec, staging, cfg, writer_cl, flags,
+                                         target_year, pre_values=pre_values,
+                                         eligible=eligible_cl)
+        writer_obj.log["written"] = list(writer_cl.log["written"])
+        breadth_log += cl_log or []
+    else:
+        print("[6p] closing loop OFF (write firewall — council Day-0 ruling)",
+              flush=True)
     print(f"[6p] breadth pass: {len(breadth_log)} repairs "
           "(reviewer-corroborated + closing residuals; objective cells protected)",
           flush=True)
@@ -1483,7 +1488,12 @@ def cmd_update(company_dir, period):
             tc_m2 = spec["year_axis"].get(s_m2, {}).get("columns", {}).get(target_year)
             if tc_m2:
                 confident_a.add((s_m2, f"{tc_m2}{r_m2}"))
-    n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
+    if not _hw.get("allocation"):
+        n_alloc = 0
+        alloc_log.append("allocation OFF (write firewall — council Day-0 ruling; "
+                         "unresolved components stay blank/flagged)")
+    else:
+        n_alloc = derive.allocation_pass(wb, pre_wb, spec, target_year, last_actual,
                                      anchors_a, confident_a, eligible_inputs,
                                      writer_obj, flags, backouts, alloc_log,
                                      raw_lines=raw_all,
