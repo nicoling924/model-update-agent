@@ -1,0 +1,191 @@
+"""One update, end to end — the ALWAYS-DELIVER run (BOSS_MINDMAP law).
+
+    archive + snapshot -> spec/discovery -> census -> digest (read once)
+    -> RESTATEMENT gate (the one human pause) -> THE AGENT LOOP (owns
+    everything: rollover, join, reads, fixes, adjustments, flags, plugs)
+    -> POLICE (verdicts; findings loop back, bounded) -> _REPORT / _SPEC
+    -> DELIVER. Always.
+
+There is no refusal path and no quarantine filename. What is unproven is
+flagged; what is not disclosed is proven-searched and listed; the analyst
+reviews inside Excel.
+
+client=None = dry run: deterministic tools only (rollover, join, stale
+sweep, police deterministic layer), scripted directly as a TEST harness —
+the production control flow is the agent's own decisions.
+"""
+import shutil
+from pathlib import Path
+
+from . import ops
+from . import police as police_mod
+from . import report as report_mod
+from . import restate as restate_mod
+from . import spec as spec_mod
+from . import targets as targets_mod
+from .evidence import EvidenceBook
+from .loop import AgentLoop
+from .stage1_read import read_documents
+from .stage2_join import decisions_to_json
+from .writer import Writer, formula_map, load, save
+
+
+def _model_path(company_dir, spec):
+    mdir = Path(company_dir) / "model"
+    if spec.get("model_file") and (mdir / spec["model_file"]).exists():
+        return mdir / spec["model_file"]
+    cands = sorted([p for p in mdir.glob("*.xls[xm]")
+                    if not p.name.startswith("~$")
+                    and "(updater" not in p.name
+                    and "(pipeline" not in p.name],
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    if not cands:
+        raise FileNotFoundError(f"no model workbook in {mdir}")
+    return cands[0]
+
+
+def _disclosures(company_dir, period):
+    d = Path(company_dir) / "disclosures"
+    sub = d / period
+    root = sub if sub.is_dir() else d
+    return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
+
+
+def update(company_dir, period, target_year, client=None, loop_budget=80,
+           log=print):
+    company_dir = Path(company_dir)
+    run_log = []
+
+    # -- spec or discovery (no spec anywhere -> the agent reasons the model
+    # out itself; the draft persists to _SPEC for the analyst)
+    wb_probe = None
+    if not (company_dir / "spec.yaml").exists() \
+            and not (company_dir / "spec.json").exists():
+        wb_probe = load(_model_path(company_dir, {}), data_only=False)
+    try:
+        spec_d = spec_mod.load(company_dir, wb_probe)
+    except spec_mod.SpecError:
+        from .discover import discover
+        kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+                else "Q" if "Q" in str(period).upper() else "FY")
+        probe_path = _model_path(company_dir, {})
+        spec_d = discover(load(probe_path), load(probe_path, data_only=True),
+                          target_year=target_year, period_kind=kind)
+        log(f"[run] no spec — anatomy AUTO-DISCOVERED "
+            f"({len(spec_d['year_axis'])} sheets, "
+            f"{len(spec_d['check_rows'])} checks, "
+            f"{len(spec_d['key_rows'])} keys)")
+    spec_mod.extend_axis(spec_d, target_year)
+
+    model_path = _model_path(company_dir, spec_d)
+    archive = (company_dir / "model-archive"
+               / f"{model_path.stem}_{period}_pre{model_path.suffix}")
+    archive.parent.mkdir(exist_ok=True)
+    shutil.copy2(model_path, archive)
+    log(f"[run] model: {model_path.name} (archived)")
+
+    wb = load(model_path)
+    wb_values = load(model_path, data_only=True)
+    pre_map = formula_map(wb)
+    snapshot = report_mod.snapshot_projections(wb_values, spec_d, target_year)
+
+    # -- census + digest (read once; artifacts cached by stage 1)
+    targets = targets_mod.from_workbook(wb_values, spec_d, target_year,
+                                        wb_formulas=wb)
+    known = targets_mod.known_prior_values(targets)
+    log(f"[run] census: {len(targets)} target rows, {len(known)} priors")
+    docs = _disclosures(company_dir, period)
+    if not docs:
+        raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
+    ledger = read_documents(docs, client=client, known_values=known, log=log)
+
+    # -- THE ONE PAUSE: restatement (before any write; resume-friendly)
+    restatement = restate_mod.check_or_pause(company_dir, period, ledger,
+                                             targets, run_log, client=client)
+    for ln in run_log[-2:]:
+        log(f"[run] {ln}")
+
+    writer = Writer(wb)
+    book = EvidenceBook()
+    census = {}
+    loop_summary = ""
+    verdict = None
+
+    loop = None
+    if client is not None:
+        # -- THE AGENT owns the update from here
+        loop = AgentLoop(wb, spec_d, target_year, ledger, targets, {},
+                         writer, book, client, run_log, budget=loop_budget,
+                         restatement=restatement, docs=docs, census=census)
+        loop_summary = loop.run()
+        log(f"[run] agent: {loop_summary[:150]}")
+        served = loop.served
+        # -- POLICE cycles: verdict -> findings -> agent fixes -> re-verdict
+        for cycle in range(police_mod.POLICE_CYCLES):
+            verdict = police_mod.verify(wb, spec_d, target_year, ledger,
+                                        targets, served, book, writer.log)
+            findings = list(verdict["findings"])
+            findings += police_mod.llm_review(client, verdict, wb, spec_d,
+                                              target_year, book, writer.log,
+                                              log)
+            open_findings = [f for f in findings if f]
+            if not open_findings:
+                break
+            log(f"[run] police cycle {cycle + 1}: "
+                f"{len(open_findings)} findings -> agent")
+            loop.budget = max(loop.budget, 20)
+            loop_summary = loop.run(extra_objectives=open_findings[:10])
+        verdict = police_mod.verify(wb, spec_d, target_year, ledger, targets,
+                                    served, book, writer.log)
+    else:
+        # -- dry-run TEST harness: deterministic tools, scripted
+        log("[run] DRY RUN: deterministic tools only")
+        census.update(ops.rollover_all(wb, spec_d, target_year, writer,
+                                       run_log.append))
+        served, decisions = ops.run_join(ledger, targets, run_log)
+        priors = {t.key: t.prior_value for t in targets}
+        ops.write_served(wb, spec_d, target_year, served, writer, priors,
+                         book, run_log.append)
+        ops.flag_stale(wb, spec_d, target_year, census, served, writer,
+                       book, run_log.append)
+        ops.sweep_compositions(wb, spec_d, target_year, census, writer,
+                               book, run_log.append)
+        for ln in run_log[-6:]:
+            log(f"[run] {ln}")
+        verdict = police_mod.verify(wb, spec_d, target_year, ledger, targets,
+                                    served, book, writer.log)
+
+    # -- finish: formats, report, memory, snapshots — and DELIVER, always
+    from .checks import prior_column, year_columns
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if tcol and pcol and sheet in wb.sheetnames:
+            writer.format_rollover(sheet, pcol, tcol)
+
+    adjustments = loop._adjustments if loop is not None else None
+    report_mod.build_report(wb, spec_d, target_year, book, snapshot,
+                            adjustments=adjustments, police=verdict,
+                            loop_summary=loop_summary)
+    spec_d["_last_run"] = {
+        "period": period, "served": len(served),
+        "flags": len(set(writer.log["flags"])),
+        "police": {k: v for k, v in (verdict or {}).get("laws", {}).items()}}
+    spec_mod.write_spec_tab(wb, spec_d)
+
+    replay_dir = company_dir / "replay" / str(period)
+    replay_dir.mkdir(parents=True, exist_ok=True)
+    ledger.save(replay_dir / "ledger.json")
+    targets_mod.save(targets, replay_dir / "targets.json")
+    (replay_dir / "run_log.txt").write_text("\n".join(run_log),
+                                            encoding="utf-8")
+
+    out_path = (company_dir / "model"
+                / f"{model_path.stem} {period} (updater){model_path.suffix}")
+    save(wb, out_path)
+    laws = (verdict or {}).get("laws", {})
+    log(f"[run] DELIVERED: {out_path.name}  police={laws}")
+    return {"ok": True, "out": str(out_path), "archive": str(archive),
+            "served": len(served), "police": laws,
+            "flags": len(set(writer.log["flags"])),
+            "replay": str(replay_dir)}
