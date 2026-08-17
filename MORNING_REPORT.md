@@ -42,8 +42,11 @@ cells and the truth-guard correctly refuses).
 6. **Runs 13-14**: WALL 1 BROKE — compile:Driver 15/33 written with
    island citations, twice, identically. Balance collapsed to one 1.0.
    Bell refined to learn from refusals (apply-report principle).
-7. **Run 15** (in flight at time of writing): unchanged code — a pure
-   variance measurement: is the close now stable, or still a draw?
+7. **Run 15** (unchanged code, variance measurement): segments 15/33 a
+   THIRD consecutive time; same 1.0-class residual; same laws; same
+   honest bell behavior. **The close is reproducible — the endgame
+   lottery that defined nine runs of the old loop is gone.** The only
+   remaining variance is whether the 1.0 echoes into forecast years.
 
 ## The scorecard trend (the four laws, per run)
 
@@ -55,6 +58,7 @@ cells and the truth-guard correctly refuses).
 | 12 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 89 | endgame draw exposed |
 | 13 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 95 | **segments 15/33** |
 | 14 | **FAIL(1)@1.0** | FAIL(2) | PASS | FAIL(2+2) | 98 | **best; segments reproduced** |
+| 15 (unchanged) | FAIL(6)=1.0 echo | FAIL(2) | PASS | FAIL(2+2) | 96 | **STABLE — the lottery is gone** |
 
 Keys law note: the FAIL(2 mismatch) is the CFI/CFF twin in every run; the
 2 unverified are the EPS-class rows (value correct, oracle can't tie
