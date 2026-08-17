@@ -657,6 +657,151 @@ class ThirdLookIsAPlugLaw(unittest.TestCase):
         self.assertIn("Model!U", second)             # names a plug site
 
 
+def _mock_item(doc, page, label, nums):
+    class It:
+        pass
+    it = It()
+    it.doc, it.page, it.label, it.nums = doc, page, label, list(nums)
+    it.source_line = f"{label} " + " ".join(f"{n:,.2f}" for n in nums)
+    it.scale_hint = None
+    it.joinable = lambda: True
+    return it
+
+
+def _mock_ledger(items, face="bs"):
+    class L:
+        pass
+    led = L()
+    led.items = list(items)
+    led.faces = {(it.doc, it.page): face for it in items}
+    led.prior_period_docs = lambda: set()
+    led.face = lambda d, p: led.faces.get((d, p))
+    led.join_pool = lambda: led.items
+    return led
+
+
+def _mock_target(sheet, row, label, prior):
+    class T:
+        pass
+    t = T()
+    t.sheet, t.row, t.key, t.label, t.prior_value = \
+        sheet, row, (sheet, row), label, prior
+    return t
+
+
+class TruthOutranksBalanceLaw(unittest.TestCase):
+    """run-6: a plug moved a disclosure-proven cell (2,156.07, cited p95)
+    to 14,272 to zero the balance check — falsifying CA/TA by 12,116.
+    Plugs REFUSE disclosure-proven cells."""
+
+    def test_plug_refuses_proven_cell(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        # U5 and U6 tie their evidence; U7 is stale with NO evidence (the
+        # residual's true home); check U9 = U5 - U6 - U7
+        ws["T5"], ws["U5"] = 1000.0, 1200.0
+        ws["T6"], ws["U6"] = 500.0, 700.0
+        ws["T7"], ws["U7"] = 500.0, 400.0
+        ws["U9"], ws["T9"] = "=U5-U6-U7", "=T5-T6-T7"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+        targets = [_mock_target("Model", 5, "alpha receivables", 1000.0),
+                   _mock_target("Model", 6, "beta payables", 480.0),
+                   _mock_target("Model", 7, "misc stale", 500.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha receivables", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "beta payables", [700.0, 480.0])])
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_plug_residual({"check": "Model!9", "into": "Model!U5",
+                                    "why": "test"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("disclosure-proven", out)
+        self.assertEqual(ws["U5"].value, 1200.0)
+
+
+class SignAwarePlugLaw(unittest.TestCase):
+    """run-6: six plugs doubled the residual on negative-entry components
+    and reverted. The plug measures the check's derivative first."""
+
+    def test_plug_lands_on_negative_entry_component(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 100.0, 100.0
+        ws["T2"], ws["U2"] = 100.0, 20.0        # enters check negatively
+        ws["U3"], ws["T3"] = "=U1-U2", "=T1-T2"  # residual 80
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        loop = AgentLoop(wb, spec, 2025, _mock_ledger([]), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_plug_residual({"check": "Model!3", "into": "Model!U2",
+                                    "why": "test"})
+        self.assertIn("PLUGGED", out)
+        self.assertEqual(ws["U2"].value, 100.0)   # 20 - 80/(-1)
+
+
+class TargetColumnGuardLaw(unittest.TestCase):
+    """run-6: two 2025 actuals were written into the 2026 column (V75).
+    Mark-to-actual writes outside the target column are refused unless
+    explicitly declared a forecast integrity repair."""
+
+    def _loop(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["U1"], ws["V1"] = 1.0, 2.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U",
+                                                    "2026": "V"}}},
+                "check_rows": [], "key_rows": []}
+        return AgentLoop(wb, spec, 2025, _mock_ledger([]), [], {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_forecast_column_refused(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!V1", "value": 9.0,
+                                "why": "p10: line"})
+        self.assertIn("REFUSED", out)
+        self.assertEqual(ws["V1"].value, 2.0)
+
+    def test_declared_integrity_repair_allowed(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!V1", "value": 9.0,
+                                "why": "p10: integrity repair",
+                                "forecast_repair": True})
+        self.assertIn("WRITTEN", out)
+
+
+class ReclassFinderLaw(unittest.TestCase):
+    """run-6: the −12,116 was a reclass whose destination row has no prior
+    to triangulate on — but the residual fingerprints it. diagnose names
+    the RECLASS CANDIDATE with its exact set_input."""
+
+    def test_reclass_candidate_named(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 90.0, 100.0        # stale; disclosed 112
+        ws["T2"], ws["U2"] = 90.0, 112.0
+        ws["U3"], ws["T3"] = "=U1-U2", "=T1-T2"  # residual -12
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        targets = [_mock_target("Model", 1, "gamma investments", 90.0),
+                   _mock_target("Model", 7, "anchor one", 1000.0),
+                   _mock_target("Model", 8, "anchor two", 500.0)]
+        led = _mock_ledger([
+            # two anchors ratify the page's scale
+            _mock_item("AR", 5, "anchor one", [1100.0, 1000.0]),
+            _mock_item("AR", 5, "anchor two", [600.0, 500.0]),
+            # the reclass destination: model 100, disclosed 112
+            _mock_item("AR", 5, "gamma investments", [112.0])])
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_diagnose_balance({"check": "Model!3"})
+        self.assertIn("RECLASS CANDIDATE", out)
+        self.assertIn("Model!U1", out)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
