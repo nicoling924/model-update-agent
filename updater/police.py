@@ -44,13 +44,19 @@ def deterministic(wb, spec, target_year, targets, served, book, writer_log):
                         else f"balance: {c['name']} eval error")
 
     # Law 4 — keys: present AND (proven or flagged). Never silently wrong.
+    # An empty key list can never PASS (the vacuous-PASS hole, run-1-live).
+    if not card["keys"]:
+        laws["4_keys"] = "NO KEY ROWS — spec/discovery gap, law unverifiable"
+        findings.append("keys: no key rows known for this model — law 4 "
+                        "could not be verified")
     bad_keys = []
     for k in card["keys"]:
         if not k["present"]:
             bad_keys.append(f"{k['name']} MISSING")
         elif not k["proven"] and not k["flagged"]:
             bad_keys.append(f"{k['name']} present-unproven-unflagged")
-    laws["4_keys"] = "PASS" if not bad_keys else f"FAIL ({len(bad_keys)})"
+    if card["keys"]:
+        laws["4_keys"] = "PASS" if not bad_keys else f"FAIL ({len(bad_keys)})"
     findings += [f"key: {b}" for b in bad_keys[:10]]
 
     # Laws 1-2 need the evidence ledger; verify() completes them.

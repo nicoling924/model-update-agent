@@ -345,6 +345,127 @@ class RestatementPauseLaw(unittest.TestCase):
         self.assertEqual(scan(led, targets), [])
 
 
+class ArgToleranceLaw(unittest.TestCase):
+    """run-1-live: the agent found AR 56,432.1 cited to p102 and lost it to
+    argument-format misses. Write tools now accept the forms engines
+    actually produce."""
+
+    def _loop(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 50.0, 50.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        return AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_citation_alias_accepted(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U1", "value": 60.0,
+                                "citation": "p102: accounts receivable"})
+        self.assertIn("WRITTEN", out)
+        self.assertEqual(ws["U1"].value, 60.0)
+
+    def test_sheet_plus_bare_cell_accepted(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"sheet": "Model", "cell": "U1", "value": 61.0,
+                                "why": "p102: line"})
+        self.assertIn("WRITTEN", out)
+
+    def test_row_ref_with_column_accepted(self):
+        loop, _ = self._loop()
+        sheet, row = loop._row_ref({"row": "Model!U49"})
+        self.assertEqual((sheet, row), ("Model", 49))
+        sheet, row = loop._row_ref({"cell": "U49", "sheet": "Model"})
+        self.assertEqual((sheet, row), ("Model", 49))
+
+
+class ConversionPressureLaw(unittest.TestCase):
+    """run-1-live: 75/120 actions were traces. A stretch with no landed
+    write now carries an escalating STEERING nudge."""
+
+    def test_steering_appears_after_streak(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["U1"] = 1.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+
+        class _Script:
+            """Client scripted to trace the same-ish cells forever."""
+            def __init__(self):
+                self.n = 0
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.n += 1
+                if self.n > 8:
+                    return {"action": "finish", "args": {"summary": "done"}}
+                return {"action": "trace_cell",
+                        "args": {"cell": f"Model!U{self.n}"}}
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=_Script(), budget=12)
+        loop.run()
+        self.assertIn("STEERING", getattr(loop, "_last", ""))
+
+    def test_full_result_reaches_the_engine(self):
+        """Run-1-live discovery: the legacy loop showed only the first 110
+        chars of a result — the engine never saw multi-line tool output.
+        The state block must carry the last result IN FULL."""
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["U1"] = 1.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        loop._last = "tool {}\nline1\nline2 GUILTY detail"
+        self.assertIn("line2 GUILTY detail", loop._state_block())
+
+
+class VacuousKeysLaw(unittest.TestCase):
+    """run-1-live: law 4 passed on an EMPTY key list. Never again."""
+
+    def test_empty_keys_cannot_pass(self):
+        from updater.police import deterministic
+        wb, ws = _wb()
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        out = deterministic(wb, spec, "2025", [], {}, EvidenceBook(),
+                            {"flags": []})
+        self.assertNotEqual(out["laws"]["4_keys"], "PASS")
+        self.assertIn("NO KEY ROWS", out["laws"]["4_keys"])
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

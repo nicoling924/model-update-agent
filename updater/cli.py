@@ -45,7 +45,7 @@ def main(argv=None):
     from .run import update
     try:
         res = update(company_dir, period, int(target_year), client=client,
-                     loop_budget=int(kv.get("--budget", 80)))
+                     loop_budget=int(kv.get("--budget", 120)))
     except RestatementPause as e:
         print(f"\nPAUSED (not a failure): {e}")
         return 3

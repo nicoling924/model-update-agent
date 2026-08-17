@@ -34,6 +34,15 @@ THE LADDER (for every problem, in order):
 3. Only after a few genuine attempts: back out loudly — plug_residual
    (orange, analyst-reviewed) or leave the flag standing.
 
+CONVERT, DON'T CIRCLE (the measured failure mode): investigation that
+never becomes a write is worth nothing. Trace a residual at most TWICE,
+then ACT — apply_diff on a GUILTY row, set_input with your citation, or
+plug/flag and move on. When diagnose_balance prints a GUILTY line it
+already gives you the exact apply_diff call: run it VERBATIM next turn.
+Write-tool argument forms (exact): apply_diff {"row": "Sheet!49"} ·
+set_input {"cell": "Sheet!U49", "value": 123.4, "why": "p102: <line>"} ·
+plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}.
+
 WALK-AWAY LAW: one cascade pass per missing figure (direct find →
 prior-value triangulation → back-out → estimate+flag). Never loop hunting
 one number; a flagged estimate on time beats a stalled run.

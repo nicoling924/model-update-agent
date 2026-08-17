@@ -30,7 +30,7 @@ from .numerics import SCALES, line_numbers, row_tol, to_model_units
 from .toolbox import Toolbox
 from . import ops
 
-MAX_ACTIONS = 80
+MAX_ACTIONS = 120
 MAX_HISTORY_SHOWN = 30
 MAX_FINDS = 12
 
@@ -113,6 +113,8 @@ class AgentLoop:
         parts += ["== SCORECARD ==",
                   summarize(card, self.ty, flags=self.writer.log["flags"],
                             spec=self.spec, wb=self.wb),
+                  "== LAST ACTION RESULT (in full) ==",
+                  getattr(self, "_last", "  (none yet)"),
                   "== TOOL HEALTH ==",
                   *(self.box.announcements() or ["  (no calls yet)"]),
                   "== OPEN TODOS ==", *(todos or ["  (none)"]),
@@ -444,12 +446,26 @@ class AgentLoop:
         return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
                 f"(orange, in the report). Check {check} now zero.")
 
+    def _row_ref(self, args):
+        """Tolerant row-ref parsing (run-1-live autopsy: the agent lost its
+        endgame to arg-format misses). Accepts row/cell/ref keys, optional
+        separate sheet key, Sheet!49, Sheet!U49, and bare U49/49 forms."""
+        ref = str(args.get("row") or args.get("cell") or args.get("ref") or "")
+        ref = ref.replace("$", "").strip()
+        sheet = str(args.get("sheet") or "").strip()
+        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{0,3})(\d+)$", ref)
+        if m:
+            return (m.group(1) or m.group(2)).strip(), int(m.group(4))
+        m = re.match(r"^([A-Z]{0,3})(\d+)$", ref)
+        if m and sheet:
+            return sheet, int(m.group(2))
+        return None, None
+
     def t_apply_diff(self, args):
-        ref = str(args.get("row") or args.get("cell") or "")
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", ref.replace("$", ""))
-        if not m:
-            return f"MISS: row ref '{ref}' unparseable (Sheet!row form)"
-        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(3))
+        sheet, row = self._row_ref(args)
+        if sheet is None:
+            return ("MISS: row ref unparseable — use "
+                    "{\"row\": \"Sheet!49\"} (column letters are ok too)")
         t = self.targets.get((sheet, row))
         if t is None:
             return f"MISS: {sheet}!{row} is not a census row"
@@ -495,14 +511,29 @@ class AgentLoop:
         return r
 
     def t_set_input(self, args):
-        ref = str(args.get("cell", ""))
-        why = str(args.get("why", ""))
+        # tolerant args (run-1-live autopsy): why/citation/cite/reason are
+        # synonyms; the cell may come as Sheet!U49 or sheet=... + cell=U49
+        ref = str(args.get("cell") or args.get("ref") or "")
+        why = str(args.get("why") or args.get("citation") or args.get("cite")
+                  or args.get("reason") or "")
         grade = str(args.get("_grade") or "B")
         method = str(args.get("_method") or "loop set_input")
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
-                     ref.replace("$", ""))
+        ref = ref.replace("$", "").strip()
+        if "!" not in ref and args.get("sheet"):
+            ref = f"{args['sheet']}!{ref}"
+        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$", ref)
         if not m:
-            return f"MISS: cell ref '{ref}' unparseable"
+            m2 = re.match(r"^(?:'([^']+)'|([^!]+))!(\d+)$", ref)
+            if m2:
+                sh = (m2.group(1) or m2.group(2)).strip()
+                tc = self._tcol(sh)
+                if tc:
+                    m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
+                                 f"{sh}!{tc}{m2.group(3)}")
+        if not m:
+            return (f"MISS: cell ref '{ref}' unparseable — "
+                    "{\"cell\": \"Sheet!U49\", \"value\": ..., \"why\": "
+                    "\"p102: ...\"}")
         if not re.search(r"p(?:age)?\.?\s*\d+", why, re.IGNORECASE):
             return ("REFUSED: 'why' must cite the disclosure page "
                     "(e.g. 'p102: ...') — no citation, no write")
@@ -691,8 +722,32 @@ class AgentLoop:
             else:
                 self._done.add(fingerprint)
                 result = self.box.call(name, args)
+            # CONVERSION PRESSURE (run-1-live autopsy: 75/120 actions were
+            # traces; findings never became writes). Investigation is
+            # capped by steering, not by force: after a stretch with no
+            # write, every result carries an escalating nudge to convert.
+            kind = self.box.tools[name].kind if name in self.box.tools else "query"
+            if kind == "write" and not str(result).startswith(
+                    ("MISS", "REFUSED", "TOOL ERROR")):
+                self._streak = 0
+            else:
+                self._streak = getattr(self, "_streak", 0) + 1
+            if self._streak >= 5:
+                result = (str(result) + "\nSTEERING: "
+                          f"{self._streak} actions without a landed write — "
+                          "CONVERT what you already know: diagnose_balance "
+                          "names GUILTY rows for apply_diff; set_input needs "
+                          "{\"cell\": \"Sheet!U49\", \"value\": N, \"why\": "
+                          "\"p<page>: ...\"}; if nothing is provable, flag "
+                          "or plug and move to the next objective.")
             snip = json.dumps(args, ensure_ascii=False)[:90]
             first = str(result).splitlines()[0][:110] if result else ""
+            # history is the compact trail; the FULL result of the latest
+            # action goes to the state block. (Run-1-live discovery: the
+            # legacy loop only ever showed the engine the first 110 chars
+            # of each result — diagnose/find output was invisible, which
+            # fed the trace-spam. The engine must SEE what its tools say.)
+            self._last = f"{name} {snip}\n{str(result)[:3500]}"
             self.history.append(f"{name} {snip} -> {first}")
             self.log.append(f"agent: {name} {snip} -> {first}")
         if self.finished is None:

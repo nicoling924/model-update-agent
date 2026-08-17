@@ -51,7 +51,7 @@ def _disclosures(company_dir, period):
     return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
 
 
-def update(company_dir, period, target_year, client=None, loop_budget=80,
+def update(company_dir, period, target_year, client=None, loop_budget=120,
            log=print):
     company_dir = Path(company_dir)
     run_log = []
@@ -76,6 +76,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=80,
             f"{len(spec_d['check_rows'])} checks, "
             f"{len(spec_d['key_rows'])} keys)")
     spec_mod.extend_axis(spec_d, target_year)
+    # A spec without key_rows would make Police law 4 pass VACUOUSLY (the
+    # run-1-live false PASS): supplement keys/checks from discovery so the
+    # law always has teeth. Discovery is additive here — never overrides
+    # what the spec already declares.
+    if not spec_d.get("key_rows") or not spec_d.get("check_rows"):
+        from .discover import discover
+        probe_path = _model_path(company_dir, spec_d)
+        found = discover(load(probe_path), load(probe_path, data_only=True),
+                         target_year=target_year)
+        for part in ("key_rows", "check_rows"):
+            if not spec_d.get(part):
+                spec_d[part] = found.get(part) or []
+                log(f"[run] spec had no {part} — supplemented "
+                    f"{len(spec_d[part])} from discovery")
 
     model_path = _model_path(company_dir, spec_d)
     archive = (company_dir / "model-archive"
