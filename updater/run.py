@@ -199,6 +199,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             log(f"[run] police cycle {cycle + 1}: "
                 f"{len(open_findings)} findings -> repair packets")
             closer.run_repairs(open_findings)
+        # -- THE CLOSING BELL (council wall-2): one deterministic final
+        # disposition per still-failing residual generator — an executed
+        # plug or a reasoned flag; the endgame draw disappears.
+        closer.closing_bell()
         # -- STRUCTURAL HONESTY (run-2 owner review): every unserved rolled
         # hardcode is flagged, every still-failing check cell marked.
         # Honesty is CODE, never an agent choice.

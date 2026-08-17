@@ -86,7 +86,7 @@ class PacketCloser:
     def run_compile(self, sheet):
         rows, chunks = packets.compile_card(
             self.tk.wb, self.tk.spec, self.tk.ty, sheet, self.tk.served,
-            self.tk.writer.log, self.tk.ledger)
+            self.tk.writer.log, self.tk.ledger, docs=self.tk.docs)
         if not rows:
             report = f"compile:{sheet}: nothing open"
             self.reports.append(report)
@@ -239,6 +239,186 @@ class PacketCloser:
                 return ["write decisions need a value"]
         return []
 
+    # -- the closing bell (council wall-2 design) ---------------------------
+
+    def closing_bell(self):
+        """One deterministic final pass: each still-failing check FAMILY
+        (a residual propagating across years is ONE generator) gets ONE
+        terminal disposition — an executed plug or a reasoned, cited
+        flag. Runs exactly once; no new research; the draw disappears
+        because the decision is forced, not because behavior is capped."""
+        card = scorecard(self.tk.wb, self.tk.spec, self.tk.ty,
+                         served=self.tk.served,
+                         flags=self.tk.writer.log["flags"])
+        gens = {}
+        for c in card["checks"]:
+            if c["status"] == "PASS":
+                continue
+            key = c["name"].split(" (")[0].replace("!r", "!")
+            gens.setdefault(key, []).append(
+                (c["year"], c["got"]))
+        for ref, years in list(gens.items())[:4]:
+            diag = self.tk.t_diagnose_balance({"check": ref})
+            vec = ", ".join(f"{y}: {g:,.2f}" if isinstance(g, (int, float))
+                            else f"{y}: ?" for y, g in years)
+            user = (_p("closing_bell.md")
+                    + f"\n\nGENERATOR {ref} — residual vector across years: "
+                    f"{vec}\n(one 2025 cause usually propagates to every "
+                    f"forecast year — one disposition closes the vector)\n\n"
+                    "== DIAGNOSIS ==\n" + str(diag))
+
+            def _val(o):
+                if o.get("disposition") not in ("plug", "flag"):
+                    return ["disposition must be 'plug' or 'flag'"]
+                if o["disposition"] == "plug" and not o.get("into"):
+                    return ["plug needs 'into'"]
+                if not o.get("why"):
+                    return ["'why' required — the analyst reads it"]
+                return []
+            try:
+                out = self._json(_p("method.md"), user, _val)
+            except Exception as e:
+                self.log(f"[closer] closing bell call failed: {e}")
+                continue
+            if out["disposition"] == "plug":
+                r = self.tk.t_plug_residual({"check": ref,
+                                             "into": str(out["into"]),
+                                             "why": str(out["why"])})
+                self.log(f"[closer] bell {ref}: plug -> "
+                         f"{str(r).splitlines()[0][:90]}")
+            else:
+                sheet, row = ref.split("!")
+                col = self.tk._tcol(sheet)
+                self.tk.t_flag_cell({"cell": f"{sheet}!{col}{row}",
+                                     "why": f"closing bell: {out['why']}"})
+                self.log(f"[closer] bell {ref}: flagged — "
+                         f"{str(out['why'])[:90]}")
+            self.reports.append(f"bell:{ref}: {out['disposition']}")
+
+    # -- the atomic reclass packet (council wall-3 design) ------------------
+
+    def atomic_reclass(self, key_a, key_b, amount):
+        """Twin-residual signature: both keys off by the same amount with
+        opposite signs — ONE item is booked in the wrong section. The
+        packet shows both sections side by side and asks the single bound
+        question; the answer is an ATOMIC two-legged move (both writes or
+        neither), verified against both keys and reverted if it does not
+        close them."""
+        sides = []
+        for kname in (key_a, key_b):
+            match = next((k for k in self.tk.spec.get("key_rows") or []
+                          if kname.lower() in
+                          str(k.get("name", "")).lower()), None)
+            if match is None:
+                return f"reclass: key '{kname}' not found"
+            sheet, row = match["sheet"], int(match["row"])
+            col = self.tk._tcol(sheet)
+            leaves = []
+            for (sh, coord) in dict.fromkeys(
+                    self.tk._leaf_inputs(sheet, f"{col}{row}")):
+                v = self.tk.wb[sh][coord].value
+                if not isinstance(v, (int, float)):
+                    continue
+                t = self.tk.targets.get(
+                    (sh, int(coord[len(coord.rstrip('0123456789')):])))
+                lab = str(t.label)[:36] if t is not None else "?"
+                leaves.append(f"  {sh}!{coord} '{lab}' = {v:,.2f}")
+            sides.append((match.get("name"), f"{sheet}!{col}{row}", leaves))
+        user = (_p("reclass.md") + "\n\n"
+                + f"AMOUNT: ≈{amount:,.2f} (same size, opposite signs)\n\n"
+                + "\n\n".join(
+                    f"== SECTION: {n} ({ref}) ==\n" + "\n".join(ls)
+                    for n, ref, ls in sides))
+
+        def _val(o):
+            if "move" in o:
+                m = o["move"]
+                if not (isinstance(m, dict) and m.get("from")
+                        and m.get("to") and m.get("amount") is not None
+                        and m.get("why")):
+                    return ["move needs from, to, amount, why"]
+                return []
+            if "flag" in o:
+                return []
+            return ["answer with {'move': {...}} or {'flag': '<why>'}"]
+        try:
+            out = self._json(_p("method.md"), user, _val)
+        except Exception as e:
+            return f"reclass call failed: {e}"
+        if "flag" in out:
+            self.log(f"[closer] reclass: flagged — {str(out['flag'])[:90]}")
+            return "reclass: flagged"
+        m = out["move"]
+        return self._apply_atomic_move(str(m["from"]), str(m["to"]),
+                                       float(m["amount"]), str(m["why"]),
+                                       key_a, key_b)
+
+    def _key_tie(self, kname):
+        match = next((k for k in self.tk.spec.get("key_rows") or []
+                      if kname.lower() in str(k.get("name", "")).lower()),
+                     None)
+        if match is None:
+            return None
+        t = self.tk.targets.get((match["sheet"], int(match["row"])))
+        got = self.tk._diff_value(t) if t is not None else None
+        if got is None:
+            return None
+        from .evaluator import Evaluator
+        try:
+            mv = Evaluator(self.tk.wb).cell(
+                match["sheet"],
+                f"{self.tk._tcol(match['sheet'])}{match['row']}")
+        except Exception:
+            return None
+        from .numerics import row_tol
+        return abs(abs(mv) - abs(got[0])) <= max(row_tol(got[0]),
+                                                 abs(got[0]) * 5e-3)
+
+    def _apply_atomic_move(self, src, dst, amount, why, key_a, key_b):
+        import re as _re
+        cells = []
+        for ref in (src, dst):
+            m = _re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
+                          ref.replace("$", ""))
+            if not m:
+                return f"reclass: unparseable cell {ref}"
+            sh, co = (m.group(1) or m.group(2)).strip(), \
+                f"{m.group(3)}{m.group(4)}"
+            v = self.tk.wb[sh][co].value
+            if not isinstance(v, (int, float)):
+                return f"reclass: {ref} is not a numeric input cell"
+            cells.append((sh, co, v))
+        (s_sh, s_co, s_v), (d_sh, d_co, d_v) = cells
+        self.tk.wb[s_sh][s_co].value = s_v - amount
+        self.tk.wb[d_sh][d_co].value = d_v + amount
+        ok_a, ok_b = self._key_tie(key_a), self._key_tie(key_b)
+        if ok_a and ok_b:
+            # commit through the chokepoint for notes/flags/provenance
+            self.tk.wb[s_sh][s_co].value = s_v
+            self.tk.wb[d_sh][d_co].value = d_v
+            r1 = self.tk.t_set_input({"cell": f"{s_sh}!{s_co}",
+                                      "value": s_v - amount,
+                                      "why": f"atomic reclass (leg 1/2): "
+                                             f"{why}"})
+            r2 = self.tk.t_set_input({"cell": f"{d_sh}!{d_co}",
+                                      "value": d_v + amount,
+                                      "why": f"atomic reclass (leg 2/2): "
+                                             f"{why}"})
+            if str(r1).startswith("WRITTEN") and str(r2).startswith("WRITTEN"):
+                self.log(f"[closer] reclass MOVED {amount:,.2f} "
+                         f"{src} -> {dst}: both keys tie")
+                return "reclass: moved, both keys tie"
+            # one leg refused -> restore both
+            self.tk.t_set_input({"cell": f"{s_sh}!{s_co}", "value": s_v,
+                                 "why": f"reclass revert; ties {src}"})
+            self.tk.t_set_input({"cell": f"{d_sh}!{d_co}", "value": d_v,
+                                 "why": f"reclass revert; ties {dst}"})
+            return "reclass: a leg was refused by the chokepoint — reverted"
+        self.tk.wb[s_sh][s_co].value = s_v
+        self.tk.wb[d_sh][d_co].value = d_v
+        return (f"reclass: move did not make both keys tie "
+                f"(a={ok_a}, b={ok_b}) — reverted, nothing written")
+
     # -- the run ------------------------------------------------------------
 
     def run(self):
@@ -301,16 +481,21 @@ class PacketCloser:
                     deltas.append((m.group(1).strip(), d))
                 except ValueError:
                     pass
+        moved_keys = set()
         for i in range(len(deltas)):
             for j in range(i + 1, len(deltas)):
                 a, b = deltas[i], deltas[j]
                 if abs(abs(a[1]) - abs(b[1])) <= max(1.0, abs(a[1]) * 0.02):
-                    ctx += (f"\nINSIGHT: '{a[0]}' is off by {a[1]:,.2f} and "
-                            f"'{b[0]}' by {b[1]:,.2f} — the SAME amount. One "
-                            "item is booked in the wrong section between "
-                            "them; find it and move it (write the two "
-                            "component cells), do not treat these as two "
-                            "separate problems.")
+                    # council wall-3: the twin signature triggers the
+                    # ATOMIC RECLASS packet — one bound question, a
+                    # two-legged move or nothing.
+                    r = self.atomic_reclass(a[0], b[0], abs(a[1]))
+                    self.reports.append(f"reclass:{a[0]}/{b[0]}: {r}")
+                    if "both keys tie" in str(r):
+                        moved_keys.update({a[0], b[0]})
+        targets = [t for t in targets
+                   if not (t.startswith("key:")
+                           and t[4:] in moved_keys)]
         for ref in list(dict.fromkeys(targets))[:8]:
             if self.calls >= 160:
                 break

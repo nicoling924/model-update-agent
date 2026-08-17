@@ -44,3 +44,26 @@ BOSS_MINDMAP.md.
   information no single packet sees -> repair context now auto-surfaces
   the TWIN-DELTA insight (find the misplaced item, move it once).
 - Run 12 carries both. Improvement trend intact (no council trigger).
+
+## Run 12 — implied-prior cards + twin insight (regression data point)
+- 89 calls; balance FAIL(6) — but ONE 24.0 residual propagating x6 years
+  (vs run 11's single 1.0): the surgeon endgame is a DRAW across
+  identical code. Segments: third run at 0 written (implied-prior cards
+  were empty on real data — the marker/% guards see nothing through flat
+  lines). COUNCIL TRIGGER met.
+
+## Council session #2 (council/2026-08-18-night-question-council.md)
+- Unanimous: all three walls are REPRESENTATION/TASK-SHAPE problems.
+  1. TABLE ISLANDS: grid-intact evidence (headers per cell) for compile
+     packets, number-anchored selection; agent reads natively across
+     languages; implied-prior = write-time validation. NOT: dictionaries,
+     flat-ledger soup, vision-by-default.
+  2. CLOSING BELL: one deterministic final disposition per residual
+     GENERATOR (vector across years) — executed plug or reasoned flag.
+     NOT: more surgeon rounds, size caps.
+  3. ATOMIC RECLASS PACKET: twin signature -> both sections side by side,
+     one bound question, two-legged atomic move verified against both
+     keys or nothing. NOT: silent swaps, per-issuer lists.
+- All three implemented; 63 museum exhibits green; real-data check: 282
+  islands from the DFE AR, the 资产构成 MD&A grid selected with headers
+  intact. Run 13 carries the full council package.

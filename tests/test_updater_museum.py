@@ -1080,6 +1080,144 @@ class PacketArchitectureLaw(unittest.TestCase):
         self.assertEqual(pc.pick_packet(["compile:Model"]), "deliver")
 
 
+class TableIslandLaw(unittest.TestCase):
+    """Council wall-1: grid geometry is evidence. The renderer attaches
+    headers to every cell; selection is number-anchored (>=2 ties)."""
+
+    def test_renderer_attaches_headers(self):
+        from updater.islands import _render_table
+        out = _render_table([
+            ["项目", "2025年", "同比增减(%)"],
+            ["清洁高效能源装备", "31,780.0", "12.07"],
+            ["可再生能源装备", "18,500.0", "-3.20"]])
+        self.assertIn("清洁高效能源装备 | 2025年: 31,780.0 | 同比增减(%): 12.07",
+                      out)
+
+    def test_selection_is_number_anchored(self):
+        from updater.islands import relevant
+        seg = ("清洁高效能源装备 | 2025年: 31,780.0 | 同比增减(%): 12.07\n"
+               "可再生能源装备 | 2025年: 18,500.0 | 同比增减(%): -3.20")
+        prose = ("行业展望 | 装机容量: 43.0 | 增长: 10.5\n"
+                 "市场份额 | 比例: 2.41 | 变动: 0.10")
+        picked = relevant([(12, seg), (29, prose)],
+                          [28358.2, 19111.4])       # implied priors of seg
+        self.assertEqual([p for p, _t in picked], [12])
+
+
+class ClosingBellLaw(unittest.TestCase):
+    """Council wall-2: the endgame is a decision, not a draw — one
+    terminal disposition per residual generator."""
+
+    def _setup(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 100.0, 100.0
+        ws["T2"], ws["U2"] = 100.0, 76.0            # residual cause
+        ws["U3"], ws["T3"] = "=U1-U2-24", "=T1-T2"   # check fails at 0? U3=0
+        ws["U3"] = "=U1-U2-48"                       # residual = -24
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        return wb, ws, spec, AgentLoop(wb, spec, 2025, _mock_ledger([]), [],
+                                       {}, Writer(wb), EvidenceBook(),
+                                       client=None)
+
+    def test_bell_executes_plug_disposition(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                assert "residual vector" in user
+                return {"disposition": "plug", "into": "Model!U2",
+                        "why": "no provable leaf; absorbing into misc"}
+        wb, ws, spec, tk = self._setup()
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        pc.closing_bell()
+        from updater.evaluator import Evaluator
+        self.assertAlmostEqual(Evaluator(wb).cell("Model", "U3"), 0.0,
+                               places=6)
+
+    def test_bell_flag_disposition_is_reasoned(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                assert validate({"disposition": "flag"})   # why required
+                return {"disposition": "flag",
+                        "why": "plug would move a disclosed value"}
+        wb, ws, spec, tk = self._setup()
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        pc.closing_bell()
+        self.assertIn("Model!U3", tk.writer.log["flags"])
+
+
+class AtomicReclassLaw(unittest.TestCase):
+    """Council wall-3: the twin signature triggers one bound question;
+    the move is two-legged and atomic — both keys tie or nothing is
+    written."""
+
+    def _setup(self, disclosed_a, disclosed_b):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        # key A = SUM(U2:U3); key B = SUM(U6:U7); item 594 misbooked in A
+        ws["T2"], ws["U2"] = 1000.0, 1594.0
+        ws["T3"], ws["U3"] = 500.0, 500.0
+        ws["U4"], ws["T4"] = "=SUM(U2:U3)", "=SUM(T2:T3)"
+        ws["T6"], ws["U6"] = 2000.0, 2000.0
+        ws["T7"], ws["U7"] = 300.0, 306.0
+        ws["U8"], ws["T8"] = "=SUM(U6:U7)", "=SUM(T6:T7)"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [
+                    {"sheet": "Model", "row": 4, "name": "investing cash flow"},
+                    {"sheet": "Model", "row": 8, "name": "financing cash flow"}]}
+        targets = [
+            _mock_target("Model", 4, "investing activities", 1500.0),
+            _mock_target("Model", 8, "financing activities", 2300.0),
+            _mock_target("Model", 2, "alpha", 1000.0),
+            _mock_target("Model", 6, "beta", 2000.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "investing activities",
+                       [disclosed_a, 1500.0]),
+            _mock_item("AR", 5, "financing activities",
+                       [disclosed_b, 2300.0])])
+        tk = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                       EvidenceBook(), client=None)
+        return wb, ws, tk
+
+    def test_correct_move_commits_atomically(self):
+        from updater.closer import PacketCloser
+        wb, ws, tk = self._setup(1500.0, 2900.0)
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                assert "SECTION" in user
+                return {"move": {"from": "Model!U2", "to": "Model!U7",
+                                 "amount": 594.0,
+                                 "why": "p101: booked under financing"}}
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        r = pc.atomic_reclass("investing cash flow", "financing cash flow",
+                              594.0)
+        self.assertIn("both keys tie", r)
+        self.assertEqual(ws["U2"].value, 1000.0)
+        self.assertEqual(ws["U7"].value, 900.0)
+
+    def test_wrong_move_reverts_both_legs(self):
+        from updater.closer import PacketCloser
+        wb, ws, tk = self._setup(1500.0, 2900.0)
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                return {"move": {"from": "Model!U3", "to": "Model!U6",
+                                 "amount": 100.0, "why": "guess"}}
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        r = pc.atomic_reclass("investing cash flow", "financing cash flow",
+                              594.0)
+        self.assertIn("reverted", r)
+        self.assertEqual(ws["U3"].value, 500.0)     # untouched
+        self.assertEqual(ws["U6"].value, 2000.0)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
