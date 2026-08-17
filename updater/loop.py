@@ -385,6 +385,37 @@ class AgentLoop:
             out.append("  no leaf disagrees and no unproven suspects — "
                        "find_line the residual amount, or (worst case) "
                        "plug_residual with a named component")
+        # THE LADDER'S LAST RUNG HAS TEETH (run-4 autopsy: 67 diagnoses of
+        # the same four evidence-less checks, zero plugs). From the second
+        # guilty-free diagnosis of a check, the answer IS the escalation:
+        # concrete plug sites, and an instruction to use one NOW.
+        self._diag_counts = getattr(self, "_diag_counts", {})
+        ck = f"{sheet}!{row}"
+        self._diag_counts[ck] = self._diag_counts.get(ck, 0) + 1
+        if guilty == 0 and self._diag_counts[ck] >= 2:
+            keys = self._key_rows()
+            sites = []
+            for (sh, coord) in dict.fromkeys(
+                    self._leaf_inputs(sheet, f"{col}{row}")):
+                mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+                if not mm or mm.group(1) != self._tcol(sh):
+                    continue
+                if (sh, int(mm.group(2))) in keys:
+                    continue
+                if isinstance(self.wb[sh][coord].value, (int, float)):
+                    sites.append(f"{sh}!{coord}")
+                if len(sites) >= 5:
+                    break
+            out.append(
+                f"ESCALATE NOW (diagnosis #{self._diag_counts[ck]} of this "
+                "check, no guilty row exists in the evidence): further "
+                "investigation is waste — this residual has NO provable "
+                "cause in the disclosure. Boss law: back out and mark. "
+                "Your next action for this check MUST be plug_residual"
+                + (f" into one of: {', '.join(sites)}" if sites
+                   else " (pick a numeric leaf from the list above)")
+                + " — or flag_cell the check with your best explanation "
+                "and move to the next objective.")
         return "\n".join(out)
 
     def t_plug_residual(self, args):
