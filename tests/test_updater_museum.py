@@ -904,6 +904,78 @@ class StaleDriverLeavesLaw(unittest.TestCase):
         self.assertEqual(stale, ["Model!U6"])
 
 
+class PlugChecksOnlyLaw(unittest.TestCase):
+    """run-8: the agent fed KEY cells as 'checks' and the tool zeroed CFI
+    itself, then ping-ponged components. Plugs zero SPEC CHECK ROWS only;
+    one plug per cell per run."""
+
+    def _loop(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        # two check rows sharing component U2; U5 is a key-like cell
+        ws["T1"], ws["U1"] = 100.0, 100.0
+        ws["T2"], ws["U2"] = 100.0, 20.0
+        ws["U3"], ws["T3"] = "=U1-U2", "=T1-T2"      # check: residual 80
+        ws["T6"], ws["U6"] = 50.0, 50.0
+        ws["U7"], ws["T7"] = "=U2-U6+30", "=T2-T6+50"  # second check on U2
+        ws["T5"], ws["U5"] = 900.0, -11181.0          # a key cell (CFI-like)
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3},
+                               {"sheet": "Model", "row": 7}],
+                "key_rows": [{"sheet": "Model", "row": 5,
+                              "name": "investing cash flow"}]}
+        return AgentLoop(wb, spec, 2025, _mock_ledger([]), [], {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_key_cell_as_check_refused(self):
+        loop, ws = self._loop()
+        out = loop.t_plug_residual({"check": "Model!U5", "into": "Model!U2",
+                                    "why": "test"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("not a check row", out)
+        self.assertEqual(ws["U5"].value, -11181.0)   # key untouched
+
+    def test_r_prefixed_check_ref_parses(self):
+        loop, ws = self._loop()
+        out = loop.t_plug_residual({"check": "Model!r3", "into": "Model!U2",
+                                    "why": "test"})
+        self.assertIn("PLUGGED", out)                # 'r3' == row 3
+
+    def test_second_plug_on_same_cell_refused(self):
+        loop, ws = self._loop()
+        first = loop.t_plug_residual({"check": "Model!3", "into": "Model!U2",
+                                      "why": "test"})
+        self.assertIn("PLUGGED", first)
+        second = loop.t_plug_residual({"check": "Model!7", "into": "Model!U2",
+                                       "why": "test"})
+        self.assertIn("REFUSED", second)
+        self.assertIn("already a plug site", second)
+
+
+class KeyDiagnoseForbidsPlugLaw(unittest.TestCase):
+    """run-8: key-mode diagnosis must name the legal exit (components via
+    set_input) and forbid plugging in its own output."""
+
+    def test_key_mode_output_forbids_plug(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 900.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [{"sheet": "Model", "row": 5,
+                              "name": "investing cash flow"}]}
+        targets = [_mock_target("Model", 5, "investing activities", 1000.0),
+                   _mock_target("Model", 6, "anchor", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "investing activities", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "anchor", [600.0, 480.0])])
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_diagnose_balance({"key": "investing"})
+        self.assertIn("FORBIDDEN", out)
+        self.assertIn("set_input", out)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

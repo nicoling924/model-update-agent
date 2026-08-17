@@ -68,11 +68,15 @@ and keys instead. EXCEPTION: if diagnose prints a RECLASS CANDIDATE, run
 that set_input FIRST — a found reclassification is a real answer, and it
 beats any plug.
 
-PLUG RULES (run-6): a plug never touches a disclosure-proven cell (truth
-outranks balance — the tool refuses), lands sign-aware (negative-entry
-components handled), and reverts itself if it knocks any announced value
-off the disclosure. If your plug reverts with "broke announced ties",
-the component you picked feeds a proven total — pick one outside it.
+PLUG RULES (runs 6+8): a plug zeroes a CHECK ROW and nothing else — a
+KEY (CFO/CFI/CFF, cash, totals) is NEVER a plug target: its target is
+its DISCLOSED value, and driving it to zero is corruption (the tool
+refuses non-check-row targets). A key that mismatches disclosed is
+repaired through its COMPONENTS via set_input/apply_diff. One plug per
+cell per run — a second residual pointing at the same cell means its
+cause is elsewhere. Plugs never touch disclosure-proven cells, land
+sign-aware, and revert if they knock any announced value off the
+disclosure.
 
 ADJUSTMENTS: run infer_adjustments once. Where the model's prior
 deliberately differs from print, that difference is the analyst's logic —
