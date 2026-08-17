@@ -35,7 +35,8 @@ def _model_path(company_dir, spec):
     if spec.get("model_file") and (mdir / spec["model_file"]).exists():
         return mdir / spec["model_file"]
     cands = sorted([p for p in mdir.glob("*.xls[xm]")
-                    if not p.name.startswith("~$")],
+                    if not p.name.startswith("~$")
+                    and "(pipeline" not in p.name],   # never our own output
                    key=lambda p: p.stat().st_mtime, reverse=True)
     if not cands:
         raise FileNotFoundError(f"no model workbook in {mdir}")
@@ -132,6 +133,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"({len(spec_d['year_axis'])} sheets, "
             f"{len(spec_d['check_rows'])} check rows, "
             f"{len(spec_d['key_rows'])} key rows); review lands in _SPEC tab")
+    spec_mod.extend_axis(spec_d, target_year)   # roll the axis to the
+                                                # target year where needed
     model_path = _model_path(company_dir, spec_d)
     archive = company_dir / "model-archive" / f"{model_path.stem}_{period}_pre{model_path.suffix}"
     archive.parent.mkdir(exist_ok=True)

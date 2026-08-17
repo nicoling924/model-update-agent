@@ -60,6 +60,24 @@ def load(company_dir, wb=None):
         f"reviewed step, never a runtime guess)")
 
 
+def extend_axis(spec, target_year):
+    """The analyst's roll-forward on the year axis: a sheet whose columns
+    reach the PRIOR year but not the target gets the target mapped one
+    column right (legacy specs record last_actual=prior; the pipeline
+    needs both years or it drops the sheet — measured: Raw financials
+    vanished from a cloud census and took every CN-labelled join with it)."""
+    from .evaluator import col2n, n2col
+    ty = int(target_year)
+    for sheet, axis in (spec.get("year_axis") or {}).items():
+        cols = axis.get("columns") or {}
+        if str(ty) in cols:
+            continue
+        prior = str(ty - 1)
+        if prior in cols:
+            cols[str(ty)] = n2col(col2n(cols[prior]) + 1)
+    return spec
+
+
 def read_spec_tab(wb):
     ws = wb[SPEC_SHEET]
     parts = []
