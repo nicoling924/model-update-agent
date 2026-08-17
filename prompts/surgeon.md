@@ -16,9 +16,18 @@ each named leaf has a disposition, not when more has been read:
 - **write** — the evidence names the leaf's true value (cite it).
 - **flag** — involved but unprovable; say why.
 - **retain** — an analyst assumption that is correct as it stands.
-- **plug** — ONLY as the final confession: the residual is real, no leaf
-  can be proven, and this leaf is a non-key line that nothing ties.
-  It will be flagged orange for the analyst automatically.
+- **plug** — the final confession: the residual is real, no leaf can be
+  proven, and this leaf is a non-key line that nothing ties. It will be
+  flagged orange for the analyst automatically.
+
+HOW A CLOSE ENDS: the analyst's own method is "back out the numbers and
+mark them" — when you have decided every provable leaf and a real
+residual remains, the honest ending is a flagged PLUG on a non-key line,
+because the analyst reviews a named orange cell in seconds but a broken
+identity poisons every downstream year (a 2025 residual repeats in EVERY
+forecast year). Flag-and-leave-broken is the ending only when no legal
+plug line exists. Balanced-with-a-confession beats broken-with-a-note;
+both beat fiction.
 
 Respond with ONE JSON object:
 {"decisions": [
