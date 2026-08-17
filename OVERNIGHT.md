@@ -82,3 +82,21 @@ BOSS_MINDMAP.md.
   information — one informed retry, then a reasoned flag (never silent);
   reclass logs its outcome always.
 - Run 14 carries both.
+
+## Run 14 — bell retry + reclass logging (best card of the night)
+- 98 calls; served 248 (record); flags 55 (falling); ~40 min.
+- Balance: **ONE check failing at 1.0** (2025 BS; every forecast year
+  PASS — the surgeon's three Model!95 component writes collapsed the
+  family). Segments 15/33 REPRODUCED (identical to run 13 — the islands
+  result is stable). Announced FAIL(2) = CFI/CFF; adjustments PASS.
+- Bell: two plug attempts both correctly refused by the truth-guard
+  (aimed at disclosure-proven cells) -> reasoned flag. Honest and
+  visible; the 1.0 needs a non-proven plug line the agent has not found.
+- Reclass scan ran and logged (3 announced deltas) but no twin matched —
+  the CFI/CFF deltas may no longer be a clean twin after the night's
+  writes. Needs DATA, not guesses: morning work.
+
+## Run 15 — unchanged, dispatched as a pure VARIANCE MEASUREMENT
+- The design question: is the endgame still a draw, or is the close now
+  stable? (Runs 13/14 suggest stability: 15/33 segments twice, balance
+  24->1 with the family collapsing the same way.)

@@ -1,38 +1,20 @@
 # HANDOFF — read this first
 
-**OBJECTIVES REWORKED + NEW AGENT BUILT (2026-08-17 evening).** The mindmap
-session happened: **BOSS_MINDMAP.md** is the governing objectives document
-(always deliver, no refusal/flag-budget/completion-%; restatement = the one
-pause; 4 Police laws; keys+segments over completion; champion retired).
-REBUILD.md rewritten as the constitution; TOOLSET_AUDIT.md holds
-evidence-graded keep/kill rulings on all legacy tooling; BUILD_PLAN.md the
-approved design. **`updater/` is the new package**: one agent loop owns the
-whole run (bulk stages are its TOOLS), evidence-graded writes (A-D ->
-flags automatic), self-announcing toolbox, restatement pause/resume with
-agent judging, adjustment-logic inference, Police (findings loop back,
-never auto-apply), new _REPORT (proj-vs-actual + old-vs-new forecast).
-Museums: 24 updater + 50 pipeline + 6 legacy, all green. Dry runs DELIVER
-on DFE and CLP with honest Police verdicts. Next: first live Luna run
-(`python -m updater.cli companies/DFE FY25 2025`). Everything below is the
-PRE-REWORK technical state, kept for reference.
-
-**Day-2 state:** 10 live runs total (5 local, 5 cloud). Latest cloud run
-(v10): balance residual 67 (from 4,042), 141 deterministic joins at 175/176
-measured precision, honest refusal on Driver flag budget 24% vs 15% and the
-cash-tie -11,193. Three named residuals: CF-face rows not joining despite
-evidence (autopsy next), Driver flag budget (needs an owner ruling on
-whether driver sheets share the statement sheets' 15% bar), loop budget
-exhaustion on multi-check runs. Museum: 50 exhibits green.
-
-**State (2026-08-17 overnight):** the clean rebuild is BUILT. `pipeline/`
-now holds the complete four-stage agent (fresh code, zero copied from
-`agent/`), the 40-exhibit pipeline museum is green, dry runs pass on DFE
-AND CLP with zero company-specific code, and the first live pure-Luna
-challenger run is in flight. REBUILD.md remains the constitution — it now
-also carries the **owner objectives** (2026-08-17 mandate): balance-or-
-flagged, keys correct-or-flagged, 80-90% completion (95% = Fable parity),
-the column convention, objective-based not workflow-machine, generic
-across the whole department.
+**REDESIGN NIGHT (2026-08-18): the packetized thinking agent is LIVE.**
+Read MORNING_REPORT.md for the full story. Short version: owner halted
+the patch spiral; council session #1 redesigned the unit of work
+(packets, L0/L1, compile+surgeon, method-not-laws — REDESIGN.md);
+council session #2 solved the three walls as representation problems
+(Table Islands / Closing Bell / Atomic Reclass). Five runs in: half the
+cost, zero trace-spam, balance at one 1.0 residual with all forecast
+years passing, segments writing 15/33 reproducibly with island
+citations. Open: CFI/CFF ~594 twin (reclass trigger needs data-driven
+diagnosis), the last 1.0 (bell aims at proven cells), CLP genericity
+run, EPS-class proof. Governing docs: BOSS_MINDMAP.md (objectives),
+REBUILD.md (constitution), REDESIGN.md (architecture), OVERNIGHT.md
+(run cards). Museum: 63 exhibits. Engine: pure gpt-5.6-luna.
+Owner protocol: report card -> problems -> proposal after every run; no
+symptom patches — rethink design-level, council when stuck.
 
 ## The pipeline (all in `pipeline/`, all stdlib-importable; heavy deps lazy)
 
