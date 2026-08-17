@@ -78,6 +78,7 @@ class AgentLoop:
                 ("find_line", self.t_find_line, "query"),
                 ("statement_diff", self.t_statement_diff, "query"),
                 ("diagnose_balance", self.t_diagnose_balance, "query"),
+                ("match_by_implied_prior", self.t_implied_prior, "query"),
                 ("infer_adjustments", self.t_infer_adjustments, "query"),
                 ("apply_adjustment", self.t_apply_adjustment, "write"),
                 ("apply_diff", self.t_apply_diff, "write"),
@@ -177,6 +178,26 @@ class AgentLoop:
                 "(with the search trail) for what the document lacks")
 
     # -- proven investigation tools (legacy loop bodies, guards intact) ------
+
+    def t_implied_prior(self, args):
+        """The run-103 mechanism for single-year MD&A tables (segment keys
+        law): implied_prior = current/(1+同比%) tying the model's own
+        prior. Returns CANDIDATES with citations — YOU judge each line's
+        context (a real segment/MD&A table vs prose or an unrelated
+        ratio), then set_input the ones that are genuine."""
+        cands = ops.implied_prior_candidates(
+            self.wb, self.spec, self.ty, list(self.targets.values()),
+            self.ledger, self.served, self.log.append)
+        if not cands:
+            return ("MISS: no unique implied-prior ties among the remaining "
+                    "stale rows — find_line the segment tables directly")
+        return "\n".join(
+            f"CANDIDATE {c['row']} '{c['label']}': prior {c['prior']:,.1f} "
+            f"-> {c['value']:,.1f} ({c['pct']:+.2f}%) | {c['cite'][:70]}\n"
+            f"  if the line is a genuine segment/MD&A table -> set_input "
+            f"{{\"cell\": \"{c['cell']}\", \"value\": {c['value']}, "
+            f"\"why\": \"p{c['page']}: implied-prior tie\"}}"
+            for c in cands[:10])
 
     def t_rescore(self, args):
         return summarize(self._card(), self.ty)
@@ -333,25 +354,60 @@ class AgentLoop:
 
     def t_diagnose_balance(self, args):
         """Fingerprint-first residual attribution (BUILD_PLAN §3.4) — name
-        the guilty leaves; plugging only after this list is empty."""
-        ref = str(args.get("check") or args.get("cell") or "")
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!?([A-Z]{1,3})?(\d+)$",
-                     ref.replace("$", ""))
-        if not m:
-            checks = [f"{c['sheet']}!{c['row']}"
-                      for c in self.spec.get("check_rows") or []]
-            return (f"MISS: name the check row, e.g. "
-                    f"{{\"check\": \"{checks[0] if checks else 'Model!95'}\"}}")
-        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(4))
-        col = m.group(3) or self._tcol(sheet)
-        if not col:
-            return f"MISS: no target column for sheet '{sheet}'"
-        ev = Evaluator(self.wb)
-        try:
-            residual = ev.cell(sheet, f"{col}{row}")
-        except Exception as e:
-            return f"MISS: check row does not evaluate: {e}"
-        out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
+        the guilty leaves; plugging only after this list is empty.
+
+        Also accepts {"key": "investing cash flow"} (owner keys law): the
+        residual becomes model-vs-DISCLOSED on that key's own chain — the
+        machinery then hunts the misplaced component the same way."""
+        key_q = str(args.get("key") or "").strip().lower()
+        if key_q:
+            match = next(
+                (k for k in self.spec.get("key_rows") or []
+                 if key_q in str(k.get("name", "")).lower()), None)
+            if match is None:
+                names = [k.get("name") for k in
+                         (self.spec.get("key_rows") or [])][:12]
+                return f"MISS: no key named like '{key_q}' (have: {names})"
+            sheet, row = match["sheet"], int(match["row"])
+            col = self._tcol(sheet)
+            t = self.targets.get((sheet, row))
+            got = self._diff_value(t) if t is not None else None
+            if got is None:
+                return (f"MISS: no unique disclosed value for key "
+                        f"'{match.get('name')}' — find_line it and repair "
+                        "components with set_input")
+            ev = Evaluator(self.wb)
+            try:
+                mv = ev.cell(sheet, f"{col}{row}")
+            except Exception as e:
+                return f"MISS: key does not evaluate: {e}"
+            residual = mv - got[0]
+            out = [f"KEY {match.get('name')} {sheet}!{col}{row}: model "
+                   f"{mv:,.2f} vs disclosed {got[0]:,.2f} "
+                   f"({got[1].doc} p{got[1].page}) -> residual "
+                   f"{residual:,.2f} to attribute on its own chain"]
+            if abs(residual) <= max(0.6, abs(got[0]) * 5e-3):
+                return out[0] + " — TIES, nothing to fix"
+        else:
+            ref = str(args.get("check") or args.get("cell") or "")
+            m = re.match(r"^(?:'([^']+)'|([^!]+))!?([A-Z]{1,3})?(\d+)$",
+                         ref.replace("$", ""))
+            if not m:
+                checks = [f"{c['sheet']}!{c['row']}"
+                          for c in self.spec.get("check_rows") or []]
+                return (f"MISS: name the check row, e.g. "
+                        f"{{\"check\": \"{checks[0] if checks else 'Model!95'}\"}}"
+                        " — or a key: {\"key\": \"investing cash flow\"}")
+            sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(4))
+            col = m.group(3) or self._tcol(sheet)
+            if not col:
+                return f"MISS: no target column for sheet '{sheet}'"
+            ev = Evaluator(self.wb)
+            try:
+                residual = ev.cell(sheet, f"{col}{row}")
+            except Exception as e:
+                return f"MISS: check row does not evaluate: {e}"
+            out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
         guilty = 0
         flagged_refs = set(self.writer.log["flags"])
         for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{col}{row}")):
@@ -425,6 +481,9 @@ class AgentLoop:
                             f"\"{sh}!{coord}\", \"value\": {dv:.2f}, "
                             f"\"why\": \"p{it.page}: {it.label[:30]}\"}}")
                         break
+            if not found:
+                out.append("  (reclass scan: 0 candidates — no kin line's "
+                           "delta matches the residual)")
         if guilty == 0 and len(out) == 1:
             out.append("  no leaf disagrees and no unproven suspects — "
                        "find_line the residual amount, or (worst case) "

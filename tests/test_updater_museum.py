@@ -802,6 +802,108 @@ class ReclassFinderLaw(unittest.TestCase):
         self.assertIn("Model!U1", out)
 
 
+class ImpliedPriorLaw(unittest.TestCase):
+    """Owner keys law (run-7 review): segment breakdowns must be UPDATED.
+    The run-103 mechanism, ported: implied_prior = current/(1+pct) tying
+    the model's own prior serves single-year MD&A rows."""
+
+    def _spec(self):
+        return {"year_axis": {"Driver": {"columns": {"2024": "I",
+                                                     "2025": "J"}}},
+                "check_rows": [], "key_rows": []}
+
+    def test_unique_tie_becomes_candidate(self):
+        """CANDIDATES only — never a write (measured: flat lines admit
+        prose coincidences; the agent judges, then set_inputs)."""
+        from updater import ops
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Driver"
+        ws["I6"], ws["J6"] = 28358.2, 28358.2      # stale segment row
+        t = _mock_target("Driver", 6, "clean energy equipment", 28358.2)
+        # MD&A line: current 31,780.0 with 同比+12.07% — implied ≈ prior
+        it = _mock_item("AR", 12, "clean energy equipment", [31780.0, 12.07])
+        it.source_line = "清洁高效能源装备 31,780.0 同比增长 12.07%"
+        led = _mock_ledger([it])
+        cands = ops.implied_prior_candidates(wb, self._spec(), "2025", [t],
+                                             led, {}, lambda s: None)
+        self.assertEqual(len(cands), 1)
+        self.assertAlmostEqual(cands[0]["value"], 31780.0, places=1)
+        self.assertEqual(ws["J6"].value, 28358.2)   # NOT written
+
+    def test_ambiguous_or_flat_refused(self):
+        from updater import ops
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Driver"
+        ws["I6"], ws["J6"] = 1000.0, 1000.0
+        t = _mock_target("Driver", 6, "alpha segment", 1000.0)
+        # ~0% change matches every stagnant row — must be refused
+        it = _mock_item("AR", 12, "alpha segment", [1001.0, 0.1])
+        it.source_line = "alpha segment 1,001.0 同比增长 0.1%"
+        led = _mock_ledger([it])
+        cands = ops.implied_prior_candidates(wb, self._spec(), "2025", [t],
+                                             led, {}, lambda s: None)
+        self.assertEqual(cands, [])
+        self.assertEqual(ws["J6"].value, 1000.0)
+
+    def test_non_change_percents_refused(self):
+        """The measured coincidence classes: an ownership stake (2.41%) and
+        an FX-sensitivity percent must never act as a 同比."""
+        from updater import ops
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Driver"
+        ws["I6"], ws["J6"] = 44258.0, 44258.0
+        t = _mock_target("Driver", 6, "production", 44258.0)
+        it = _mock_item("AR", 68, "associate", [60000.0, 2.41, 45338.1])
+        it.source_line = "联营企业 60,000.00 2.41% 45,338.1"   # no 同比/增减
+        led = _mock_ledger([it])
+        cands = ops.implied_prior_candidates(wb, self._spec(), "2025", [t],
+                                             led, {}, lambda s: None)
+        self.assertEqual(cands, [])
+
+
+class KeysNotExcusedByFlagsLaw(unittest.TestCase):
+    """Owner keys law: a key with known disclosed evidence must TIE — a
+    red flag no longer counts as passing."""
+
+    def test_flagged_mismatch_still_fails(self):
+        from updater.police import verify
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 900.0     # disclosed says 1,200
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [{"sheet": "Model", "row": 5,
+                              "name": "investing cash flow"}]}
+        targets = [_mock_target("Model", 5, "investing activities", 1000.0),
+                   _mock_target("Model", 6, "anchor", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "investing activities", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "anchor", [600.0, 480.0])])
+        out = verify(wb, spec, "2025", led, targets, {}, EvidenceBook(),
+                     {"flags": ["Model!U5"]})     # flagged — and still FAIL
+        self.assertIn("FAIL", out["laws"]["4_keys"])
+        self.assertIn("FAIL", out["laws"]["1_announced"])
+
+
+class StaleDriverLeavesLaw(unittest.TestCase):
+    """Owner keys law: segment leaves feeding revenue/GP still holding
+    exactly their prior value are stale and fail law 4."""
+
+    def test_stale_leaf_detected(self):
+        from updater.police import _stale_driver_leaves
+        wb, ws = _wb()
+        ws["U4"] = "=U6+U7"
+        ws["T6"], ws["U6"] = 28358.2, 28358.2     # stale segment leaf
+        ws["T7"], ws["U7"] = 7258.0, 8100.0       # updated leaf
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [{"sheet": "Model", "row": 4, "name": "revenue"}]}
+        stale = _stale_driver_leaves(wb, spec, "2025")
+        self.assertEqual(stale, ["Model!U6"])
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

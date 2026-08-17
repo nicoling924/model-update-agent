@@ -105,23 +105,41 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
                                                       abs(dv) * 5e-3):
                 proven += 1
                 continue
-            if ref not in flags:
-                mism.append(f"{name}: model "
-                            f"{mv if isinstance(mv, (int, float)) else '?'} "
-                            f"vs disclosed {dv:,.2f} "
-                            f"({got[1].doc} p{got[1].page})")
+            # OWNER KEYS LAW (run-7 review): a flag does NOT excuse a key —
+            # a key with known disclosed evidence must TIE, full stop.
+            mism.append(f"{name}: model "
+                        f"{mv if isinstance(mv, (int, float)) else '?'} "
+                        f"vs disclosed {dv:,.2f} "
+                        f"({got[1].doc} p{got[1].page})")
+            continue
+        # per-share fallback (the EPS class): small values tie every scale
+        # so the prior-identity oracle refuses them — but the VALUE printed
+        # on a kin face line IS announced data (EPS 1.15 is on the income
+        # statement). Cent-tolerance direct match = proven.
+        if isinstance(mv, (int, float)) and _value_match(ledger, t, mv):
+            proven += 1
             continue
         if ref not in flags and isinstance(mv, (int, float)):
             unverified.append(name)
     out["laws"]["1_announced"] = "PASS" if not mism else f"FAIL ({len(mism)})"
     out["findings"] += [f"announced: {m}" for m in mism[:10]]
+    # OWNER KEYS LAW: segment/driver leaves (the hardcodes feeding the
+    # revenue / gross-profit keys) must be UPDATED — a leaf still holding
+    # exactly its prior value is stale, and stale segment keys fail law 4.
+    stale_leaves = _stale_driver_leaves(wb, spec, ty)
     if spec.get("key_rows"):        # empty list keeps the NO-KEY-ROWS verdict
+        ok4 = not mism and not unverified and not stale_leaves
         out["laws"]["4_keys"] = (
-            f"PASS ({proven} evidence-proven)" if not mism and not unverified
-            else f"FAIL ({len(mism)} mismatch, {len(unverified)} "
-                 f"unverified-unflagged)")
+            f"PASS ({proven} evidence-proven)" if ok4
+            else (f"FAIL ({len(mism)} mismatch, {len(unverified)} "
+                  f"unverified-unflagged, {len(stale_leaves)} driver "
+                  f"leaves stale)"))
         out["findings"] += [f"key unverified+unflagged (prove or flag): {n}"
                             for n in unverified[:8]]
+        out["findings"] += [
+            f"segment/driver leaf STALE (owner keys law — update it: "
+            f"match_by_implied_prior / MD&A / find_line): {s}"
+            for s in stale_leaves[:8]]
 
     # Law 2 — adjustments: every replicated adjustment still holds its
     # replicated value (the book remembers what the agent applied).
@@ -138,6 +156,74 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
     out["laws"]["2_adjustments"] = ("PASS" if not adj_bad
                                     else f"FAIL ({len(adj_bad)})")
     out["findings"] += [f"adjustment: {a}" for a in adj_bad[:6]]
+    return out
+
+
+def _value_match(ledger, t, mv):
+    """Direct printed-value proof for rows the prior-identity oracle cannot
+    uniquely tie (the per-share world): a label-kin line on a current-doc
+    face printing mv at cent tolerance."""
+    from .numerics import kinship
+    tol = max(0.01, abs(mv) * 2e-3)
+    prior_docs = ledger.prior_period_docs()
+    for it in ledger.items:
+        if it.doc in prior_docs or not it.joinable():
+            continue
+        if ledger.face(it.doc, it.page) is None:
+            continue
+        if not kinship(t.label, it.label):
+            continue
+        if any(abs(abs(n) - abs(mv)) <= tol for n in it.nums):
+            return True
+    return False
+
+
+def _stale_driver_leaves(wb, spec, ty, max_leaves=400):
+    """Leaves of the revenue / gross-profit key rows still holding EXACTLY
+    their prior value — the segment breakdowns the owner requires updated."""
+    import re as _re
+    from .checks import prior_column
+    out, seen = [], set()
+
+    def leaves(sheet, coord, depth=0):
+        if depth > 6 or (sheet, coord) in seen or len(seen) > max_leaves:
+            return []
+        seen.add((sheet, coord))
+        v = wb[sheet][coord].value if sheet in wb.sheetnames else None
+        if isinstance(v, (int, float)):
+            return [(sheet, coord)]
+        if not isinstance(v, str) or not v.startswith("="):
+            return []
+        acc = []
+        for sh2, sh3, c2, r2 in _re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                v.replace("$", "")):
+            sh = (sh2 or sh3 or sheet).strip()
+            if sh in wb.sheetnames:
+                acc += leaves(sh, f"{c2}{r2}", depth + 1)
+        return acc
+
+    for k in spec.get("key_rows") or []:
+        name = str(k.get("name", "")).lower()
+        if not any(w in name for w in ("revenue", "sales", "gross")):
+            continue
+        sheet = k["sheet"]
+        tcol = year_columns(spec, sheet).get(ty)
+        if not tcol or sheet not in wb.sheetnames:
+            continue
+        for (sh, coord) in dict.fromkeys(
+                leaves(sheet, f"{tcol}{int(k['row'])}")):
+            m = _re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+            if not m or m.group(1) != year_columns(spec, sh).get(ty):
+                continue
+            pcol = prior_column(spec, sh, ty)
+            if not pcol:
+                continue
+            cur = wb[sh][coord].value
+            pv = wb[sh][f"{pcol}{m.group(2)}"].value
+            if isinstance(cur, (int, float)) and isinstance(pv, (int, float)) \
+                    and cur == pv and abs(cur) > 1.0:
+                out.append(f"{sh}!{coord}")
     return out
 
 

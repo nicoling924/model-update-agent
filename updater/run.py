@@ -167,6 +167,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         log(f"[run] agent: {loop_summary[:150]}")
         served = loop.served
         # -- POLICE cycles: verdict -> findings -> agent fixes -> re-verdict
+        seen_findings = set()
         for cycle in range(police_mod.POLICE_CYCLES):
             verdict = police_mod.verify(wb, spec_d, target_year, ledger,
                                         targets, served, book, writer.log)
@@ -174,18 +175,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             findings += police_mod.llm_review(client, verdict, wb, spec_d,
                                               target_year, book, writer.log,
                                               log)
-            open_findings = [f for f in findings if f]
+            open_findings = [f for f in findings
+                             if f and f not in seen_findings]
+            seen_findings.update(open_findings)
             if not open_findings:
                 break
             log(f"[run] police cycle {cycle + 1}: "
                 f"{len(open_findings)} findings -> agent")
             loop.budget = max(loop.budget, 20)
             loop_summary = loop.run(extra_objectives=open_findings[:10])
-        # -- STRUCTURAL HONESTY (run-2 owner review: segment rows stayed
-        # stale-and-unflagged because the agent skipped sweep_stale, and
-        # failing balance checks shipped unmarked). Honesty is CODE, never
-        # an agent choice: every unserved rolled hardcode is flagged, every
-        # still-failing check cell is marked, before the final verdict.
+        # -- STRUCTURAL HONESTY (run-2 owner review): every unserved rolled
+        # hardcode is flagged, every still-failing check cell marked.
+        # Honesty is CODE, never an agent choice.
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
                        book, run_log.append)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,
@@ -205,6 +206,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
+        ops.implied_prior_candidates(wb, spec_d, target_year, targets,
+                                     ledger, served, run_log.append)
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
                        book, run_log.append)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,
