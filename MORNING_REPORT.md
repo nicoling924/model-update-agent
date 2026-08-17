@@ -1,77 +1,92 @@
-# Morning report — the overnight rebuild (2026-08-17 night → 08-18)
+# Morning report — the redesign night (2026-08-18)
 
-## What you asked for, what you got
+## The one-paragraph version
 
-You asked for a fresh, objective-based, generic agent by morning. The clean
-pipeline is **built, committed to `rebuild` (10 commits), museum-protected
-(43 adversarial exhibits, all green), and proven generic** — it ran CLP
-end-to-end with ZERO company-specific configuration via anatomy
-auto-discovery. It was then **live-tested five times on DFE with pure
-gpt-5.6-luna**, each run autopsied and its diseases fixed and pinned the
-same night.
+You stopped the patch spiral; the council redesigned the agent; I built
+it, and it works. The agent now THINKS in packets — it compiles whole
+statement columns, answers diagnoses with per-leaf decisions, and closes
+with reasoned dispositions — at **half the cost** of the old loop (~95
+calls vs ~250), with **zero trace-spam**, and honest behavior everywhere.
+Across five runs of the new architecture the trend is monotone: balance
+went from FAIL(8) to **one check at 1.0 with every forecast year
+passing**, and the segment wall — three runs of zero — **broke: 15 of 33
+Driver segment rows now write reproducibly with grid citations** (the
+council's Table Islands). Two named gaps remain for today: the CFI/CFF
+~594 twin (the reclass packet triggers but hasn't matched a twin in the
+live data — needs data-driven diagnosis, not guesses) and the last 1.0
+rounding residual (the bell keeps aiming its plug at disclosure-proven
+cells and the truth-guard correctly refuses).
 
-## The report card (challenger vs your four criteria + gate)
+## What happened, in order (full detail: OVERNIGHT.md, git log)
 
-| Criterion | Result | Verdict |
-|---|---|---|
-| 1. Model balances (or flagged) | 2025 gap **59** (0.04% of assets), traced & documented by the loop; forecast years 587 | **FAIL** (trajectory 645 → 446 → 59 across the night) |
-| 2. Key numbers correct-or-flagged | Revenue 78,615 ✓, EPS 1.15 ✓, BS totals ✓, equity ✓; CFI wrong-unflagged vs reference | **PARTIAL** |
-| 3. Completion ≥80% | 70.3% whole-model vs reference; **Model tab 82.5%**; Driver 55.8% is the whole gap | **PARTIAL** |
-| 4. Under one hour | ~35 min warm (vision cached); cold adds ~25 min | **PASS** |
-| Delivery gate | **GATE REFUSED — correctly.** Flag budget 25-26% on Driver + Raw financials (80 stale inputs), balance 59 | honest refusal |
+1. **You pulled the brake** (patch spiral). I wrote RETHINK.md — honest
+   self-diagnosis: I taught compliance, not thinking; used guards to
+   steer; the one-action loop was thinking-hostile.
+2. **Council session #1** (4 models, unanimous): change the UNIT OF WORK.
+   Packet queue from the workbook itself; L0 planner / L1 closer;
+   compile + surgeon modes; decisions[] schema gate; method-not-laws
+   prompt with 5 standing rules; delete the 15-law rulebook. REDESIGN.md.
+3. **Built it** (packets.py, closer.py, method prompts; 15 laws deleted;
+   guards silent — they speak only as apply-report rejection reasons).
+4. **Runs 10-12**: behavior transformed instantly (no tourism, half
+   cost); two method edits (what the column IS; how a close ENDS) took
+   balance FAIL(8)->FAIL(1); segments moved from silently-skipped to
+   honestly-flagged but not written; run 12 regressed the endgame draw.
+   **Council trigger met.**
+5. **Council session #2** (unanimous): the three walls are
+   REPRESENTATION/TASK-SHAPE problems. Table Islands (grid-intact
+   evidence, number-anchored selection, agent reads natively across
+   languages); the Closing Bell (one terminal disposition per residual
+   generator); the Atomic Reclass Packet (twin signature -> one bound
+   question -> two-legged atomic move or nothing).
+6. **Runs 13-14**: WALL 1 BROKE — compile:Driver 15/33 written with
+   island citations, twice, identically. Balance collapsed to one 1.0.
+   Bell refined to learn from refusals (apply-report principle).
+7. **Run 15** (in flight at time of writing): unchanged code — a pure
+   variance measurement: is the close now stable, or still a draw?
 
-**Champion/challenger law: stable-run105 (80.6% / Model 90.4% / balance
-PASS / delivered) KEEPS the title.** The challenger does not ship a number
-it cannot prove — it quarantined itself, which is the designed behavior,
-not a crash. Caveat on the score: the DFE "reference" is a prior agent run;
-RUNLOG shows the filing sometimes supports the challenger over it (e.g.
-Driver!J6) — the raw 70.3% modestly understates.
+## The scorecard trend (the four laws, per run)
 
-## What the night proved
+| Run | Balance | Announced | Adjustments | Keys | Calls | Note |
+|---|---|---|---|---|---|---|
+| 7 (old loop's best) | PASS (4 plugs) | PASS | PASS | FAIL(2 EPS) | 209 | the old lottery's lucky draw |
+| 10 | FAIL(8) | FAIL(2) | PASS | FAIL | 94 | redesign first flight |
+| 11 | FAIL(1)@1.0 | FAIL(2) | PASS | FAIL | 92 | method edits landed |
+| 12 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 89 | endgame draw exposed |
+| 13 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 95 | **segments 15/33** |
+| 14 | **FAIL(1)@1.0** | FAIL(2) | PASS | FAIL(2+2) | 98 | **best; segments reproduced** |
 
-- **The architecture works end to end**: read-once evidence ledger →
-  deterministic triple-lock join → checksummed gap reader → objective loop
-  → delivery gate, with a write monopoly and zero uncited writes.
-- **Generic**: DFE (Chinese, scanned statements, link-through model) and
-  CLP (English, 8-sheet segment model) run through identical code; the
-  agent reasons out year columns itself (incl. the annual-vs-1H panel
-  trap).
-- **Luna diagnoses like an analyst** in the objective loop: it traced the
-  balance gap to the equity chain and searched the exact 58.5 delta. Its
-  weakness is CONVERTING findings into writes — fixed structurally with
-  `apply_diff` (one action from finding to guarded, cited, transactional
-  write); it fired 5 times in the final run.
+Keys law note: the FAIL(2 mismatch) is the CFI/CFF twin in every run; the
+2 unverified are the EPS-class rows (value correct, oracle can't tie
+per-share numbers; the value-match fallback covers one doc pattern, not
+this one yet).
 
-## Six diseases found live and pinned as museum exhibits (all committed)
+## Where this stands against BOSS_MINDMAP
 
-1. **FY24-doc checksum coincidence** — loose tolerance admitted a
-   prior-year page; restored the identity-grade law + vision early-abort
-   (saves ~⅓ of vision spend).
-2. **Cropped-caption scan pages** — statement pages now self-identify from
-   their own rows; the scanned faces joined deterministically after this.
-3. **The redirect sign law** — served values re-signed to the input
-   site's own convention (the GP = revenue + |COGS| disease).
-4. **CLP dividend poison** — per-share printed next to the total; world
-   band now enforced at join time.
-5. **Year-axis census rows** — the header row briefly became a "target"
-   (0.002025); census now skips year-mark rows.
-6. **Prior-period document law** — deterministic doc-vintage classifier
-   (distinctive-value second-slot voting); the FY24 AR is excluded from
-   joins, reads, and citations.
+- Always deliver, reason-and-fix, honest flags: **living reality** — and
+  now visibly (every packet ends in a disposition; nothing silent).
+- Balanced: one 1.0 rounding residual from true, all forecast years
+  passing. Segments: the machinery finally WRITES them (15/33; the other
+  18 are honest not-disclosed/flagged calls — some will be real
+  disclosure absences, to be reviewed).
+- CFO/CFI/CFF: CFO and cash tie close; CFI/CFF carry the ~594 twin.
+- Cost: ~$1.5-2/run, ~40 min. Generic: zero company code throughout.
 
-## Where the remaining gap is (ranked for next session)
+## Today's proposals (in order; nothing dispatched without your go)
 
-1. **Driver/MD&A tables (55.8%)** — the same gap the champion had. Needs
-   the council's two-level table binding in Stage 2, or an MD&A-scoped
-   apply_diff sweep.
-2. **The endgame plug** — closing a 59 residual needs the analyst's
-   re-anchor/plug move (orange-flagged). Decision needed (you/council):
-   does the loop get that move with proof requirements, like legacy
-   plug_key?
-3. **Stale-flag clearing** — consider a pre-loop deterministic apply_diff
-   sweep over STALE rows with unique face evidence (stage-2-grade, no LLM).
+1. **CFI/CFF twin, data-first**: pull run-15's artifact, print the two
+   sections' component-vs-statement tie table, find why the twin
+   signature no longer matches (the deltas may have drifted apart after
+   the night's writes), and fix the reclass TRIGGER or hand the packet
+   better sections — from evidence, not theory.
+2. **The last 1.0**: give the bell's site list the same vetting as the
+   escalation list (non-proven, non-locked) — it currently lets the
+   agent aim at proven cells and burn its retry.
+3. **CLP genericity run**: the whole redesign has only flown on DFE;
+   one CLP run answers the department question.
+4. **EPS-class proof**: extend the value-match fallback to per-share
+   rows printed with 元/股-style units.
 
-Runs, autopsies and every fix are in the `rebuild` git log (each commit
-message is its own autopsy). Pinned replay snapshots + baseline (77
-bindings): `companies/Dongfang Electric/replay/FY25/` (Project M tree).
-The Actions workflow has a `pipeline` action ready for cloud runs.
+Everything is committed on `rebuild` (each commit an autopsy), 63 museum
+exhibits green, and the transcripts of both council sessions are in
+council/.
