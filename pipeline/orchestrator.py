@@ -222,41 +222,12 @@ class ObjectiveLoop:
                     break
         return "\n".join(out[:40]) or f"no diffs: {stmt} lines tie the model"
 
-    def _pool_scales(self):
-        if getattr(self, "_scales_cache", None) is None:
-            from .stage2_join import ratify_page_scales
-            priors = [x.prior_value for x in self.targets.values()
-                      if isinstance(x.prior_value, (int, float))]
-            pool = self.ledger.join_pool()
-            self._scales_cache = (pool, ratify_page_scales(pool, priors))
-        return self._scales_cache
-
     def _diff_value(self, t):
-        """The disclosed value for one target row, by prior identity on a
-        ratified current-doc face page — Stage-2-grade evidence, computed
-        fresh. -> (value, item, scale) or None. Single agreeing candidate
-        in the row's world, or nothing."""
-        from .stage2_join import _tying_pairs, _in_world
-        pv = t.prior_value
-        if not isinstance(pv, (int, float)) or pv == 0:
-            return None
-        pool, scales = self._pool_scales()
-        tol = row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
-        cands = []
-        for it in pool:
-            s = scales.get((it.doc, it.page))
-            if s is None:
-                continue
-            ns = [to_model_units(n, s) for n in it.nums]
-            prs = _tying_pairs(ns, pv, tol)
-            if len(prs) == 1 and _in_world(prs[0][0], pv):
-                cands.append((prs[0][0], it, s))
-        if not cands:
-            return None
-        vals = [v for v, _i, _s in cands]
-        if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
-            return None
-        return cands[0]
+        """The disclosed value for one target row — the shared evidence
+        oracle (single agreeing in-world prior-identity candidate on a
+        ratified current-doc face, or nothing)."""
+        from .stage2_join import unique_evidence_value
+        return unique_evidence_value(self.ledger, list(self.targets.values()), t)
 
     def _leaf_inputs(self, sheet, coord, depth=0, seen=None):
         """The leaf INPUT cells under a target-year formula cell: follow

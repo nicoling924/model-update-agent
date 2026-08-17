@@ -52,7 +52,8 @@ import bisect
 from collections import defaultdict
 from dataclasses import dataclass, asdict, field
 
-from .numerics import STOPWORDS, norm_label, row_tol, to_model_units, SCALES
+from .numerics import (CJK_STRUCTURAL, STOPWORDS, norm_label, row_tol,
+                       to_model_units, SCALES)
 
 
 def _words(norm):
@@ -73,6 +74,8 @@ def _kin_fast(a, b):
     if wa and wb:
         return bool(wa & wb)
     if len(sa) < 2 or len(sb) < 2:
+        return False
+    if sa in CJK_STRUCTURAL or sb in CJK_STRUCTURAL:
         return False
     return sa in sb or sb in sa
 
@@ -262,7 +265,7 @@ def join(ledger, targets, log=None):
                 continue                   # per-share-next-to-total class
             cands.append((prs[0][0], it, s))
         if not cands:
-            continue                       # unbound -> Stage 3
+            continue                       # unbound -> Stage 3 (or tier 2)
         if len(cands) > MAX_CANDS:
             decisions.append(JoinDecision(
                 t.sheet, t.row, "ambiguous",
@@ -308,6 +311,66 @@ def join(ledger, targets, log=None):
             d.status, d.value = "twin_dropped", None
             d.note += " — twin: another row tied the same item; neither joins"
     n_main = len(served)
+
+    # TIER 2 — identity without a name, WITH page affinity: the model's
+    # labels are routinely in another language than the filing, so kinship
+    # starves whole sheets. An identity-grade tie (0.6 / 0.05%) may serve a
+    # row ONLY from a page that already tier-1-serves >= 2 rows of the SAME
+    # model sheet (the statement's own page vouches for its sheet — the
+    # bound-table law on faces). Lone singletons anywhere measured 4 wrong
+    # writes; a mass world-tolerance oracle measured 15. Aggregates only,
+    # one agreeing value, twins dropped.
+    page_sheet_serves = defaultdict(int)
+    for (sh, _rw), (doc, pg, _pos, _pv) in prov.items():
+        page_sheet_serves[(doc, pg, sh)] += 1
+    twins2 = defaultdict(list)
+    for t in targets:
+        pv = t.prior_value
+        if (t.key in served or t.is_backout
+                or not isinstance(pv, (int, float)) or abs(pv) < 100):
+            continue
+        tol_id = max(0.6, abs(pv) * 5e-4)
+        cands = []
+        for it, s, ns, _k in pool_pre:
+            if page_sheet_serves[(it.doc, it.page, t.sheet)] < 2:
+                continue
+            if norm_label(it.label).replace(" ", "") in CJK_STRUCTURAL:
+                continue    # a bare structural word is a position, not a line
+            prs = _tying_pairs(ns, pv, tol_id)
+            if len(prs) != 1 or _is_elimination_line(ns, tol_id):
+                continue
+            if not _in_world(prs[0][0], pv):
+                continue
+            cands.append((prs[0][0], it, s))
+        if not cands or len(cands) > MAX_CANDS:
+            continue
+        if len({round(v, 2) for v, _i, _s in cands}) != 1:
+            continue
+        sv, it, s = cands[0]
+        if sv == 0:
+            continue
+        served[t.key] = {
+            "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
+            "line": it.label[:60], "conf": CONF_JOINED,
+            "note": (f"stage-2 tier-2 join: identity-grade prior tie "
+                     f"{pv:,.2f} by '{it.label[:36]}' on a page serving "
+                     f"{page_sheet_serves[(it.doc, it.page, t.sheet)]} rows "
+                     f"of this sheet ({it.doc} p{it.page})")}
+        prov[t.key] = (it.doc, it.page, (it.table_id, it.row_ord), pv)
+        twins2[(it.doc, it.page, it.label, round(sv, 2))].append(t.key)
+        decisions.append(JoinDecision(
+            t.sheet, t.row, "accepted", value=sv, item_id=it.item_id,
+            doc=it.doc, page=it.page, scale=s,
+            gates=["face_authority", "block_scale", "prior_identity_exact",
+                   "page_affinity", "agreement"],
+            note=f"tier-2: prior {pv:,.2f} tied by '{it.label[:36]}'"))
+    for _ident, keys in twins2.items():
+        if len(keys) > 1:
+            for k in keys:
+                if served.pop(k, None) is not None:
+                    prov.pop(k, None)
+                    dropped.add(k)
+    n_tier2 = len(served) - n_main
 
     # SIBLING-POSITION pass (measured 13/13): an unjoined row strictly
     # between two joined rows binds to the SOLE tying item positioned
@@ -364,7 +427,8 @@ def join(ledger, targets, log=None):
                         note=f"prior {pv:,.2f} tied between joined neighbours"))
 
     log.append(f"stage-2: {n_main} rows joined deterministically, "
-               f"+{len(served) - n_main} by sibling position, "
+               f"+{n_tier2} tier-2, "
+               f"+{len(served) - n_main - n_tier2} by sibling position, "
                f"{len(dropped)} twin-dropped")
     return served, decisions
 
@@ -473,6 +537,8 @@ def join_bound_tables(ledger, targets, served, log=None):
         cands = []
         for key, (s, k0) in bound.get(t.sheet, {}).items():
             for it in by_table[key]:
+                if norm_label(it.label).replace(" ", "") in CJK_STRUCTURAL:
+                    continue
                 ns = [to_model_units(n, s) for n in it.nums]
                 # the prior must tie at exactly ONE slot in the prior
                 # block; the current is the mirrored slot (k - k0)
@@ -525,6 +591,61 @@ def join_bound_tables(ledger, targets, served, log=None):
     log.append(f"stage-2.5: {len(bound)} tables bound, {len(out)} rows "
                f"joined, {dropped} twin-dropped")
     return out, decisions
+
+
+def unique_evidence_value(ledger, targets, t, _cache={}):
+    """The disclosed value for one target row by prior identity on a
+    ratified current-doc face page — the loop's and the sweep's shared
+    evidence oracle. -> (value, item, scale) or None: single agreeing
+    in-world candidate, or nothing."""
+    ck = id(ledger)
+    if _cache.get("key") != ck:
+        priors = [x.prior_value for x in targets
+                  if isinstance(x.prior_value, (int, float))]
+        pool = ledger.join_pool()
+        _cache.update(key=ck, pool=pool,
+                      scales=ratify_page_scales(pool, priors))
+    pv = t.prior_value
+    if not isinstance(pv, (int, float)) or pv == 0:
+        return None
+    tol = max(0.6, abs(pv) * 5e-4)   # identity grade — world tolerance
+                                     # measured coincidence-prone here
+    cands = []
+    for it in _cache["pool"]:
+        s = _cache["scales"].get((it.doc, it.page))
+        if s is None:
+            continue
+        ns = [to_model_units(n, s) for n in it.nums]
+        prs = _tying_pairs(ns, pv, tol)
+        if len(prs) == 1 and _in_world(prs[0][0], pv):
+            cands.append((prs[0][0], it, s))
+    if not cands:
+        return None
+    vals = [v for v, _i, _s in cands]
+    if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
+        return None
+    return cands[0]
+
+
+def infer_composition(wb, sheet, row, pcol, tcol, max_terms=8):
+    """A stale COMBINED row (应收票据及应收账款-class) whose prior equals the
+    SUM of the priors of the rows directly beneath it is a composition the
+    analyst designed — its current is the same sum, written as a FORMULA
+    (house law: back-outs are formulas, never hardcodes) and flagged
+    orange. -> '=SUM(Uj:Uk)' or None. Identity-grade prior match only."""
+    ws = wb[sheet]
+    base = ws[f"{pcol}{row}"].value
+    if not isinstance(base, (int, float)) or base == 0:
+        return None
+    acc = 0.0
+    for k in range(row + 1, row + 1 + max_terms):
+        v = ws[f"{pcol}{k}"].value
+        if not isinstance(v, (int, float)):
+            break
+        acc += v
+        if k > row + 1 and abs(acc - base) <= max(0.6, abs(base) * 5e-4):
+            return f"=SUM({tcol}{row + 1}:{tcol}{k})"
+    return None
 
 
 def decisions_to_json(decisions):
