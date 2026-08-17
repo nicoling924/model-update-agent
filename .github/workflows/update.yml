@@ -46,7 +46,23 @@ jobs:
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
         run: |
-          if [ "${{ inputs.action || 'chain' }}" = "pipeline" ]; then
+          if [ "${{ inputs.action || 'chain' }}" = "updater" ]; then
+            # THE NEW AGENT (objectives rework 2026-08-17): one loop owns the
+            # run, always delivers, 4 Police laws. Exit 3 = PAUSED for the
+            # analyst (restatement question in updates/ — answer and re-run);
+            # surfaced as success-with-notice, not a failure.
+            YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
+            set +e
+            python -m updater.cli "companies/${{ inputs.company }}" \
+              "${{ inputs.period }}" "20${YY}"
+            code=$?
+            set -e
+            if [ "$code" = "3" ]; then
+              echo "::notice::PAUSED for analyst (restatement question uploaded in artifacts under updates/)"
+            elif [ "$code" != "0" ]; then
+              exit "$code"
+            fi
+          elif [ "${{ inputs.action || 'chain' }}" = "pipeline" ]; then
             # THE CLEAN PIPELINE (rebuild branch): stages 1-4 + delivery gate.
             # Target year derived from the period (FY25 -> 2025).
             YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
