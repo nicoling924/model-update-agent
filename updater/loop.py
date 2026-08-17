@@ -402,6 +402,9 @@ class AgentLoop:
                     continue
                 if (sh, int(mm.group(2))) in keys:
                     continue
+                if f"{sh}!{coord}" in self.writer.locked:
+                    continue        # proven cells refuse writes — never
+                                    # send the agent at a locked site (r4)
                 if isinstance(self.wb[sh][coord].value, (int, float)):
                     sites.append(f"{sh}!{coord}")
                 if len(sites) >= 5:
@@ -428,7 +431,10 @@ class AgentLoop:
         if "GUILTY" in diag:
             return ("REFUSED: evidence-based fixes remain — plug only after "
                     "these are applied or ruled out:\n" + diag)
-        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", check.replace("$", ""))
+        # column-qualified check refs are legal (run-4: two plugs died on
+        # 'Model!U95' vs 'Model!95' — a format, not a mistake)
+        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?[A-Z]{0,3}(\d+)$",
+                      check.replace("$", ""))
         mi = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
                       into.replace("$", ""))
         if not mc or not mi:
