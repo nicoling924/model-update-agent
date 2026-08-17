@@ -1,5 +1,19 @@
 # HANDOFF — read this first
 
+**OWNER DIRECTION (2026-08-17, end of session): the agent OBJECTIVE is being
+reworked from scratch — the owner will open a new session starting from a
+MINDMAP discussion of objectives before any further building. Treat
+everything below as the technical state inherited by that discussion, not
+as a work queue.**
+
+**Day-2 state:** 10 live runs total (5 local, 5 cloud). Latest cloud run
+(v10): balance residual 67 (from 4,042), 141 deterministic joins at 175/176
+measured precision, honest refusal on Driver flag budget 24% vs 15% and the
+cash-tie -11,193. Three named residuals: CF-face rows not joining despite
+evidence (autopsy next), Driver flag budget (needs an owner ruling on
+whether driver sheets share the statement sheets' 15% bar), loop budget
+exhaustion on multi-check runs. Museum: 50 exhibits green.
+
 **State (2026-08-17 overnight):** the clean rebuild is BUILT. `pipeline/`
 now holds the complete four-stage agent (fresh code, zero copied from
 `agent/`), the 40-exhibit pipeline museum is green, dry runs pass on DFE
