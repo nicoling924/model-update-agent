@@ -90,6 +90,38 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                 spec_d[part] = found.get(part) or []
                 log(f"[run] spec had no {part} — supplemented "
                     f"{len(spec_d[part])} from discovery")
+        # CROSS-SHEET PRIOR CONSISTENCY (run-2 autopsy: label-matching put
+        # 'total liabilities' on a 9,954 note row when the real figure is
+        # ~114,500). The same consolidated key must hold ≈ the same prior
+        # on every sheet: keys whose prior deviates >20% from the same-name
+        # key's median prior across sheets are dropped as mismapped.
+        from .checks import prior_column as _pc, year_columns as _yc
+        wbv = load(_model_path(company_dir, spec_d), data_only=True)
+        by_name = {}
+        for k in spec_d.get("key_rows") or []:
+            pcol = _pc(spec_d, k["sheet"], target_year)
+            if not pcol or k["sheet"] not in wbv.sheetnames:
+                continue
+            v = wbv[k["sheet"]][f"{pcol}{int(k['row'])}"].value
+            if isinstance(v, (int, float)) and v != 0:
+                by_name.setdefault(k.get("name", ""), []).append((k, v))
+        keep, dropped = [], []
+        for name, rows in by_name.items():
+            vals = sorted(abs(v) for _k, v in rows)
+            med = vals[len(vals) // 2]
+            for k, v in rows:
+                if len(rows) >= 2 and med and abs(abs(v) - med) / med > 0.2:
+                    dropped.append(f"{k['sheet']}!{k['row']} ({name}: "
+                                   f"{v:,.0f} vs median {med:,.0f})")
+                else:
+                    keep.append(k)
+        named = {id(k) for k in keep}
+        spec_d["key_rows"] = [k for k in spec_d.get("key_rows") or []
+                              if not by_name.get(k.get("name", ""))
+                              or id(k) in named]
+        if dropped:
+            log(f"[run] dropped {len(dropped)} mismapped discovered keys: "
+                + "; ".join(dropped[:5]))
 
     model_path = _model_path(company_dir, spec_d)
     archive = (company_dir / "model-archive"

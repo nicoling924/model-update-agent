@@ -534,9 +534,15 @@ class AgentLoop:
             return (f"MISS: cell ref '{ref}' unparseable — "
                     "{\"cell\": \"Sheet!U49\", \"value\": ..., \"why\": "
                     "\"p102: ...\"}")
-        if not re.search(r"p(?:age)?\.?\s*\d+", why, re.IGNORECASE):
+        # a citation is a disclosure page OR a proven workbook cell (run-2
+        # autopsy: the agent found the cash-tie fix and cited the statement
+        # cell 'Raw financials!U243' — internal-reconciliation cites are
+        # legitimate; only citation-free writes are refused)
+        if not re.search(r"p(?:age)?\.?\s*\d+", why, re.IGNORECASE) \
+                and not re.search(r"![A-Z]{1,3}\d+", why):
             return ("REFUSED: 'why' must cite the disclosure page "
-                    "(e.g. 'p102: ...') — no citation, no write")
+                    "(e.g. 'p102: ...') or a proven workbook cell "
+                    "(e.g. 'ties Raw financials!U243') — no citation, no write")
         try:
             value = float(args.get("value"))
         except (TypeError, ValueError):
