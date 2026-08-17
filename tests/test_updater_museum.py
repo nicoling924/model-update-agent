@@ -554,6 +554,77 @@ class KeysOracleLaw(unittest.TestCase):
         self.assertIn("PASS", out["laws"]["4_keys"])
 
 
+class BalancedOrMarkedLaw(unittest.TestCase):
+    """Owner review of run 2: the model shipped unbalanced with unmarked
+    check cells. Any still-failing check is red-flagged by CODE."""
+
+    def test_failing_check_gets_flagged(self):
+        from updater import ops
+        from updater.evidence import EvidenceBook
+        wb, ws = _wb()
+        ws["U1"], ws["U2"] = 100.0, 60.0
+        ws["U3"] = "=U1-U2"                       # check row, residual 40
+        spec = {"year_axis": {"Model": {"columns": {"2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        w = Writer(wb)
+        book = EvidenceBook()
+        n = ops.flag_failed_checks(wb, spec, "2025", w, book, lambda s: None)
+        self.assertEqual(n, 1)
+        self.assertIn("Model!U3", w.log["flags"])
+        self.assertEqual(book.entries["Model!U3"].grade, "C")
+
+    def test_passing_check_untouched(self):
+        from updater import ops
+        from updater.evidence import EvidenceBook
+        wb, ws = _wb()
+        ws["U1"], ws["U2"] = 100.0, 100.0
+        ws["U3"] = "=U1-U2"
+        spec = {"year_axis": {"Model": {"columns": {"2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        w = Writer(wb)
+        n = ops.flag_failed_checks(wb, spec, "2025", w, EvidenceBook(),
+                                   lambda s: None)
+        self.assertEqual(n, 0)
+        self.assertEqual(w.log["flags"], [])
+
+
+class PlugRedirectLaw(unittest.TestCase):
+    """Owner review of run 2: three plug attempts died on formula cells.
+    A formula 'into' redirects to its input site, like set_input."""
+
+    def test_plug_lands_through_link_cell(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        raw = wb.create_sheet("Raw")
+        # Model!U5 is a link to Raw!U7 (the typed input); check U9 = U5-U6
+        ws["T5"], ws["U5"] = "=Raw!T5", "=Raw!U5"
+        raw["T5"], raw["U5"] = 80.0, 80.0
+        ws["T6"], ws["U6"] = 80.0, 120.0
+        ws["U9"], ws["T9"] = "=U5-U6", "=T5-T6"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}},
+                              "Raw": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_plug_residual({"check": "Model!9", "into": "Model!U5",
+                                    "why": "test plug"})
+        self.assertIn("PLUGGED", out)
+        self.assertEqual(raw["U5"].value, 120.0)   # landed at the input site
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

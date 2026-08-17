@@ -181,6 +181,19 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                 f"{len(open_findings)} findings -> agent")
             loop.budget = max(loop.budget, 20)
             loop_summary = loop.run(extra_objectives=open_findings[:10])
+        # -- STRUCTURAL HONESTY (run-2 owner review: segment rows stayed
+        # stale-and-unflagged because the agent skipped sweep_stale, and
+        # failing balance checks shipped unmarked). Honesty is CODE, never
+        # an agent choice: every unserved rolled hardcode is flagged, every
+        # still-failing check cell is marked, before the final verdict.
+        ops.flag_stale(wb, spec_d, target_year, census, served, writer,
+                       book, run_log.append)
+        ops.sweep_compositions(wb, spec_d, target_year, census, writer,
+                               book, run_log.append)
+        ops.flag_failed_checks(wb, spec_d, target_year, writer, book,
+                               run_log.append)
+        for ln in run_log[-3:]:
+            log(f"[run] {ln}")
         verdict = police_mod.verify(wb, spec_d, target_year, ledger, targets,
                                     served, book, writer.log)
     else:
@@ -196,6 +209,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                        book, run_log.append)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,
                                book, run_log.append)
+        ops.flag_failed_checks(wb, spec_d, target_year, writer, book,
+                               run_log.append)
         for ln in run_log[-6:]:
             log(f"[run] {ln}")
         verdict = police_mod.verify(wb, spec_d, target_year, ledger, targets,
