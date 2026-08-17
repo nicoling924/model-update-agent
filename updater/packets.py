@@ -111,7 +111,7 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
     return hits
 
 
-def compile_card(wb, spec, ty, sheet, served, writer_log, ledger):
+def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
     """The compile packet's whole world: the open column, in order, each
     row with its label, prior, current (stale) value, and evidence slice.
     Returned as chunks the engine can hold.
@@ -159,6 +159,28 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger):
             for h in evidence_slice(ledger, r):
                 lines.append(f"    {h}")
         chunks.append("\n".join(lines))
+    # TABLE ISLANDS (council wall-1 design): intact grids, selected
+    # number-anchored on this packet's own priors. The agent reads the
+    # grid natively — cross-language by reading. Attached to every chunk.
+    if docs and rows:
+        try:
+            from . import islands as islands_mod
+            open_priors = [r.get("prior") for r in rows]
+            isl = []
+            for d in docs:
+                isl += islands_mod.extract(d)
+            picked = islands_mod.relevant(isl, open_priors)
+            if picked:
+                block = ("\n\n== TABLE ISLANDS — intact grids from the "
+                         "disclosure (headers attached to every value; "
+                         "read them like the printed table; a value + its "
+                         "同比% reproducing a row's prior identifies the "
+                         "row across languages) ==\n"
+                         + "\n\n".join(f"-- ISLAND p{p} --\n{t}"
+                                       for p, t in picked))
+                chunks = [c + block for c in chunks]
+        except Exception:
+            pass
     return rows, chunks
 
 
