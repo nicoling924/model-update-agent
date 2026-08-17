@@ -688,6 +688,14 @@ def test_balance_doctrine_diagnose_fix_plug():
         "plug allowed while a guilty cell existed"
     assert lp.t_apply_diff({"row": "S!4"}).startswith("WRITTEN")
     assert "residual = 0.00" in lp.t_diagnose_balance({"check": "S!9"})
+    # the -57.89 class: an unproven (no-prior/flagged) leaf whose removal
+    # closes the residual is named a SUSPECT with the exact-delta hint
+    wb["S"]["A5"] = "FX translation diff"
+    wb["S"]["U5"] = -57.89
+    wb["S"]["U9"] = "=U2-U3-U4-U5"
+    lp.writer.log["flags"].append("S!U5")
+    diag = lp.t_diagnose_balance({"check": "S!U9"})   # cell-style ref accepted
+    assert "SUSPECT S!U5" in diag and "CLOSES" in diag, diag
 
 
 if __name__ == "__main__":

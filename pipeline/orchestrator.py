@@ -287,47 +287,63 @@ class ObjectiveLoop:
         with their disclosed values — each directly fixable by apply_diff.
         Plugging is the WORST case, only after this list is empty."""
         ref = str(args.get("check") or args.get("cell") or "")
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", ref.replace("$", ""))
+        # accept Model!95, Model!U95 and 'Sheet name'!V95 forms — a rejected
+        # ref burned real loop budget (measured)
+        m = re.match(r"^(?:'([^']+)'|([^!]+))!?([A-Z]{1,3})?(\d+)$",
+                     ref.replace("$", ""))
         if not m:
             checks = [f"{c['sheet']}!{c['row']}"
                       for c in self.spec.get("check_rows") or []]
             return f"MISS: name the check row, e.g. {{\"check\": \"{checks[0] if checks else 'Model!95'}\"}}"
-        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(3))
-        tcol = self._tcol(sheet)
-        if not tcol:
+        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(4))
+        col = m.group(3) or self._tcol(sheet)
+        if not col:
             return f"MISS: no target column for sheet '{sheet}'"
         ev = Evaluator(self.wb)
         try:
-            residual = ev.cell(sheet, f"{tcol}{row}")
+            residual = ev.cell(sheet, f"{col}{row}")
         except Exception as e:
             return f"MISS: check row does not evaluate: {e}"
-        out = [f"check {sheet}!{tcol}{row} residual = {residual:,.2f}"]
+        out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
         guilty = 0
-        for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{tcol}{row}")):
+        flagged_refs = set(self.writer.log["flags"])
+        for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{col}{row}")):
             mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not mm or mm.group(1) != self._tcol(sh):
                 continue
             t = self.targets.get((sh, int(mm.group(2))))
-            if t is None:
-                continue
-            got = self._diff_value(t)
-            if got is None:
-                continue
-            dv, it, _s = got
             cur = self.wb[sh][coord].value
-            if not isinstance(cur, (int, float)):
+            got = self._diff_value(t) if t is not None else None
+            if got is not None and isinstance(cur, (int, float)):
+                dv, it, _s = got
+                tol = max(0.6, abs(dv) * 5e-3)
+                if abs(cur - dv) > tol:
+                    guilty += 1
+                    out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
+                               f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
+                               f"disclosed {dv:,.2f} ({it.doc} p{it.page}) -> "
+                               f"apply_diff {{\"row\": \"{sh}!{mm.group(2)}\"}}")
                 continue
-            tol = max(0.6, abs(dv) * 5e-3)
-            if abs(cur - dv) > tol:
-                guilty += 1
-                out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
-                           f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
-                           f"disclosed {dv:,.2f} ({it.doc} p{it.page}) -> "
-                           f"apply_diff {{\"row\": \"{sh}!{mm.group(2)}\"}}")
-        if not guilty:
-            out.append("  no leaf disagrees with unique disclosed evidence — "
-                       "the residual is in un-evidenced rows: find_line them, "
-                       "or (worst case) plug_residual with a named component")
+            # UNPROVEN leaves are suspects: flagged/stale cells and no-prior
+            # reads have no identity evidence, so the residual hides in them
+            # (measured live: a no-prior misread of -57.89 plus a stale 0.65
+            # WERE the 58.5 gap — both red-flagged, neither GUILTY-listable).
+            # The exact-delta playbook move, automated: how far does zeroing
+            # this cell move the check vs the residual?
+            if isinstance(cur, (int, float)) and cur != 0 \
+                    and (f"{sh}!{coord}" in flagged_refs
+                         or t is None
+                         or not isinstance(t.prior_value, (int, float))):
+                closes = abs(abs(cur) - abs(residual))
+                hint = (" <== zeroing ~CLOSES the residual"
+                        if closes <= max(1.0, abs(residual) * 0.1) else "")
+                lab = str(t.label)[:30] if t else "?"
+                out.append(f"  SUSPECT {sh}!{coord} '{lab}' = {cur:,.2f} "
+                           f"(unproven: flagged/no-prior){hint}")
+        if guilty == 0 and len(out) == 1:
+            out.append("  no leaf disagrees and no unproven suspects — "
+                       "find_line the residual amount, or (worst case) "
+                       "plug_residual with a named component")
         return "\n".join(out)
 
     def t_plug_residual(self, args):
@@ -561,7 +577,8 @@ class ObjectiveLoop:
             name = act["action"]
             args = act.get("args") or {}
             fingerprint = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
-            if name not in ("rescore", "note", "todo", "finish") \
+            if name not in ("rescore", "note", "todo", "finish",
+                    "diagnose_balance", "statement_diff", "list_flags") \
                     and fingerprint in getattr(self, "_done", set()):
                 result = ("REPEAT: you already ran exactly this action — the "
                           "result has not changed. Take a DIFFERENT action "
