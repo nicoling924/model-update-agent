@@ -286,6 +286,31 @@ class PacketCloser:
                 targets.append("key:" + s[11:].split(":", 1)[0].strip())
         ctx = ("== POLICE FINDINGS ==\n"
                + "\n".join(str(f)[:150] for f in findings[:10]))
+        # TWIN-DELTA insight (auto-surfaced information, like leaf trees):
+        # two keys off by the SAME amount means ONE item sits in the wrong
+        # section — cross-key knowledge no single packet can see.
+        import re as _re
+        deltas = []
+        for f in findings:
+            m = _re.search(r"announced: ([^:]+): model ([-\d.,]+) vs "
+                           r"disclosed ([-\d.,]+)", str(f))
+            if m:
+                try:
+                    d = (float(m.group(2).replace(",", ""))
+                         - float(m.group(3).replace(",", "")))
+                    deltas.append((m.group(1).strip(), d))
+                except ValueError:
+                    pass
+        for i in range(len(deltas)):
+            for j in range(i + 1, len(deltas)):
+                a, b = deltas[i], deltas[j]
+                if abs(abs(a[1]) - abs(b[1])) <= max(1.0, abs(a[1]) * 0.02):
+                    ctx += (f"\nINSIGHT: '{a[0]}' is off by {a[1]:,.2f} and "
+                            f"'{b[0]}' by {b[1]:,.2f} — the SAME amount. One "
+                            "item is booked in the wrong section between "
+                            "them; find it and move it (write the two "
+                            "component cells), do not treat these as two "
+                            "separate problems.")
         for ref in list(dict.fromkeys(targets))[:8]:
             if self.calls >= 160:
                 break

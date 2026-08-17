@@ -27,3 +27,20 @@ BOSS_MINDMAP.md.
      mark") — balanced-with-a-confession beats broken-with-a-note.
 - Run 11 carries both edits. Council trigger stands if run 11 shows no
   improvement.
+
+## Run 11 — method edits (actual-year framing + honest close)
+- 92 calls / 615k+184k tokens; served 231; flags 62; DELIVERED ~40 min.
+- Card: balance **FAIL(1)** — ONLY the 2025 BS at 1.0 (rounding-class);
+  ALL forecast years PASS, Driver checks PASS, cash tie PASS (honest
+  plugs landed and propagated). Announced FAIL(2) = the CFI/CFF ~594
+  twin. Adjustments PASS.
+- Behavior: Driver segments went from silently-skipped (run 10) to
+  honestly flagged (30 of 33) — but still not WRITTEN.
+- DESIGN diagnosis: segment evidence slices are empty because label
+  kinship dies cross-language (English model labels vs CN disclosure).
+  Number-anchored evidence is language-free -> compile cards now carry
+  implied-prior candidates ([implied-prior] lines, agent judges each).
+  And the CFI/CFF twin: two keys off by the same amount is cross-key
+  information no single packet sees -> repair context now auto-surfaces
+  the TWIN-DELTA insight (find the misplaced item, move it once).
+- Run 12 carries both. Improvement trend intact (no council trigger).
