@@ -381,6 +381,50 @@ class AgentLoop:
                 lab = str(t.label)[:30] if t else "?"
                 out.append(f"  SUSPECT {sh}!{coord} '{lab}' = {cur:,.2f} "
                            f"(unproven: flagged/no-prior){hint}")
+        # RECLASS FINDER (run-6 law: the −12,116 was a reclassification —
+        # prior-triangulation can never see the destination row, but the
+        # residual fingerprints it). For evidence-less leaves, hunt a kin
+        # face line whose disclosed value differs from the model by ≈ the
+        # residual, and hand the agent the exact set_input.
+        if guilty == 0:
+            from .numerics import kinship
+            from .stage2_join import ratify_page_scales
+            pool = self.ledger.join_pool()
+            priors = [t.prior_value for t in self.targets.values()
+                      if isinstance(t.prior_value, (int, float))]
+            scales = ratify_page_scales(pool, priors)
+            rtol = max(1.0, abs(residual) * 0.02)
+            found = 0
+            for (sh, coord) in dict.fromkeys(
+                    self._leaf_inputs(sheet, f"{col}{row}")):
+                mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+                if not mm or mm.group(1) != self._tcol(sh) or found >= 4:
+                    continue
+                t = self.targets.get((sh, int(mm.group(2))))
+                cur = self.wb[sh][coord].value
+                if t is None or not isinstance(cur, (int, float)):
+                    continue
+                for it in pool:
+                    s = scales.get((it.doc, it.page))
+                    if s is None or not kinship(t.label, it.label):
+                        continue
+                    ns = [to_model_units(n, s) for n in it.nums]
+                    world = [n for n in ns if n != 0 and abs(cur) > 0
+                             and 0.01 <= abs(n) / max(abs(cur), 1.0) <= 100.0]
+                    if not world:
+                        continue
+                    dv = world[0]
+                    if abs((dv - cur) - residual) <= rtol \
+                            or abs((dv - cur) + residual) <= rtol:
+                        found += 1
+                        out.append(
+                            f"  RECLASS CANDIDATE {sh}!{coord} "
+                            f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
+                            f"disclosed ≈{dv:,.2f} — the delta IS the "
+                            f"residual -> set_input {{\"cell\": "
+                            f"\"{sh}!{coord}\", \"value\": {dv:.2f}, "
+                            f"\"why\": \"p{it.page}: {it.label[:30]}\"}}")
+                        break
         if guilty == 0 and len(out) == 1:
             out.append("  no leaf disagrees and no unproven suspects — "
                        "find_line the residual amount, or (worst case) "
@@ -473,9 +517,45 @@ class AgentLoop:
             return (f"MISS: {into} is not a numeric input cell (and no "
                     "input site found behind it) — pick a NUMERIC component "
                     "from diagnose_balance's leaf list")
+        # TRUTH OUTRANKS BALANCE (run-6 law): a cell whose value ties
+        # disclosure evidence is PROVEN — plugging it falsifies announced
+        # data to satisfy an identity, the one forbidden trade.
+        t_into = self.targets.get((i_sheet, i_row))
+        if t_into is not None:
+            got = self._diff_value(t_into)
+            if got is not None and abs(abs(held) - abs(got[0])) <= \
+                    max(0.6, abs(got[0]) * 5e-3):
+                return (f"REFUSED: {into} is disclosure-proven at "
+                        f"{got[0]:,.2f} ({got[1].doc} p{got[1].page}) — "
+                        "plugging it would falsify announced data. Pick an "
+                        "UNPROVEN component (diagnose's site list).")
+        # target-column guard: a plug lands in the target year unless the
+        # agent explicitly declares a forecast integrity repair
+        tc_i = self._tcol(i_sheet)
+        if tc_i and i_col != tc_i and not args.get("forecast_repair"):
+            return (f"REFUSED: {into} is not in the {self.ty} column "
+                    f"({tc_i}) — pass forecast_repair=true ONLY for a "
+                    "forecast-year integrity repair")
+        # SIGN-AWARE plug (run-6: six attempts doubled the residual on
+        # negative-entry components and reverted): measure the check's
+        # response to the cell, then plug residual/derivative.
+        cell_obj = self.wb[i_sheet][f"{i_col}{i_row}"]
+        cell_obj.value = held + 1.0
+        try:
+            r1 = Evaluator(self.wb).cell(c_sheet, f"{c_col}{c_row}")
+        except Exception:
+            r1 = None
+        finally:
+            cell_obj.value = held
+        if not isinstance(r1, (int, float)) or abs(r1 - residual) < 1e-9:
+            return (f"MISS: {into} does not affect check {check} — pick a "
+                    "component inside its chain (trace_cell the check)")
+        deriv = r1 - residual
+        plug_value = held - residual / deriv
+        pre_ties = self._tie_state()
         pcol = prior_column(self.spec, i_sheet, self.ty)
         ok = self.writer.write(
-            i_sheet, f"{i_col}{i_row}", held - residual,
+            i_sheet, f"{i_col}{i_row}", plug_value,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
             flag="orange",
             note=(f"PLUG (last resort): absorbed check residual "
@@ -487,18 +567,52 @@ class AgentLoop:
             after = Evaluator(self.wb).cell(c_sheet, f"{c_col}{c_row}")
         except Exception:
             after = None
-        if after is None or abs(after) > 0.01:
+        broken_ties = []
+        if after is not None and abs(after) <= 0.01:
+            post = self._tie_state()
+            broken_ties = sorted(k for k, v in pre_ties.items()
+                                 if v and not post.get(k, False))
+        if after is None or abs(after) > 0.01 or broken_ties:
             self.writer.write(i_sheet, f"{i_col}{i_row}", held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
-                              note="plug reverted: did not zero the check")
+                              note="plug reverted: broke the check or "
+                                   "announced ties")
+            if broken_ties:
+                return (f"REVERTED: the plug zeroed {check} but moved "
+                        f"previously-tying announced values off the "
+                        f"disclosure ({broken_ties[:3]}) — truth outranks "
+                        "balance; pick a component outside proven totals")
             return (f"REVERTED: plugging {into} left the check at "
                     f"{after if after is not None else '?'} — pick a "
                     "component inside its chain")
         self.book.record(f"{i_sheet}!{i_col}{i_row}", "D", "plug",
                          note=f"absorbed {residual:,.2f} from {check}; {why[:120]}")
-        return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
+        return (f"PLUGGED {into}: {held:,.2f} -> {plug_value:,.2f} "
                 f"(orange, in the report). Check {check} now zero.")
+
+    def _tie_state(self):
+        """Which announced rows currently TIE their unique disclosure
+        evidence — the truth-guard snapshot (run-6 law: no write may move
+        a tying row off the disclosure to satisfy an identity)."""
+        ties = {}
+        ev = Evaluator(self.wb)
+        for t in self.targets.values():
+            got = self._diff_value(t)
+            if got is None:
+                continue
+            tcol = self._tcol(t.sheet)
+            if not tcol:
+                continue
+            try:
+                mv = ev.cell(t.sheet, f"{tcol}{t.row}")
+            except Exception:
+                continue
+            if isinstance(mv, (int, float)):
+                dv = got[0]
+                ties[t.key] = abs(abs(mv) - abs(dv)) <= max(0.6,
+                                                            abs(dv) * 5e-3)
+        return ties
 
     def _row_ref(self, args):
         """Tolerant row-ref parsing (run-1-live autopsy: the agent lost its
@@ -632,6 +746,16 @@ class AgentLoop:
             sheet, col, row = s_sheet, s_tcol, s_row
             ref = f"{sheet}!{col}{row}"
             held = self.wb[sheet][f"{col}{row}"].value
+        # TARGET-COLUMN GUARD (run-6: two 2025 actuals landed in the 2026
+        # column V75). Mark-to-actual writes belong in the target year;
+        # forecast columns only via an explicit integrity-repair declaration
+        # (the BOSS_MINDMAP forecast exception, made explicit).
+        tc = self._tcol(sheet)
+        if tc and col != tc and not args.get("forecast_repair"):
+            return (f"REFUSED: {ref} is in column {col}, not the {self.ty} "
+                    f"column ({tc}{row} is the mark-to-actual site). Pass "
+                    "forecast_repair=true ONLY to repair integrity in a "
+                    "forecast year — never to write actuals there.")
         pcol = prior_column(self.spec, sheet, self.ty)
         before_fails = {c["name"] for c in self._card()["checks"]
                         if c["status"] == "FAIL"}
