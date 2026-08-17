@@ -40,13 +40,23 @@ _NUMTOK = re.compile(r"\(?-?\d[\d,]*(?:\.\d+)?\)?")
 _FULLWIDTH = str.maketrans("０１２３４５６７８９，．（）－", "0123456789,.()-")
 
 
+_SPACES = "\u0020\u00a0\u2009\u202f"   # space, nbsp, thin space, narrow nbsp
+_SPACE_GROUPED = re.compile("^\\d{1,3}(?:[" + _SPACES + ",]\\d{3})*(?:\\.\\d+)?$")
+
+
 def parse_number(token):
     """One printed token -> float, or None.
 
     Handles thousands commas, parenthesised negatives, leading minus,
-    fullwidth digits/punctuation. Returns None for anything that is not a
-    single printed number ('-', 'n/a', '', years are NOT filtered here —
-    that is line_numbers' job, which has the context to know).
+    fullwidth digits/punctuation, and SPACE-GROUPED digits ('48 168 255
+    333.72' — scanned statements print thin-space grouping and the vision
+    reader copies it verbatim; refusing it silently deleted a whole 2025
+    equity block and left a 58.5 balance gap, measured live). Space
+    merging happens only when every group is exactly 3 digits — the
+    thousands invariant — and only HERE, on a single cell's token; text
+    lines with several adjacent numbers go through line_numbers, which
+    never merges across spaces. Returns None for anything that is not a
+    single printed number.
     """
     if isinstance(token, (int, float)):
         return float(token)
@@ -54,7 +64,11 @@ def parse_number(token):
         return None
     t = str(token).translate(_FULLWIDTH).strip()
     neg = (t.startswith("(") and t.endswith(")")) or t.startswith("-")
-    t = t.strip("()").lstrip("-").replace(",", "")
+    t = t.strip("()").lstrip("-").strip()
+    if _SPACE_GROUPED.match(t):
+        t = re.sub("[" + _SPACES + ",]", "", t)
+    else:
+        t = t.replace(",", "")
     if not t or not any(ch.isdigit() for ch in t):
         return None
     try:

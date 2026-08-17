@@ -222,19 +222,25 @@ class ObjectiveLoop:
                     break
         return "\n".join(out[:40]) or f"no diffs: {stmt} lines tie the model"
 
+    def _pool_scales(self):
+        if getattr(self, "_scales_cache", None) is None:
+            from .stage2_join import ratify_page_scales
+            priors = [x.prior_value for x in self.targets.values()
+                      if isinstance(x.prior_value, (int, float))]
+            pool = self.ledger.join_pool()
+            self._scales_cache = (pool, ratify_page_scales(pool, priors))
+        return self._scales_cache
+
     def _diff_value(self, t):
         """The disclosed value for one target row, by prior identity on a
         ratified current-doc face page — Stage-2-grade evidence, computed
         fresh. -> (value, item, scale) or None. Single agreeing candidate
         in the row's world, or nothing."""
-        from .stage2_join import ratify_page_scales, _tying_pairs, _in_world
+        from .stage2_join import _tying_pairs, _in_world
         pv = t.prior_value
         if not isinstance(pv, (int, float)) or pv == 0:
             return None
-        priors = [x.prior_value for x in self.targets.values()
-                  if isinstance(x.prior_value, (int, float))]
-        pool = self.ledger.join_pool()
-        scales = ratify_page_scales(pool, priors)
+        pool, scales = self._pool_scales()
         tol = row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
         cands = []
         for it in pool:
@@ -251,6 +257,135 @@ class ObjectiveLoop:
         if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
             return None
         return cands[0]
+
+    def _leaf_inputs(self, sheet, coord, depth=0, seen=None):
+        """The leaf INPUT cells under a target-year formula cell: follow
+        references recursively; a numeric hardcode is a leaf. Bounded."""
+        seen = seen if seen is not None else set()
+        if depth > 6 or (sheet, coord) in seen or len(seen) > 400:
+            return []
+        seen.add((sheet, coord))
+        v = self.wb[sheet][coord].value if sheet in self.wb.sheetnames else None
+        if isinstance(v, (int, float)):
+            return [(sheet, coord)]
+        if not isinstance(v, str) or not v.startswith("="):
+            return []
+        out = []
+        for sh2, sh3, c2, r2 in re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                v.replace("$", "")):
+            sh = (sh2 or sh3 or sheet).strip()
+            if sh in self.wb.sheetnames:
+                out += self._leaf_inputs(sh, f"{c2}{r2}", depth + 1, seen)
+        return out
+
+    def t_diagnose_balance(self, args):
+        """FIND THE PART THAT DOES NOT BALANCE (owner ruling: the model
+        must balance itself; an imbalance means a specific wrong cell).
+        Decomposes a failing check row to its leaf input cells, compares
+        each against unique disclosed evidence, and names the guilty ones
+        with their disclosed values — each directly fixable by apply_diff.
+        Plugging is the WORST case, only after this list is empty."""
+        ref = str(args.get("check") or args.get("cell") or "")
+        m = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", ref.replace("$", ""))
+        if not m:
+            checks = [f"{c['sheet']}!{c['row']}"
+                      for c in self.spec.get("check_rows") or []]
+            return f"MISS: name the check row, e.g. {{\"check\": \"{checks[0] if checks else 'Model!95'}\"}}"
+        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(3))
+        tcol = self._tcol(sheet)
+        if not tcol:
+            return f"MISS: no target column for sheet '{sheet}'"
+        ev = Evaluator(self.wb)
+        try:
+            residual = ev.cell(sheet, f"{tcol}{row}")
+        except Exception as e:
+            return f"MISS: check row does not evaluate: {e}"
+        out = [f"check {sheet}!{tcol}{row} residual = {residual:,.2f}"]
+        guilty = 0
+        for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{tcol}{row}")):
+            mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+            if not mm or mm.group(1) != self._tcol(sh):
+                continue
+            t = self.targets.get((sh, int(mm.group(2))))
+            if t is None:
+                continue
+            got = self._diff_value(t)
+            if got is None:
+                continue
+            dv, it, _s = got
+            cur = self.wb[sh][coord].value
+            if not isinstance(cur, (int, float)):
+                continue
+            tol = max(0.6, abs(dv) * 5e-3)
+            if abs(cur - dv) > tol:
+                guilty += 1
+                out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
+                           f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
+                           f"disclosed {dv:,.2f} ({it.doc} p{it.page}) -> "
+                           f"apply_diff {{\"row\": \"{sh}!{mm.group(2)}\"}}")
+        if not guilty:
+            out.append("  no leaf disagrees with unique disclosed evidence — "
+                       "the residual is in un-evidenced rows: find_line them, "
+                       "or (worst case) plug_residual with a named component")
+        return "\n".join(out)
+
+    def t_plug_residual(self, args):
+        """THE WORST CASE, and it is loud (owner ruling): only after
+        diagnose_balance names no guilty cell may the exact residual be
+        absorbed into ONE named component — orange-flagged, annotated, and
+        listed in the _REPORT for the analyst. Refused while any
+        evidence-based fix remains."""
+        check = str(args.get("check") or "")
+        into = str(args.get("into") or "")
+        why = str(args.get("why") or "")
+        diag = self.t_diagnose_balance({"check": check})
+        if "GUILTY" in diag:
+            return ("REFUSED: evidence-based fixes remain — plug only after "
+                    "these are applied or ruled out:\n" + diag)
+        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", check.replace("$", ""))
+        mi = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
+                      into.replace("$", ""))
+        if not mc or not mi:
+            return "MISS: need {\"check\": \"Model!95\", \"into\": \"Sheet!U177\", \"why\": ...}"
+        c_sheet, c_row = (mc.group(1) or mc.group(2)).strip(), int(mc.group(3))
+        c_col = self._tcol(c_sheet)
+        i_sheet, i_col, i_row = ((mi.group(1) or mi.group(2)).strip(),
+                                 mi.group(3), int(mi.group(4)))
+        ev = Evaluator(self.wb)
+        try:
+            residual = ev.cell(c_sheet, f"{c_col}{c_row}")
+        except Exception as e:
+            return f"MISS: check row does not evaluate: {e}"
+        if abs(residual) <= 0.01:
+            return "MISS: that check already passes — nothing to plug"
+        held = self.wb[i_sheet][f"{i_col}{i_row}"].value
+        if not isinstance(held, (int, float)):
+            return f"MISS: {into} is not a numeric input cell"
+        pcol = prior_column(self.spec, i_sheet, self.ty)
+        ok = self.writer.write(
+            i_sheet, f"{i_col}{i_row}", held - residual,
+            prior_coord=f"{pcol}{i_row}" if pcol else None,
+            flag="orange",
+            note=(f"PLUG (worst case): absorbed check residual "
+                  f"{residual:,.2f} from {check}; was {held:,.2f}. "
+                  f"ANALYST MUST REVIEW. {why[:200]}"))
+        if not ok:
+            return "REFUSED by write guard (band/lock) — choose another component"
+        try:
+            after = Evaluator(self.wb).cell(c_sheet, f"{c_col}{c_row}")
+        except Exception:
+            after = None
+        if after is None or abs(after) > 0.01:
+            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
+                              prior_coord=f"{pcol}{i_row}" if pcol else None,
+                              trusted=True, force_lock=True,
+                              note="plug reverted: did not zero the check")
+            return (f"REVERTED: plugging {into} left the check at "
+                    f"{after if after is not None else '?'} — the component "
+                    "does not feed this check; pick one inside its chain")
+        return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
+                f"(orange-flagged, in the report). Check {check} now zero.")
 
     def t_apply_diff(self, args):
         """One action from finding to fixing: write the disclosed value for
@@ -399,7 +534,8 @@ class ObjectiveLoop:
 
     TOOLS = {"rescore": t_rescore, "trace_cell": t_trace_cell,
              "find_line": t_find_line, "statement_diff": t_statement_diff,
-             "apply_diff": t_apply_diff,
+             "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
+             "plug_residual": t_plug_residual,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
              "finish": t_finish}
