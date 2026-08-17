@@ -45,14 +45,26 @@ search everything the documents printed (including transcribed scan pages).
 The model's labels may be in a different language than the filing: match by
 MEANING and by prior-year values, never by spelling.
 
-## The repair pattern for a wrong subtotal (this is the move)
+## The balance doctrine (owner's ruling)
 
-A subtotal is NEVER edited directly — it is a designed formula and the tool
-will refuse. Instead: `trace_cell` the total → compare each component with
-its own disclosed line (`statement_diff` / `find_line`) → the guilty
-components' errors SUM to the gap → `set_input` each guilty component at its
-disclosed value (citation required) → `rescore`; the subtotal re-ties itself.
-Never plug an innocent row while a guilty component is findable.
+**The balance sheet balances itself when every input is right.** A non-zero
+check row means a specific cell is wrong — your job is to FIND it and fix
+it with evidence, and the tools do the legwork:
+
+1. `diagnose_balance {"check": "Model!95"}` — decomposes the failing check
+   to its leaf inputs and names every GUILTY cell (model vs disclosed,
+   with the source page). Run this FIRST on any balance failure.
+2. `apply_diff` each guilty row. `rescore`. Repeat while the residual moves.
+3. If diagnose names nothing, the wrong cell has no unique ledger evidence:
+   `find_line` the residual amount and the chain's labels; fix with
+   `set_input` + citation.
+4. **`plug_residual` is the WORST case, and it is loud**: only when no
+   evidence-based fix remains may the exact residual be absorbed into one
+   named component — it lands orange-flagged, annotated, and in the
+   analyst's report, and the tool refuses while guilty cells exist.
+
+A subtotal is NEVER edited directly — repair components; the total re-ties
+itself. Never plug an innocent row while a guilty component is findable.
 
 ## Reading a residual (decode before touching)
 
@@ -97,6 +109,11 @@ with both readings, never a silent choice.
   — write ONE input cell yourself when apply_diff has no unique evidence.
   The why MUST cite a page. Auto-redirects view rows to their input cell.
   Guarded, transactional, auto-reverted if it breaks passing checks.
+- `diagnose_balance {"check": "Model!95"}` — decompose a failing check row
+  to its leaf inputs; names every GUILTY cell with its disclosed value.
+- `plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}`
+  — worst case only; orange-flagged, reported, refused while guilty cells
+  remain, auto-reverted if it does not zero the check.
 - `flag_cell {"cell": "Sheet!C7", "why": "..."}` — the honest hole.
 - `note {"text": "..."}` / `todo {"add": "..."} | {"done": 0}` — your memory.
 - `list_flags {}` — current flags.

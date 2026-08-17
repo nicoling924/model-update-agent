@@ -282,6 +282,24 @@ def test_year_token_filter():
     assert parse_number("n/a") is None and parse_number("-") is None
 
 
+# ── Space-grouped digits (the 58.5 equity-gap disease, caught live) ──────
+# Scanned statements print thin-space grouping; the vision reader copies it
+# verbatim ('48 168 255 333.72'). Refusing it silently deleted the 2025
+# equity block from the ledger and left the balance 58.5 open. Merging is
+# legal ONLY inside one cell token with strict 3-digit groups — text lines
+# with adjacent numbers must never merge.
+
+def test_space_grouped_digits():
+    assert parse_number("48 168 255 333.72") == 48168255333.72
+    assert parse_number("48 168 255 333.72") == 48168255333.72
+    assert parse_number("(1 234)") == -1234.0
+    assert parse_number("12 34") is None            # not 3-digit groups
+    # adjacent numbers on a TEXT line stay separate
+    assert line_numbers("应付票据 15,652,241,398.50 15,635,278,628.07") == \
+        [15652241398.50, 15635278628.07]
+    assert line_numbers("货币资金 123 456") == [123.0, 456.0]
+
+
 # ── Stage 1: text-channel segmentation ───────────────────────────────────
 
 def test_segment_page_structure():
@@ -633,6 +651,43 @@ def test_checks_scorecard_and_completion():
     (key,) = card["keys"]
     assert key["proven"] and key["present"] and abs(key["value"] - 110.0) < 1e-9
     assert card["completion"]["S"]["pct"] > 0
+
+
+# ── The balance doctrine (owner ruling 2026-08-18): find it, fix it; ─────
+# plugging is the loud worst case
+
+def test_balance_doctrine_diagnose_fix_plug():
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = _wb({"A2": "Total assets", "T2": 900.0, "U2": 1000.0,
+              "A3": "Debt", "T3": 650.0, "U3": 700.0,
+              "A4": "Equity", "T4": 250.0, "U4": 240.0,
+              "T9": "=T2-T3-T4", "U9": "=U2-U3-U4"})
+    led = Ledger()
+    led.add(Item(doc="ar.pdf", page=95, table_id=0, row_ord=1,
+                 label="Total assets", nums=[1000.0, 900.0]))
+    led.add(Item(doc="ar.pdf", page=95, table_id=0, row_ord=2,
+                 label="Debt total", nums=[700.0, 650.0]))
+    led.add(Item(doc="ar.pdf", page=95, table_id=0, row_ord=3,
+                 label="Equity total", nums=[300.0, 250.0]))
+    led.faces[("ar.pdf", 95)] = "bs"
+    targets = [TargetRow("S", 2, "Total assets", 900.0),
+               TargetRow("S", 3, "Debt", 650.0),
+               TargetRow("S", 4, "Equity", 250.0)]
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}]}
+
+    class NoClient:
+        def json(self, *a, **k):
+            raise AssertionError("no LLM")
+    lp = ObjectiveLoop(wb, spec, "2025", led, targets, {}, Writer(wb), NoClient())
+    diag = lp.t_diagnose_balance({"check": "S!9"})
+    assert "GUILTY S!4" in diag, diag
+    assert lp.t_plug_residual({"check": "S!9", "into": "S!U3",
+                               "why": "x"}).startswith("REFUSED"), \
+        "plug allowed while a guilty cell existed"
+    assert lp.t_apply_diff({"row": "S!4"}).startswith("WRITTEN")
+    assert "residual = 0.00" in lp.t_diagnose_balance({"check": "S!9"})
 
 
 if __name__ == "__main__":
