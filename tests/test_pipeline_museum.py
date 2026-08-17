@@ -503,6 +503,77 @@ def test_face_from_row_labels():
         ["营业总收入", "净利润", "资产总计", "负债合计"]) is None
 
 
+# ── Stage 2.5: the bound-table Driver/MD&A path (council two-level law) ──
+
+def _seg_items(page=207):
+    """A 4-column interleaved segment table: (2025rev, 2025cost, 2024rev,
+    2024cost) — the layout where adjacent-pair mechanics served the wrong
+    measure (measured live)."""
+    rows = [("能源装备制造", [58005.4, 49897.1, 47546.6, 42306.7]),
+            ("核能", [5659.96, 4295.16, 4876.71, 3704.41]),
+            ("气电", [5627.57, 4951.68, 7110.32, 6592.66]),
+            ("风电", [18224.2, 17707.9, 12288.0, 12562.2])]
+    return [_item(page, i + 20, lab, ns, table_id=2)
+            for i, (lab, ns) in enumerate(rows)]
+
+
+def test_bound_table_offset_law():
+    from pipeline.stage2_join import join_bound_tables
+    led = _ledger(_seg_items(), face_pages=())     # NOT a statement face
+    targets = [TargetRow("Driver", 8, "Nuclear", 4876.71, input_kind="hardcode"),
+               TargetRow("Driver", 9, "Wind", 12288.0, input_kind="hardcode"),
+               TargetRow("Driver", 40, "Gas cost", -6592.66, input_kind="hardcode"),
+               TargetRow("Driver", 41, "Nuclear cost", -3704.41, input_kind="hardcode")]
+    served, _ = join_bound_tables(led, targets, {}, [])
+    assert abs(served[("Driver", 8)]["value"] - 5659.96) < 0.01, \
+        f"offset law failed: {served.get(('Driver', 8))}"
+    assert abs(served[("Driver", 9)]["value"] - 18224.2) < 0.01
+    assert abs(served[("Driver", 41)]["value"] + 4295.16) < 0.01, \
+        "cost row not served from the mirrored slot (signed)"
+
+
+def test_bound_table_uncorroborated_offset_refuses():
+    """One row tying at the block-start slot is not an offset — without a
+    second corroborating tie the geometry is unproven and interleaved rows
+    must NOT serve (the guard that refused the wrong-measure write)."""
+    from pipeline.stage2_join import join_bound_tables
+    led = _ledger(_seg_items(), face_pages=())
+    targets = [TargetRow("Driver", 8, "Nuclear", 4876.71, input_kind="hardcode"),
+               TargetRow("Driver", 40, "Gas cost", -6592.66, input_kind="hardcode"),
+               TargetRow("Driver", 41, "Nuclear cost", -3704.41, input_kind="hardcode")]
+    served, _ = join_bound_tables(led, targets, {}, [])
+    assert ("Driver", 8) not in served and ("Driver", 41) not in served, \
+        "interleaved rows served on an uncorroborated offset"
+
+
+def test_bound_table_refusals():
+    from pipeline.stage2_join import join_bound_tables
+    led = _ledger(_seg_items(), face_pages=())
+    # one tie is chance — a table with a single prior tie must not bind
+    t1 = [TargetRow("Driver", 8, "Nuclear", 4876.71, input_kind="hardcode")]
+    served, _ = join_bound_tables(led, t1, {}, [])
+    assert not served, "a single-tie table bound (coincidence class)"
+    # derived rows (formula priors) never bound-table join
+    t2 = [TargetRow("Driver", 8, "Nuclear", 4876.71, input_kind="hardcode"),
+          TargetRow("Driver", 40, "Gas cost", -6592.66, input_kind="hardcode"),
+          TargetRow("Driver", 41, "Nuclear cost", -3704.41, input_kind="derived")]
+    served2, _ = join_bound_tables(led, t2, {}, [])
+    assert ("Driver", 41) not in served2, "a derived row was bound-table joined"
+    # small-world rows never bound-table join (tax-row coincidence class)
+    t3 = t2[:2] + [TargetRow("Driver", 50, "Small fee", 23.98, input_kind="hardcode")]
+    served3, _ = join_bound_tables(led, t3, {}, [])
+    assert ("Driver", 50) not in served3
+
+
+def test_cjk_two_char_labels_admissible():
+    from pipeline.ledger import admissible_label
+    assert admissible_label("水电") and admissible_label("核能")
+    assert admissible_label("存货")
+    assert not admissible_label("水")            # one glyph is not a word
+    assert not admissible_label("a|b garbage")
+    assert admissible_label("Revenue")
+
+
 # ── The write chokepoint (exhibits 112b / 114 on the NEW layer) ──────────
 
 def _wb(cells):

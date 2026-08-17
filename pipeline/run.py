@@ -24,7 +24,7 @@ from . import targets as targets_mod
 from .ledger import Ledger
 from .orchestrator import ObjectiveLoop
 from .stage1_read import read_documents
-from .stage2_join import decisions_to_json, join
+from .stage2_join import decisions_to_json, join, join_bound_tables
 from .stage3_read import read_gaps
 from .writer import (Writer, formula_map, load, resolve_input_site,
                      roll_year_headers, rollover_column, save)
@@ -144,7 +144,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     pre_estimates = report_mod.snapshot_estimates(wb_values, spec_d, target_year)
 
     # -- census + Stage 1
-    targets = targets_mod.from_workbook(wb_values, spec_d, target_year)
+    targets = targets_mod.from_workbook(wb_values, spec_d, target_year,
+                                    wb_formulas=wb)
     known = targets_mod.known_prior_values(targets)
     log(f"[run] census: {len(targets)} target rows, {len(known)} priors")
     docs = _disclosures(company_dir, period)
@@ -152,9 +153,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
     ledger = read_documents(docs, client=client, known_values=known, log=log)
 
-    # -- Stage 2 (pure code)
+    # -- Stage 2 (pure code): statement faces, then bound non-statement
+    # tables (the Driver/MD&A path — council two-level binding)
     served, decisions = join(ledger, targets, run_log)
-    for ln in run_log[-3:]:
+    extra, dec2 = join_bound_tables(ledger, targets, served, run_log)
+    served.update(extra)
+    decisions += dec2
+    for ln in run_log[-4:]:
         log(f"[run] {ln}")
 
     # -- the owner's column convention, then guarded writes
