@@ -159,14 +159,30 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
 
     loop = None
     if client is not None:
-        # -- THE AGENT owns the update from here
-        loop = AgentLoop(wb, spec_d, target_year, ledger, targets, {},
+        # -- GROUND (deterministic — mechanics are hands, not judgment):
+        # rollover, join, guarded serving, checksummed gap reads.
+        census.update(ops.rollover_all(wb, spec_d, target_year, writer,
+                                       run_log.append))
+        served, _dec = ops.run_join(ledger, targets, run_log)
+        priors = {t.key: t.prior_value for t in targets}
+        ops.write_served(wb, spec_d, target_year, served, writer, priors,
+                         book, run_log.append)
+        from .stage3_read import read_gaps
+        gap = read_gaps(ledger, targets, served, client, docs, run_log)
+        served.update(gap)
+        ops.write_served(wb, spec_d, target_year, gap, writer, priors,
+                         book, run_log.append)
+        for ln in run_log[-4:]:
+            log(f"[run] {ln}")
+        # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
+        loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,
                          restatement=restatement, docs=docs, census=census)
-        loop_summary = loop.run()
-        log(f"[run] agent: {loop_summary[:150]}")
-        served = loop.served
-        # -- POLICE cycles: verdict -> findings -> agent fixes -> re-verdict
+        from .closer import PacketCloser
+        closer = PacketCloser(loop, client, log)
+        loop_summary = closer.run()
+        log(f"[run] closer: {loop_summary[:200]}")
+        # -- POLICE cycles: verdict -> findings -> repair packets
         seen_findings = set()
         for cycle in range(police_mod.POLICE_CYCLES):
             verdict = police_mod.verify(wb, spec_d, target_year, ledger,
@@ -181,9 +197,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             if not open_findings:
                 break
             log(f"[run] police cycle {cycle + 1}: "
-                f"{len(open_findings)} findings -> agent")
-            loop.budget = max(loop.budget, 20)
-            loop_summary = loop.run(extra_objectives=open_findings[:10])
+                f"{len(open_findings)} findings -> repair packets")
+            closer.run_repairs(open_findings)
         # -- STRUCTURAL HONESTY (run-2 owner review): every unserved rolled
         # hardcode is flagged, every still-failing check cell marked.
         # Honesty is CODE, never an agent choice.

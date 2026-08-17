@@ -976,6 +976,110 @@ class KeyDiagnoseForbidsPlugLaw(unittest.TestCase):
         self.assertIn("set_input", out)
 
 
+class PacketArchitectureLaw(unittest.TestCase):
+    """REDESIGN (council 2026-08-18): the unit of work is a packet; the
+    queue derives from the workbook itself; compile converts columns;
+    surgeon requires decisions[]; 'I looked' is schema-invalid."""
+
+    def _setup(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 100.0, 100.0       # open stale row
+        ws["T2"], ws["U2"] = 50.0, 50.0         # open stale row
+        ws["T3"], ws["U3"] = 20.0, 30.0
+        ws["U9"], ws["T9"] = "=U3-30", "=T3-20"  # check dep only on U3; passes
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": [{"sheet": "Model", "row": 1, "name": "revenue"}]}
+        targets = [_mock_target("Model", 2, "beta line", 50.0)]
+        led = _mock_ledger([_mock_item("AR", 7, "beta line", [80.0, 50.0])])
+        tk = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                       EvidenceBook(), client=None)
+        return wb, ws, spec, tk
+
+    def test_queue_derives_from_workbook(self):
+        from updater import packets
+        wb, ws, spec, tk = self._setup()
+        ws["U3"] = 25.0            # break the check -> residual packet
+        q = packets.derive_queue(wb, spec, "2025", {}, tk.writer.log)
+        self.assertIn("compile:Model", q)
+        self.assertTrue(any(p.startswith("residual:Model!9") for p in q))
+        self.assertEqual(q[-1], "deliver")
+
+    def test_surgeon_schema_gate(self):
+        from updater.closer import PacketCloser
+        _wb_, _ws, _spec, tk = self._setup()
+        pc = PacketCloser(tk, client=None, log=lambda s: None)
+        self.assertTrue(pc._val_surgeon({"observation": "I looked"}))
+        self.assertTrue(pc._val_surgeon({"decisions": []}))
+        self.assertTrue(pc._val_surgeon(
+            {"decisions": [{"leaf": "Model!U2", "do": "ponder"}]}))
+        self.assertEqual(pc._val_surgeon(
+            {"decisions": [{"leaf": "Model!U2", "do": "flag",
+                            "why": "x"}]}), [])
+
+    def test_compile_applies_through_guards(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            def __init__(self):
+                self.n = 0
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.n += 1
+                return {"writes": [{"cell": "Model!U2", "value": 80.0,
+                                    "why": "p7: beta line 80.0"}],
+                        "not_disclosed": [], "flags": [], "skips": []}
+        wb, ws, spec, tk = self._setup()
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        report = pc.run_compile("Model")
+        self.assertIn("1 written", report)
+        self.assertEqual(ws["U2"].value, 80.0)
+
+    def test_compile_rejection_gets_repair_round(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            """First write breaks the passing check (U9 depends on U2-U3);
+            repair round flags instead."""
+            def __init__(self):
+                self.rounds = []
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.rounds.append(user)
+                if len(self.rounds) == 1:
+                    return {"writes": [{"cell": "Model!U3", "value": 900.0,
+                                        "why": "p7: wrong read"}],
+                            "not_disclosed": [], "flags": [], "skips": []}
+                return {"writes": [],
+                        "not_disclosed": [], "skips": [],
+                        "flags": [{"cell": "Model!U3",
+                                   "why": "cannot prove; leaving flagged"}]}
+        wb, ws, spec, tk = self._setup()
+        # make check U9 PASS first so the transactional guard has a baseline
+        ws["U3"] = 30.0
+        ws["U9"] = "=U2-U3-20"
+        client = _Client()
+        pc = PacketCloser(tk, client=client, log=lambda s: None)
+        report = pc.run_compile("Model")
+        self.assertEqual(ws["U3"].value, 30.0)      # reverted, not corrupted
+        self.assertEqual(len(client.rounds), 2)     # repair round happened
+        self.assertIn("APPLY REPORT", client.rounds[1])
+        self.assertIn("1 flagged", report)
+
+    def test_l0_invalid_packet_falls_back(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                errs = validate({"packet": "explore:the-formula-graph"})
+                assert errs                      # validator refuses inventions
+                return {"packet": "deliver", "situation": "done"}
+        _wb_, _ws, _spec, tk = self._setup()
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        self.assertEqual(pc.pick_packet(["compile:Model"]), "deliver")
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
