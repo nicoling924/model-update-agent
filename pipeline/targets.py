@@ -39,6 +39,10 @@ class TargetRow:
     prior2_value: float = None   # the year BEFORE prior — the doc-vintage negative key
     memory_hint: str = ""        # learned alias from the workbook _SPEC tab
     is_backout: bool = False     # spec-declared composition row: never joins
+    input_kind: str = ""         # hardcode | link | derived | '' (unknown) —
+                                 # what the PRIOR cell holds in the formulas
+                                 # workbook; derived rows are computed, never
+                                 # written, never bound-table joined
 
     @property
     def key(self):
@@ -56,8 +60,22 @@ def backout_addresses(spec):
     return out
 
 
+def _input_kind(wb_f, sheet, pcol, r):
+    if wb_f is None or sheet not in wb_f.sheetnames:
+        return ""
+    v = wb_f[sheet][f"{pcol}{r}"].value
+    if isinstance(v, (int, float)):
+        return "hardcode"
+    if isinstance(v, str) and v.startswith("="):
+        import re as _re
+        return ("link" if _re.match(
+            r"^=\s*-?\s*(?:'[^']+'|[A-Za-z][A-Za-z0-9 _]*)!\$?[A-Z]{1,3}\$?\d+\s*$",
+            v.replace("$", "")) else "derived")
+    return ""
+
+
 def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
-                  label_cols=("A", "B", "C", "D")):
+                  label_cols=("A", "B", "C", "D"), wb_formulas=None):
     """Build the census from a data_only workbook load + the run spec.
 
     For every sheet in spec.year_axis that maps both the target year and the
@@ -103,7 +121,8 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
                 sheet=sheet, row=r, label=label, prior_value=prior,
                 prior2_value=prior2,
                 memory_hint=str(hints.get((sheet, r)) or ""),
-                is_backout=(sheet, r) in backouts))
+                is_backout=(sheet, r) in backouts,
+                input_kind=_input_kind(wb_formulas, sheet, pcol, r)))
     return targets
 
 

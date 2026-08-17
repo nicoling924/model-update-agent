@@ -211,11 +211,17 @@ _MIN_LABEL_ALPHA = 3
 
 
 def admissible_label(label):
-    """A label an item may carry: >=4 chars, >=3 letters (CJK counts), no
-    pipe artifacts. Transcript garbage and bare number soup are not labels."""
+    """A label an item may carry: >=4 chars with >=3 letters, OR >=2 CJK
+    characters (CJK packs a word into two glyphs — 水电/核能/气电 are real
+    segment rows, measured excluded by the latin-length rule). Pipe
+    artifacts and bare number soup are not labels."""
     lab = str(label or "")
-    return (len(lab) >= 4 and "|" not in lab
-            and sum(ch.isalpha() for ch in lab) >= _MIN_LABEL_ALPHA)
+    if "|" in lab:
+        return False
+    cjk = sum(1 for ch in lab if "\u4e00" <= ch <= "\u9fff")
+    if cjk >= 2:
+        return True
+    return len(lab) >= 4 and sum(ch.isalpha() for ch in lab) >= _MIN_LABEL_ALPHA
 
 
 @dataclass

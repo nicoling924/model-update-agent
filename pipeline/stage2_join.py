@@ -369,6 +369,164 @@ def join(ledger, targets, log=None):
     return served, decisions
 
 
+def join_bound_tables(ledger, targets, served, log=None):
+    """Stage 2.5 — the Driver/MD&A path: TWO-LEVEL binding (council law:
+    bind tables before rows; never a left-neighbour, never a loose label).
+
+    LEVEL 1 — TABLE BINDING: a non-statement table (doc, page, table_id)
+    qualifies only when >= BIND_MIN_PRIORS DISTINCT unserved-row priors are
+    tied by DISTINCT items at ONE scale. That consensus proves both the
+    table's identity ("this is the model block's own table") and its scale
+    — the same ratio-lock law as page ratification, scoped to the table.
+
+    LEVEL 2 — ROW BINDING, inside bound tables only: signed slot-by-tie
+    prior identity at the row's world tolerance, in-world value, exactly
+    one agreeing candidate across all bound tables, twins dropped. Label
+    kinship is NOT required here — the model's driver labels are routinely
+    in a different language than the filing's tables, and the binding of
+    the TABLE is the block-level kinship; the per-row anchor is the prior.
+    Served conf 4, never locked. No-prior rows are NOT served (Stage 3 /
+    the loop own them).
+    """
+    log = log if log is not None else []
+    prior_docs = ledger.prior_period_docs()
+    face_pages = {k for k, f in ledger.faces.items() if f in ("pl", "bs", "cf")}
+    by_table = defaultdict(list)
+    for it in ledger.items:
+        if (it.joinable() and it.doc not in prior_docs
+                and (it.doc, it.page) not in face_pages):
+            by_table[(it.doc, it.page, it.table_id)].append(it)
+
+    unserved = [t for t in targets
+                if t.key not in served and not t.is_backout
+                and isinstance(t.prior_value, (int, float))
+                and abs(t.prior_value) >= 100.0  # small MD&A values tie by
+                                                 # coincidence even identity-
+                                                 # grade (tax-row class,
+                                                 # measured at floors 1-25)
+                and t.input_kind != "derived"]   # computed rows (deltas,
+                                                 # ratios) are never inputs
+    by_sheet_t = defaultdict(list)
+    for t in unserved:
+        by_sheet_t[t.sheet].append(t)
+
+    BIND_MIN_PRIORS = 3     # two ties is chance; three distinct rows of ONE
+                            # model block at one scale is a table identity
+
+    def _tie_grade(nm, pv):
+        # identity-grade anchor (0.6 abs / 0.05% rel) — same law as every
+        # other anchor; world tolerance measured coincidence-prone here
+        return abs(nm - abs(pv)) <= max(0.6, abs(pv) * 5e-4)
+
+    # LEVEL 1, PER MODEL BLOCK: a table binds FOR one model sheet only when
+    # >= 3 of THAT sheet's priors tie (the council's block<->table binding;
+    # binding against the whole census measured related-party tables bound
+    # by coincidence)
+    # The binding also LEARNS the table's column geometry: the minimal
+    # tying slot is where the prior-year block begins, and the current
+    # block mirrors it from slot 0 — segment tables interleave measures
+    # ((2025rev, 2025cost, 2024rev, 2024cost)); adjacent-pair mechanics
+    # served the WRONG MEASURE there (measured live: 2025 cost into a
+    # revenue row).
+    bound = defaultdict(dict)    # sheet -> {table key: (scale, offset)}
+    for key, items in by_table.items():
+        if len(items) < BIND_MIN_PRIORS:
+            continue
+        for sheet, ts in by_sheet_t.items():
+            best, best_n, best_slots = None, 0, []
+            for s in SCALES:
+                tied = set()
+                slots = []
+                for it in items:
+                    # a multi-measure line (rev AND cost priors printed on
+                    # one segment row) legitimately vouches for several
+                    # DISTINCT priors — the set collapses duplicates
+                    for k, n in enumerate(it.nums):
+                        if k == 0:
+                            continue    # slot 0 is the current block's start
+                        if s > 1 and abs(n) < s / 1000:
+                            continue
+                        nm = abs(to_model_units(n, s))
+                        for t in ts:
+                            if _tie_grade(nm, t.prior_value):
+                                if round(abs(t.prior_value), 2) not in tied:
+                                    slots.append(k)
+                                tied.add(round(abs(t.prior_value), 2))
+                                break
+                if len(tied) > best_n:
+                    best_n, best, best_slots = len(tied), s, slots
+            if best_n >= BIND_MIN_PRIORS:
+                k0 = min(best_slots)
+                if best_slots.count(k0) < 2:
+                    k0 = 1      # offset needs >= 2 corroborating rows,
+                                # else classic adjacency
+                bound[sheet][key] = (best, k0)
+    if not bound:
+        log.append("stage-2.5: no non-statement table bound")
+        return {}, []
+
+    out, decisions = {}, []
+    twins = defaultdict(list)
+    for t in unserved:
+        pv = t.prior_value
+        tol = max(0.6, abs(pv) * 5e-4)       # identity-grade rows only
+        cands = []
+        for key, (s, k0) in bound.get(t.sheet, {}).items():
+            for it in by_table[key]:
+                ns = [to_model_units(n, s) for n in it.nums]
+                # the prior must tie at exactly ONE slot in the prior
+                # block; the current is the mirrored slot (k - k0)
+                ties = [(k, 1 if abs(n - pv) <= tol else -1)
+                        for k, n in enumerate(ns)
+                        if k >= k0 and (abs(n - pv) <= tol
+                                        or abs(n + pv) <= tol)]
+                if len(ties) != 1 or _is_elimination_line(ns, tol):
+                    continue
+                k, sign = ties[0]
+                j = k - k0
+                if not (0 <= j < min(k0, len(ns))):
+                    continue    # current slot must sit in the current block
+                sv0 = sign * ns[j]
+                # stricter world band than statements (30x): an 84x MW
+                # coincidence measured through the 100x band here
+                if abs(sv0) > 30 * abs(pv) or abs(sv0) * 30 < abs(pv):
+                    continue
+                cands.append((sv0, it, s))
+        if not cands or len(cands) > MAX_CANDS:
+            continue
+        vals = [v for v, _i, _s in cands]
+        if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
+            continue
+        sv, it, s = cands[0]
+        if sv == 0:
+            continue
+        out[t.key] = {
+            "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
+            "line": it.label[:60], "conf": CONF_JOINED,
+            "note": (f"stage-2.5 bound-table join: table proven by "
+                     f">=3 sibling prior ties at scale {s:g}; this row's "
+                     f"prior {pv:,.2f} tied by '{it.label[:36]}' "
+                     f"({it.doc} p{it.page})")}
+        twins[(it.doc, it.page, it.table_id, it.label, round(sv, 2))].append(t.key)
+        decisions.append(JoinDecision(
+            t.sheet, t.row, "accepted", value=sv, item_id=it.item_id,
+            doc=it.doc, page=it.page, scale=s,
+            gates=["bound_table", "prior_identity", "agreement"],
+            note=f"bound-table: prior {pv:,.2f} tied by '{it.label[:36]}'"))
+    dropped = 0
+    for _k, keys in twins.items():
+        if len(keys) > 1:
+            for k in keys:
+                out.pop(k, None)
+                dropped += 1
+    for d in decisions:
+        if (d.sheet, d.row) not in out and d.status == "accepted":
+            d.status = "twin_dropped"
+    log.append(f"stage-2.5: {len(bound)} tables bound, {len(out)} rows "
+               f"joined, {dropped} twin-dropped")
+    return out, decisions
+
+
 def decisions_to_json(decisions):
     import json
     return json.dumps({"version": 1, "decisions": [asdict(d) for d in decisions]},
