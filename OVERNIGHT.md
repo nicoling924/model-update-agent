@@ -100,3 +100,21 @@ BOSS_MINDMAP.md.
 - The design question: is the endgame still a draw, or is the close now
   stable? (Runs 13/14 suggest stability: 15/33 segments twice, balance
   24->1 with the family collapsing the same way.)
+
+## Run 15 — variance measurement (unchanged code): STABLE
+- 96 calls; served 246; flags 54; ~40 min.
+- Segments: **15/33 written for the THIRD consecutive run** (18
+  not-disclosed this draw, 0 flagged — dispositions shuffle slightly,
+  the writes do not). Balance: the same 1.0-class residual (this draw it
+  propagates into forecasts; run 14's draw closed them — the LAST
+  remaining variance is whether the 1.0 lands in 2025 only or echoes).
+- Bell: identical honest behavior (two truth-guard refusals -> reasoned
+  flag). Laws identical to run 14.
+- VERDICT: the close is reproducible. The endgame lottery is gone; what
+  varies is a 1.0 rounding echo. The architecture holds.
+
+## Where the night ends (04:5x HKT)
+Balance: 1.0 from true. Segments: writing, reproducibly. Cost: halved.
+Behavior: honest, visible, stable. Open for today (proposals in
+MORNING_REPORT.md): CFI/CFF twin data-first diagnosis; bell site vetting;
+CLP genericity run; EPS-class proof.
