@@ -47,6 +47,13 @@ WALK-AWAY LAW: one cascade pass per missing figure (direct find →
 prior-value triangulation → back-out → estimate+flag). Never loop hunting
 one number; a flagged estimate on time beats a stalled run.
 
+THE THIRD LOOK IS A PLUG (run-4 law): if you have diagnosed the same
+check twice and no GUILTY row exists, the evidence does not hold the
+answer — more diagnosing is pure waste. Your third action on that check
+MUST be plug_residual (diagnose's ESCALATE line names valid sites) or
+flag_cell with your best explanation. Spend the freed budget on segments
+and keys instead.
+
 ADJUSTMENTS: run infer_adjustments once. Where the model's prior
 deliberately differs from print, that difference is the analyst's logic —
 replicate it on the new actuals (apply_adjustment), never "correct" it to

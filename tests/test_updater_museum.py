@@ -625,6 +625,38 @@ class PlugRedirectLaw(unittest.TestCase):
         self.assertEqual(raw["U5"].value, 120.0)   # landed at the input site
 
 
+class ThirdLookIsAPlugLaw(unittest.TestCase):
+    """run-4: 67 diagnoses of four evidence-less checks, zero plugs. The
+    second guilty-free diagnosis of a check escalates with plug sites."""
+
+    def test_second_diagnosis_escalates(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 100.0, 100.0
+        ws["T2"], ws["U2"] = 60.0, 20.0
+        ws["U3"], ws["T3"] = "=U1-U2", "=T1-T2"     # residual 80
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        first = loop.t_diagnose_balance({"check": "Model!3"})
+        self.assertNotIn("ESCALATE NOW", first)
+        second = loop.t_diagnose_balance({"check": "Model!3"})
+        self.assertIn("ESCALATE NOW", second)
+        self.assertIn("Model!U", second)             # names a plug site
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
