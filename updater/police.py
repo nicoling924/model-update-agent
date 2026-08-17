@@ -74,32 +74,54 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
     tmap = {t.key: t for t in tl}
     flags = set(writer_log["flags"])
 
-    # Law 1 — announced data
-    mism = []
+    # Laws 1 & 4 share the evidence oracle. A key is PROVEN when its live
+    # value ties unique disclosure evidence — however it was computed
+    # (run-2 autopsy: formula keys with proven inputs were counted
+    # "unproven" by write-bookkeeping; the oracle judges VALUES, not
+    # plumbing). correct-or-flagged (BOSS law): evidence-tied -> proven;
+    # evidence-mismatch -> law 1 FAIL; no evidence and no flag -> law 4
+    # finding (prove it or flag it).
+    from .evaluator import Evaluator
+    ev = Evaluator(wb)
+    mism, unverified, proven = [], [], 0
     for k in spec.get("key_rows") or []:
         t = tmap.get((k["sheet"], int(k["row"])))
         if t is None:
             continue
-        got = unique_evidence_value(ledger, tl, t)
-        if got is None:
-            continue
-        dv = got[0]
         tcol = year_columns(spec, t.sheet).get(ty)
         if not tcol:
             continue
-        from .evaluator import Evaluator
         try:
-            mv = Evaluator(wb).cell(t.sheet, f"{tcol}{t.row}")
+            mv = ev.cell(t.sheet, f"{tcol}{t.row}")
         except Exception:
             continue
         ref = f"{t.sheet}!{tcol}{t.row}"
-        if isinstance(mv, (int, float)) \
-                and abs(abs(mv) - abs(dv)) > max(row_tol(dv), abs(dv) * 5e-3) \
-                and ref not in flags:
-            mism.append(f"{k.get('name', ref)}: model {mv:,.2f} vs "
-                        f"disclosed {dv:,.2f} ({got[1].doc} p{got[1].page})")
+        name = k.get("name", ref)
+        got = unique_evidence_value(ledger, tl, t)
+        if got is not None:
+            dv = got[0]
+            if isinstance(mv, (int, float)) \
+                    and abs(abs(mv) - abs(dv)) <= max(row_tol(dv),
+                                                      abs(dv) * 5e-3):
+                proven += 1
+                continue
+            if ref not in flags:
+                mism.append(f"{name}: model "
+                            f"{mv if isinstance(mv, (int, float)) else '?'} "
+                            f"vs disclosed {dv:,.2f} "
+                            f"({got[1].doc} p{got[1].page})")
+            continue
+        if ref not in flags and isinstance(mv, (int, float)):
+            unverified.append(name)
     out["laws"]["1_announced"] = "PASS" if not mism else f"FAIL ({len(mism)})"
     out["findings"] += [f"announced: {m}" for m in mism[:10]]
+    if spec.get("key_rows"):        # empty list keeps the NO-KEY-ROWS verdict
+        out["laws"]["4_keys"] = (
+            f"PASS ({proven} evidence-proven)" if not mism and not unverified
+            else f"FAIL ({len(mism)} mismatch, {len(unverified)} "
+                 f"unverified-unflagged)")
+        out["findings"] += [f"key unverified+unflagged (prove or flag): {n}"
+                            for n in unverified[:8]]
 
     # Law 2 — adjustments: every replicated adjustment still holds its
     # replicated value (the book remembers what the agent applied).

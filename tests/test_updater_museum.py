@@ -466,6 +466,94 @@ class VacuousKeysLaw(unittest.TestCase):
         self.assertIn("NO KEY ROWS", out["laws"]["4_keys"])
 
 
+class CellCitationLaw(unittest.TestCase):
+    """run-2: the agent found the cash-tie fix citing a proven workbook
+    cell and the page-only guard blocked it. Cell cites are legal."""
+
+    def test_cell_cite_accepted(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 50.0, 50.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U1", "value": 60.0,
+                                "why": "ties Raw financials!U243 (statement)"})
+        self.assertIn("WRITTEN", out)
+
+    def test_citation_free_still_refused(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["U1"] = 1.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U1", "value": 2.0,
+                                "why": "because it looks right"})
+        self.assertIn("REFUSED", out)
+
+
+class KeysOracleLaw(unittest.TestCase):
+    """run-2: formula-computed keys with correct values were counted
+    unproven by write-bookkeeping. Law 4 judges VALUES via the evidence
+    oracle; no-evidence keys must be flagged or they are findings."""
+
+    def _setup(self, flag):
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 100.0, 110.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [{"sheet": "Model", "row": 5, "name": "revenue"}]}
+
+        class T:
+            sheet, row, key, label, prior_value = "Model", 5, ("Model", 5), \
+                "revenue", 100.0
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        from updater.police import verify
+        return verify(wb, spec, "2025", _Ledger(), [T()], {}, EvidenceBook(),
+                      {"flags": ["Model!U5"] if flag else []})
+
+    def test_no_evidence_unflagged_is_finding(self):
+        out = self._setup(flag=False)
+        self.assertIn("FAIL", out["laws"]["4_keys"])
+        self.assertTrue(any("unverified" in f for f in out["findings"]))
+
+    def test_no_evidence_flagged_is_honest(self):
+        out = self._setup(flag=True)
+        self.assertIn("PASS", out["laws"]["4_keys"])
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
