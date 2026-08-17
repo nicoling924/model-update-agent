@@ -1,10 +1,20 @@
 # HANDOFF — read this first
 
-**OWNER DIRECTION (2026-08-17, end of session): the agent OBJECTIVE is being
-reworked from scratch — the owner will open a new session starting from a
-MINDMAP discussion of objectives before any further building. Treat
-everything below as the technical state inherited by that discussion, not
-as a work queue.**
+**OBJECTIVES REWORKED + NEW AGENT BUILT (2026-08-17 evening).** The mindmap
+session happened: **BOSS_MINDMAP.md** is the governing objectives document
+(always deliver, no refusal/flag-budget/completion-%; restatement = the one
+pause; 4 Police laws; keys+segments over completion; champion retired).
+REBUILD.md rewritten as the constitution; TOOLSET_AUDIT.md holds
+evidence-graded keep/kill rulings on all legacy tooling; BUILD_PLAN.md the
+approved design. **`updater/` is the new package**: one agent loop owns the
+whole run (bulk stages are its TOOLS), evidence-graded writes (A-D ->
+flags automatic), self-announcing toolbox, restatement pause/resume with
+agent judging, adjustment-logic inference, Police (findings loop back,
+never auto-apply), new _REPORT (proj-vs-actual + old-vs-new forecast).
+Museums: 24 updater + 50 pipeline + 6 legacy, all green. Dry runs DELIVER
+on DFE and CLP with honest Police verdicts. Next: first live Luna run
+(`python -m updater.cli companies/DFE FY25 2025`). Everything below is the
+PRE-REWORK technical state, kept for reference.
 
 **Day-2 state:** 10 live runs total (5 local, 5 cloud). Latest cloud run
 (v10): balance residual 67 (from 4,042), 141 deterministic joins at 175/176
