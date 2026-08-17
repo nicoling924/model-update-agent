@@ -280,19 +280,41 @@ class PacketCloser:
             except Exception as e:
                 self.log(f"[closer] closing bell call failed: {e}")
                 continue
-            if out["disposition"] == "plug":
-                r = self.tk.t_plug_residual({"check": ref,
-                                             "into": str(out["into"]),
-                                             "why": str(out["why"])})
-                self.log(f"[closer] bell {ref}: plug -> "
-                         f"{str(r).splitlines()[0][:90]}")
-            else:
-                sheet, row = ref.split("!")
-                col = self.tk._tcol(sheet)
-                self.tk.t_flag_cell({"cell": f"{sheet}!{col}{row}",
-                                     "why": f"closing bell: {out['why']}"})
-                self.log(f"[closer] bell {ref}: flagged — "
-                         f"{str(out['why'])[:90]}")
+            # the bell is a DECISION, and a refused plug is information —
+            # one informed retry, then the reasoned-flag fallback. The
+            # bell never ends in silence.
+            for attempt in range(2):
+                if out["disposition"] == "plug":
+                    r = self.tk.t_plug_residual({"check": ref,
+                                                 "into": str(out["into"]),
+                                                 "why": str(out["why"])})
+                    self.log(f"[closer] bell {ref}: plug -> "
+                             f"{str(r).splitlines()[0][:90]}")
+                    if str(r).startswith("PLUGGED") or attempt == 1:
+                        if not str(r).startswith("PLUGGED"):
+                            out = {"disposition": "flag",
+                                   "why": f"plug unavailable: {str(r)[:120]}"}
+                            continue
+                        break
+                    try:
+                        out = self._json(
+                            _p("method.md"),
+                            user + "\n\n== APPLY REPORT ==\n"
+                            + str(r)[:200]
+                            + "\nThe reason above is information about the "
+                            "model. Decide again: another legal site, or "
+                            "a reasoned flag.", _val)
+                    except Exception:
+                        out = {"disposition": "flag",
+                               "why": f"plug refused: {str(r)[:120]}"}
+                else:
+                    sheet, row = ref.split("!")
+                    col = self.tk._tcol(sheet)
+                    self.tk.t_flag_cell({"cell": f"{sheet}!{col}{row}",
+                                         "why": f"closing bell: {out['why']}"})
+                    self.log(f"[closer] bell {ref}: flagged — "
+                             f"{str(out['why'])[:90]}")
+                    break
             self.reports.append(f"bell:{ref}: {out['disposition']}")
 
     # -- the atomic reclass packet (council wall-3 design) ------------------
@@ -490,9 +512,14 @@ class PacketCloser:
                     # ATOMIC RECLASS packet — one bound question, a
                     # two-legged move or nothing.
                     r = self.atomic_reclass(a[0], b[0], abs(a[1]))
+                    self.log(f"[closer] reclass {a[0]}/{b[0]} "
+                             f"(±{abs(a[1]):,.2f}): {str(r)[:110]}")
                     self.reports.append(f"reclass:{a[0]}/{b[0]}: {r}")
                     if "both keys tie" in str(r):
                         moved_keys.update({a[0], b[0]})
+        if deltas and not moved_keys:
+            self.log(f"[closer] reclass scan: {len(deltas)} announced "
+                     "deltas, no twin move landed")
         targets = [t for t in targets
                    if not (t.startswith("key:")
                            and t[4:] in moved_keys)]

@@ -67,3 +67,18 @@ BOSS_MINDMAP.md.
 - All three implemented; 63 museum exhibits green; real-data check: 282
   islands from the DFE AR, the 资产构成 MD&A grid selected with headers
   intact. Run 13 carries the full council package.
+
+## Run 13 — the council package's first flight
+- 95 calls; served 245 (record); flags 61; ~40 min.
+- **WALL 1 BROKEN: compile:Driver wrote 15 of 33 segment rows** (0 for
+  three straight runs before) via Table Islands, +13 honest
+  not-disclosed, +5 flags — every segment row dispositioned.
+- Repairs plugged Model!135 + Driver!109/139; only the Model!95 24.0
+  family remained for the bell — whose plug was correctly REFUSED by the
+  truth-guard (aimed at a proven cell)… and the bell had no fallback, so
+  the family shipped flagged-by-code. Reclass never logged (self-announce
+  gap in my own code).
+- Refinements (design-consistent): the bell now treats a refusal as
+  information — one informed retry, then a reasoned flag (never silent);
+  reclass logs its outcome always.
+- Run 14 carries both.
