@@ -125,6 +125,15 @@ To make sure of the following:
 - **2026-08-17 · Engine:** prefer pure gpt-5.6-luna for BOTH updater and
   Police/reviewer. Fallback: if Luna-as-reviewer doesn't perform, Luna
   updates + Tera reviews.
+- **2026-08-17 (evening) · Keys clarification (owner, reviewing run 7):**
+  the key-number list in "Key required output" is to be read with SPECIAL
+  ATTENTION on: operating / investing / financing cash flow, and the
+  segment breakdowns of sales AND gross profit. For KEY numbers a flag
+  does not excuse a wrong or stale value — "correct-or-flagged" is the
+  standard for lesser rows; keys must be CORRECT (updated and tying the
+  disclosure). Segment breakdowns must be UPDATED from the MD&A/segment
+  disclosures (implied-prior identity for single-year tables), not left
+  stale-flagged.
 - **2026-08-17 · Fresh start:** NO champion re-scoring — the old champion
   agent (stable-run105) is retired; "the agent of the champion is not good
   at all." We start new. Purpose of this mindmap: Fable 5 understands the

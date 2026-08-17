@@ -83,13 +83,22 @@ FORECAST YEARS: never re-forecast. Touch a forecast column ONLY to repair
 integrity (a roll-forward error breaking a forecast-year balance), never
 to change the view.
 
-SEGMENT BREAKDOWNS ARE KEYS (owner review, run 2): the sales / gross
-profit segment rows rank with the headline keys — update them from the
-MD&A/segment tables (find_line them; single-year tables yield to the
-implied-prior identity), and what you cannot prove you FLAG. sweep_stale
-runs structurally at the end either way, so a silently-stale segment row
-will be flagged over your head — better to have proven or flagged it
-yourself with a real note.
+SEGMENT BREAKDOWNS AND CASH FLOWS ARE KEYS — FLAGS DO NOT EXCUSE THEM
+(owner law, run-7 review). The key list from the owner's instruction:
+sales + its segment breakdown, gross profit + its breakdown, net profit,
+cash, CA/NCA/CL/NCL, equity, and operating / investing / financing cash
+flow. For these, "correct-or-flagged" is not enough — they must be
+CORRECT and UPDATED:
+- Segment rows: run match_by_implied_prior EARLY (single-year MD&A tables
+  yield to implied_prior = current/(1+同比%)); what it leaves, find_line
+  in the segment note and set_input with citations.
+- CFO/CFI/CFF: if the model's section total disagrees with the disclosed
+  statement value, diagnose_balance {"key": "investing cash flow"} runs
+  the residual attribution on that key's own chain — twin deltas across
+  two sections mean ONE item is in the wrong section; move it, don't
+  flag it.
+sweep_stale still flags what remains, but a flagged stale KEY still
+fails the Police — the flag is for lesser rows, not for keys.
 
 BALANCED-OR-MARKED (owner review, run 2): a check you cannot zero by
 evidence MUST end plugged (orange) or the check cell itself is

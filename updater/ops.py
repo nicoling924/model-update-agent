@@ -135,6 +135,79 @@ def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
     return n_stale
 
 
+def implied_prior_candidates(wb, spec_d, target_year, targets, ledger,
+                             served, log):
+    """SINGLE-YEAR tables (run-103 mechanism, ledger shape): CANDIDATES
+    ONLY — never writes (measured on this corpus: flat text lines admit
+    prose coincidences no deterministic guard fully removes; the legacy
+    13/0 precision came from structured table HEADERS stage 1 does not
+    yet preserve). The AGENT judges each candidate's line context and
+    writes via set_input — cited, transactional, truth-guarded. That is
+    the owner's design: tools surface, the agent thinks.
+
+    implied_prior = current / (1 + pct/100) must reproduce the model's own
+    prior at identity grade. Guards: the line must declare a YoY-change
+    context, the pct must print with a %% sign, the move must be real
+    (|pct| >= 0.5), and the tie must be UNIQUE.
+    """
+    from .numerics import SCALES
+    prior_docs = ledger.prior_period_docs()
+    out = []
+    for t in targets:
+        pv = t.prior_value
+        if (t.sheet, t.row) in served or not isinstance(pv, (int, float)) \
+                or abs(pv) < 1.0:
+            continue
+        tcol = year_columns(spec_d, t.sheet).get(str(target_year))
+        if not tcol or t.sheet not in wb.sheetnames:
+            continue
+        if not isinstance(wb[t.sheet][f"{tcol}{t.row}"].value, (int, float)):
+            continue                      # only stale hardcode inputs
+        cands = []
+        for it in ledger.items:
+            if it.doc in prior_docs or not it.joinable():
+                continue
+            # PRECISION GUARDS (measured: without them the sweep served 8
+            # coincidences — associate-stake 2.41%, FX-sensitivity 5%
+            # prose, dividend ratios). An implied prior needs BOTH:
+            # (a) the line to declare itself a year-on-year CHANGE context
+            #     (同比/增减/比上年/较上年/yoy) — ownership stakes and
+            #     sensitivity percents never do;
+            # (b) the pct to be printed WITH a percent sign.
+            line = str(it.source_line)
+            if not re.search(r"同比|增减|比上年|较上年|yoy", line,
+                             re.IGNORECASE):
+                continue
+            pcts = {float(m2) for m2 in re.findall(
+                r"(-?\d+(?:\.\d+)?)\s*[%％]", line)}
+            if not pcts:
+                continue
+            for v in it.nums:
+                if v == 0 or abs(v) in {abs(p) for p in pcts}:
+                    continue
+                for pct in pcts:
+                    if pct <= -100 or abs(pct) < 0.5 or abs(pct) >= 400:
+                        continue
+                    implied = v / (1 + pct / 100.0)
+                    for s in SCALES:
+                        if abs(abs(implied) / s - abs(pv)) <= \
+                                max(abs(pv) * 0.005, 0.6):
+                            cur = abs(v) / s * (1 if pv >= 0 else -1)
+                            cands.append((round(cur, 4), it, pct))
+                            break
+        vals = {c[0] for c in cands}
+        if len(vals) != 1:
+            continue                      # nothing, or ambiguous — honest
+        cur, it, pct = cands[0]
+        out.append({"row": f"{t.sheet}!{t.row}",
+                    "label": str(t.label)[:40], "prior": pv,
+                    "value": cur, "pct": pct, "cell": f"{t.sheet}!{tcol}{t.row}",
+                    "cite": f"{it.doc} p{it.page}: {it.source_line[:80]}",
+                    "page": it.page})
+    log(f"[ops] implied-prior: {len(out)} candidates (agent to judge)")
+    return out
+
+
 def flag_failed_checks(wb, spec_d, target_year, writer, book, log):
     """Boss law 1: balanced OR marked. Any check row still failing at the
     end of the run gets its cell red-flagged in EVERY failing year — an
