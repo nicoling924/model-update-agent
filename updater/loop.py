@@ -385,7 +385,10 @@ class AgentLoop:
             out = [f"KEY {match.get('name')} {sheet}!{col}{row}: model "
                    f"{mv:,.2f} vs disclosed {got[0]:,.2f} "
                    f"({got[1].doc} p{got[1].page}) -> residual "
-                   f"{residual:,.2f} to attribute on its own chain"]
+                   f"{residual:,.2f} to attribute on its own chain",
+                   "  (repair COMPONENTS via set_input/apply_diff — "
+                   "plug_residual on a key is FORBIDDEN: a key's target is "
+                   "its DISCLOSED value, never zero)"]
             if abs(residual) <= max(0.6, abs(got[0]) * 5e-3):
                 return out[0] + " — TIES, nothing to fix"
         else:
@@ -495,7 +498,14 @@ class AgentLoop:
         self._diag_counts = getattr(self, "_diag_counts", {})
         ck = f"{sheet}!{row}"
         self._diag_counts[ck] = self._diag_counts.get(ck, 0) + 1
-        if guilty == 0 and self._diag_counts[ck] >= 2:
+        if key_q and guilty == 0 and self._diag_counts[ck] >= 2:
+            out.append(
+                "ESCALATE (key mode): no provable component cause — act on "
+                "any RECLASS/SUSPECT above via set_input, or flag_cell the "
+                "key with your best explanation and move on. NEVER "
+                "plug_residual a key (its target is the disclosed value, "
+                "not zero).")
+        elif guilty == 0 and self._diag_counts[ck] >= 2:
             keys = self._key_rows()
             sites = []
             for (sh, coord) in dict.fromkeys(
@@ -534,9 +544,9 @@ class AgentLoop:
         if "GUILTY" in diag:
             return ("REFUSED: evidence-based fixes remain — plug only after "
                     "these are applied or ruled out:\n" + diag)
-        # column-qualified check refs are legal (run-4: two plugs died on
-        # 'Model!U95' vs 'Model!95' — a format, not a mistake)
-        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?[A-Z]{0,3}(\d+)$",
+        # column-qualified and 'r95'-style check refs are legal (run-4/8:
+        # plugs died on format variants — never on intent)
+        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?[A-Za-z]{0,3}?(\d+)$",
                       check.replace("$", ""))
         mi = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
                       into.replace("$", ""))
@@ -544,6 +554,19 @@ class AgentLoop:
             return ("MISS: need {\"check\": \"Model!95\", "
                     "\"into\": \"Sheet!U177\", \"why\": ...}")
         c_sheet, c_row = (mc.group(1) or mc.group(2)).strip(), int(mc.group(3))
+        # CHECK-ROWS-ONLY LAW (run-8: the agent fed KEY cells as "checks"
+        # and the tool zeroed CFI itself, then ping-ponged components).
+        # A check row's target is zero; a key row's target is its DISCLOSED
+        # value — plugging may only ever zero a spec check row.
+        spec_checks = {(c["sheet"], int(c["row"]))
+                       for c in self.spec.get("check_rows") or []}
+        if (c_sheet, c_row) not in spec_checks:
+            return (f"REFUSED: {c_sheet}!{c_row} is not a check row — "
+                    "plug_residual only zeroes designed check rows "
+                    f"({sorted(f'{s}!{r}' for s, r in spec_checks)[:6]}). "
+                    "A mismatching KEY is repaired through its COMPONENTS "
+                    "via set_input/apply_diff (diagnose_balance "
+                    "{\"key\": ...} names them); a key is never zeroed.")
         c_col = self._tcol(c_sheet)
         i_sheet, i_col, i_row = ((mi.group(1) or mi.group(2)).strip(),
                                  mi.group(3), int(mi.group(4)))
@@ -576,6 +599,16 @@ class AgentLoop:
             return (f"MISS: {into} is not a numeric input cell (and no "
                     "input site found behind it) — pick a NUMERIC component "
                     "from diagnose_balance's leaf list")
+        # ONE PLUG PER CELL (run-8: Raw!U203 was plugged three times,
+        # ping-ponging 35,262 -> 5,089 -> -25,073 as two residuals fought
+        # over it). A plug site is an analyst-review item; a second
+        # residual landing on the same cell means its cause is elsewhere.
+        prior_plug = self.book.entries.get(f"{i_sheet}!{i_col}{i_row}")
+        if prior_plug is not None and prior_plug.method == "plug":
+            return (f"REFUSED: {into} is already a plug site this run — a "
+                    "second residual pointing here means its true cause is "
+                    "elsewhere; diagnose the other check/key and repair or "
+                    "flag it instead.")
         # TRUTH OUTRANKS BALANCE (run-6 law): a cell whose value ties
         # disclosure evidence is PROVEN — plugging it falsifies announced
         # data to satisfy an identity, the one forbidden trade.
