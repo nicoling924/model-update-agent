@@ -32,6 +32,10 @@ SCALES = (1.0, 1e3, 1e4, 1e6, 1e8)
 
 # Words that carry no identity on their own: overlap on these confirms nothing.
 STOPWORDS = {"and", "of", "in", "the", "net", "total", "other", "for"}
+# Their CJK cousins: structural words that name a POSITION in a table, not a
+# thing — '其他' kinship-matched a payables row by substring and a bare
+# '合计' line served a tier-2 join (both measured live, both poison).
+CJK_STRUCTURAL = {"其他", "合计", "小计", "总计", "其中", "本期", "上期", "项目"}
 
 # Number tokens as filings print them: optional parens (negative), thousands
 # commas, decimals. Fullwidth forms are translated before matching.
@@ -159,5 +163,7 @@ def kinship(a, b):
         return bool(wa & wb)
     sa, sb = na.replace(" ", ""), nb.replace(" ", "")
     if len(sa) < 2 or len(sb) < 2:
+        return False
+    if sa in CJK_STRUCTURAL or sb in CJK_STRUCTURAL:
         return False
     return sa in sb or sb in sa

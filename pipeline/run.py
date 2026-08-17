@@ -215,6 +215,48 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_stale:
         log(f"[run] {n_stale} unserved hardcode inputs flagged STALE (red)")
 
+    # -- PRE-LOOP DETERMINISTIC SWEEP (owner ruling: find it and fix it;
+    # the loop's budget must not be spent on rows code can prove). For each
+    # stale row: unique identity-grade face evidence -> write it (stage-2-
+    # grade, no LLM); else a prior-column composition identity -> write the
+    # SUM formula, orange-flagged per the house back-out law.
+    # (an earlier kinship-free WORLD-tolerance evidence sweep here measured
+    # 15 wrong writes — that idea now lives INSIDE join() as tier 2, behind
+    # every gate; only the composition back-out remains a sweep)
+    from .stage2_join import infer_composition
+    targets_by_key = {t.key: t for t in targets}
+    n_comp = 0
+    for sheet, rows in hardcode_census.items():
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        for r in rows:
+            ref = f"{sheet}!{tcol}{r}"
+            if ref not in writer.log["flags"]:
+                continue
+            if pcol:
+                f = infer_composition(wb, sheet, r, pcol, tcol)
+                # every term must itself be trustworthy: a SUM over cells
+                # still holding LAST year's numbers bakes mixed-year garbage
+                # (measured -128k check residual), and the formula string
+                # escapes the magnitude sweep
+                if f:
+                    import re as _re
+                    m2 = _re.match(rf"^=SUM\({tcol}(\d+):{tcol}(\d+)\)$", f)
+                    if m2 and any(f"{sheet}!{tcol}{k}" in writer.log["flags"]
+                                  for k in range(int(m2.group(1)),
+                                                 int(m2.group(2)) + 1)):
+                        f = None
+                if f and writer.write(
+                        sheet, f"{tcol}{r}", f,
+                        prior_coord=f"{pcol}{r}",
+                        flag="orange",
+                        note=("backed out: composition inferred from the "
+                              "prior column's own arithmetic — true up "
+                              "against the detailed disclosure")):
+                    n_comp += 1
+    if n_comp:
+        log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
+
     # -- Stage 4: the objective loop (Luna owns it), then the gate
     loop_summary = ""
     if client is not None:

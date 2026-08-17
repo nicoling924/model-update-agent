@@ -157,6 +157,35 @@ def test_to_model_units_small_world_passthrough():
     assert to_model_units(500.0, 1.0) == 500.0
 
 
+# ── Tier 2: identity without a name, page affinity required ──────────────
+# Cross-language models starve kinship; an identity-grade tie may serve a
+# row ONLY from a page already tier-1-serving >= 2 rows of the same sheet.
+# Lone singletons measured 4 wrong writes; a world-tolerance oracle 15.
+
+def test_tier2_identity_join_with_page_affinity():
+    items = _anchors() + [
+        _item(95, 5, "营业总收入乙栏", [60001.0, 58001.0]),
+        _item(95, 6, "营业总成本乙栏", [41001.0, 39001.0]),
+        _item(95, 8, "研发费用支出栏", [3261.16, 2854.55]),
+    ]
+    targets = [
+        # two CN-labelled rows tier-1-serve sheet S on p95 (kinship works)
+        TargetRow("S", 1, "营业总收入乙栏", 58001.0),
+        TargetRow("S", 2, "营业总成本乙栏", 39001.0),
+        # an EN-labelled row: kinship fails, identity + affinity serves it
+        TargetRow("S", 8, "R&D expense", 2854.55),
+        # same prior on a DIFFERENT sheet: no affinity -> stays unbound
+        TargetRow("T", 8, "R&D expense", 2854.55),
+    ]
+    served, dec = join(_ledger(items), targets)
+    assert ("S", 1) in served and ("S", 2) in served
+    e = served.get(("S", 8))
+    assert e is not None and abs(e["value"] - 3261.16) < 0.01, \
+        f"tier-2 affinity join failed: {e}"
+    assert ("T", 8) not in served, \
+        "tier-2 served a sheet with no page affinity (lone-singleton class)"
+
+
 # ── The CLP dividend poison: per-share printed next to the total ─────────
 # 'Fourth interim dividend declared 1.26 ... 3,183' — slot-by-tie pairs
 # (1.26, 3183), the 3,183 ties the model's totals row, kinship passes on
