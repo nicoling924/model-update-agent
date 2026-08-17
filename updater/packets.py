@@ -114,8 +114,30 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
 def compile_card(wb, spec, ty, sheet, served, writer_log, ledger):
     """The compile packet's whole world: the open column, in order, each
     row with its label, prior, current (stale) value, and evidence slice.
-    Returned as chunks the engine can hold."""
+    Returned as chunks the engine can hold.
+
+    Evidence is NUMBER-ANCHORED first (prior-tie, implied-prior) because
+    labels die across languages (run-11: an English 'Gas Turbine' row can
+    never label-match 燃气轮机 — but last year's number, or the implied
+    prior from a 同比%, is language-free)."""
     rows = open_rows(wb, spec, ty, sheet, served, writer_log)
+    from .ops import implied_prior_candidates
+
+    class _T:
+        pass
+    tl = []
+    for r in rows:
+        t = _T()
+        t.sheet, t.row, t.key = sheet, r["row"], (sheet, r["row"])
+        t.label, t.prior_value = r["label"], r.get("prior")
+        tl.append(t)
+    ip = {}
+    try:
+        for c in implied_prior_candidates(wb, spec, ty, tl, ledger, served,
+                                          lambda s: None):
+            ip[c["row"]] = c
+    except Exception:
+        ip = {}
     chunks = []
     for i in range(0, len(rows), MAX_ROWS_PER_CALL):
         chunk = rows[i:i + MAX_ROWS_PER_CALL]
@@ -128,6 +150,12 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger):
                 if isinstance(r["prior"], (int, float)) else
                 f"{r['cell']} '{r['label']}' | no prior | "
                 f"currently {r['value']:,.2f}")
+            c = ip.get(f"{sheet}!{r['row']}")
+            if c:
+                lines.append(
+                    f"    p{c['page']} [implied-prior] current "
+                    f"{c['value']:,.2f} with {c['pct']:+.2f}% reproduces "
+                    f"this row's prior — {c['cite'][:70]}")
             for h in evidence_slice(ledger, r):
                 lines.append(f"    {h}")
         chunks.append("\n".join(lines))
