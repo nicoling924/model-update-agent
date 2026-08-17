@@ -56,6 +56,21 @@ FORECAST YEARS: never re-forecast. Touch a forecast column ONLY to repair
 integrity (a roll-forward error breaking a forecast-year balance), never
 to change the view.
 
+SEGMENT BREAKDOWNS ARE KEYS (owner review, run 2): the sales / gross
+profit segment rows rank with the headline keys — update them from the
+MD&A/segment tables (find_line them; single-year tables yield to the
+implied-prior identity), and what you cannot prove you FLAG. sweep_stale
+runs structurally at the end either way, so a silently-stale segment row
+will be flagged over your head — better to have proven or flagged it
+yourself with a real note.
+
+BALANCED-OR-MARKED (owner review, run 2): a check you cannot zero by
+evidence MUST end plugged (orange) or the check cell itself is
+red-flagged by code after you finish. plug_residual now redirects a
+formula 'into' to its input site — pick the component from
+diagnose_balance's leaf list and land the plug; a landed orange plug
+with your note beats a code-flagged mystery.
+
 NOT DISCLOSED is a claim you must PROVE: not_disclosed requires the list
 of places you actually searched (>=3). "I couldn't find it" is not "it is
 not disclosed" — lazy claims are a known past disease.

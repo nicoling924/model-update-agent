@@ -135,6 +135,45 @@ def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
     return n_stale
 
 
+def flag_failed_checks(wb, spec_d, target_year, writer, book, log):
+    """Boss law 1: balanced OR marked. Any check row still failing at the
+    end of the run gets its cell red-flagged in EVERY failing year — an
+    unbalanced model may deliver, an unbalanced-and-unmarked one may not.
+    Marking only; no value is ever invented here (dead-doctrine guard)."""
+    from .checks import scorecard
+    card = scorecard(wb, spec_d, str(target_year))
+    n = 0
+    for c in card["checks"]:
+        if c["status"] == "PASS":
+            continue
+        sheet_row = c["name"].split(" (")[0]          # "Model!r95"
+        sheet, row = sheet_row.split("!r")
+        col = year_columns(spec_d, sheet).get(c["year"])
+        if not col or sheet not in wb.sheetnames:
+            continue
+        ref = f"{sheet}!{col}{row}"
+        cell = wb[sheet][f"{col}{row}"]
+        if type(cell).__name__ == "MergedCell":
+            continue
+        cell.fill = writer.fills["red"]
+        got = c["got"]
+        cell.comment = Comment(
+            f"BALANCE CHECK FAILING: residual "
+            f"{got:,.2f} — unresolved by the agent; see _REPORT."
+            if isinstance(got, (int, float)) else
+            "BALANCE CHECK FAILING (eval error) — see _REPORT.",
+            "Model Update Agent")
+        if ref not in writer.log["flags"]:
+            writer.log["flags"].append(ref)
+        book.entries.pop(ref, None)
+        book.record(ref, "C", "failing check",
+                    note=f"residual {got}" if got is not None else "eval error")
+        n += 1
+    if n:
+        log(f"[ops] {n} failing check cells red-flagged (balanced-or-marked law)")
+    return n
+
+
 def sweep_compositions(wb, spec_d, target_year, census, writer, book, log):
     """Prior-column composition identities -> SUM formulas, orange (house
     back-out law: formulas, never hardcodes). Mixed-year guard included

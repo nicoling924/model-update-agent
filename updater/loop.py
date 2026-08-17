@@ -417,8 +417,25 @@ class AgentLoop:
         if abs(residual) <= 0.01:
             return "MISS: that check already passes — nothing to plug"
         held = self.wb[i_sheet][f"{i_col}{i_row}"].value
+        if isinstance(held, str) and held.startswith("="):
+            # run-2 autopsy: three plug attempts died on formula cells.
+            # A formula 'into' redirects to where its number is typed —
+            # same law as set_input.
+            from .writer import resolve_input_site
+            pcol_i = prior_column(self.spec, i_sheet, self.ty)
+            site = (resolve_input_site(self.wb, i_sheet, i_row, pcol_i)
+                    if pcol_i else None)
+            if site and site != (i_sheet, i_row):
+                s_sheet, s_row = site
+                s_tcol = self._tcol(s_sheet)
+                if s_tcol and (s_sheet, s_row) not in self._key_rows():
+                    i_sheet, i_col, i_row = s_sheet, s_tcol, s_row
+                    into = f"{i_sheet}!{i_col}{i_row}"
+                    held = self.wb[i_sheet][f"{i_col}{i_row}"].value
         if not isinstance(held, (int, float)):
-            return f"MISS: {into} is not a numeric input cell"
+            return (f"MISS: {into} is not a numeric input cell (and no "
+                    "input site found behind it) — pick a NUMERIC component "
+                    "from diagnose_balance's leaf list")
         pcol = prior_column(self.spec, i_sheet, self.ty)
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", held - residual,
