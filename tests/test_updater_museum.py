@@ -2296,3 +2296,35 @@ class NoteColumnLaw(unittest.TestCase):
                 if getattr(it, "channel", "") == "closure-gap"]
         self.assertEqual(gaps, [])
         self.assertTrue(items[2].verified)     # tax row verified via closure
+
+
+class OnePrintedLineOneRowLaw(unittest.TestCase):
+    """Run 31: one printed line landed in TWO rows of the same SUM and
+    the balance sheet broke by exactly that amount — a value already
+    sitting at identity precision in a nearby row is a double-count."""
+
+    def test_duplicate_print_refused(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["A1"], ws["U1"] = "预收款项", None
+        ws["A2"], ws["T2"], ws["U2"] = "合同负债", 40666.0, 47228.25581657
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U1",
+                                "value": 47228.25581657,
+                                "why": "p96: counterpart of this line"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("ONE model row", out)

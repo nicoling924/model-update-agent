@@ -1073,6 +1073,28 @@ class AgentLoop:
                             f"printed value, or flag your disagreement with "
                             f"the reason; never override an agreeing print.")
         pcol = prior_column(self.spec, sheet, self.ty)
+        # DUPLICATE-PRINT GUARD (run 31: the engine wrote 合同负债's value
+        # into the blank sibling 预收款项 row as its "counterpart" while
+        # the join had already filled 合同负债 itself — one printed line
+        # landed in TWO rows of the same SUM and the balance sheet broke
+        # by exactly that amount). One printed line lives in ONE row: a
+        # value already sitting at identity precision in a nearby row of
+        # the same column is a double-count, not a mapping.
+        if value != 0:
+            vtol0 = max(0.01, abs(value) * 1e-6)
+            for r2 in range(max(1, row - 8), row + 9):
+                if r2 == row:
+                    continue
+                v2 = self.wb[sheet][f"{col}{r2}"].value
+                if isinstance(v2, (int, float)) \
+                        and abs(v2 - value) <= vtol0:
+                    return (f"REFUSED: {value:,.2f} already sits at "
+                            f"{sheet}!{col}{r2} — one printed line lives in "
+                            f"ONE model row; a second copy double-counts "
+                            f"the sum above them. If this blank row's line "
+                            f"was renamed into that sibling, the blank row "
+                            f"is genuinely absent this year: leave it (or "
+                            f"write 0 with a note), never a second copy.")
         # NEIGHBOUR BAND (confined test 4): a NEW line has no prior, so
         # the world band cannot judge it — but the column's neighbours
         # can. A value ~1000x the nearby rows' magnitude is a raw-units
