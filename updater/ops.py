@@ -210,8 +210,12 @@ def implied_prior_candidates(wb, spec_d, target_year, targets, ledger,
 
 def reconcile_details(wb, spec_d, target_year, targets, ledger, writer,
                       book, log, max_passes=3):
-    """THE FIXED POINT (owner-approved design): identity-grade print
-    application, iterated until nothing changes.
+    """RETIRED AS A WRITER (council #4, unanimous): "Oracles observe;
+    executors mutate." Granting the verification oracle write authority
+    corrupted net profit in run 21 (unique-in-pool != identified). The
+    police detail tie-out is the surviving OBSERVER for this evidence
+    class; machine mutation on it is forbidden. Kept only so museum
+    exhibits can pin the retirement; never called by the run.
 
     Any row where the evidence oracle holds a UNIQUE identity-grade tie
     (single agreeing in-world prior-anchored candidate on a ratified

@@ -187,11 +187,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         served.update(gap)
         ops.write_served(wb, spec_d, target_year, gap, writer, priors,
                          book, run_log.append)
-        # FIXED-POINT pass 1: everything provable is transcribed before
-        # the agent thinks — the thinker gets a clean desk.
-        ops.reconcile_details(wb, spec_d, target_year, targets, ledger,
-                              writer, book, run_log.append)
-        for ln in run_log[-5:]:
+        for ln in run_log[-4:]:
             log(f"[run] {ln}")
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
@@ -222,10 +218,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         # disposition per still-failing residual generator — an executed
         # plug or a reasoned flag; the endgame draw disappears.
         closer.closing_bell()
-        # FIXED-POINT final passes: truth-writes and their counterparties
-        # reconcile in the SAME run — convergence by construction.
-        ops.reconcile_details(wb, spec_d, target_year, targets, ledger,
-                              writer, book, run_log.append)
         # -- STRUCTURAL HONESTY (run-2 owner review): every unserved rolled
         # hardcode is flagged, every still-failing check cell marked.
         # Honesty is CODE, never an agent choice.
@@ -248,8 +240,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
-        ops.reconcile_details(wb, spec_d, target_year, targets, ledger,
-                              writer, book, run_log.append)
         ops.implied_prior_candidates(wb, spec_d, target_year, targets,
                                      ledger, served, run_log.append)
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
