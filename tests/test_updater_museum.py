@@ -1455,44 +1455,25 @@ class VintageIsALedgerPropertyLaw(unittest.TestCase):
         self.assertEqual(out, {"AR25.pdf": "current"})
 
 
-class FixedPointReconciliationLaw(unittest.TestCase):
-    """Owner-approved: identity-grade print application to a fixed point.
-    THE BRIGHT LINE: code writes ONLY on unique evidence — ambiguity is
-    judgment-land and never auto-writes."""
+class OraclesObserveExecutorsMutateLaw(unittest.TestCase):
+    """Council #4 (unanimous, after the run-21 net-profit corruption):
+    Oracles observe; executors mutate. The verification oracle's write
+    authority is REVOKED — the run never calls the retired writer, and
+    unique-in-pool is never treated as identified."""
 
-    def _spec(self):
-        return {"year_axis": {"Model": {"columns": {"2024": "T",
-                                                    "2025": "U"}}},
-                "check_rows": [], "key_rows": []}
+    def test_run_never_calls_the_retired_writer(self):
+        import updater.run as run_mod
+        import inspect
+        src = inspect.getsource(run_mod)
+        self.assertNotIn("reconcile_details", src)
 
-    def test_unique_mismatch_is_written_and_cited(self):
-        from updater import ops
-        wb, ws = _wb()
-        ws["T5"], ws["U5"] = 1000.0, 900.0        # off print (1,200)
-        ws["T6"], ws["U6"] = 480.0, 600.0         # ties print
-        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
-                   _mock_target("Model", 6, "beta detail", 480.0)]
-        led = _mock_ledger([
-            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
-            _mock_item("AR", 5, "beta detail", [600.0, 480.0])])
-        w = Writer(wb)
-        book = EvidenceBook()
-        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
-                                  w, book, lambda s: None)
-        self.assertEqual(n, 1)
-        self.assertEqual(ws["U5"].value, 1200.0)
-        self.assertIn("reconciled to print",
-                      book.entries["Model!U5"].citation
-                      + book.entries["Model!U5"].note
-                      + book.entries["Model!U5"].method
-                      if "Model!U5" in book.entries else
-                      str(ws["U5"].comment.text))
-
-    def test_ambiguity_never_auto_writes(self):
+    def test_retired_writer_still_refuses_ambiguity(self):
+        # the function is kept only to pin its semantics; ambiguity has
+        # never been writable and never will be
         from updater import ops
         wb, ws = _wb()
         ws["T5"], ws["U5"] = 1000.0, 900.0
-        ws["T6"], ws["U6"] = 480.0, 600.0          # anchor already at print
+        ws["T6"], ws["U6"] = 480.0, 600.0
         targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
                    _mock_target("Model", 6, "anchor", 480.0)]
         led = _mock_ledger([
@@ -1501,92 +1482,12 @@ class FixedPointReconciliationLaw(unittest.TestCase):
             _mock_item("AR", 5, "anchor", [600.0, 480.0]),
             _mock_item("AR", 6, "anchor", [600.0, 480.0])])
         led.faces[("AR", 6)] = "bs"
-        w = Writer(wb)
-        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
-                                  w, EvidenceBook(), lambda s: None)
-        self.assertEqual(n, 0)                     # two candidates: refuse
-        self.assertEqual(ws["U5"].value, 900.0)
-
-    def test_terminates_at_fixed_point(self):
-        from updater import ops
-        wb, ws = _wb()
-        ws["T5"], ws["U5"] = 1000.0, 1200.0        # already at print
-        ws["T6"], ws["U6"] = 480.0, 600.0          # already at print
-        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
-                   _mock_target("Model", 6, "anchor", 480.0)]
-        led = _mock_ledger([
-            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
-            _mock_item("AR", 5, "anchor", [600.0, 480.0])])
-        w = Writer(wb)
-        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
-                                  w, EvidenceBook(), lambda s: None)
-        self.assertEqual(n, 0)
-
-
-class VerifiedIngestLaw(unittest.TestCase):
-    """Owner ingestion ruling: whole pages, every row checksummed —
-    copied-not-invented AND prior-anchored, or dropped."""
-
-    def _ledger(self):
-        led = _mock_ledger([
-            _mock_item("AR", 9, "营业总收入",
-                       [78615277439.83, 69695135723.47]),
-            _mock_item("AR", 9, "营业成本", [65241000000.0, 58876000000.0])])
-        return led
-
-    def test_verified_row_enters_ledger(self):
-        from updater.ingest import verified_ingest
-
-        class _Client:
-            def json(self, system, user, validate, repair_retries=1):
-                return {"rows": [
-                    {"label": "营业总收入", "current": 78615277439.83,
-                     "prior": 69695135723.47},
-                    # invented number — must be dropped
-                    {"label": "幻觉行", "current": 123456789.0,
-                     "prior": 69695135723.47},
-                    # printed AND prior-anchored — verified too
-                    {"label": "营业成本", "current": 65241000000.0,
-                     "prior": 58876000000.0}]}
-        led = self._ledger()
-        targets = [_mock_target("Model", 4, "revenue", 69695.135723),
-                   _mock_target("Model", 8, "cogs", 58876.0)]
-        import tempfile, os
-        from updater import ingest as ing
-        with tempfile.TemporaryDirectory() as d:
-            old = ing.CACHE
-            ing.CACHE = __import__("pathlib").Path(d)
-            try:
-                n = verified_ingest(led, targets, _Client(),
-                                    lambda s: None, max_pages=4)
-            finally:
-                ing.CACHE = old
-        self.assertEqual(n, 2)                     # invented row dropped
-        v = [it for it in led.items if getattr(it, "verified", False)]
-        self.assertEqual({x.label for x in v}, {"营业总收入", "营业成本"})
-
-    def test_verified_items_join_the_pool(self):
-        from updater.ledger import Item
-        led = self._ledger()
-        led.faces = {}                             # no face pages at all
-        led2_items = list(led.items)
-
-        class L:
-            items = led2_items
-            faces = {}
-
-            def prior_period_docs(self):
-                return set()
-        from updater.ledger import Ledger
-        real = Ledger()
-        real.items = [Item(doc="AR", page=9, table_id=900, row_ord=0,
-                           label="营业总收入",
-                           nums=[78615277439.83, 69695135723.47],
-                           source_line="营业总收入 ...", channel="ingest",
-                           verified=True)]
-        real.faces = {}
-        real._doc_periods = {"AR": "current"}
-        self.assertEqual(len(real.join_pool()), 1)  # verified => in pool
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        n = ops.reconcile_details(wb, spec, 2025, targets, led, Writer(wb),
+                                  EvidenceBook(), lambda s: None)
+        self.assertEqual(ws["U5"].value, 900.0)     # ambiguity untouched
 
 
 class YearTokenFilter(unittest.TestCase):

@@ -1,0 +1,42 @@
+{
+ "revenue": {
+  "print": 78615.27744,
+  "prior": 69695.14
+ },
+ "net profit": {
+  "print": 3831.301222,
+  "prior": 3287.53
+ },
+ "eps": {
+  "print": 1.15,
+  "prior": 0.94
+ },
+ "total assets": {
+  "print": 162674.195217,
+  "prior": 142009.2849
+ },
+ "total current assets": {
+  "print": 101683.682634,
+  "prior": 93779.7823
+ },
+ "total equity": {
+  "print": 48167.606434,
+  "prior": 38796.2824
+ },
+ "operating cash flow": {
+  "print": 2014.320913,
+  "prior": 10059.49
+ },
+ "investing cash flow": {
+  "print": -10587.324054,
+  "prior": -2773.7
+ },
+ "financing cash flow": {
+  "print": 5101.688323,
+  "prior": 1088.76
+ },
+ "cash year end": {
+  "print": 18980.959403,
+  "prior": 22502.86
+ }
+}
