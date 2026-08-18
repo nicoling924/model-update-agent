@@ -45,6 +45,10 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
     written = set(writer_log.get("written") or [])
     out = []
     ws = wb[sheet]
+    numeric_rows = sorted(r for r in range(1, ws.max_row + 1)
+                          if isinstance(ws[f"{tcol}{r}"].value, (int, float)))
+    lo = numeric_rows[0] if numeric_rows else 0
+    hi = numeric_rows[-1] if numeric_rows else -1
     for r in range(1, ws.max_row + 1):
         v = ws[f"{tcol}{r}"].value
         emb = None
@@ -52,6 +56,24 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
             emb = [float(x) for x in EMBEDDED_RE.findall(v)
                    if abs(float(x)) >= EMBEDDED_MIN]
             if not emb:
+                continue
+        elif v is None:
+            # THE NEW-LINE CLASS (owner ruling 2026-08-19): a row blank
+            # last year and printed this year is completely normal — a
+            # census blind to blank cells hid it from the agent entirely.
+            # Visible when it looks like a real line: labelled, inside
+            # the sheet's numeric span, next to numeric rows, and blank
+            # in the prior column too (a rolled value would not be blank)
+            pv0 = ws[f"{pcol}{r}"].value if pcol else None
+            import bisect as _b
+            i = _b.bisect_left(numeric_rows, r)
+            near = any(0 <= j < len(numeric_rows)
+                       and abs(numeric_rows[j] - r) <= 2
+                       for j in (i - 1, i))
+            lab0 = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
+                         if isinstance(ws[f"{lc}{r}"].value, str)
+                         and ws[f"{lc}{r}"].value.strip()), None)
+            if not (lab0 and pv0 is None and lo <= r <= hi and near):
                 continue
         elif not isinstance(v, (int, float)):
             continue
@@ -188,6 +210,13 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                       "respond with swap_constant; if its category no "
                       "longer exists this year, flag the cell as a "
                       "structurally obsolete driver.")
+            elif r["value"] is None:
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | BLANK last year AND "
+                    f"this year — if the current statement prints a value "
+                    f"for this line (a NEW line this year), map it in by "
+                    f"the row's NAME; if the line is genuinely absent "
+                    f"again this year, skip it")
             elif isinstance(r["prior"], (int, float)):
                 lines.append(
                     f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "
