@@ -1819,13 +1819,17 @@ class EmbeddedHardcodeLaw(unittest.TestCase):
         self.assertNotIn(9, by_row)                   # spacer stays out
 
     def test_swap_rewrites_constant_keeps_formula(self):
+        from updater.ledger import Item
         from updater.loop import AgentLoop
         wb, ws = _wb()
         ws["T1"], ws["U1"] = "=16602.97-T2", "=16602.97-U2"
         ws["T2"], ws["U2"] = 2955.37, 3902.82
+        printed = Item(doc="AR", page=9, table_id=0, row_ord=0,
+                       label="category total", nums=[18224190000.0],
+                       channel="text", source_line="x")
 
         class _Ledger:
-            items = []
+            items = [printed]
             faces = {}
 
             def prior_period_docs(self):
@@ -2080,3 +2084,81 @@ class NewLineServeLaw(unittest.TestCase):
         self.assertAlmostEqual(out[("Model", 2)]["value"], 19.078348,
                                places=4)
         self.assertEqual(out[("Model", 2)]["conf"], 3)
+
+
+class SegmentEstimateRefusalLaw(unittest.TestCase):
+    """Owner law enforced where run 29 broke it: a DERIVED (constructed)
+    value may never land on a revenue/GP segment leaf — stale + red is
+    the terminal state."""
+
+    def test_derived_write_on_segment_leaf_refused(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["A1"], ws["T1"], ws["U1"] = "Total revenue", "=T2+T3", "=U2+U3"
+        ws["A2"], ws["T2"], ws["U2"] = "Segment A", 100.0, 100.0
+        ws["A3"], ws["T3"], ws["U3"] = "Segment B", 50.0, 50.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [{"sheet": "Model", "row": 1,
+                              "name": "revenue"}]}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U2", "value": 123.0,
+                                "why": "p9: derived as coal 加 gas 加 "
+                                       "nuclear combination"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("estimate", out.lower())
+        # a plain printed write on the same leaf still passes
+        out2 = loop.t_set_input({"cell": "Model!U3", "value": 60.0,
+                                 "why": "ties Model!T3 basis, p9 line"})
+        self.assertIn("WRITTEN", out2)
+
+
+class SwapMustBePrintedLaw(unittest.TestCase):
+    """Run 29: the engine swapped a constructed total into a formula —
+    a swapped-in constant must be a PRINTED number at a legal scale."""
+
+    def test_unprinted_swap_refused(self):
+        from updater.loop import AgentLoop
+        from updater.ledger import Item
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = "=16602.97-T2", "=16602.97-U2"
+        ws["T2"], ws["U2"] = 2955.37, 3902.82
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        it = Item(doc="AR", page=9, table_id=0, row_ord=0, label="cat",
+                  nums=[18224190000.0], channel="text", source_line="x")
+
+        class _Ledger:
+            items = [it]
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U1",
+                                "swap_constant": {"old": 16602.97,
+                                                  "new": 17443.29},
+                                "why": "p9: constructed renewables total"})
+        self.assertIn("REFUSED", out)
+        out2 = loop.t_set_input({"cell": "Model!U1",
+                                 "swap_constant": {"old": 16602.97,
+                                                   "new": 18224.19},
+                                 "why": "p9: the printed category total"})
+        self.assertIn("WRITTEN", out2)

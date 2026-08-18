@@ -127,6 +127,54 @@ class AgentLoop:
     def _tcol(self, sheet):
         return year_columns(self.spec, sheet).get(self.ty)
 
+    def _is_segment_leaf(self, sheet, row):
+        """Is this cell a leaf feeding the revenue / gross-profit keys —
+        the segment-breakdown world the owner's no-estimates law covers?
+        Uses the same formula walk as the police (cached once)."""
+        cache = getattr(self, "_seg_leaves", None)
+        if cache is None:
+            from .police import _stale_driver_leaves  # reuse the walker
+            import re as _re
+            cache = set()
+            try:
+                # walk ALL leaves of revenue/gross keys, stale or not:
+                # replicate the walker's traversal but keep every leaf
+                from .checks import prior_column as _pc
+                seen = set()
+
+                def leaves(sh, coord, depth=0):
+                    if depth > 6 or (sh, coord) in seen or len(seen) > 400:
+                        return
+                    seen.add((sh, coord))
+                    v = self.wb[sh][coord].value if sh in self.wb.sheetnames \
+                        else None
+                    if isinstance(v, (int, float)) or v is None:
+                        m0 = _re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+                        if m0 and m0.group(1) == self._tcol(sh):
+                            cache.add((sh, int(m0.group(2))))
+                        return
+                    if not isinstance(v, str) or not v.startswith("="):
+                        return
+                    for sh2, sh3, c2, r2 in _re.findall(
+                            r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?"
+                            r"([A-Z]{1,3})(\d+)", v.replace("$", "")):
+                        s2 = (sh2 or sh3 or sh).strip()
+                        if s2 in self.wb.sheetnames:
+                            leaves(s2, f"{c2}{r2}", depth + 1)
+
+                for k in self.spec.get("key_rows") or []:
+                    name = str(k.get("name", "")).lower()
+                    if not any(w in name for w in ("revenue", "sales",
+                                                   "gross")):
+                        continue
+                    tc = self._tcol(k["sheet"])
+                    if tc and k["sheet"] in self.wb.sheetnames:
+                        leaves(k["sheet"], f"{tc}{int(k['row'])}")
+            except Exception:
+                pass
+            self._seg_leaves = cache
+        return (sheet, row) in cache
+
     def _key_rows(self):
         return {(k["sheet"], int(k["row"]))
                 for k in self.spec.get("key_rows") or []}
@@ -876,6 +924,23 @@ class AgentLoop:
             if tok is None:
                 return (f"MISS: constant {old} is not in the formula "
                         f"{held0[:48]}")
+            # a swapped-in constant must BE a printed number (run 29: the
+            # engine swapped in a constructed total that prints nowhere —
+            # a constant is a disclosed figure or it is an estimate)
+            prior_docs0 = self.ledger.prior_period_docs()
+            ntol = max(0.02, abs(new) * 5e-4)
+            printed = any(
+                abs(abs(to_model_units(n, s)) - abs(new)) <= ntol
+                for it in self.ledger.items
+                if it.doc not in prior_docs0
+                and not getattr(it, "disputed", False)
+                for n in it.nums for s in SCALES)
+            if not printed:
+                return (f"REFUSED: {new:,.2f} is not a number printed in "
+                        "the current report at any legal scale — an "
+                        "embedded constant is a DISCLOSED figure or the "
+                        "driver is obsolete (flag it); constructed "
+                        "constants are estimates and are never written.")
             new_txt = (f"{new:.10g}")
             newf = held0.replace(tok, new_txt, 1)
             before_fails = {c["name"] for c in self._card()["checks"]
@@ -953,6 +1018,21 @@ class AgentLoop:
         derived = bool(re.search(r"implied|comput|deriv|×|\*|1\s*\+|%|减|加|"
                                  r"minus|plus|less|difference", why,
                                  re.IGNORECASE))
+        # SEGMENT ESTIMATES ARE NEVER WRITTEN (owner law, enforced where
+        # run 29 broke it: the full run's residual pressure pushed the
+        # engine to CONSTRUCT bridge values for re-based segment rows —
+        # derived, matching no printed number — into the revenue/GP
+        # leaves). A derived value may never land on a segment leaf; the
+        # honest terminal state is stale + red, and a failing segment
+        # check is marked, not force-closed.
+        if derived and self._is_segment_leaf(sheet, row):
+            return ("REFUSED: this is a segment/breakdown leaf and your "
+                    "value is DERIVED (a constructed combination) — "
+                    "segment estimates are never written (owner law). If "
+                    "the printed partition re-based its categories, leave "
+                    "this row STALE with a red flag and record the new "
+                    "partition in the flag note for the analyst's "
+                    "re-basing decision.")
         if mpg and value != 0 and not derived:
             pg = int(mpg.group(1))
             prior_docs = self.ledger.prior_period_docs()
