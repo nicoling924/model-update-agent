@@ -89,21 +89,42 @@ def skeleton(wb, wbv, spec_d, target_year, max_rows=220):
 def certify(wbv, spec_d, target_year, ledger, bindings, log):
     """The referee. -> committed key_rows (spec shape)."""
     prior_docs = ledger.prior_period_docs()
+    synonyms = {
+        "profit for the year": "net profit", "profit": "net profit",
+        "net income": "net profit", "earnings per share": "eps",
+        "cash and cash equivalents": "cash year end", "cash": "cash year end",
+        "cash at end of year": "cash year end", "turnover": "revenue",
+        "sales": "revenue", "equity": "total equity",
+        "shareholders' funds": "total equity",
+        "net cash from operating activities": "operating cash flow",
+        "net cash from investing activities": "investing cash flow",
+        "net cash from financing activities": "financing cash flow",
+    }
     survivors = []
     for b in bindings or []:
         try:
             concept = str(b["concept"]).strip().lower()
+            concept = synonyms.get(concept, concept)
             sheet, row = str(b["sheet"]).strip(), int(b["row"])
             fp = float(b["filing_prior"])
         except (KeyError, TypeError, ValueError):
+            log(f"[onboard] REJECT (malformed): {str(b)[:90]}")
             continue
-        if concept not in CONCEPTS or sheet not in wbv.sheetnames:
+        if concept not in CONCEPTS:
+            log(f"[onboard] REJECT (unknown concept '{concept}'): "
+                f"{str(b)[:80]}")
+            continue
+        if sheet not in wbv.sheetnames:
+            log(f"[onboard] REJECT (no sheet '{sheet}')")
             continue
         pcol = prior_column(spec_d, sheet, target_year)
         if not pcol:
+            log(f"[onboard] REJECT ({sheet}: no prior column in year axis)")
             continue
         mv = wbv[sheet][f"{pcol}{row}"].value
         if not isinstance(mv, (int, float)):
+            log(f"[onboard] REJECT {concept}@{sheet}!{row}: prior cell "
+                f"holds {mv!r} (not numeric)")
             continue
         # PERIOD IDENTITY: model prior == nominated filing comparative
         tol = max(0.6, abs(mv) * 5e-4) if abs(mv) >= 100 \
