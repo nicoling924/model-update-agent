@@ -23,12 +23,22 @@ For each row, decide ONE of:
   figure is never a skip — if you cannot find it, that is not_disclosed
   or flag, said honestly.
 
+THE MAPPING ORDER (owner ruling): the row's NAME says WHAT the item is —
+that is what you are mapping. Last year's NUMBER is the quick way to
+find WHERE the item lived (find the prior in the report, read across).
+The ARITHMETIC (section sums, prior ties) is how a candidate is
+ACCEPTED. Name to know it, number to find it, arithmetic to accept it.
+A row BLANK last year with a printed value this year is a NEW LINE —
+completely normal: map this year's number in by the row's name (a blank
+prior locates nothing, so the name and the statement's structure carry
+the mapping; the section equation still accepts it).
+
 Candidate lines marked [prior-tie] matched this row by NUMBER (last
-year's value appears in the line) — that is the reliable signal. Lines
-marked [label-kin] matched only by words; read them more skeptically:
-same words often mean a different scope (a note row, a ratio, prose).
-A 同比/%-change line lets you compute this year's value as
-current = prior x (1 + pct) — cite it as such.
+year's value appears in the line) — that is the reliable signal for
+LOCATING. Lines marked [label-kin] matched only by words; read them
+more skeptically: same words often mean a different scope (a note row,
+a ratio, prose). A 同比/%-change line lets you compute this year's
+value as current = prior x (1 + pct) — cite it as such.
 
 TRANSCRIPTION FIRST: rows that ARE statement lines (balance sheet,
 income statement, cash flow details) transcribe from THE STATEMENTS
