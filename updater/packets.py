@@ -24,9 +24,20 @@ MAX_ROWS_PER_CALL = 55        # a compile chunk the engine can hold
 MAX_EVIDENCE_PER_ROW = 2
 
 
+# a bare numeric literal inside a formula (never part of a cell ref like
+# I10 or a range I10:I12) — the EMBEDDED HARDCODE class the owner's
+# mindmap names as key drivers ("hardcodes / embedded hardcodes")
+EMBEDDED_RE = re.compile(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?")
+EMBEDDED_MIN = 100.0          # disclosed-figure territory; spares /12, *1.05
+
+
 def open_rows(wb, spec, ty, sheet, served, writer_log):
     """The sheet's open work: target-column numeric inputs no proven write
-    has replaced (the stale candidates), in row order."""
+    has replaced (the stale candidates), in row order — PLUS formula
+    cells carrying embedded numeric constants (run-28 owner review: a
+    formula like =16602.97-J11 is an input wearing a formula costume; the
+    census that only saw numeric cells made this whole class invisible,
+    so it was never updated and never flagged)."""
     tcol = year_columns(spec, sheet).get(ty)
     pcol = prior_column(spec, sheet, ty)
     if not tcol or sheet not in wb.sheetnames:
@@ -36,7 +47,13 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
     ws = wb[sheet]
     for r in range(1, ws.max_row + 1):
         v = ws[f"{tcol}{r}"].value
-        if not isinstance(v, (int, float)):
+        emb = None
+        if isinstance(v, str) and v.startswith("="):
+            emb = [float(x) for x in EMBEDDED_RE.findall(v)
+                   if abs(float(x)) >= EMBEDDED_MIN]
+            if not emb:
+                continue
+        elif not isinstance(v, (int, float)):
             continue
         if (sheet, r) in served or f"{sheet}!{tcol}{r}" in written:
             continue
@@ -44,9 +61,16 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
         lab = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
                     if isinstance(ws[f"{lc}{r}"].value, str)
                     and ws[f"{lc}{r}"].value.strip()), "")
-        out.append({"row": r, "cell": f"{sheet}!{tcol}{r}",
-                    "label": str(lab)[:48], "value": v,
-                    "prior": pv if isinstance(pv, (int, float)) else None})
+        row = {"row": r, "cell": f"{sheet}!{tcol}{r}",
+               "label": str(lab)[:48], "value": v,
+               "prior": pv if isinstance(pv, (int, float)) else None}
+        if emb:
+            row["embedded"] = emb
+            if row["prior"] is None:
+                # the constant IS last year's figure — it anchors the
+                # last-year map and sightings exactly like a prior
+                row["prior"] = emb[0]
+        out.append(row)
     return out
 
 
@@ -153,12 +177,25 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
         lines = [f"SHEET: {sheet}   TARGET YEAR: {ty}   "
                  f"open rows {i + 1}-{i + len(chunk)} of {len(rows)}"]
         for r in chunk:
-            lines.append(
-                f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} | "
-                f"currently STALE at {r['value']:,.2f}"
-                if isinstance(r["prior"], (int, float)) else
-                f"{r['cell']} '{r['label']}' | no prior | "
-                f"currently {r['value']:,.2f}")
+            if r.get("embedded"):
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | FORMULA "
+                    f"{str(r['value'])[:48]} with EMBEDDED CONSTANT(S) "
+                    + ", ".join(f"{c:,.2f}" for c in r["embedded"])
+                    + " — each constant is LAST YEAR'S disclosed figure "
+                      "(its value is your search key; the hints below "
+                      "locate it). Find THIS year's counterpart and "
+                      "respond with swap_constant; if its category no "
+                      "longer exists this year, flag the cell as a "
+                      "structurally obsolete driver.")
+            elif isinstance(r["prior"], (int, float)):
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "
+                    f"| currently STALE at {r['value']:,.2f}")
+            else:
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | no prior | "
+                    f"currently {r['value']:,.2f}")
             c = ip.get(f"{sheet}!{r['row']}")
             if c:
                 lines.append(

@@ -49,6 +49,7 @@ Joined cells are conf 4 — never locked; Stage 4's verification web still
 owns acceptance.
 """
 import bisect
+import re
 from collections import defaultdict
 from dataclasses import dataclass, asdict, field
 
@@ -197,6 +198,21 @@ def _world_tol(pv):
     return row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
 
 
+OFWHICH_RE = re.compile(r"^\s*(其中|of which|including|thereof)[：:.、\s]")
+
+
+def _ofwhich_block(t_label, it_label):
+    """A component ('of which' / 其中) line may never serve a row that is
+    not itself a component row. Run-28: a parent and its sub-line print
+    the SAME comparative whenever the sub-item was the whole of it last
+    year — the prior-identity tie cannot tell them apart BY CONSTRUCTION;
+    only structure (the prefix) can. This guard applies wherever
+    candidates are gathered: the join tiers, the sibling pass, and the
+    evidence oracle."""
+    return bool(OFWHICH_RE.match(str(it_label or ""))) \
+        and not OFWHICH_RE.match(str(t_label or ""))
+
+
 def _proven_zero(sv, it):
     """The absence-as-evidence exception (run-24 twin): a served value of
     ZERO is legal ONLY from a closure item — the section subtotal proved
@@ -264,6 +280,8 @@ def join(ledger, targets, log=None):
         for it, s, ns, k_item in pool_pre:
             if not (_kin_fast(k_label, k_item)
                     or (k_hint and _kin_fast(k_hint, k_item))):
+                continue
+            if _ofwhich_block(t.label, it.label):
                 continue
             prs = _tying_pairs(ns, pv, tol)
             if len(prs) != 1:
@@ -345,6 +363,8 @@ def join(ledger, targets, log=None):
         for it, s, ns, _k in pool_pre:
             if page_sheet_serves[(it.doc, it.page, t.sheet)] < 2:
                 continue
+            if _ofwhich_block(t.label, it.label):
+                continue
             if norm_label(it.label).replace(" ", "") in CJK_STRUCTURAL:
                 continue    # a bare structural word is a position, not a line
             prs = _tying_pairs(ns, pv, tol_id)
@@ -416,6 +436,8 @@ def join(ledger, targets, log=None):
                 hits = []
                 for it in items_by_page[(doc_a, pg_a)]:
                     if not (pos_a < (it.table_id, it.row_ord) < pos_b):
+                        continue
+                    if _ofwhich_block(t.label, it.label):
                         continue
                     ns = [to_model_units(n, s) for n in it.nums]
                     prs = _tying_pairs(ns, pv, tol)
@@ -640,6 +662,8 @@ def unique_evidence_value(ledger, targets, t):
     for it in _cache["pool"]:
         s = _cache["scales"].get((it.doc, it.page))
         if s is None:
+            continue
+        if _ofwhich_block(t.label, it.label):
             continue
         ns = [to_model_units(n, s) for n in it.nums]
         prs = _tying_pairs(ns, pv, tol)

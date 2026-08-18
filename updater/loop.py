@@ -845,6 +845,60 @@ class AgentLoop:
             return ("REFUSED: 'why' must cite the disclosure page "
                     "(e.g. 'p102: ...') or a proven workbook cell "
                     "(e.g. 'ties Raw financials!U243') — no citation, no write")
+        # EMBEDDED-CONSTANT SWAP (run-28 owner review): a formula cell's
+        # numeric literal is last year's disclosed figure — the write is a
+        # constant REWRITE that keeps the formula, transactional like any
+        # other write.
+        swap = args.get("swap_constant")
+        if isinstance(swap, dict):
+            s_sheet = (m.group(1) or m.group(2)).strip()
+            s_col, s_row = m.group(3), int(m.group(4))
+            if s_sheet not in self.wb.sheetnames:
+                return f"MISS: no sheet '{s_sheet}'"
+            held0 = self.wb[s_sheet][f"{s_col}{s_row}"].value
+            if not (isinstance(held0, str) and held0.startswith("=")):
+                return ("MISS: swap_constant applies to FORMULA cells; "
+                        f"{ref} holds {held0!r} — use value for inputs")
+            tc0 = self._tcol(s_sheet)
+            if tc0 and s_col != tc0 and not args.get("forecast_repair"):
+                return (f"REFUSED: {ref} is in column {s_col}, not the "
+                        f"{self.ty} column — swap constants in the "
+                        "mark-to-actual column only")
+            try:
+                old = float(swap.get("old"))
+                new = float(swap.get("new"))
+            except (TypeError, ValueError):
+                return "MISS: swap_constant needs numeric old and new"
+            toks = re.findall(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", held0)
+            tok = next((x for x in toks
+                        if abs(float(x) - old) <= max(0.01, abs(old) * 1e-6)),
+                       None)
+            if tok is None:
+                return (f"MISS: constant {old} is not in the formula "
+                        f"{held0[:48]}")
+            new_txt = (f"{new:.10g}")
+            newf = held0.replace(tok, new_txt, 1)
+            before_fails = {c["name"] for c in self._card()["checks"]
+                            if c["status"] == "FAIL"}
+            ok = self.writer.write(
+                s_sheet, f"{s_col}{s_row}", newf,
+                note=f"agent constant swap {tok} -> {new_txt}: {why[:250]}",
+                flag="red" if args.get("flag") else None)
+            if not ok:
+                return "REFUSED: the chokepoint rejected the rewrite"
+            after_fails = {c["name"] for c in self._card()["checks"]
+                           if c["status"] == "FAIL"}
+            broke = after_fails - before_fails
+            if broke:
+                self.writer.write(s_sheet, f"{s_col}{s_row}", held0,
+                                  note="reverted: swap broke checks")
+                return (f"REVERTED: the swap broke "
+                        f"{', '.join(sorted(broke)[:3])} — the constant may "
+                        "not be what you think it is; trace the formula")
+            self.book.record(f"{s_sheet}!{s_col}{s_row}", "B",
+                             "embedded-constant swap", citation=why[:150])
+            return (f"WRITTEN: {s_sheet}!{s_col}{s_row} constant {tok} -> "
+                    f"{new_txt} (formula kept: {newf[:48]})")
         try:
             value = float(args.get("value"))
         except (TypeError, ValueError):
@@ -890,6 +944,25 @@ class AgentLoop:
                     f"column ({tc}{row} is the mark-to-actual site). Pass "
                     "forecast_repair=true ONLY to repair integrity in a "
                     "forecast year — never to write actuals there.")
+        # RECONCILIATION SEATBELT (run-28, the Fable pass): the pool's
+        # agreeing print outranks any single reading — a write that
+        # contradicts the evidence oracle's unique agreed value is refused
+        # with the print cited. If the agent believes the print is the
+        # wrong row, that belief is a flag, never a write.
+        t_row = self.targets.get((sheet, row))
+        if t_row is not None:
+            from .stage2_join import unique_evidence_value
+            got = unique_evidence_value(self.ledger, list(self.targets.values()),
+                                        t_row)
+            if got is not None:
+                dv = got[0]
+                if abs(abs(value) - abs(dv)) > max(0.6, abs(dv) * 5e-3):
+                    return (f"REFUSED: the disclosure's agreeing print for "
+                            f"this row is {dv:,.2f} ({got[1].doc} "
+                            f"p{got[1].page}: '{got[1].source_line[:60]}') — "
+                            f"your {value:,.2f} contradicts it. Write the "
+                            f"printed value, or flag your disagreement with "
+                            f"the reason; never override an agreeing print.")
         pcol = prior_column(self.spec, sheet, self.ty)
         before_fails = {c["name"] for c in self._card()["checks"]
                         if c["status"] == "FAIL"}
