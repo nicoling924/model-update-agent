@@ -170,12 +170,27 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
             for d in docs:
                 isl += islands_mod.extract(d)
             picked = islands_mod.relevant(isl, open_priors)
+            # SEGMENT-SHAPED channel (owner ruling): where numbers cannot
+            # anchor (analyst-defined segmentations, cross-language), the
+            # agent maps by MEANING — it just needs to SEE the table.
+            n_dark = sum(1 for r in rows
+                         if f"{sheet}!{r['row']}" not in ip)
+            if n_dark >= 5:
+                have = {p for p, _t in picked}
+                picked += [(p, t) for p, t in
+                           islands_mod.revenue_shaped(isl)
+                           if p not in have]
             if picked:
                 block = ("\n\n== TABLE ISLANDS — intact grids from the "
                          "disclosure (headers attached to every value; "
                          "read them like the printed table; a value + its "
                          "同比% reproducing a row's prior identifies the "
-                         "row across languages) ==\n"
+                         "row across languages, and a TRANSLATED label "
+                         "naming the same business is the same row — map "
+                         "by meaning, cite the island page and row label. "
+                         "If the disclosure's segmentation genuinely "
+                         "differs from the model's, flag with a bridge "
+                         "note instead of forcing) ==\n"
                          + "\n\n".join(f"-- ISLAND p{p} --\n{t}"
                                        for p, t in picked))
                 chunks = [c + block for c in chunks]
