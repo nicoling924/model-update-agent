@@ -40,7 +40,8 @@ D. SUFFICIENCY + FREEZE — the inventory: every open-row prior located
 """
 import re
 
-from .closure import _sections, _solve, closure_sweep
+from .closure import (_sections, _solve, closure_sweep,
+                      normalized_rows)
 from .ingest import MAX_PAGES, _select_pages, read_pages
 from .ledger import JOIN_FACES
 from .numerics import SCALES, to_model_units
@@ -143,8 +144,13 @@ def _spine_health(ledger):
         bad = []
         for _tid, rows in groups.items():
             rows.sort(key=lambda x: x.row_ord)
-            for s_row, sec in _sections(rows):
+            for s_row, sec, carry in _sections(normalized_rows(rows)):
                 solved, _ones = _solve(s_row, sec)
+                if carry is not None and (solved is None
+                                          or solved[0] == "gap"):
+                    s2, _o2 = _solve(s_row, sec + [carry])
+                    if s2 is not None and s2[0] in ("closed", "closed_col"):
+                        solved = s2
                 if solved is None:
                     unresolved += 1
                     bad.append((s_row.label[:24],

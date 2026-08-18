@@ -2269,3 +2269,30 @@ class NominateThenVerifyLaw(unittest.TestCase):
                  "filing_prior": 12345.0}]        # doesn't tie model prior
         out = certify(wb, spec, 2025, led, noms, lambda *_: None)
         self.assertEqual(out, [])
+
+
+class NoteColumnLaw(unittest.TestCase):
+    """CLP campaign: HK/IFRS tables print [note, current, prior] — the
+    note column is detected per table and shed, so the section equation
+    sees the two value columns."""
+
+    def test_noted_pl_section_closes(self):
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR", 23, 0, 0, "Operating profit",
+                          [6.0, 14272.0, 14903.0]),      # note 6
+            _closure_item("AR", 23, 0, 1, "Profit before income tax",
+                          [14201.0, 15539.0]),
+            _closure_item("AR", 23, 0, 2, "Income tax expense",
+                          [7.0, -2655.0, -2821.0]),      # note 7
+            _closure_item("AR", 23, 0, 3, "Profit for the year",
+                          [11546.0, 12718.0]),
+        ]
+        led = _closure_ledger(items, face="pl")
+        closure_sweep(led, lambda *_: None)
+        # PBT + tax = profit-for-the-year: closes once the note is shed;
+        # nothing unresolved, no junk gap items
+        gaps = [it for it in led.items
+                if getattr(it, "channel", "") == "closure-gap"]
+        self.assertEqual(gaps, [])
+        self.assertTrue(items[2].verified)     # tax row verified via closure
