@@ -1592,6 +1592,38 @@ class SectionClosureLaw(unittest.TestCase):
         self.assertAlmostEqual(g[0].nums[0], 86515354084.0, places=1)
         self.assertAlmostEqual(g[0].nums[1], 74857936876.0, places=1)
 
+    def test_one_column_closure_proves_placements(self):
+        # the confined-run fail (2026-08-19): the current column closes
+        # UNIQUELY on its own; the prior column is vision-gapped. The
+        # placements are still proven: the excluded single is the
+        # comparative (zero this year), the included one is current.
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR25", 101, 0, 0, "收回投资收到的现金",
+                          [25155704810.83]),
+            _closure_item("AR25", 101, 0, 1, "取得投资收益收到的现金",
+                          [131301256.0, 120011125.0]),
+            _closure_item("AR25", 101, 0, 2, "处置固定资产收回的现金净额",
+                          [808222.0, 1147462.0]),
+            _closure_item("AR25", 101, 0, 3, "处置子公司收到的现金净额",
+                          [492572075.62]),
+            _closure_item("AR25", 101, 0, 4, "收到其他与投资活动有关的现金",
+                          [19078348.0]),
+            _closure_item("AR25", 101, 0, 5, "投资活动现金流入小计",
+                          [25306892636.83, 35876000880.0]),
+        ]
+        led = _closure_ledger(items)
+        closure_sweep(led, lambda *_: None)
+        z = {it.label: it.nums for it in led.items
+             if getattr(it, "channel", "") == "closure"}
+        self.assertEqual(z.get("处置子公司收到的现金净额"),
+                         [0.0, 492572075.62])          # proven comparative
+        self.assertEqual(z.get("收回投资收到的现金")[1], 0.0)
+        self.assertEqual(z.get("收到其他与投资活动有关的现金"),
+                         [19078348.0, 0.0])            # proven current
+        # per-column closure must NOT verify the section's two-num rows
+        self.assertFalse(items[1].verified)
+
     def test_note_pages_never_admitted(self):
         # an aging table closes over [carrying, provision] — column
         # semantics are NOT [current, prior]; faces only (run-21 class)
