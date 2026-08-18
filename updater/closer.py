@@ -98,6 +98,26 @@ class PacketCloser:
             n_rej += result[1]
             n_nd += result[2]
             n_flag += result[3]
+        # NEVER-SILENT (embedded class): a formula row whose constants the
+        # engine neither swapped nor flagged still carries LAST YEAR'S
+        # figure — red flag by code (test 9: the refused swap's follow-up
+        # flag is engine-optional; honesty is not).
+        for r in rows:
+            if not r.get("embedded"):
+                continue
+            tcol = packets.year_columns(self.tk.spec, sheet).get(self.tk.ty)
+            cell = self.tk.wb[sheet][f"{tcol}{r['row']}"]
+            ref = f"{sheet}!{tcol}{r['row']}"
+            if cell.value == r["value"] \
+                    and ref not in self.tk.writer.log["flags"]:
+                self.tk.t_flag_cell({
+                    "cell": r["cell"],
+                    "why": ("EMBEDDED CONSTANT unresolved — the formula "
+                            "still carries last year's figure "
+                            f"({', '.join(f'{c:,.2f}' for c in r['embedded'])})"
+                            "; swap it to the printed counterpart or the "
+                            "driver is obsolete — analyst to rule")})
+                n_flag += 1
         # NEVER-SILENT (new-line class): a BLANK statement row the engine
         # left unanswered — no write landed, no accepted claim — gets a
         # red flag by code. Honesty is law, not an engine mood.
