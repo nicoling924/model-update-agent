@@ -120,12 +120,45 @@ class PacketCloser:
         n_ok = n_rej = n_nd = n_flag = 0
         user = _p("compile.md") + "\n\n" + chunk
         rejections = []
-        for round_i in range(COMPILE_ROUNDS):
+        needs_served = False
+        for round_i in range(COMPILE_ROUNDS + 1):   # +1 for a look-elsewhere
             try:
                 out = self._json(_p("method.md"), user, self._val_compile)
             except Exception as e:
                 self.log(f"[closer] compile call failed: {e}")
                 break
+            # THE LOOK-ELSEWHERE SKILL (owner ruling): the agent may ask
+            # for other places for specific rows; the runtime answers with
+            # doc-wide number hits + islands it has not yet seen. Once.
+            needs = out.get("need") or []
+            if needs and not needs_served:
+                needs_served = True
+                import re as _re
+                shown = {int(m) for m in _re.findall(r"(?:ISLAND p|^p|\np)(\d+)",
+                                                     user)}
+                rows_needed = []
+                for n in needs[:8]:
+                    cell = str(n.get("cell", ""))
+                    m = _re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
+                                  cell.replace("$", ""))
+                    if not m:
+                        continue
+                    sh, r = (m.group(1) or m.group(2)).strip(), \
+                        int(m.group(4))
+                    t = self.tk.targets.get((sh, r))
+                    rows_needed.append(
+                        {"cell": cell,
+                         "label": str(t.label)[:40] if t else
+                         str(n.get("looking_for", ""))[:40],
+                         "prior": t.prior_value if t else None})
+                extra = packets.more_evidence(self.tk.ledger, self.tk.docs,
+                                              rows_needed, shown)
+                self.log(f"[closer] look-elsewhere: {len(rows_needed)} rows "
+                         "-> additional places served")
+                user = (user + "\n\n== OTHER PLACES (you asked — decide "
+                        "these rows now; not_disclosed is honest if these "
+                        "are empty too) ==\n" + extra)
+                continue
             round_rej = []
             for w in out.get("writes", []) or []:
                 r = self.tk.t_set_input({"cell": str(w.get("cell")),

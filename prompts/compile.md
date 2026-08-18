@@ -30,8 +30,18 @@ same words often mean a different scope (a note row, a ratio, prose).
 A 同比/%-change line lets you compute this year's value as
 current = prior x (1 + pct) — cite it as such.
 
+LOOK ELSEWHERE (the analyst's skill): the same economics print in
+several places — the statement face, the SEGMENT NOTE behind the
+statements, other MD&A tables, the five-year summary. If the tables in
+front of you lack a row you believe is disclosed, do not guess and do
+not give up — ASK for more places with "need". You will receive
+additional tables and lines for those rows from elsewhere in the
+document. Claim not_disclosed only after the other places came back
+empty too.
+
 Respond with ONE JSON object:
 {"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>"}],
+ "need": [{"cell": "Sheet!U53", "looking_for": "segment revenue split"}],
  "not_disclosed": [{"cell": "Sheet!U50", "looked": ["statement", "notes", "five-year summary"]}],
  "flags": [{"cell": "Sheet!U51", "why": "two candidate scopes, p60 vs p154"}],
  "skips": ["Sheet!U52"]}
