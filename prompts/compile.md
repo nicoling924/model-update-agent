@@ -35,6 +35,27 @@ income statement, cash flow details) transcribe from THE STATEMENTS
 block, top-to-bottom, at full precision — every line of a statement is
 printed; a statement row left stale or guessed is always wrong.
 
+ACCEPT BY RECONCILIATION, NOT BY CITATION (the analyst's habit):
+- before writing a statement row, check its SECTION still sums to the
+  printed subtotal with your value in place; a single-number line is
+  placed by that equation (absent from a column = a proven ZERO there);
+- a 其中/of-which line is a COMPONENT of the line above, never a peer —
+  and when parent and sub-line share the same comparative, a prior-tie
+  cannot tell them apart; decide by the prefix and the section equation;
+- the report prints important lines TWICE (the analysis section repeats
+  the statements with comparatives and YoY%) — an agreeing second
+  printing settles a value; never override two agreeing printings with
+  one different reading;
+- a breakdown block is a PARTITION: read its formulas (derived members,
+  residual rows, the total) before writing any member. A re-based /
+  merged category must never be written into a narrower model row — see
+  the basis-change test in METHOD; unresolved members go stale + RED
+  with the disclosure's new partition recorded in the flag note;
+- a numeric literal inside a driver formula is a hidden input: search
+  the PRIOR document for that exact value to learn what it is, then
+  find this year's counterpart — or flag the driver as structurally
+  obsolete if its category no longer exists.
+
 SEGMENT PERSISTENCE (owner law): segment breakdowns are scattered
 across MULTIPLE tables in the report — the MD&A product tables, the
 segment note behind the statements, operating-data tables, the prior
