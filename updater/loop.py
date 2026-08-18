@@ -1087,6 +1087,36 @@ class AgentLoop:
         if (sheet, row) in self._key_rows():
             return ("REFUSED: key rows are correct-or-flagged — a key may "
                     "never be quietly stale; keep the flag")
+        # LAZY-ND GUARD (mindmap law: 'not disclosed' must be PROVEN, not
+        # asserted — past agents labelled 'unable to find' as 'not
+        # disclosed' while the figure sat in the document). A fact-check,
+        # not a mapping: if the current document prints a line whose name
+        # matches this row exactly, or whose comparative ties this row's
+        # prior at identity, the claim is false and is refused with the
+        # evidence quoted.
+        t0 = self.targets.get((sheet, row))
+        if t0 is not None:
+            from .numerics import norm_label as _nl
+            t_norm = _nl(str(t0.label or "")).replace(" ", "")
+            pv0 = t0.prior_value
+            prior_docs = self.ledger.prior_period_docs()
+            for it in self.ledger.items:
+                if (it.doc in prior_docs or getattr(it, "disputed", False)
+                        or not it.nums):
+                    continue
+                name_hit = (len(t_norm) >= 3 and
+                            _nl(str(it.label)).replace(" ", "") == t_norm)
+                prior_hit = (isinstance(pv0, (int, float))
+                             and abs(pv0) >= 1.0 and any(
+                                 abs(abs(to_model_units(n, s)) - abs(pv0))
+                                 <= max(0.6, abs(pv0) * 5e-4)
+                                 for n in it.nums for s in SCALES))
+                if name_hit or prior_hit:
+                    return (f"REFUSED: not_disclosed is a PROVEN claim, and "
+                            f"the report prints this line — p{it.page}: "
+                            f"'{it.source_line[:80]}'. Map it (in the "
+                            f"model's units) or flag your uncertainty; the "
+                            f"claim as made is false.")
         try:
             self.book.claim_not_disclosed(f"{sheet}!{row}",
                                           [str(x) for x in looked])

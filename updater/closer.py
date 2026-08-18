@@ -98,6 +98,24 @@ class PacketCloser:
             n_rej += result[1]
             n_nd += result[2]
             n_flag += result[3]
+        # NEVER-SILENT (new-line class): a BLANK statement row the engine
+        # left unanswered — no write landed, no accepted claim — gets a
+        # red flag by code. Honesty is law, not an engine mood.
+        for r in rows:
+            if r.get("value") is not None:
+                continue
+            tcol = packets.year_columns(self.tk.spec, sheet).get(self.tk.ty)
+            cell = self.tk.wb[sheet][f"{tcol}{r['row']}"]
+            ref = f"{sheet}!{tcol}{r['row']}"
+            claimed = {t.row for t in self.tk.book.non_disclosure}
+            if cell.value is None and ref not in self.tk.writer.log["flags"] \
+                    and f"{sheet}!{r['row']}" not in claimed:
+                self.tk.t_flag_cell({
+                    "cell": r["cell"],
+                    "why": ("NEW-LINE row left unanswered — the card "
+                            "carried evidence for it; analyst to map "
+                            "(see the sightings in _REPORT)")})
+                n_flag += 1
         report = (f"compile:{sheet}: {n_ok} written, {n_rej} rejected, "
                   f"{n_nd} not-disclosed, {n_flag} flagged "
                   f"(of {len(rows)} open)")
