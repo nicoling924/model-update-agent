@@ -87,7 +87,7 @@ def big_moves(wb, spec, target_year):
 
 
 def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
-                 police=None, loop_summary=""):
+                 police=None, loop_summary="", reading=None):
     """book = EvidenceBook; snapshot = snapshot_projections() taken pre-write;
     adjustments = adjust.infer() candidates the loop acted on; police = the
     police verdict dict."""
@@ -130,6 +130,16 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
     head(f"MODEL UPDATE REPORT — {target_year} ({verdict})")
     if loop_summary:
         plain(f"Agent: {loop_summary}")
+    if reading:
+        art = reading.get("articulation") or {}
+        plain(f"Reading: {reading.get('located', '?')}/"
+              f"{reading.get('inventory', '?')} row priors located in the "
+              f"filing; articulation "
+              + (", ".join(f"{k}={'OK' if v else 'FAIL'}"
+                           for k, v in art.items()) or "not provable")
+              + f"; {reading.get('repairs', 0)} page repairs")
+        for g in (reading.get("unlocated") or [])[:12]:
+            plain(f"  not located in filing: {g}")
     blank()
 
     head("1. FLAGGED RED (FFC7CE) — uncertain, review each")

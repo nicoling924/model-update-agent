@@ -51,35 +51,11 @@ def _disclosures(company_dir, period):
     return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
 
 
-def update(company_dir, period, target_year, client=None, loop_budget=120,
-           log=print):
-    company_dir = Path(company_dir)
-    run_log = []
-
-    # -- spec or discovery (no spec anywhere -> the agent reasons the model
-    # out itself; the draft persists to _SPEC for the analyst)
-    wb_probe = None
-    if not (company_dir / "spec.yaml").exists() \
-            and not (company_dir / "spec.json").exists():
-        wb_probe = load(_model_path(company_dir, {}), data_only=False)
-    try:
-        spec_d = spec_mod.load(company_dir, wb_probe)
-    except spec_mod.SpecError:
-        from .discover import discover
-        kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
-                else "Q" if "Q" in str(period).upper() else "FY")
-        probe_path = _model_path(company_dir, {})
-        spec_d = discover(load(probe_path), load(probe_path, data_only=True),
-                          target_year=target_year, period_kind=kind)
-        log(f"[run] no spec — anatomy AUTO-DISCOVERED "
-            f"({len(spec_d['year_axis'])} sheets, "
-            f"{len(spec_d['check_rows'])} checks, "
-            f"{len(spec_d['key_rows'])} keys)")
-    spec_mod.extend_axis(spec_d, target_year)
-    # A spec without key_rows would make Police law 4 pass VACUOUSLY (the
-    # run-1-live false PASS): supplement keys/checks from discovery so the
-    # law always has teeth. Discovery is additive here — never overrides
-    # what the spec already declares.
+def ensure_keys(spec_d, company_dir, target_year, log):
+    """Supplement key/check rows from discovery (additive — a spec without
+    key_rows would make Police law 4 pass vacuously) plus the cross-sheet
+    prior-consistency filter. Shared by the live run and the offline
+    benchmark so both score the SAME key set."""
     if not spec_d.get("key_rows") or not spec_d.get("check_rows"):
         from .discover import discover
         probe_path = _model_path(company_dir, spec_d)
@@ -123,6 +99,39 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             log(f"[run] dropped {len(dropped)} mismapped discovered keys: "
                 + "; ".join(dropped[:5]))
 
+
+
+def update(company_dir, period, target_year, client=None, loop_budget=120,
+           log=print):
+    company_dir = Path(company_dir)
+    run_log = []
+
+    # -- spec or discovery (no spec anywhere -> the agent reasons the model
+    # out itself; the draft persists to _SPEC for the analyst)
+    wb_probe = None
+    if not (company_dir / "spec.yaml").exists() \
+            and not (company_dir / "spec.json").exists():
+        wb_probe = load(_model_path(company_dir, {}), data_only=False)
+    try:
+        spec_d = spec_mod.load(company_dir, wb_probe)
+    except spec_mod.SpecError:
+        from .discover import discover
+        kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+                else "Q" if "Q" in str(period).upper() else "FY")
+        probe_path = _model_path(company_dir, {})
+        spec_d = discover(load(probe_path), load(probe_path, data_only=True),
+                          target_year=target_year, period_kind=kind)
+        log(f"[run] no spec — anatomy AUTO-DISCOVERED "
+            f"({len(spec_d['year_axis'])} sheets, "
+            f"{len(spec_d['check_rows'])} checks, "
+            f"{len(spec_d['key_rows'])} keys)")
+    spec_mod.extend_axis(spec_d, target_year)
+    # A spec without key_rows would make Police law 4 pass VACUOUSLY (the
+    # run-1-live false PASS): supplement keys/checks from discovery so the
+    # law always has teeth. Discovery is additive here — never overrides
+    # what the spec already declares.
+    ensure_keys(spec_d, company_dir, target_year, log)
+
     model_path = _model_path(company_dir, spec_d)
     archive = (company_dir / "model-archive"
                / f"{model_path.stem}_{period}_pre{model_path.suffix}")
@@ -153,18 +162,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         [t.prior2_value for t in targets
          if isinstance(getattr(t, "prior2_value", None), (int, float))],
         log=log)
-    # VERIFIED WHOLE-PAGE INGESTION (owner ruling): the evidence pool must
-    # BE the report — pages read whole, every row checksummed (copied-not-
-    # invented + prior-anchored) before it is believed. Cached per doc.
-    if client is not None:
-        from .ingest import verified_ingest
-        verified_ingest(ledger, targets, client, log)
-    # SECTION CLOSURE (run-24 twin): the statements' own subtotals as an
-    # equation solver — proves single-number column placement (the
-    # absent-line zero), derives missing rows by difference, and verifies
-    # closed sections. Deterministic; faces only; runs in dry mode too.
-    from .closure import closure_sweep
-    closure_sweep(ledger, log)
+    # THE ONE READING STAGE (extraction-first — council ruling 2026-08-18):
+    # entity quarantine -> spine read + closure + articulation with live
+    # repair -> demand-driven notes -> sufficiency inventory. The mapping
+    # world is COMPLETE AND PROVEN before any agent judgment; the old
+    # channels live inside this stage as repair tactics. Offline (dry),
+    # the same stage replays caches so the gate scores the same world.
+    from .reading import read_complete
+    reading_report = read_complete(ledger, targets, client, docs, spec_d,
+                                   log)
+    run_log.append(
+        f"reading: {reading_report['located']}/"
+        f"{reading_report['inventory']} priors located, "
+        f"articulation {reading_report['articulation']}, "
+        f"{len(reading_report['unlocated'])} unlocated")
 
     # -- THE ONE PAUSE: restatement (before any write; resume-friendly)
     restatement = restate_mod.check_or_pause(company_dir, period, ledger,
@@ -270,7 +281,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
     adjustments = loop._adjustments if loop is not None else None
     report_mod.build_report(wb, spec_d, target_year, book, snapshot,
                             adjustments=adjustments, police=verdict,
-                            loop_summary=loop_summary)
+                            loop_summary=loop_summary,
+                            reading=reading_report)
     spec_d["_last_run"] = {
         "period": period, "served": len(served),
         "flags": len(set(writer.log["flags"])),

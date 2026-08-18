@@ -38,10 +38,15 @@ the guaranteed shape.
 """
 import re
 
-from .ledger import Item
+from .ledger import JOIN_FACES, Item
 
 SUBTOTAL_RE = re.compile(r"小计|合计|总计")
 SKIP_RE = re.compile(r"^\s*(其中|加[:：]|减[:：])")
+# a section BOUNDARY that is not itself a subtotal equation: the CF
+# activity-net rows and the numbered activity headers (run-25 bench: the
+# CFF-inflow scan swallowed 投资活动产生的现金流量净额 and never closed —
+# which is exactly where the ±593.5 twin's proven zero lives)
+BARRIER_RE = re.compile(r"产生的现金流量净额|^\s*[一二三四五六七八九十]、")
 MAX_SINGLES = 6
 TOL = 1.0                     # statements add to the cent; sections are short
 
@@ -57,9 +62,11 @@ def _sections(rows):
             continue
         sec, ok = [], True
         for r in reversed(rows[:si]):
-            if SUBTOTAL_RE.search(r.label or "") and len(r.nums) >= 2:
+            lab = r.label or ""
+            if (SUBTOTAL_RE.search(lab) and len(r.nums) >= 2) \
+                    or BARRIER_RE.search(lab):
                 break
-            if SKIP_RE.match(r.label or "") or not r.nums:
+            if SKIP_RE.match(lab) or not r.nums:
                 continue
             if len(r.nums) > 2:
                 ok = False
@@ -93,10 +100,14 @@ def _solve(s_row, sec):
         # totals), not a missing line — emit nothing for it
         if abs(gc) <= abs(sc) * 1.05 + TOL and abs(gp) <= abs(sp) * 1.05 + TOL:
             k = (round(gc, 2), round(gp, 2))
-            if k not in seen and len(gaps) < 2:
+            if k not in seen:
                 seen.add(k)
                 gaps.append((gc, gp))
-    return (("gap", gaps) if gaps and len(ones) <= 2 else None), ones
+    # the MINIMAL gaps are the informative placements (run-25 bench: the
+    # true placement — one single in the prior column, its own prior
+    # missing — ranked past a first-two cap)
+    gaps.sort(key=lambda g: abs(g[0]) + abs(g[1]))
+    return (("gap", gaps[:2]) if gaps and len(ones) <= 4 else None), ones
 
 
 def closure_sweep(ledger, log):
@@ -109,11 +120,14 @@ def closure_sweep(ledger, log):
                 or it.row_ord is None
                 or getattr(it, "channel", "") in ("closure", "closure-gap")
                 or ledger.faces.get((it.doc, it.page))
-                not in ("bs", "is", "cf")):
+                not in JOIN_FACES):
             continue
         groups.setdefault((it.doc, it.page, it.table_id), []).append(it)
     n_zero = n_gap = n_ver = 0
     new_items = []
+    emitted = {(it.doc, it.page, it.label, tuple(it.nums))
+               for it in ledger.items
+               if getattr(it, "channel", "") in ("closure", "closure-gap")}
     for (doc, page, _tid), rows in sorted(groups.items()):
         rows.sort(key=lambda x: x.row_ord)
         for s_row, sec in _sections(rows):
@@ -130,6 +144,9 @@ def closure_sweep(ledger, log):
                     v = o.nums[0]
                     cur_col = bool(payload >> j & 1)
                     nums = [v, 0.0] if cur_col else [0.0, v]
+                    if (doc, page, o.label, tuple(nums)) in emitted:
+                        continue
+                    emitted.add((doc, page, o.label, tuple(nums)))
                     which = "CURRENT" if cur_col else "PRIOR (current-year "
                     which += "" if cur_col else "line ABSENT — proven zero)"
                     new_items.append(Item(
@@ -146,6 +163,11 @@ def closure_sweep(ledger, log):
                 for gc, gp in payload:
                     if abs(gc) <= TOL and abs(gp) <= TOL:
                         continue
+                    gkey = (doc, page, f"缺行 above {s_row.label[:24]}",
+                            (gc, gp))
+                    if gkey in emitted:
+                        continue
+                    emitted.add(gkey)
                     new_items.append(Item(
                         doc=doc, page=page, table_id=911,
                         row_ord=s_row.row_ord, label=f"缺行 above "

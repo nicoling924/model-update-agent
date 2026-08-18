@@ -101,15 +101,16 @@ def _verify(rows, page_nums_abs, priors):
     return out
 
 
-def verified_ingest(ledger, targets, client, log, max_pages=MAX_PAGES):
-    """Read the report's financial pages whole; append verified rows to
-    the ledger. Cached per (doc content, page)."""
-    if client is None:
-        return 0
+def read_pages(ledger, targets, client, log, pages, extra_prompt="",
+               fresh=False):
+    """Verified whole-page read of SPECIFIC pages (the reading stage's
+    workhorse). client=None replays the cache only — the offline gate
+    must see the same evidence pool the live run sees. extra_prompt adds
+    a targeted demand (repair loop: 'this section must sum to X — every
+    row'); fresh bypasses the cache for repair re-reads."""
     priors = [t.prior_value for t in targets
               if isinstance(t.prior_value, (int, float))
               and abs(t.prior_value) >= 1.0]
-    pages = _select_pages(ledger, priors, cap=max_pages)
     CACHE.mkdir(parents=True, exist_ok=True)
     prompt = (Path(__file__).resolve().parent.parent / "prompts"
               / "ingest.md").read_text(encoding="utf-8")
@@ -119,10 +120,13 @@ def verified_ingest(ledger, targets, client, log, max_pages=MAX_PAGES):
         if len(text) < 80:
             continue
         key = hashlib.sha256(
-            (VERSION + doc + str(page) + text).encode()).hexdigest()[:16]
+            (VERSION + doc + str(page) + text
+             + extra_prompt).encode()).hexdigest()[:16]
         cf = CACHE / f"{key}.json"
-        if cf.exists():
+        if cf.exists() and not fresh:
             rows = json.loads(cf.read_text())
+        elif client is None:
+            continue                      # dry replay: cache hits only
         else:
             def _val(o):
                 if not isinstance(o.get("rows"), list):
@@ -132,7 +136,8 @@ def verified_ingest(ledger, targets, client, log, max_pages=MAX_PAGES):
                 out = client.json(
                     "You transcribe financial statement pages exactly. "
                     "Copy numbers verbatim; never compute or invent.",
-                    prompt + "\n\n== PAGE p" + str(page) + " ==\n" + text,
+                    prompt + ("\n\n" + extra_prompt if extra_prompt else "")
+                    + "\n\n== PAGE p" + str(page) + " ==\n" + text,
                     _val, repair_retries=1)
                 rows = out.get("rows", [])[:MAX_ROWS_PER_PAGE]
             except Exception as e:
@@ -156,6 +161,17 @@ def verified_ingest(ledger, targets, client, log, max_pages=MAX_PAGES):
                 channel="ingest", verified=True))
             n_added += 1
         n_pages += 1
+    return n_pages, n_added
+
+
+def verified_ingest(ledger, targets, client, log, max_pages=MAX_PAGES):
+    """Read the report's financial pages whole (number-anchored page
+    selection); append verified rows to the ledger."""
+    priors = [t.prior_value for t in targets
+              if isinstance(t.prior_value, (int, float))
+              and abs(t.prior_value) >= 1.0]
+    pages = _select_pages(ledger, priors, cap=max_pages)
+    n_pages, n_added = read_pages(ledger, targets, client, log, pages)
     log(f"[ingest] verified whole-page pass: {n_pages} pages, "
         f"{n_added} verified rows added to the ledger")
     return n_added

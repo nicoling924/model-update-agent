@@ -17,6 +17,7 @@ full history, other sheets, and law books do not exist here.
 import re
 
 from .checks import prior_column, scorecard, year_columns
+from .ledger import JOIN_FACES
 from .numerics import SCALES, kinship, row_tol, to_model_units
 
 MAX_ROWS_PER_CALL = 55        # a compile chunk the engine can hold
@@ -286,7 +287,12 @@ def prior_map_hints(ledger, rows, cap_per_row=1):
         tol = max(0.6, abs(pv) * 5e-4)          # identity grade
         hits = []
         for it in ledger.items:
-            if it.doc not in prior_docs or not it.joinable():
+            # a location HINT tolerates messy labels the join would
+            # refuse (run-24: the FY24 anchor for a segment row carried a
+            # truncated one-character vision label) — disputed items only
+            # are excluded
+            if (it.doc not in prior_docs or not it.nums
+                    or getattr(it, "disputed", False)):
                 continue
             if not any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
                        for n in it.nums for s in SCALES):
@@ -352,14 +358,21 @@ def current_sightings(ledger, rows, cap_per_row=2):
         hits = []
         for it in ledger.items:
             if (it.doc in prior_docs or getattr(it, "verified", False)
-                    or len(it.nums) < 2):
+                    or getattr(it, "disputed", False) or not it.nums):
                 continue
             if any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
                    for n in it.nums for s in SCALES):
                 hits.append(f"SIGHTED in CURRENT report p{it.page}: "
                             f"{it.source_line[:90]} — a number here ties "
-                            f"your prior; judge the columns, then write "
-                            f"the current-year value with this citation")
+                            f"your prior; judge what the line is (which "
+                            f"column, which table), then write the "
+                            f"current-year value with a citation"
+                            if len(it.nums) >= 2 else
+                            f"SIGHTED in CURRENT report p{it.page}: "
+                            f"{it.source_line[:90]} — your row's PRIOR "
+                            f"prints here alone; this locates the row — "
+                            f"read the surrounding table for this year's "
+                            f"value")
             if len(hits) >= cap_per_row:
                 break
         if hits:
@@ -376,7 +389,7 @@ def statement_transcript(ledger, cap_chars=12000, per_page_cap=3000,
     order, every line as extracted (vision transcripts included)."""
     prior_docs = ledger.prior_period_docs()
     pages = sorted((d, p) for (d, p), f in ledger.faces.items()
-                   if f in ("bs", "is", "cf") and d not in prior_docs)
+                   if f in JOIN_FACES and d not in prior_docs)
     sp = sorted(served_priors) if served_priors else []
 
     def _mapped(nums):
