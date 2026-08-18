@@ -84,6 +84,10 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     priors = {t.key: t.prior_value for t in targets}
     ops.write_served(wb, spec_d, target_year, served, writer, priors, book,
                      run_log.append)
+    na = ops.note_anchored_serves(ledger, targets, served, run_log.append)
+    served.update(na)
+    ops.write_served(wb, spec_d, target_year, na, writer, priors, book,
+                     run_log.append)
     for ln in run_log[-4:]:
         log(f"[mini] {ln}")
 

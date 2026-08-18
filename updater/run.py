@@ -199,6 +199,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
+        na = ops.note_anchored_serves(ledger, targets, served,
+                                      run_log.append)
+        served.update(na)
+        ops.write_served(wb, spec_d, target_year, na, writer, priors,
+                         book, run_log.append)
         from .stage3_read import read_gaps
         gap = read_gaps(ledger, targets, served, client, docs, run_log)
         served.update(gap)
@@ -256,6 +261,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         served, decisions = ops.run_join(ledger, targets, run_log)
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
+                         book, run_log.append)
+        na = ops.note_anchored_serves(ledger, targets, served,
+                                      run_log.append)
+        served.update(na)
+        ops.write_served(wb, spec_d, target_year, na, writer, priors,
                          book, run_log.append)
         ops.implied_prior_candidates(wb, spec_d, target_year, targets,
                                      ledger, served, run_log.append)
