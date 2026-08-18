@@ -498,9 +498,13 @@ aliases:
   - sales of electricity
 backout_rules:
 - row_ref: Final!21
-  components: ['-finance costs', '+finance income']
+  components:
+  - -finance costs
+  - +finance income
 - row_ref: Final!97
-  components: ['bs:perpetual capital securities', 'bs:other non-controlling interests']
+  components:
+  - bs:perpetual capital securities
+  - bs:other non-controlling interests
 - row_ref: SOC Accounts!58
   method: prior-year value / prior-year group gas consumed TJ * current-year group
     gas consumed TJ (AR SoC statistics)
@@ -534,5 +538,22 @@ tie_out_anchors:
 analyst_fixes:
 - sheet: ROAFNA
   cell: AH19
-  value: '=36+5487'
-  why: 'Known mis-built FY24 hardcode (MODEL_SPEC 5): SoC combined BS other assets = non-current 36 + current 5,487 (AR p260); zeroes the FY24 ROAFNA!AH31 check'
+  value: =36+5487
+  why: 'Known mis-built FY24 hardcode (MODEL_SPEC 5): SoC combined BS other assets
+    = non-current 36 + current 5,487 (AR p260); zeroes the FY24 ROAFNA!AH31 check'
+key_rows:
+- sheet: Final
+  row: 7
+  name: revenue
+- sheet: Final
+  row: 15
+  name: operating profit
+- sheet: Final
+  row: 27
+  name: net profit
+- sheet: Final
+  row: 35
+  name: eps
+- sheet: Final
+  row: 96
+  name: total equity
