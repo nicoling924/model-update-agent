@@ -368,12 +368,48 @@ class Ledger:
         return {d for d, k in (getattr(self, "_doc_periods", None) or {}).items()
                 if k == "prior"}
 
+    def ensure_vintage(self, priors, deep_priors, log=print):
+        """Vintage as a READ-TIME property with a LOUD safe policy
+        (run-19 autopsy: classification was a join side-effect that
+        silently degraded to 'nothing excluded'):
+        - single doc -> current (trivially);
+        - multi-doc: classified docs as voted; docs still 'unknown' are
+          EXCLUDED from citable evidence (treated prior — safe direction,
+          never silent inclusion) and announced loudly;
+        - all unknown -> treated current (single-doc equivalence), loudly.
+        """
+        periods = self.classify_doc_periods(priors, deep_priors)
+        docs = list(periods)
+        if len(docs) == 1:
+            self._doc_periods = {docs[0]: "current"}
+            return self._doc_periods
+        unknowns = [d for d, k in periods.items() if k == "unknown"]
+        if unknowns and len(unknowns) < len(docs):
+            self._doc_periods = {**periods,
+                                 **{d: "prior" for d in unknowns}}
+            log(f"[ledger] VINTAGE UNRESOLVED for {unknowns} — excluded "
+                "from citable evidence (safe direction); check the "
+                "document set")
+        elif unknowns:
+            self._doc_periods = {d: "current" for d in docs}
+            log("[ledger] VINTAGE UNRESOLVED for ALL docs — treating all "
+                "as current; add prior-year data (deep priors) or check "
+                "the documents")
+        else:
+            log(f"[ledger] doc vintage: {periods}")
+        return self._doc_periods
+
     # -- pinned-snapshot serialization ---------------------------------------
 
     def to_json(self):
         return json.dumps({
             "version": LEDGER_VERSION,
             "doc_meta": self.doc_meta,
+            # VINTAGE IS A LEDGER PROPERTY (run-19 autopsy): losing the
+            # classification in snapshots made every offline view treat
+            # prior-year documents as current — replay and diagnostics
+            # were silently vintage-blind. It travels with the ledger.
+            "doc_periods": getattr(self, "_doc_periods", None),
             "faces": [[d, p, f] for (d, p), f in sorted(self.faces.items())],
             "parent_pages": [[d, p] for d, p in sorted(self.parent_pages)],
             "items": [asdict(it) for it in self.items],
@@ -386,6 +422,7 @@ class Ledger:
             raise ValueError(f"ledger version {obj.get('version')!r} != {LEDGER_VERSION}")
         led = cls()
         led.doc_meta = obj.get("doc_meta") or {}
+        led._doc_periods = obj.get("doc_periods") or None
         led.faces = {(d, p): f for d, p, f in obj.get("faces") or []}
         led.parent_pages = {(d, p) for d, p in obj.get("parent_pages") or []}
         for d in obj.get("items") or []:

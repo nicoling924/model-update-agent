@@ -1422,6 +1422,39 @@ class DetailTieOutLaw(unittest.TestCase):
                             for f in out["findings"]))
 
 
+class VintageIsALedgerPropertyLaw(unittest.TestCase):
+    """run-19 fundamental: doc vintage was a join side-effect that
+    silently degraded to 'nothing excluded' and never survived
+    serialization — every offline view was vintage-blind."""
+
+    def test_classification_survives_serialization(self):
+        from updater.ledger import Ledger
+        led = Ledger()
+        led._doc_periods = {"AR25.pdf": "current", "AR24.pdf": "prior"}
+        led2 = Ledger.from_json(led.to_json())
+        self.assertEqual(led2.prior_period_docs(), {"AR24.pdf"})
+
+    def test_unknown_multi_doc_safe_excluded_loudly(self):
+        from updater.ledger import Ledger
+        led = Ledger()
+        led._doc_periods = None
+        # classify will return unknown (no items/no deep priors) — force
+        # the multi-doc path via a stub
+        led.classify_doc_periods = lambda p, d: {"AR25.pdf": "current",
+                                                 "AR24.pdf": "unknown"}
+        msgs = []
+        out = led.ensure_vintage([1000.0], [], log=msgs.append)
+        self.assertEqual(out["AR24.pdf"], "prior")     # safe direction
+        self.assertTrue(any("VINTAGE UNRESOLVED" in m for m in msgs))
+
+    def test_single_doc_trivially_current(self):
+        from updater.ledger import Ledger
+        led = Ledger()
+        led.classify_doc_periods = lambda p, d: {"AR25.pdf": "unknown"}
+        out = led.ensure_vintage([1000.0], [], log=lambda s: None)
+        self.assertEqual(out, {"AR25.pdf": "current"})
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
