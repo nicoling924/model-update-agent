@@ -1527,6 +1527,183 @@ class LastYearMapLaw(unittest.TestCase):
         self.assertIn("p273", hints["Driver!J6"][0])
 
 
+def _closure_item(doc, page, tid, ordn, label, nums, channel="vision"):
+    from updater.ledger import Item
+    return Item(doc=doc, page=page, table_id=tid, row_ord=ordn, label=label,
+                nums=list(nums), channel=channel,
+                source_line=f"{label} " + " ".join(f"{n:,.2f}" for n in nums))
+
+
+def _closure_ledger(items, face="cf"):
+    class L:
+        pass
+    led = L()
+    led.items = list(items)
+    led.faces = {(it.doc, it.page): face for it in items}
+    led.prior_period_docs = lambda: set()
+    return led
+
+
+class SectionClosureLaw(unittest.TestCase):
+    """run-24 twin (the ±593.5 CFI/CFF): a printed subtotal is an
+    equation over its section — a single-number row's column placement
+    is PROVEN by which placement closes, and a section that will not
+    close derives the missing row by difference."""
+
+    def test_absent_line_proves_zero(self):
+        # the actual FY25 CFF-inflow section, to the yuan
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR25", 101, 0, 0, "吸收投资收到的现金",
+                          [5236179223.0, 110017500.0]),
+            _closure_item("AR25", 101, 0, 1, "其中：子公司吸收少数股东投资收到的现金",
+                          [138080000.0, 110017500.0]),
+            _closure_item("AR25", 101, 0, 2, "取得借款收到的现金",
+                          [5569616084.0, 2511723871.0]),
+            _closure_item("AR25", 101, 0, 3, "收到其他与筹资活动有关的现金",
+                          [593536698.0]),
+            _closure_item("AR25", 101, 0, 4, "筹资活动现金流入小计",
+                          [10805795307.0, 3215278069.0]),
+        ]
+        led = _closure_ledger(items)
+        closure_sweep(led, lambda *_: None)
+        z = [it for it in led.items
+             if getattr(it, "channel", "") == "closure"]
+        self.assertEqual(len(z), 1)
+        self.assertEqual(z[0].nums, [0.0, 593536698.0])   # proven zero
+        self.assertTrue(items[0].verified)     # section members verified
+
+    def test_missing_row_derived_by_difference(self):
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR25", 101, 0, 0, "收到的税费返还",
+                          [340943742.0, 24819327.0]),
+            _closure_item("AR25", 101, 0, 1, "收到其他与经营活动有关的现金",
+                          [6561912668.0, 4960367306.0]),
+            # 销售商品 (the first row) was dropped by the extraction
+            _closure_item("AR25", 101, 0, 2, "经营活动现金流入小计",
+                          [93418210494.0, 79843123509.0]),
+        ]
+        led = _closure_ledger(items)
+        closure_sweep(led, lambda *_: None)
+        g = [it for it in led.items
+             if getattr(it, "channel", "") == "closure-gap"]
+        self.assertEqual(len(g), 1)
+        self.assertAlmostEqual(g[0].nums[0], 86515354084.0, places=1)
+        self.assertAlmostEqual(g[0].nums[1], 74857936876.0, places=1)
+
+    def test_note_pages_never_admitted(self):
+        # an aging table closes over [carrying, provision] — column
+        # semantics are NOT [current, prior]; faces only (run-21 class)
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR25", 232, 0, 0, "应收账款",
+                          [19168891258.0, 3975096357.0]),
+            _closure_item("AR25", 232, 0, 1, "其他应收款",
+                          [665327272.0, 283641267.0]),
+            _closure_item("AR25", 232, 0, 2, "合计",
+                          [19834218530.0, 4258737624.0]),
+        ]
+        led = _closure_ledger(items, face=None)
+        led.faces = {}                          # a note page — no face
+        closure_sweep(led, lambda *_: None)
+        self.assertFalse(any(getattr(it, "verified", False)
+                             for it in led.items))
+
+
+class ProvenZeroJoinLaw(unittest.TestCase):
+    """A zero may serve ONLY from a closure item (absence proven by the
+    statement's own arithmetic); any other zero stays a non-read."""
+
+    def test_closure_zero_passes_other_zero_refused(self):
+        from updater.stage2_join import _proven_zero
+
+        class ItA:
+            channel = "closure"
+
+        class ItB:
+            channel = "vision"
+        self.assertTrue(_proven_zero(0.0, ItA()))
+        self.assertFalse(_proven_zero(0.0, ItB()))
+        self.assertFalse(_proven_zero(5.0, ItA()))
+
+
+class CounterpartMapLaw(unittest.TestCase):
+    """Owner (run 23/24): the last-year map must WALK ACROSS — the hint
+    carries the current report's counterpart row, and a re-based
+    comparative triggers the analyst method, not staleness."""
+
+    def _leds(self):
+        prior_it = _mock_item("AR24", 209, "水电", [2955.37, 2361.55])
+        prior_it.table_id, prior_it.row_ord = 1, 0
+        kin1 = _mock_item("AR24", 209, "火电", [9000.0, 8000.0])
+        kin1.table_id, kin1.row_ord = 1, 1
+        kin2 = _mock_item("AR24", 209, "风电", [4000.0, 3500.0])
+        kin2.table_id, kin2.row_ord = 1, 2
+        cur_it = _mock_item("AR25", 207, "水电", [3902.82, 2854.08])
+        cur_it.table_id, cur_it.row_ord = 2, 0
+        ck1 = _mock_item("AR25", 207, "火电", [9500.0, 9100.0])
+        ck1.table_id, ck1.row_ord = 2, 1
+        ck2 = _mock_item("AR25", 207, "风电", [4400.0, 4100.0])
+        ck2.table_id, ck2.row_ord = 2, 2
+        led = _mock_ledger([prior_it, kin1, kin2, cur_it, ck1, ck2])
+        led.prior_period_docs = lambda: {"AR24"}
+        return led
+
+    def test_rebased_counterpart_names_the_analyst_method(self):
+        from updater.packets import prior_map_hints
+        rows = [{"cell": "Driver!J11", "label": "Hydro", "prior": 2955.37}]
+        hints = prior_map_hints(self._leds(), rows)
+        h = hints["Driver!J11"][0]
+        self.assertIn("COUNTERPART in CURRENT report p207", h)
+        self.assertIn("RE-BASED", h)
+        self.assertIn("RED-flag", h)
+
+
+class SightingsLaw(unittest.TestCase):
+    """run-24 (应收股利): a note line printing the model's prior beside
+    the current value is surfaced as a SIGHTING for the agent's judgment
+    — never a machine write."""
+
+    def test_prior_anchored_note_line_sighted(self):
+        from updater.packets import current_sightings
+        it = _mock_item("AR25", 159, "应收股利",
+                        [4210670.09, 23297096.99])
+        led = _mock_ledger([it])
+        rows = [{"cell": "Raw financials!U64", "label": "应收股利",
+                 "prior": 23.2971}]
+        s = current_sightings(led, rows)
+        self.assertIn("Raw financials!U64", s)
+        self.assertIn("p159", s["Raw financials!U64"][0])
+
+
+class OracleIdentityTolLaw(unittest.TestCase):
+    """run-24 false positive: 5e-4 relative tolerance let wrong-scale
+    junk (665,327,272 at /1e4 = 66,532.73 with a 28,364 'prior') tie a
+    28,358 segment prior and 'prove' a wrong print. The oracle demands
+    the cent-exact identity; near-misses belong to the hint channels."""
+
+    def test_near_miss_prior_no_longer_ties(self):
+        from updater.stage2_join import unique_evidence_value
+        it = _mock_item("AR25", 232, "其他应收款",
+                        [665327272.0, 283641267.0])
+        it2 = _mock_item("AR25", 232, "债权投资",
+                         [400000000.0, 100000000.0])
+        for i, x in enumerate((it, it2)):
+            x.table_id, x.row_ord, x.disputed = 0, i, False
+            x.verified = True
+        led = _mock_ledger([it, it2])
+        t = _mock_target("Driver", 6, "High-eff clean energy", 28358.2)
+        t2 = _mock_target("Raw", 98, "anchor a", 66532.7272)
+        t3 = _mock_target("Raw", 99, "anchor b", 10000.0)
+        # the page ratifies at 1e4 through the two exact anchors — yet the
+        # 5.93-off "prior" may NOT tie the segment row any more
+        got = unique_evidence_value(led, [t, t2, t3], t)
+        self.assertIsNone(got)
+        # the exact anchor itself still proves
+        self.assertIsNotNone(unique_evidence_value(led, [t, t2, t3], t3))
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

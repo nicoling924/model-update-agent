@@ -142,6 +142,10 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
         pm = prior_map_hints(ledger, rows)
     except Exception:
         pm = {}
+    try:
+        cs = current_sightings(ledger, rows)
+    except Exception:
+        cs = {}
     chunks = []
     for i in range(0, len(rows), MAX_ROWS_PER_CALL):
         chunk = rows[i:i + MAX_ROWS_PER_CALL]
@@ -165,6 +169,8 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
             for h in pm.get(r["cell"], []):
                 lines.append(f"    [{h}] — find this line's counterpart "
                              "in the CURRENT report")
+            for h in cs.get(r["cell"], []):
+                lines.append(f"    [{h}]")
         chunks.append("\n".join(lines))
     # TABLE ISLANDS (council wall-1 design): intact grids, selected
     # number-anchored on this packet's own priors. The agent reads the
@@ -243,10 +249,35 @@ def prior_map_hints(ledger, rows, cap_per_row=1):
     open row's PRIOR VALUE in the prior-year document (number-anchored,
     trivially reliable: it is the same number) and hand the agent the
     location as a map: 'your row lived HERE last year — find this line's
-    counterpart in the current report.'"""
+    counterpart in the current report.'
+
+    RUN-24 EXTENSION — the map now WALKS ACROSS: for each last-year hit,
+    locate the CURRENT report's counterpart section (the current-doc
+    table sharing the most row labels with the last-year table) and the
+    matched row inside it. When the counterpart's comparative no longer
+    ties the model's prior, the disclosure RE-BASED its categories — the
+    owner's analyst method applies: take the current-year value from the
+    counterpart row, and RED-flag the comparative mismatch (both figures
+    in the note). Stale is not an option when the counterpart is found."""
+    from .numerics import norm_label
     prior_docs = ledger.prior_period_docs()
     if not prior_docs:
         return {}
+
+    def _norm(lab):
+        return norm_label(lab or "").replace(" ", "")
+
+    # one pass: index tables of both vintages by (doc, page, table_id)
+    cur_tables, pri_tables = {}, {}
+    for it in ledger.items:
+        tid = getattr(it, "table_id", None)
+        if tid is None or not it.label:
+            continue
+        d = pri_tables if it.doc in prior_docs else cur_tables
+        d.setdefault((it.doc, it.page, tid), []).append(it)
+    cur_labelsets = {k: {_norm(i.label) for i in v} - {""}
+                     for k, v in cur_tables.items()}
+
     out = {}
     for row in rows:
         pv = row.get("prior")
@@ -257,10 +288,78 @@ def prior_map_hints(ledger, rows, cap_per_row=1):
         for it in ledger.items:
             if it.doc not in prior_docs or not it.joinable():
                 continue
+            if not any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
+                       for n in it.nums for s in SCALES):
+                continue
+            hint = f"LAST-YEAR report p{it.page}: {it.source_line[:90]}"
+            src = pri_tables.get((it.doc, it.page,
+                                  getattr(it, "table_id", None))) or []
+            src_labels = {_norm(x.label) for x in src} - {""}
+            best, bestn = None, 2               # need >= 3 shared labels
+            for k, ls in cur_labelsets.items():
+                n = len(ls & src_labels)
+                if n > bestn:
+                    best, bestn = k, n
+            if best:
+                match = [x for x in cur_tables[best]
+                         if _norm(x.label) == _norm(it.label)]
+                if match:
+                    m = match[0]
+                    ties = any(
+                        abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
+                        for n in m.nums for s in SCALES)
+                    hint += (f" || COUNTERPART in CURRENT report p{m.page}: "
+                             f"'{m.source_line[:80]}'")
+                    if not ties:
+                        hint += (" — its comparative does NOT tie your "
+                                 "prior: the disclosure RE-BASED this "
+                                 "category. ANALYST METHOD (owner ruling): "
+                                 "take the CURRENT-year value from this "
+                                 "counterpart row, write it citing this "
+                                 "page, and RED-flag it noting both the "
+                                 "model prior and the restated comparative")
+                else:
+                    hint += (f" || COUNTERPART section in CURRENT report "
+                             f"p{best[1]} shares {bestn} row labels with "
+                             f"the last-year location, but your line's "
+                             f"label is ABSENT there — the category was "
+                             f"likely renamed or merged this year. Read "
+                             f"that section, reason the mapping, and "
+                             f"red-flag your judgment")
+            hits.append(hint)
+            if len(hits) >= cap_per_row:
+                break
+        if hits:
+            out[row["cell"]] = hits
+    return out
+
+
+def current_sightings(ledger, rows, cap_per_row=2):
+    """PRIOR-ANCHORED SIGHTINGS outside the pool (run-24: 应收股利 sat in
+    a note table with an identity-grade prior beside its current value —
+    invisible to the join because note pages carry no face authority).
+    For each open row, current-doc lines where SOME number ties the
+    row's model prior at identity grade. Observation only — the agent
+    judges the line's column semantics and writes with a citation; no
+    machine write ever comes from a sighting (oracles observe)."""
+    prior_docs = ledger.prior_period_docs()
+    out = {}
+    for row in rows:
+        pv = row.get("prior")
+        if not isinstance(pv, (int, float)) or abs(pv) < 1.0:
+            continue
+        tol = max(0.6, abs(pv) * 5e-4)
+        hits = []
+        for it in ledger.items:
+            if (it.doc in prior_docs or getattr(it, "verified", False)
+                    or len(it.nums) < 2):
+                continue
             if any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
                    for n in it.nums for s in SCALES):
-                hits.append(f"LAST-YEAR report p{it.page}: "
-                            f"{it.source_line[:90]}")
+                hits.append(f"SIGHTED in CURRENT report p{it.page}: "
+                            f"{it.source_line[:90]} — a number here ties "
+                            f"your prior; judge the columns, then write "
+                            f"the current-year value with this citation")
             if len(hits) >= cap_per_row:
                 break
         if hits:
