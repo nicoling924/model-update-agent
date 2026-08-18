@@ -611,10 +611,18 @@ class AgentLoop:
             if tn is not None and self._diff_value(tn) is not None:
                 neighbors_tied += 1
         if neighbors_tied >= 2:
-            return (f"REFUSED: {into} sits inside a printed statement "
-                    "section (neighboring rows tie the filing) — its true "
-                    "value is printed; find it or flag it. Plugs belong on "
-                    "non-statement presentation rows only.")
+            # THE BELL EXCEPTION (owner's backout law outranks): at the
+            # closing bell, when no site exists outside printed land, a
+            # flagged plug may land in a printed section — ONLY into a
+            # cell with no evidence of its own, and it says so loudly.
+            t_into = self.targets.get((i_sheet, i_row))
+            evid = self._diff_value(t_into) if t_into is not None else None
+            if not (args.get("_bell") and evid is None):
+                return (f"REFUSED: {into} sits inside a printed statement "
+                        "section (neighboring rows tie the filing) — its "
+                        "true value is printed; find it or flag it. Plugs "
+                        "belong on non-statement presentation rows only.")
+            args["_printed_section"] = True
         # ONE PLUG PER CELL (run-8: Raw!U203 was plugged three times,
         # ping-ponging 35,262 -> 5,089 -> -25,073 as two residuals fought
         # over it). A plug site is an analyst-review item; a second
@@ -672,7 +680,10 @@ class AgentLoop:
             i_sheet, f"{i_col}{i_row}", plug_value,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
             flag="orange",
-            note=(f"PLUG (last resort): absorbed check residual "
+            note=(("PRINTED-SECTION PLUG — this cell sits inside a printed "
+                   "statement block; the analyst must reallocate. "
+                   if args.get("_printed_section") else "")
+                  + f"PLUG (last resort): absorbed check residual "
                   f"{residual:,.2f} from {check}; was {held:,.2f}. "
                   f"ANALYST MUST REVIEW. {why[:200]}"))
         if not ok:

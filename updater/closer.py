@@ -385,7 +385,8 @@ class PacketCloser:
                 if out["disposition"] == "plug":
                     r = self.tk.t_plug_residual({"check": ref,
                                                  "into": str(out["into"]),
-                                                 "why": str(out["why"])})
+                                                 "why": str(out["why"]),
+                                                 "_bell": True})
                     self.log(f"[closer] bell {ref}: plug -> "
                              f"{str(r).splitlines()[0][:90]}")
                     if str(r).startswith("PLUGGED") or attempt == 1:
