@@ -208,6 +208,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                          book, run_log.append)
         from .stage3_read import read_gaps
         gap = read_gaps(ledger, targets, served, client, docs, run_log)
+        ops.consensus_filter(gap, ledger, targets, run_log.append)
         served.update(gap)
         ops.write_served(wb, spec_d, target_year, gap, writer, priors,
                          book, run_log.append)

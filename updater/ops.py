@@ -105,6 +105,39 @@ def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
     return n_written
 
 
+def consensus_filter(gap, ledger, targets, log):
+    """Run 30: stage-3's single reader wrote the 其中 sub-line while the
+    pool held the parent's value in THREE agreeing printings — a lone
+    read may never contradict the pool. Where the evidence oracle holds
+    a unique agreeing value for a row, a contradicting stage-3 answer is
+    OVERRIDDEN by the pool's print (grade A evidence beats one reading);
+    agreeing answers pass through untouched."""
+    from .stage2_join import unique_evidence_value
+    tmap = {t.key: t for t in targets}
+    n = 0
+    for k in list(gap.keys()):
+        t = tmap.get(k)
+        if t is None:
+            continue
+        got = unique_evidence_value(ledger, targets, t)
+        if got is None:
+            continue
+        dv = got[0]
+        v = gap[k].get("value")
+        if isinstance(v, (int, float)) \
+                and abs(abs(v) - abs(dv)) > max(0.6, abs(dv) * 5e-3):
+            gap[k] = {**gap[k], "value": dv, "conf": 4,
+                      "note": (f"pool consensus OVERRODE a stage-3 read "
+                               f"({v:,.2f}): the report's agreeing print is "
+                               f"{dv:,.2f} ({got[1].doc} p{got[1].page}: "
+                               f"'{got[1].source_line[:60]}')")}
+            n += 1
+    if n:
+        log(f"[ops] consensus filter: {n} stage-3 reads overridden by the "
+            f"pool's agreeing print")
+    return gap
+
+
 def note_anchored_serves(ledger, targets, served, log):
     """The SECOND-PRINTING law as code (the Fable pass, run-28 应收股利):
     a value printed in TWO independent places, each time on a line whose

@@ -2162,3 +2162,31 @@ class SwapMustBePrintedLaw(unittest.TestCase):
                                                    "new": 18224.19},
                                  "why": "p9: the printed category total"})
         self.assertIn("WRITTEN", out2)
+
+
+class ConsensusOverridesStage3Law(unittest.TestCase):
+    """Run 30: a lone stage-3 read may never contradict the pool's
+    agreeing print — the oracle's value overrides it, cited."""
+
+    def test_contradicting_read_overridden(self):
+        from updater.ops import consensus_filter
+        a = _mock_item("AR25", 20, "吸收投资收到的现金",
+                       [5236179223.0, 110017500.0])
+        b = _mock_item("AR25", 101, "吸收投资收到的现金",
+                       [5236179223.0, 110017500.0])
+        a2 = _mock_item("AR25", 20, "取得借款收到的现金",
+                        [5569616084.0, 2511723871.0])
+        b2 = _mock_item("AR25", 101, "取得借款收到的现金",
+                        [5569616084.0, 2511723871.0])
+        for i, x in enumerate((a, b, a2, b2)):
+            x.table_id, x.row_ord, x.disputed = 0, i, False
+            x.verified = True
+        led = _mock_ledger([a, b, a2, b2])
+        t = _mock_target("Raw", 221, "吸收投资收到的现金", 110.0175)
+        t2 = _mock_target("Raw", 222, "取得借款收到的现金", 2511.723871)
+        gap = {("Raw", 221): {"value": 138.08, "conf": 3,
+                              "note": "stage-3 read"}}
+        out = consensus_filter(gap, led, [t, t2], lambda *_: None)
+        self.assertAlmostEqual(out[("Raw", 221)]["value"], 5236.179223,
+                               places=3)
+        self.assertIn("OVERRODE", out[("Raw", 221)]["note"])
