@@ -42,16 +42,25 @@ from .ledger import JOIN_FACES, Item
 
 # the closure grammar is BILINGUAL (CLP prep, 2026-08-19: an English HK
 # annual report closed 0 of 66 face pages under the CJK-only vocabulary)
-SUBTOTAL_RE = re.compile(r"小计|合计|总计|^\s*total\s|^\s*subtotal",
+# BILINGUAL closure grammar (CLP campaign). The roles differ by
+# language: a CJK CF prints a 小计 (subtotal) AND a 净额 (net, a barrier
+# combining two subtotals); an English CF's "Net cash inflow from
+# operating activities" IS the section equation itself. Subtotal
+# matching runs FIRST in _sections, so a row matching both is a subtotal.
+SUBTOTAL_RE = re.compile(r"小计|合计|总计|^\s*total\s|^\s*subtotal|"
+                         r"net cash (in|out)?flow|"
+                         r"net cash (generated|used|from)|"
+                         r"^\s*(operating|gross) profit|"
+                         r"profit before|profit for the",
                          re.IGNORECASE)
 SKIP_RE = re.compile(r"^\s*(其中|加[:：]|减[:：]|of which|including|"
                      r"thereof|less[:：]|add[:：])", re.IGNORECASE)
-# a section BOUNDARY that is not itself a subtotal equation: the CF
-# activity-net rows and the numbered activity headers (run-25 bench: the
-# CFF-inflow scan swallowed 投资活动产生的现金流量净额 and never closed —
-# which is exactly where the ±593.5 twin's proven zero lives)
+# a section BOUNDARY that is not itself a subtotal equation: the CJK CF
+# activity-net rows, the numbered activity headers, and English bare
+# activity headers ("Operating activities")
 BARRIER_RE = re.compile(r"产生的现金流量净额|^\s*[一二三四五六七八九十]、|"
-                        r"net cash (generated|used|from|in)|"
+                        r"^\s*(operating|investing|financing) "
+                        r"activities\s*$|"
                         r"net (increase|decrease) in cash", re.IGNORECASE)
 MAX_SINGLES = 6
 TOL = 1.0                     # statements add to the cent; sections are short
