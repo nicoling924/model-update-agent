@@ -76,13 +76,27 @@ def _verify(rows, page_nums_abs, priors):
         printed = all(any(abs(abs(v) - a) <= max(0.01, a * 1e-6)
                           for a in page_nums_abs)
                       for v in (cur, prior) if v != 0)
-        if not printed:
-            continue
         anchored = any(
             abs(abs(to_model_units(prior, s)) - abs(pv)) <= tol
             for pv, tol in ptols for s in SCALES)
         if not anchored:
             continue
+        if not printed:
+            # RECOVERY MODE (owner's same-page law): vision misses lines;
+            # requiring the missed number to already exist in the flawed
+            # extraction is circular. The original fablemode checksum —
+            # the comparative ties a model prior at IDENTITY grade —
+            # measured zero wrong reads ever; under it a missed line may
+            # be recovered when the identity is tight and the current
+            # value is in the row's own world.
+            identity = any(
+                abs(abs(to_model_units(prior, s)) - abs(pv))
+                <= max(0.6, abs(pv) * 5e-4)
+                for pv, _t in ptols for s in SCALES)
+            in_world = (cur != 0 and prior != 0
+                        and 0.01 <= abs(cur) / abs(prior) <= 100.0)
+            if not (identity and in_world):
+                continue
         out.append((lab, cur, prior))
     return out
 

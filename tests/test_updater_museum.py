@@ -1490,6 +1490,43 @@ class OraclesObserveExecutorsMutateLaw(unittest.TestCase):
         self.assertEqual(ws["U5"].value, 900.0)     # ambiguity untouched
 
 
+class SamePageRecoveryLaw(unittest.TestCase):
+    """Owner (run 23): if TA maps, TL must map — vision-missed lines are
+    recoverable under the fablemode checksum (identity prior-anchor),
+    not blocked by the circular copied-check."""
+
+    def test_missed_line_recovered_by_identity_anchor(self):
+        from updater.ingest import _verify
+        rows = [{"label": "负债合计", "current": 113881000000.0,
+                 "prior": 98867040000.0}]
+        # page extraction MISSED this line entirely (empty page numbers)
+        out = _verify(rows, [], [98867.04])
+        self.assertEqual(len(out), 1)              # recovered
+
+    def test_recovery_needs_identity_not_row_tol(self):
+        from updater.ingest import _verify
+        rows = [{"label": "junk", "current": 5.0,
+                 "prior": 99360000000.0}]          # 0.5% off — NOT identity
+        out = _verify(rows, [], [98867.04])
+        self.assertEqual(out, [])
+
+
+class LastYearMapLaw(unittest.TestCase):
+    """Owner (run 23): the prior report is the location map — each open
+    row's prior value found there becomes a 'find the counterpart' hint."""
+
+    def test_prior_doc_hit_becomes_hint(self):
+        from updater.packets import prior_map_hints
+        it = _mock_item("AR24", 273, "清洁高效能源装备", [28358.2, 26000.0])
+        led = _mock_ledger([it])
+        led.prior_period_docs = lambda: {"AR24"}
+        rows = [{"cell": "Driver!J6", "label": "High-eff clean energy",
+                 "prior": 28358.2}]
+        hints = prior_map_hints(led, rows)
+        self.assertIn("Driver!J6", hints)
+        self.assertIn("p273", hints["Driver!J6"][0])
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

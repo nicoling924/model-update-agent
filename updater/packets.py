@@ -138,6 +138,10 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
             ip[c["row"]] = c
     except Exception:
         ip = {}
+    try:
+        pm = prior_map_hints(ledger, rows)
+    except Exception:
+        pm = {}
     chunks = []
     for i in range(0, len(rows), MAX_ROWS_PER_CALL):
         chunk = rows[i:i + MAX_ROWS_PER_CALL]
@@ -158,6 +162,9 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"this row's prior — {c['cite'][:70]}")
             for h in evidence_slice(ledger, r):
                 lines.append(f"    {h}")
+            for h in pm.get(r["cell"], []):
+                lines.append(f"    [{h}] — find this line's counterpart "
+                             "in the CURRENT report")
         chunks.append("\n".join(lines))
     # TABLE ISLANDS (council wall-1 design): intact grids, selected
     # number-anchored on this packet's own priors. The agent reads the
@@ -194,7 +201,13 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
             # THE STATEMENTS as ordered reading material (owner issue 1):
             # a statement-transcription sheet needs the statements, not
             # snippets. Attached to every compile card with open work.
-            stmt = statement_transcript(ledger)
+            served_priors = {t.prior_value for t in tl
+                             if (t.sheet, t.row) in served
+                             and isinstance(t.prior_value, (int, float))
+                             and abs(t.prior_value) >= 1.0}
+            # also every prior of rows already written on this sheet
+            stmt = statement_transcript(ledger,
+                                        served_priors=served_priors)
             if stmt:
                 chunks = [c + "\n\n== THE STATEMENTS — ordered, read "
                           "top-to-bottom; rows that ARE statement lines "
@@ -224,7 +237,39 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
     return rows, chunks
 
 
-def statement_transcript(ledger, cap_chars=12000, per_page_cap=3000):
+def prior_map_hints(ledger, rows, cap_per_row=1):
+    """THE LAST-YEAR MAP (owner ruling, run 23): the prior report prints
+    the model's own numbers with their labels and sections — find each
+    open row's PRIOR VALUE in the prior-year document (number-anchored,
+    trivially reliable: it is the same number) and hand the agent the
+    location as a map: 'your row lived HERE last year — find this line's
+    counterpart in the current report.'"""
+    prior_docs = ledger.prior_period_docs()
+    if not prior_docs:
+        return {}
+    out = {}
+    for row in rows:
+        pv = row.get("prior")
+        if not isinstance(pv, (int, float)) or abs(pv) < 1.0:
+            continue
+        tol = max(0.6, abs(pv) * 5e-4)          # identity grade
+        hits = []
+        for it in ledger.items:
+            if it.doc not in prior_docs or not it.joinable():
+                continue
+            if any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
+                   for n in it.nums for s in SCALES):
+                hits.append(f"LAST-YEAR report p{it.page}: "
+                            f"{it.source_line[:90]}")
+            if len(hits) >= cap_per_row:
+                break
+        if hits:
+            out[row["cell"]] = hits
+    return out
+
+
+def statement_transcript(ledger, cap_chars=12000, per_page_cap=3000,
+                         served_priors=None):
     """The STATEMENTS, ordered — the transcription source (owner issue 1:
     Fable's 100%% on the Raw tab came from reading the statements
     completely and filling in order; per-row snippets were the wrong task
@@ -233,14 +278,35 @@ def statement_transcript(ledger, cap_chars=12000, per_page_cap=3000):
     prior_docs = ledger.prior_period_docs()
     pages = sorted((d, p) for (d, p), f in ledger.faces.items()
                    if f in ("bs", "is", "cf") and d not in prior_docs)
+    sp = sorted(served_priors) if served_priors else []
+
+    def _mapped(nums):
+        if not sp:
+            return False
+        for n in nums[1:]:
+            for s in SCALES:
+                a = abs(to_model_units(n, s))
+                tol = max(0.6, a * 5e-4)
+                i = 0
+                import bisect as _b
+                i = _b.bisect_left(sp, a - tol)
+                if i < len(sp) and abs(sp[i] - a) <= tol:
+                    return True
+        return False
+
     out, total = [], 0
     for d, p in pages:
-        lines = [it.source_line for it in ledger.items
-                 if it.doc == d and it.page == p]
+        lines = []
+        for it in ledger.items:
+            if it.doc == d and it.page == p:
+                mark = "   <- mapped" if _mapped(it.nums) else ""
+                lines.append(it.source_line + mark)
         if not lines:
             continue
         block = (f"== STATEMENT PAGE p{p} "
-                 f"({ledger.faces[(d, p)]}) ==\n"
+                 f"({ledger.faces[(d, p)]}) — lines marked '<- mapped' "
+                 f"already landed in the model; the UNMARKED lines are "
+                 f"your remaining work ==\n"
                  + "\n".join(lines))[:per_page_cap]
         if total + len(block) > cap_chars:
             break
