@@ -208,6 +208,8 @@ class AgentLoop:
         run_log = []
         gap = read_gaps(self.ledger, list(self.targets.values()),
                         self.served, self.client, self.docs, run_log)
+        ops.consensus_filter(gap, self.ledger, list(self.targets.values()),
+                             self.log.append)
         new = {k: v for k, v in gap.items() if k not in self.served}
         self.served.update(new)
         priors = {t.key: t.prior_value for t in self.targets.values()}
