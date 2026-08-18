@@ -103,6 +103,26 @@ def _solve(s_row, sec):
             if k not in seen:
                 seen.add(k)
                 gaps.append((gc, gp))
+    # PER-COLUMN PROOF (the confined-run fails, 2026-08-19): a column's
+    # equation is self-contained — when EXACTLY ONE subset of the
+    # single-number lines closes the CURRENT column, every single's
+    # placement is decided by that column alone, even while the other
+    # column stays gapped (a vision-missed comparative must not block a
+    # proof the current year's own arithmetic completes). Symmetric for
+    # the prior column.
+    for col, base, target in (("cur", base_c, sc), ("pri", base_p, sp)):
+        closing = [mask for mask in range(1 << len(ones))
+                   if abs(base + sum(o.nums[0] for j, o in enumerate(ones)
+                                     if mask >> j & 1) - target) <= TOL]
+        if len(closing) == 1:
+            mask = closing[0]
+            # membership in this column decides both columns: a single
+            # outside the closing subset belongs to the other column.
+            # "closed_col": placements are proven; the section's two-num
+            # rows are NOT verified off this (the other column is still
+            # open — only a full closure vouches for the whole section)
+            return ("closed_col", mask if col == "cur"
+                    else (~mask) & ((1 << len(ones)) - 1)), ones
     # the MINIMAL gaps are the informative placements (run-25 bench: the
     # true placement — one single in the prior column, its own prior
     # missing — ranked past a first-two cap)
@@ -135,11 +155,13 @@ def closure_sweep(ledger, log):
             if solved is None:
                 continue
             kind, payload = solved
-            if kind == "closed":
-                for r in sec + [s_row]:
-                    if len(r.nums) == 2 and not getattr(r, "verified", False):
-                        r.verified = True
-                        n_ver += 1
+            if kind in ("closed", "closed_col"):
+                if kind == "closed":
+                    for r in sec + [s_row]:
+                        if len(r.nums) == 2 and not getattr(r, "verified",
+                                                           False):
+                            r.verified = True
+                            n_ver += 1
                 for j, o in enumerate(ones):
                     v = o.nums[0]
                     cur_col = bool(payload >> j & 1)
