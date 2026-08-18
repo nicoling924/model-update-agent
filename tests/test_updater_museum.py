@@ -2215,3 +2215,57 @@ class BilingualClosureLaw(unittest.TestCase):
         self.assertEqual(len(z), 1)
         self.assertEqual(z[0].nums, [500.0, 0.0])   # deposits are current
         self.assertTrue(items[0].verified)
+
+
+class NominateThenVerifyLaw(unittest.TestCase):
+    """Council #6: a key is a verified mathematical identity. The
+    referee certifies nominations by prior-identity, kills segment
+    twins by constellation, and leaves ambiguity unbound."""
+
+    def _world(self):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active; ws.title = "Final"
+        for r, (lab, pv) in enumerate([("Revenue", 90964.0),
+                                       ("Operating profit", 14903.0),
+                                       ("Profit for the year", 12718.0)],
+                                      start=1):
+            ws[f"A{r}"], ws[f"T{r}"] = lab, pv
+        aus = wb.create_sheet("Aus")
+        aus["A1"], aus["T1"] = "Operating profit", 14903.0   # the twin
+        spec = {"year_axis": {"Final": {"columns": {"2024": "T",
+                                                    "2025": "U"}},
+                              "Aus": {"columns": {"2024": "T",
+                                                  "2025": "U"}}}}
+        items = [_mock_item("AR", 23, lab, [cur, pv]) for lab, cur, pv in
+                 (("Revenue", 88018.0, 90964.0),
+                  ("Operating profit", 14272.0, 14903.0),
+                  ("Profit for the year", 11546.0, 12718.0))]
+        led = _mock_ledger(items, face="pl")
+        return wb, spec, led
+
+    def test_twin_loses_to_constellation(self):
+        from updater.onboard import certify
+        wb, spec, led = self._world()
+        noms = [
+            {"concept": "revenue", "sheet": "Final", "row": 1,
+             "filing_prior": 90964.0},
+            {"concept": "operating profit", "sheet": "Aus", "row": 1,
+             "filing_prior": 14903.0},
+            {"concept": "operating profit", "sheet": "Final", "row": 2,
+             "filing_prior": 14903.0},
+            {"concept": "net profit", "sheet": "Final", "row": 3,
+             "filing_prior": 12718.0},
+        ]
+        out = certify(wb, spec, 2025, led, noms, lambda *_: None)
+        by = {k["name"]: k for k in out}
+        self.assertEqual(by["operating profit"]["sheet"], "Final")
+        self.assertEqual(len(out), 3)
+
+    def test_untied_nomination_rejected(self):
+        from updater.onboard import certify
+        wb, spec, led = self._world()
+        noms = [{"concept": "revenue", "sheet": "Final", "row": 1,
+                 "filing_prior": 12345.0}]        # doesn't tie model prior
+        out = certify(wb, spec, 2025, led, noms, lambda *_: None)
+        self.assertEqual(out, [])
