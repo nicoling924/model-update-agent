@@ -153,6 +153,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         [t.prior2_value for t in targets
          if isinstance(getattr(t, "prior2_value", None), (int, float))],
         log=log)
+    # VERIFIED WHOLE-PAGE INGESTION (owner ruling): the evidence pool must
+    # BE the report — pages read whole, every row checksummed (copied-not-
+    # invented + prior-anchored) before it is believed. Cached per doc.
+    if client is not None:
+        from .ingest import verified_ingest
+        verified_ingest(ledger, targets, client, log)
 
     # -- THE ONE PAUSE: restatement (before any write; resume-friendly)
     restatement = restate_mod.check_or_pause(company_dir, period, ledger,

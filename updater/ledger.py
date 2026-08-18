@@ -238,6 +238,10 @@ class Item:
     unit_dim: str = "unknown"   # per_share|ratio|energy|shares|unknown
     scale_hint: float = None    # block's printed unit header, if one was found
     channel: str = "text"       # text (deterministic parse) | vision (LLM read)
+    verified: bool = False      # checksummed whole-page ingest: both numbers
+                                # printed on the page AND the comparative
+                                # ties a model prior — face-grade evidence
+                                # wherever it sits (owner ingestion ruling)
     consensus: int = 1          # extraction passes agreeing (vision channel)
     disputed: bool = False      # kept but not consensus-stable — never joinable
     source_line: str = ""       # the verbatim printed line (audit trail)
@@ -284,7 +288,8 @@ class Ledger:
         prior_docs = self.prior_period_docs()
         return [it for it in self.items
                 if it.joinable() and it.doc not in prior_docs
-                and self.faces.get((it.doc, it.page)) in JOIN_FACES]
+                and (self.faces.get((it.doc, it.page)) in JOIN_FACES
+                     or getattr(it, "verified", False))]
 
     def classify_doc_periods(self, priors, deep_priors=None):
         """{doc: 'current'|'prior'|'unknown'} — deterministic, language-free.

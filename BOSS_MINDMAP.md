@@ -142,6 +142,50 @@ To make sure of the following:
   reasoning ability (it can ASK for more places), not as a fixed
   retrieval list. "If we can't find our specific data in one place, we
   will find another place."
+- **2026-08-18 · BACKOUT rules (owner):** for most situations the KEY
+  NUMBERS should NOT be backed out — they are announced and provided.
+  Back out a key only under a special condition. ADDED CONDITION #1:
+  INCOMPLETE FINANCIAL DATA — companies sometimes provide incomplete
+  data in results announcements / quarterly statements; in those cases
+  key numbers may be backed out.
+- **2026-08-18 · Backout clarification (grilling):** full annual report →
+  key numbers are NEVER backed out (all are available in the statements;
+  find them or leave the key failing loudly). Backout of keys is allowed
+  only for reports CONFIRMED incomplete (e.g. an announcement with no
+  cash-flow statement) — the agent may confirm incompleteness
+  deterministically (a whole statement absent from the document set),
+  states it in _REPORT, and backs out flagged orange.
+- **2026-08-18 · Understanding model structure — adjustments (owner):**
+  the model sometimes classifies key numbers differently from company
+  management (e.g. interest expense in operating vs financing cash
+  flow). The agent must understand HOW these numbers are derived while
+  understanding the model. A correctly-inputted model can still show
+  CFO/CFF that do not match the annual report BECAUSE of the model's own
+  adjustments — the agent must understand what the adjustment is, and
+  whether the number is correct even without the adjustment.
+- **2026-08-18 · Adjustments clarification (grilling):** the agent
+  reasons out WHY a total doesn't match by TRACKING PRECEDENT CELLS
+  (follow the formula chain to the classified components). If the prior
+  year's figure matches the company-announced figure, it is HIGHLY
+  LIKELY there is no UBS adjustment — the deviation is then an error to
+  find and fix, not a design to preserve. When a deviation equals one
+  nameable item, name it, quantify it, and present the classification
+  question in _REPORT rather than forcing or ignoring.
+- **2026-08-18 · Segment breakdowns — multi-table persistence (owner):**
+  the segment breakdowns exist in MULTIPLE tables scattered across the
+  report. Failing to find in one table must never end in a stale figure
+  — look for multiple datapoints across the report for the breakdown and
+  the other key numbers. If a number is in the model as a HARDCODE, it
+  is highly likely findable in the disclosures.
+- **2026-08-18 · Segment terminal state (grilling):** when a segment row
+  is genuinely unfound after exhausting multiple tables in all documents,
+  the terminal state is STALE + RED FLAG — never an estimate. (This
+  supersedes the earlier prior-structure-estimate teaching: the owner
+  wants no estimated segment writes.)
+- **2026-08-18 · Ingestion ability (owner):** the agent misses numbers
+  that are easily found in the report — the ingestion layer must read
+  the statements at Fable-5 grade (whole pages, complete, verified), not
+  as scattered retrieval.
 - **2026-08-17 · Fresh start:** NO champion re-scoring — the old champion
   agent (stable-run105) is retired; "the agent of the champion is not good
   at all." We start new. Purpose of this mindmap: Fable 5 understands the
