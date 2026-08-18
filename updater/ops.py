@@ -105,6 +105,96 @@ def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
     return n_written
 
 
+def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
+                           writer, book, log):
+    """THE REBASED BLOCK AS STATE (runs 29/31/32: write-time guards were
+    re-phrased around under repair pressure, three full runs in a row).
+    When >=2 segment leaves on one sheet have priors that tie NO
+    current-filing comparative at identity, the filing re-based that
+    partition — the owner's restatement class. Those rows leave the work
+    queue entirely (red-flagged with the analyst question); leaves whose
+    priors still tie stay open (their scope survived). Deterministic;
+    runs at ground time."""
+    import re as _re
+    from openpyxl.comments import Comment
+    from .checks import year_columns as _yc
+    from .numerics import SCALES as _S, to_model_units as _tmu
+    prior_docs = ledger.prior_period_docs()
+    cur_nums = [n for it in ledger.items
+                if it.doc not in prior_docs
+                and not getattr(it, "disputed", False)
+                for n in it.nums]
+
+    def _ties_filing(pv):
+        tol = max(0.6, abs(pv) * 5e-4)
+        return any(abs(abs(_tmu(n, s)) - abs(pv)) <= tol
+                   for n in cur_nums for s in _S)
+
+    # collect revenue/GP key leaves (the segment world)
+    seen, leaves = set(), []
+
+    def walk(sh, coord, depth=0):
+        if depth > 6 or (sh, coord) in seen or len(seen) > 400:
+            return
+        seen.add((sh, coord))
+        v = wb[sh][coord].value if sh in wb.sheetnames else None
+        m = _re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+        if isinstance(v, (int, float)):
+            if m and m[1] == _yc(spec_d, sh).get(str(target_year)):
+                leaves.append((sh, int(m[2])))
+            return
+        if not isinstance(v, str) or not v.startswith("="):
+            return
+        for sh2, sh3, c2, r2 in _re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                v.replace("$", "")):
+            s2 = (sh2 or sh3 or sh).strip()
+            if s2 in wb.sheetnames:
+                walk(s2, f"{c2}{r2}", depth + 1)
+
+    for k in spec_d.get("key_rows") or []:
+        if any(w in str(k.get("name", "")).lower()
+               for w in ("revenue", "sales", "gross")):
+            tc = _yc(spec_d, k["sheet"]).get(str(target_year))
+            if tc and k["sheet"] in wb.sheetnames:
+                walk(k["sheet"], f"{tc}{int(k['row'])}")
+
+    fails_by_sheet = {}
+    for sh, row in leaves:
+        pcol = prior_column(spec_d, sh, target_year)
+        pv = wb[sh][f"{pcol}{row}"].value if pcol else None
+        if isinstance(pv, (int, float)) and abs(pv) > 1.0 \
+                and not _ties_filing(pv):
+            fails_by_sheet.setdefault(sh, []).append(row)
+    rebased = set()
+    for sh, rows in fails_by_sheet.items():
+        if len(rows) < 2:
+            continue
+        tc = _yc(spec_d, sh).get(str(target_year))
+        for row in rows:
+            ref = f"{sh}!{tc}{row}"
+            rebased.add((sh, row))
+            cell = wb[sh][f"{tc}{row}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = Comment(
+                "SEGMENT BASIS CHANGED (restatement class): this row's "
+                "prior-year figure ties nothing in the current filing — "
+                "the company re-cut its categories. Held STALE for the "
+                "analyst's re-basing ruling; the filing's new partition "
+                "is in _REPORT. No estimate is ever written here.",
+                "Model Update Agent")
+            if ref not in writer.log["flags"]:
+                writer.log["flags"].append(ref)
+            book.record(ref, "C", "rebased block",
+                        note="basis changed — analyst ruling required")
+    writer.log["rebased"] = sorted(f"{s}!{r}" for s, r in rebased)
+    if rebased:
+        log(f"[ops] REBASED BLOCK declared: {len(rebased)} segment rows "
+            f"held stale+red for the analyst "
+            f"({', '.join(writer.log['rebased'][:6])})")
+    return rebased
+
+
 def consensus_filter(gap, ledger, targets, log):
     """Run 30: stage-3's single reader wrote the 其中 sub-line while the
     pool held the parent's value in THREE agreeing printings — a lone

@@ -1073,6 +1073,13 @@ class AgentLoop:
                             f"printed value, or flag your disagreement with "
                             f"the reason; never override an agreeing print.")
         pcol = prior_column(self.spec, sheet, self.ty)
+        # REBASED-BLOCK STATE (runs 29/31/32): rows held for the
+        # analyst's re-basing ruling accept no writes, however phrased.
+        if f"{sheet}!{row}" in (self.writer.log.get("rebased") or []):
+            return (f"REFUSED: {ref} is in a REBASED segment block — the "
+                    "filing re-cut its categories and the analyst must "
+                    "rule on re-basing; the row is held stale+red with "
+                    "the new partition in _REPORT. Not writable.")
         # DUPLICATE-PRINT GUARD (run 31: the engine wrote 合同负债's value
         # into the blank sibling 预收款项 row as its "counterpart" while
         # the join had already filled 合同负债 itself — one printed line
@@ -1124,6 +1131,7 @@ class AgentLoop:
                                 f"convert and rewrite.")
         before_fails = {c["name"] for c in self._card()["checks"]
                         if c["status"] == "FAIL"}
+        pre_ties = self._tie_state()
         ok = self.writer.write(sheet, f"{col}{row}", value,
                                prior_coord=f"{pcol}{row}" if pcol else None,
                                note=f"agent: {why[:300]}",
@@ -1134,6 +1142,23 @@ class AgentLoop:
                       self.writer.log["lock_refused"][-1]
                       if self.writer.log["lock_refused"] else "guard refusal")
             return f"REFUSED by write guard: {reason}"
+        # TRUTH-TIE TRANSACTIONAL (run 32: a real printed FX figure landed
+        # in an RE-feeding row and knocked retained earnings off its
+        # printed value by 23 — plugs already revert on broken announced
+        # ties; ordinary writes now do too)
+        post_ties = self._tie_state()
+        broke_t = sorted(k for k, v in pre_ties.items()
+                         if v and not post_ties.get(k, False))
+        if broke_t:
+            self.writer.write(sheet, f"{col}{row}", held,
+                              prior_coord=f"{pcol}{row}" if pcol else None,
+                              force_lock=True, trusted=True,
+                              note="agent: REVERTED (moved a print-tying "
+                                   "row off the disclosure)")
+            return (f"REVERTED: this write knocked previously print-tying "
+                    f"rows off the disclosure ({broke_t[:3]}) — truth "
+                    f"outranks the mapping; this value belongs elsewhere "
+                    f"(or nowhere).")
         after_fails = {c["name"] for c in self._card()["checks"]
                        if c["status"] == "FAIL"}
         broke = sorted(after_fails - before_fails)
