@@ -44,6 +44,7 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
     if not tcol or sheet not in wb.sheetnames:
         return []
     written = set(writer_log.get("written") or [])
+    rebased = set(writer_log.get("rebased") or [])
     out = []
     ws = wb[sheet]
     numeric_rows = sorted(r for r in range(1, ws.max_row + 1)
@@ -78,7 +79,8 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
                 continue
         elif not isinstance(v, (int, float)):
             continue
-        if (sheet, r) in served or f"{sheet}!{tcol}{r}" in written:
+        if (sheet, r) in served or f"{sheet}!{tcol}{r}" in written \
+                or f"{sheet}!{r}" in rebased:
             continue
         pv = ws[f"{pcol}{r}"].value if pcol else None
         lab = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")

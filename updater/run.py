@@ -214,6 +214,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                          book, run_log.append)
         for ln in run_log[-4:]:
             log(f"[run] {ln}")
+        ops.declare_rebased_blocks(wb, spec_d, target_year, ledger,
+                                   targets, writer, book, run_log.append)
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,

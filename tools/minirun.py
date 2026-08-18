@@ -93,6 +93,8 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     for ln in run_log[-4:]:
         log(f"[mini] {ln}")
 
+    ops.declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
+                               writer, book, run_log.append)
     loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                      writer, book, client, run_log, budget=40,
                      restatement=None, docs=docs, census=census)
