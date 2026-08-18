@@ -30,6 +30,20 @@ same words often mean a different scope (a note row, a ratio, prose).
 A 同比/%-change line lets you compute this year's value as
 current = prior x (1 + pct) — cite it as such.
 
+TRANSCRIPTION FIRST: rows that ARE statement lines (balance sheet,
+income statement, cash flow details) transcribe from THE STATEMENTS
+block, top-to-bottom, at full precision — every line of a statement is
+printed; a statement row left stale or guessed is always wrong.
+
+THE HOUSE ESTIMATE (when categories merge): if the current disclosure
+merges or re-bases categories your model splits (one printed total now
+covers several of your rows), the house method is: split the disclosed
+total across your rows by their PRIOR-YEAR STRUCTURE (each row's share
+of last year's sum), write each as an estimate with flag true, and say
+so in why ("estimate: prior-year structure applied to disclosed total X,
+p13 — true up when detail is disclosed"). An honest structured estimate
+beats a stale number; a flag marks it for the analyst's true-up.
+
 LOOK ELSEWHERE (the analyst's skill): the same economics print in
 several places — the statement face, the SEGMENT NOTE behind the
 statements, other MD&A tables, the five-year summary. If the tables in
