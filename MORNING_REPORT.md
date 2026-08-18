@@ -1,96 +1,60 @@
-# Morning report — the redesign night (2026-08-18)
+# Morning report — overnight 2026-08-19 → 20 (extraction-first campaign)
 
-## The one-paragraph version
+## Where things stand (as of run 32, in flight)
 
-You stopped the patch spiral; the council redesigned the agent; I built
-it, and it works. The agent now THINKS in packets — it compiles whole
-statement columns, answers diagnoses with per-leaf decisions, and closes
-with reasoned dispositions — at **half the cost** of the old loop (~95
-calls vs ~250), with **zero trace-spam**, and honest behavior everywhere.
-Across five runs of the new architecture the trend is monotone: balance
-went from FAIL(8) to **one check at 1.0 with every forecast year
-passing**, and the segment wall — three runs of zero — **broke: 15 of 33
-Driver segment rows now write reproducibly with grid citations** (the
-council's Table Islands). Two named gaps remain for today: the CFI/CFF
-~594 twin (the reclass packet triggers but hasn't matched a twin in the
-live data — needs data-driven diagnosis, not guesses) and the last 1.0
-rounding residual (the bell keeps aiming its plug at disclosure-proven
-cells and the truth-guard correctly refuses).
+**DFE progress across the night's runs (all fingerprint-verified):**
 
-## What happened, in order (full detail: OVERNIGHT.md, git log)
+| Run | Keys at print | Previous-mistakes set | Balance | Note |
+|-----|---------------|----------------------|---------|------|
+| 29 | **10/10** (first ever) | 9/12 | 1 fail (segment sum −9) | segment estimates leaked under residual pressure |
+| 30 | 7/10 | 11/12 | twin re-entered via stage-3 | the 其中 sub-line's last door |
+| 31 | **10/10** | **12/12** | NEW: one line written into two sibling rows | the campaign target met, minus one new class |
+| 32 | in flight | — | — | carries the one-printed-line-one-row guard |
 
-1. **You pulled the brake** (patch spiral). I wrote RETHINK.md — honest
-   self-diagnosis: I taught compliance, not thinking; used guards to
-   steer; the one-action loop was thinking-hostile.
-2. **Council session #1** (4 models, unanimous): change the UNIT OF WORK.
-   Packet queue from the workbook itself; L0 planner / L1 closer;
-   compile + surgeon modes; decisions[] schema gate; method-not-laws
-   prompt with 5 standing rules; delete the 15-law rulebook. REDESIGN.md.
-3. **Built it** (packets.py, closer.py, method prompts; 15 laws deleted;
-   guards silent — they speak only as apply-report rejection reasons).
-4. **Runs 10-12**: behavior transformed instantly (no tourism, half
-   cost); two method edits (what the column IS; how a close ENDS) took
-   balance FAIL(8)->FAIL(1); segments moved from silently-skipped to
-   honestly-flagged but not written; run 12 regressed the endgame draw.
-   **Council trigger met.**
-5. **Council session #2** (unanimous): the three walls are
-   REPRESENTATION/TASK-SHAPE problems. Table Islands (grid-intact
-   evidence, number-anchored selection, agent reads natively across
-   languages); the Closing Bell (one terminal disposition per residual
-   generator); the Atomic Reclass Packet (twin signature -> one bound
-   question -> two-legged atomic move or nothing).
-6. **Runs 13-14**: WALL 1 BROKE — compile:Driver 15/33 written with
-   island citations, twice, identically. Balance collapsed to one 1.0.
-   Bell refined to learn from refusals (apply-report principle).
-7. **Run 15** (unchanged code, variance measurement): segments 15/33 a
-   THIRD consecutive time; same 1.0-class residual; same laws; same
-   honest bell behavior. **The close is reproducible — the endgame
-   lottery that defined nine runs of the old loop is gone.** The only
-   remaining variance is whether the 1.0 echoes into forecast years.
+Every failure was closed at its fundamental, teaching-first, referees for
+what the engine drops (owner-ratified boundary: code proves/refuses,
+never maps). New laws since the mandate: segment-estimate refusal at the
+key leaves, swapped constants must be printed numbers, never-silent
+blank/embedded rows, lazy-ND fact-check, stage-3 consensus filter
+(pool's agreeing print overrides a lone reader), duplicate-print guard
+(one printed line lives in ONE row), per-column closure, note-column
+detection + cumulative-subtotal carry (P&L anatomy), bilingual closure
+grammar. Museum: 110 exhibits green.
 
-## The scorecard trend (the four laws, per run)
+**The confined-run harness (tools/minirun.py)** — same engine, same
+code, restricted packet list — took the previous-mistakes set from 4/12
+to 12/12 across 9 cheap iterations (~5-20 engine calls each, zero cloud
+dispatches) before any full run flew.
 
-| Run | Balance | Announced | Adjustments | Keys | Calls | Note |
-|---|---|---|---|---|---|---|
-| 7 (old loop's best) | PASS (4 plugs) | PASS | PASS | FAIL(2 EPS) | 209 | the old lottery's lucky draw |
-| 10 | FAIL(8) | FAIL(2) | PASS | FAIL | 94 | redesign first flight |
-| 11 | FAIL(1)@1.0 | FAIL(2) | PASS | FAIL | 92 | method edits landed |
-| 12 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 89 | endgame draw exposed |
-| 13 | FAIL(6)=one 24 | FAIL(2) | PASS | FAIL | 95 | **segments 15/33** |
-| 14 | **FAIL(1)@1.0** | FAIL(2) | PASS | FAIL(2+2) | 98 | **best; segments reproduced** |
-| 15 (unchanged) | FAIL(6)=1.0 echo | FAIL(2) | PASS | FAIL(2+2) | 96 | **STABLE — the lottery is gone** |
+## CLP (genericity leg) — self-onboarded, benchmark GREEN, not yet flown
 
-Keys law note: the FAIL(2 mismatch) is the CFI/CFF twin in every run; the
-2 unverified are the EPS-class rows (value correct, oracle can't tie
-per-share numbers; the value-match fallback covers one doc pattern, not
-this one yet).
+- **Council #6** (transcript in council/): key discovery = LLM nominates
+  by meaning, code certifies by prior-identity + constellation +
+  uniqueness. Built as updater/onboard.py (generic, zero CLP code).
+- CLP self-onboarded **5 certified keys** (revenue, operating profit,
+  net profit, EPS, total equity — all on 'Final', constellation 5).
+  Cash correctly UNBOUND: the model holds `=4976+23` — an analyst
+  adjustment riding the printed 4,976 (the UBS-adjustment class working
+  as designed).
+- Genericity gaps found and fixed OFFLINE (no run-hours spent): English
+  closure grammar (net-cash rows ARE the section equations), note-ref
+  columns ([note, cur, prior] detected per table and shed), cumulative
+  P&L subtotals (carry-in), FY24 AR provisioned as the last-year map
+  (57/67 open rows now hinted).
+- **CLP benchmark: ALL LAYERS GREEN.** Ready to fly on your word — or I
+  fly it once run 32 confirms DFE holds (the mandate's sequence).
 
-## Where this stands against BOSS_MINDMAP
+## Open items for your ruling
+1. DFE segment block: correctly stale + RED awaiting your re-basing
+   decision (DFE merged its categories; the new partition is recorded in
+   _REPORT — the restatement-class question).
+2. CLP cash: bind with the +23 adjustment inference, or leave unbound?
+3. Run 31 took ~3h (engine latency spikes; runs 29/30 were ~50 min) —
+   the 30-60 min target holds normally but not under provider latency;
+   if this recurs, options are parallel chunk calls or a latency-aware
+   budget.
 
-- Always deliver, reason-and-fix, honest flags: **living reality** — and
-  now visibly (every packet ends in a disposition; nothing silent).
-- Balanced: one 1.0 rounding residual from true, all forecast years
-  passing. Segments: the machinery finally WRITES them (15/33; the other
-  18 are honest not-disclosed/flagged calls — some will be real
-  disclosure absences, to be reviewed).
-- CFO/CFI/CFF: CFO and cash tie close; CFI/CFF carry the ~594 twin.
-- Cost: ~$1.5-2/run, ~40 min. Generic: zero company code throughout.
-
-## Today's proposals (in order; nothing dispatched without your go)
-
-1. **CFI/CFF twin, data-first**: pull run-15's artifact, print the two
-   sections' component-vs-statement tie table, find why the twin
-   signature no longer matches (the deltas may have drifted apart after
-   the night's writes), and fix the reclass TRIGGER or hand the packet
-   better sections — from evidence, not theory.
-2. **The last 1.0**: give the bell's site list the same vetting as the
-   escalation list (non-proven, non-locked) — it currently lets the
-   agent aim at proven cells and burn its retry.
-3. **CLP genericity run**: the whole redesign has only flown on DFE;
-   one CLP run answers the department question.
-4. **EPS-class proof**: extend the value-match fallback to per-share
-   rows printed with 元/股-style units.
-
-Everything is committed on `rebuild` (each commit an autopsy), 63 museum
-exhibits green, and the transcripts of both council sessions are in
-council/.
+## Cost discipline
+Zero legacy-chain incidents since the canonical dispatcher; every run
+sha-asserted and fingerprint-verified; all iteration between runs was
+confined tests and offline benchmarks.
