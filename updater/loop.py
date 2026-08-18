@@ -964,6 +964,30 @@ class AgentLoop:
                             f"printed value, or flag your disagreement with "
                             f"the reason; never override an agreeing print.")
         pcol = prior_column(self.spec, sheet, self.ty)
+        # NEIGHBOUR BAND (confined test 4): a NEW line has no prior, so
+        # the world band cannot judge it — but the column's neighbours
+        # can. A value ~1000x the nearby rows' magnitude is a raw-units
+        # slip (the disclosure prints yuan; the model speaks its own
+        # units), not a big year. Arithmetic referee only — it refuses
+        # and explains; the agent converts and rewrites.
+        if pcol and value != 0:
+            pv_here = self.wb[sheet][f"{pcol}{row}"].value
+            if not isinstance(pv_here, (int, float)):
+                neigh = [abs(self.wb[sheet][f"{pcol}{r2}"].value)
+                         for r2 in range(max(1, row - 6), row + 7)
+                         if isinstance(self.wb[sheet][f"{pcol}{r2}"].value,
+                                       (int, float))
+                         and abs(self.wb[sheet][f"{pcol}{r2}"].value) > 0.01]
+                if neigh:
+                    med = sorted(neigh)[len(neigh) // 2]
+                    if med > 0 and (abs(value) / med >= 500
+                                    or med / max(abs(value), 1e-12) >= 500):
+                        return (f"REFUSED: {value:,.2f} is ~"
+                                f"{max(abs(value) / med, med / abs(value)):,.0f}x "
+                                f"the magnitude of this row's neighbours "
+                                f"(median {med:,.2f}) — a raw-units slip? "
+                                f"The model's column speaks its own units; "
+                                f"convert and rewrite.")
         before_fails = {c["name"] for c in self._card()["checks"]
                         if c["status"] == "FAIL"}
         ok = self.writer.write(sheet, f"{col}{row}", value,

@@ -215,8 +215,10 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"{r['cell']} '{r['label']}' | BLANK last year AND "
                     f"this year — if the current statement prints a value "
                     f"for this line (a NEW line this year), map it in by "
-                    f"the row's NAME; if the line is genuinely absent "
-                    f"again this year, skip it")
+                    f"the row's NAME, IN THE MODEL'S UNITS (match your "
+                    f"neighbours' magnitude — the disclosure prints raw "
+                    f"currency); if the line is genuinely absent again "
+                    f"this year, skip it")
             elif isinstance(r["prior"], (int, float)):
                 lines.append(
                     f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "

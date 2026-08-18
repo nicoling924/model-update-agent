@@ -1976,3 +1976,38 @@ class ShowYourWorkingLaw(unittest.TestCase):
             "check": {"section": "s", "sums": "1+2=3 printed",
                       "prior_tie": "ties 0.9"}}]})
         self.assertEqual(errs2, [])
+
+
+class NeighbourBandLaw(unittest.TestCase):
+    """Confined test 4: a NEW line has no prior for the world band — the
+    column's neighbours judge the unit world instead. Raw-yuan into a
+    millions model is refused with the conversion named."""
+
+    def test_raw_units_refused_converted_accepted(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["A2"] = "收到其他与投资活动有关的现金"
+        ws["T1"], ws["U1"] = 25155.70, 25155.70
+        ws["T3"], ws["U3"] = 131.30, 131.30
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U2", "value": 19078348.0,
+                                "why": "p101: the printed line"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("units", out)
+        out2 = loop.t_set_input({"cell": "Model!U2", "value": 19.08,
+                                 "why": "p101: the printed line, millions"})
+        self.assertIn("WRITTEN", out2)

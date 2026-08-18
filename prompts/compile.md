@@ -23,6 +23,21 @@ For each row, decide ONE of:
   figure is never a skip — if you cannot find it, that is not_disclosed
   or flag, said honestly.
 
+UNITS (every write): the disclosure prints raw currency; the model's
+column speaks its own units (thousands/millions). Your value must live
+in the SAME unit world as the row's neighbours — before writing, compare
+your magnitude against the nearby rows' values; being ~1,000x or
+~1,000,000x their size is a unit slip, not a big year. This matters most
+on NEW lines, where no prior anchors the scale for you.
+
+THE BRIDGE TEST (re-based categories): you may only combine the new
+table's rows to reconstruct a model row if the SAME combination
+reproduces the model's PRIOR from the new table's prior column — last
+year is where the truth is known, so last year is where a bridge is
+proven. A combination that cannot reproduce last year is not a bridge,
+it is an estimate — and segment estimates are never written: stale +
+RED flag, with the new partition recorded for the analyst.
+
 THE MAPPING ORDER (owner ruling): the row's NAME says WHAT the item is —
 that is what you are mapping. Last year's NUMBER is the quick way to
 find WHERE the item lived (find the prior in the report, read across).
