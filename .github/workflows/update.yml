@@ -16,8 +16,8 @@ on:
         default: ""
         required: false
       action:
-        description: "chain (learn then update in one go), update, or learn"
-        default: "chain"
+        description: "updater (THE agent — default), pipeline, chain/update/learn (legacy)"
+        default: "updater"
         required: false
       prior_period:
         description: "Prior period for the learner leg of chain/learn (e.g. FY24)"
@@ -46,7 +46,7 @@ jobs:
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
         run: |
-          if [ "${{ inputs.action || 'chain' }}" = "updater" ]; then
+          if [ "${{ inputs.action || 'updater' }}" = "updater" ]; then
             # THE NEW AGENT (objectives rework 2026-08-17): one loop owns the
             # run, always delivers, 4 Police laws. Exit 3 = PAUSED for the
             # analyst (restatement question in updates/ — answer and re-run);
