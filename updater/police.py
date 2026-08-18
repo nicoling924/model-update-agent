@@ -193,20 +193,32 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
 
 
 def _value_match(ledger, t, mv):
-    """Direct printed-value proof for rows the prior-identity oracle cannot
-    uniquely tie (the per-share world): a label-kin line on a current-doc
-    face printing mv at cent tolerance."""
+    """Printed-value proof for rows the aggregate oracle cannot tie (the
+    per-share world). Two forms:
+    - PAIR identity (language-free): a current-doc line printing the
+      model's PRIOR next to the candidate value ("每股收益 1.15 0.94") —
+      adjacency of both years is an identity even for small numbers;
+    - label-kin single value on a face (the original form)."""
     from .numerics import kinship
     tol = max(0.01, abs(mv) * 2e-3)
     prior_docs = ledger.prior_period_docs()
+    pv = t.prior_value if isinstance(t.prior_value, (int, float)) else None
+    ptol = max(0.01, abs(pv) * 2e-3) if pv is not None else None
     for it in ledger.items:
         if it.doc in prior_docs or not it.joinable():
             continue
+        ns = it.nums
+        if pv is not None and abs(mv) < 100:
+            for i in range(len(ns) - 1):
+                a, b = ns[i], ns[i + 1]
+                if abs(abs(a) - abs(mv)) <= tol \
+                        and abs(abs(b) - abs(pv)) <= ptol:
+                    return True
         if ledger.face(it.doc, it.page) is None:
             continue
         if not kinship(t.label, it.label):
             continue
-        if any(abs(abs(n) - abs(mv)) <= tol for n in it.nums):
+        if any(abs(abs(n) - abs(mv)) <= tol for n in ns):
             return True
     return False
 
