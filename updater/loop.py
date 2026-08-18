@@ -1050,7 +1050,6 @@ class AgentLoop:
             pv0 = (self.targets.get((sheet, row)).prior_value
                    if (sheet, row) in self.targets else None)
             if isinstance(pv0, (int, float)) and abs(pv0) >= 1.0:
-                from .numerics import SCALES, to_model_units
                 prior_docs = self.ledger.prior_period_docs()
                 vtol = max(0.6, abs(value) * 5e-4)
                 ptol = max(0.6, abs(pv0) * 5e-4)
