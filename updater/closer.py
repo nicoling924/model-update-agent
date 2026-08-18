@@ -114,6 +114,16 @@ class PacketCloser:
                     and w.get("why") is not None):
                 errs.append("each write needs cell, value, why")
                 break
+            # SHOW-YOUR-WORKING (owner: teach the reasoning, make it the
+            # product): a write without its acceptance check is not a
+            # write — the three questions must be ANSWERED, not skipped
+            chk = w.get("check")
+            if not (isinstance(chk, dict) and chk.get("section")
+                    and chk.get("sums") and chk.get("prior_tie")):
+                errs.append(f"write {w.get('cell')}: 'check' with "
+                            "section/sums/prior_tie required — show the "
+                            "working that ACCEPTS this number")
+                break
         return errs
 
     def _compile_chunk(self, sheet, chunk):
@@ -161,9 +171,15 @@ class PacketCloser:
                 continue
             round_rej = []
             for w in out.get("writes", []) or []:
+                chk = w.get("check") or {}
+                why = str(w.get("why", ""))
+                if chk:
+                    why += (f" | check: section={chk.get('section')}; "
+                            f"sums={chk.get('sums')}; "
+                            f"prior={chk.get('prior_tie')}")
                 r = self.tk.t_set_input({"cell": str(w.get("cell")),
                                          "value": w.get("value"),
-                                         "why": str(w.get("why", "")),
+                                         "why": why,
                                          "flag": bool(w.get("flag")),
                                          "swap_constant":
                                          w.get("swap_constant")})
