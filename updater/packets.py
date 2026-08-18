@@ -164,35 +164,51 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
     # grid natively — cross-language by reading. Attached to every chunk.
     if docs and rows:
         try:
+            from pathlib import Path as _P
             from . import islands as islands_mod
             open_priors = [r.get("prior") for r in rows]
-            isl = []
-            for d in docs:
-                isl += islands_mod.extract(d)
-            picked = islands_mod.relevant(isl, open_priors)
-            # SEGMENT-SHAPED channel (owner ruling): where numbers cannot
-            # anchor (analyst-defined segmentations, cross-language), the
-            # agent maps by MEANING — it just needs to SEE the table.
+            prior_names = set(ledger.prior_period_docs())
             n_dark = sum(1 for r in rows
                          if f"{sheet}!{r['row']}" not in ip)
-            if n_dark >= 5:
-                have = {p for p, _t in picked}
-                picked += [(p, t) for p, t in
-                           islands_mod.revenue_shaped(isl)
-                           if p not in have]
+            picked = []               # (tag, page, text)
+            for d in docs:
+                tag = ("PRIOR-YEAR" if _P(d).name in prior_names
+                       else "CURRENT")
+                isl_d = islands_mod.extract(d)
+                # PRIOR-YEAR islands are the MAP (owner's cross-report
+                # method): last year's report prints the model's own
+                # basis, so number-anchored selection ties them hard.
+                sel = islands_mod.relevant(
+                    isl_d, open_priors,
+                    cap=2 if tag == "PRIOR-YEAR" else 3)
+                picked += [(tag, p, t) for p, t in sel]
+                # SEGMENT-SHAPED channel (owner ruling): where numbers
+                # cannot anchor, the agent maps by MEANING — it just
+                # needs to SEE the table (both vintages).
+                if n_dark >= 5:
+                    have = {(tag, p) for tag, p, _t in picked}
+                    picked += [(tag, p, t) for p, t in
+                               islands_mod.revenue_shaped(isl_d, cap=2)
+                               if (tag, p) not in have]
+            picked = picked[:7]
             if picked:
                 block = ("\n\n== TABLE ISLANDS — intact grids from the "
-                         "disclosure (headers attached to every value; "
+                         "disclosures (headers attached to every value; "
                          "read them like the printed table; a value + its "
                          "同比% reproducing a row's prior identifies the "
                          "row across languages, and a TRANSLATED label "
                          "naming the same business is the same row — map "
                          "by meaning, cite the island page and row label. "
-                         "If the disclosure's segmentation genuinely "
-                         "differs from the model's, flag with a bridge "
+                         "PRIOR-YEAR islands are your MAP: last year's "
+                         "report prints the model's own basis — locate "
+                         "each row there, then find the CURRENT report's "
+                         "corresponding line/category and write THIS "
+                         "year's value citing the CURRENT report. If the "
+                         "current disclosure re-based its categories and "
+                         "no defensible bridge exists, flag with a bridge "
                          "note instead of forcing) ==\n"
-                         + "\n\n".join(f"-- ISLAND p{p} --\n{t}"
-                                       for p, t in picked))
+                         + "\n\n".join(f"-- ISLAND {tag} p{p} --\n{t}"
+                                       for tag, p, t in picked))
                 chunks = [c + block for c in chunks]
         except Exception:
             pass

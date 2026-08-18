@@ -320,6 +320,30 @@ class PacketCloser:
                     break
             g0 = years[0][1] if years else None
             rounding = (isinstance(g0, (int, float)) and abs(g0) <= 2.0)
+            # SECTION RECONCILIATION (owner's method for rounding-class
+            # residuals): tie each BS section total to the statement —
+            # the section whose delta matches the residual carries it.
+            recon = []
+            from .evaluator import Evaluator as _Ev
+            _ev = _Ev(self.tk.wb)
+            for k in self.tk.spec.get("key_rows") or []:
+                name = str(k.get("name", "")).lower()
+                if not any(w in name for w in
+                           ("asset", "liabilit", "equity")):
+                    continue
+                t = self.tk.targets.get((k["sheet"], int(k["row"])))
+                got = self.tk._diff_value(t) if t is not None else None
+                kc = self.tk._tcol(k["sheet"])
+                if got is None or not kc:
+                    continue
+                try:
+                    mv = _ev.cell(k["sheet"], f"{kc}{int(k['row'])}")
+                except Exception:
+                    continue
+                if isinstance(mv, (int, float)):
+                    recon.append(f"  {k.get('name')}: model {mv:,.2f} vs "
+                                 f"statement {got[0]:,.2f} "
+                                 f"(delta {mv - got[0]:+,.2f})")
             user = (_p("closing_bell.md")
                     + f"\n\nGENERATOR {ref} — residual vector across years: "
                     f"{vec}\n(one 2025 cause usually propagates to every "
@@ -329,9 +353,15 @@ class PacketCloser:
                        if vetted or True else "")
                     + ("This residual is ROUNDING-CLASS (|r| <= 2): the "
                        "statement prints yuan to 2dp, the model holds "
-                       "millions — absorb it into a vetted site; the "
-                       "analyst reviews one orange cell in seconds.\n"
+                       "millions — reconcile the sections below, then "
+                       "absorb it into a vetted site IN THE SECTION whose "
+                       "delta carries it; the analyst reviews one orange "
+                       "cell in seconds.\n"
                        if rounding else "")
+                    + (("== SECTION RECONCILIATION (model vs statement — "
+                        "the section whose delta matches the residual "
+                        "carries it) ==\n" + "\n".join(recon) + "\n")
+                       if recon else "")
                     + "\n== DIAGNOSIS ==\n" + str(diag))
 
             def _val(o):
