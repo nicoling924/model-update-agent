@@ -142,6 +142,15 @@ To make sure of the following:
   reasoning ability (it can ASK for more places), not as a fixed
   retrieval list. "If we can't find our specific data in one place, we
   will find another place."
+- **2026-08-18 · Same-page completeness (owner, run 23):** if the agent
+  can map total assets it must map total liabilities — same statement,
+  same page. Stale rows inside a statement whose neighbors mapped are an
+  ingestion/mapping failure, never acceptable.
+- **2026-08-18 · Last-year report as the location map (owner, run 23):**
+  use last year's financials to learn WHERE segment (and other) numbers
+  live — keywords, tables, sections. Current-year reports usually print
+  only current-year segment breakdowns, so the prior report is the map
+  to where the numbers are found.
 - **2026-08-18 · BACKOUT rules (owner):** for most situations the KEY
   NUMBERS should NOT be backed out — they are announced and provided.
   Back out a key only under a special condition. ADDED CONDITION #1:
