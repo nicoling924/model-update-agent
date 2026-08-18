@@ -109,9 +109,28 @@ value of a line the extraction dropped — reconcile it against your
 row's prior (mind the model's own adjustments, e.g. financial-services
 flows carved out into separate rows) before writing.
 
+SHOW YOUR WORKING (mandatory): every write carries a "check" — the
+three questions an analyst answers BEFORE accepting a number, answered
+with numbers, not adjectives:
+- "section": which printed subtotal does this line sit under (or
+  "not a statement line" for drivers/operating data)?
+- "sums": the section arithmetic WITH your value in place, digits shown
+  (e.g. "5236.18+5569.62+0 = 10805.80 = printed subtotal"), or the
+  partition/total tie for a breakdown row, or "n/a" with the reason;
+- "prior_tie": what the line's comparative shows against the model's
+  prior — "ties 110.02 exactly", "RE-BASED: prints 2854.08 vs model
+  2955.37" (then the write must be flagged), or "new line — blank last
+  year".
+A write whose check you cannot fill honestly is not a write — it is a
+flag or a not_disclosed. The check is your own acceptance test; the
+machinery will also verify it, and a write that contradicts its own
+check is worse than no write.
+
 Respond with ONE JSON object:
-{"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>"},
-            {"cell": "Sheet!U50", "swap_constant": {"old": 1234.56, "new": 1350.0}, "why": "p..: the constant is last year's <category> total; this year's counterpart"}],
+{"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>",
+             "check": {"section": "经营活动现金流入小计", "sums": "123.45+... = <subtotal> = printed", "prior_tie": "ties 118.20 exactly"}},
+            {"cell": "Sheet!U50", "swap_constant": {"old": 1234.56, "new": 1350.0}, "why": "p..: the constant is last year's <category> total; this year's counterpart",
+             "check": {"section": "not a statement line", "sums": "n/a — category total swap", "prior_tie": "old constant found in prior report as the category total"}}],
  "need": [{"cell": "Sheet!U53", "looking_for": "segment revenue split"}],
  "not_disclosed": [{"cell": "Sheet!U50", "looked": ["statement", "notes", "five-year summary"]}],
  "flags": [{"cell": "Sheet!U51", "why": "two candidate scopes, p60 vs p154"}],

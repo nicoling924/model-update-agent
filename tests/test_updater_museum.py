@@ -1956,3 +1956,23 @@ class RowWorldTolerance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ShowYourWorkingLaw(unittest.TestCase):
+    """Owner (2026-08-19): teach the reasoning and make it the PRODUCT —
+    a compile write without its filled acceptance check is invalid."""
+
+    def test_write_without_check_rejected(self):
+        from updater.closer import PacketCloser
+        v = PacketCloser.__dict__["_val_compile"]
+
+        class _Self:
+            pass
+        errs = v(_Self(), {"writes": [{"cell": "Model!U4", "value": 1.0,
+                                       "why": "p1: x"}]})
+        self.assertTrue(errs and "check" in errs[0])
+        errs2 = v(_Self(), {"writes": [{
+            "cell": "Model!U4", "value": 1.0, "why": "p1: x",
+            "check": {"section": "s", "sums": "1+2=3 printed",
+                      "prior_tie": "ties 0.9"}}]})
+        self.assertEqual(errs2, [])
