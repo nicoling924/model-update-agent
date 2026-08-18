@@ -100,7 +100,8 @@ row's prior (mind the model's own adjustments, e.g. financial-services
 flows carved out into separate rows) before writing.
 
 Respond with ONE JSON object:
-{"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>"}],
+{"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>"},
+            {"cell": "Sheet!U50", "swap_constant": {"old": 1234.56, "new": 1350.0}, "why": "p..: the constant is last year's <category> total; this year's counterpart"}],
  "need": [{"cell": "Sheet!U53", "looking_for": "segment revenue split"}],
  "not_disclosed": [{"cell": "Sheet!U50", "looked": ["statement", "notes", "five-year summary"]}],
  "flags": [{"cell": "Sheet!U51", "why": "two candidate scopes, p60 vs p154"}],

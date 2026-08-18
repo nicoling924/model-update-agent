@@ -164,7 +164,9 @@ class PacketCloser:
                 r = self.tk.t_set_input({"cell": str(w.get("cell")),
                                          "value": w.get("value"),
                                          "why": str(w.get("why", "")),
-                                         "flag": bool(w.get("flag"))})
+                                         "flag": bool(w.get("flag")),
+                                         "swap_constant":
+                                         w.get("swap_constant")})
                 if str(r).startswith("WRITTEN"):
                     n_ok += 1
                 else:

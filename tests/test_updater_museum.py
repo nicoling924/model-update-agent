@@ -1704,6 +1704,60 @@ class OracleIdentityTolLaw(unittest.TestCase):
         self.assertIsNotNone(unique_evidence_value(led, [t, t2, t3], t3))
 
 
+class EmbeddedHardcodeLaw(unittest.TestCase):
+    """Run-28 owner review: '=16602.97-J11' is an input wearing a formula
+    costume — the numeric-only census made the whole class invisible.
+    Embedded constants are exposed as open work, and the write is a
+    constant SWAP that keeps the formula (transactional)."""
+
+    def _spec(self):
+        return {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+    def test_census_exposes_embedded_constants(self):
+        from updater.packets import open_rows
+        wb, ws = _wb()
+        ws["A1"] = "Wind"
+        ws["T1"], ws["U1"] = "=16602.97-T2", "=16602.97-U2"
+        ws["T2"], ws["U2"] = 2955.37, 2955.37
+        rows = open_rows(wb, self._spec(), "2025", "Model", {},
+                         {"written": []})
+        emb = {r["row"]: r for r in rows if r.get("embedded")}
+        self.assertIn(1, emb)
+        self.assertEqual(emb[1]["embedded"], [16602.97])
+        self.assertEqual(emb[1]["prior"], 16602.97)   # constant anchors
+        # cell refs are never constants
+        self.assertNotIn(2955.37,
+                         [c for r in rows for c in (r.get("embedded") or [])
+                          if r["row"] == 1])
+
+    def test_swap_rewrites_constant_keeps_formula(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = "=16602.97-T2", "=16602.97-U2"
+        ws["T2"], ws["U2"] = 2955.37, 3902.82
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, self._spec(), 2025, _Ledger(), [], {},
+                         Writer(wb), EvidenceBook(), client=None)
+        out = loop.t_set_input({"cell": "Model!U1",
+                                "swap_constant": {"old": 16602.97,
+                                                  "new": 18224.19},
+                                "why": "p9: this year's category total"})
+        self.assertIn("WRITTEN", out)
+        self.assertEqual(ws["U1"].value, "=18224.19-U2")
+        self.assertEqual(ws["T1"].value, "=16602.97-T2")   # prior untouched
+
+
 class EntityQuarantineLaw(unittest.TestCase):
     """Council + run-24 (police cited a parent-company CF page as
     'print'): parent-entity pages lose face authority and leave the
