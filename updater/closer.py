@@ -163,7 +163,8 @@ class PacketCloser:
             for w in out.get("writes", []) or []:
                 r = self.tk.t_set_input({"cell": str(w.get("cell")),
                                          "value": w.get("value"),
-                                         "why": str(w.get("why", ""))})
+                                         "why": str(w.get("why", "")),
+                                         "flag": bool(w.get("flag"))})
                 if str(r).startswith("WRITTEN"):
                     n_ok += 1
                 else:

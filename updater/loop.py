@@ -599,6 +599,22 @@ class AgentLoop:
             return (f"MISS: {into} is not a numeric input cell (and no "
                     "input site found behind it) — pick a NUMERIC component "
                     "from diagnose_balance's leaf list")
+        # PRINTED LAND (owner issue 1/2 root cause): every line of a
+        # statement section is a printed fact. A cell whose NEIGHBORS tie
+        # face evidence sits inside a printed section — plugging there
+        # plants a detail-level error that poisons every composition
+        # downstream (the CFI/CFF twin was born this way). Statement rows
+        # are never plug sites.
+        neighbors_tied = 0
+        for dr in (-2, -1, 1, 2):
+            tn = self.targets.get((i_sheet, i_row + dr))
+            if tn is not None and self._diff_value(tn) is not None:
+                neighbors_tied += 1
+        if neighbors_tied >= 2:
+            return (f"REFUSED: {into} sits inside a printed statement "
+                    "section (neighboring rows tie the filing) — its true "
+                    "value is printed; find it or flag it. Plugs belong on "
+                    "non-statement presentation rows only.")
         # ONE PLUG PER CELL (run-8: Raw!U203 was plugged three times,
         # ping-ponging 35,262 -> 5,089 -> -25,073 as two residuals fought
         # over it). A plug site is an analyst-review item; a second
@@ -645,6 +661,12 @@ class AgentLoop:
         deriv = r1 - residual
         plug_value = held - residual / deriv
         pre_ties = self._tie_state()
+        # FULL-SCORECARD guard (owner issue 2 — the swept imbalance):
+        # set_input always had it; the plug tool verified only its own
+        # check and silently broke the forecast years. Every write is
+        # transactional against the WHOLE scorecard, no exceptions.
+        before_fails = {c["name"] for c in self._card()["checks"]
+                        if c["status"] == "FAIL"}
         pcol = prior_column(self.spec, i_sheet, self.ty)
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", plug_value,
@@ -660,16 +682,25 @@ class AgentLoop:
         except Exception:
             after = None
         broken_ties = []
+        broke_checks = []
         if after is not None and abs(after) <= 0.01:
             post = self._tie_state()
             broken_ties = sorted(k for k, v in pre_ties.items()
                                  if v and not post.get(k, False))
-        if after is None or abs(after) > 0.01 or broken_ties:
+            after_fails = {c["name"] for c in self._card()["checks"]
+                           if c["status"] == "FAIL"}
+            broke_checks = sorted(after_fails - before_fails)
+        if after is None or abs(after) > 0.01 or broken_ties or broke_checks:
             self.writer.write(i_sheet, f"{i_col}{i_row}", held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
-                              note="plug reverted: broke the check or "
-                                   "announced ties")
+                              note="plug reverted: broke the check, other "
+                                   "years, or announced ties")
+            if broke_checks:
+                return (f"REVERTED: the plug zeroed {check} but broke "
+                        f"{broke_checks[:4]} — an imbalance moved is not an "
+                        "imbalance closed; the cause lives elsewhere "
+                        "(or this is a flag)")
             if broken_ties:
                 return (f"REVERTED: the plug zeroed {check} but moved "
                         f"previously-tying announced values off the "

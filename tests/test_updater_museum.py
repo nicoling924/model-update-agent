@@ -936,17 +936,30 @@ class PlugChecksOnlyLaw(unittest.TestCase):
         self.assertEqual(ws["U5"].value, -11181.0)   # key untouched
 
     def test_r_prefixed_check_ref_parses(self):
+        # U1 feeds only check 3 (U2 is shared with check 7, and the
+        # full-scorecard law now rightly reverts plugs there)
         loop, ws = self._loop()
-        out = loop.t_plug_residual({"check": "Model!r3", "into": "Model!U2",
+        out = loop.t_plug_residual({"check": "Model!r3", "into": "Model!U1",
                                     "why": "test"})
         self.assertIn("PLUGGED", out)                # 'r3' == row 3
 
+    def test_shared_cell_plug_reverts_not_ping_pongs(self):
+        """The old ping-pong cell (U2 feeds checks 3 AND 7): the full-
+        scorecard law reverts the plug instead of letting the residual
+        migrate between checks."""
+        loop, ws = self._loop()
+        out = loop.t_plug_residual({"check": "Model!3", "into": "Model!U2",
+                                    "why": "test"})
+        self.assertIn("REVERTED", out)
+        self.assertEqual(ws["U2"].value, 20.0)
+
     def test_second_plug_on_same_cell_refused(self):
         loop, ws = self._loop()
-        first = loop.t_plug_residual({"check": "Model!3", "into": "Model!U2",
+        first = loop.t_plug_residual({"check": "Model!3", "into": "Model!U1",
                                       "why": "test"})
         self.assertIn("PLUGGED", first)
-        second = loop.t_plug_residual({"check": "Model!7", "into": "Model!U2",
+        ws["U6"] = 55.0                  # keep check 7 failing post-plug
+        second = loop.t_plug_residual({"check": "Model!7", "into": "Model!U1",
                                        "why": "test"})
         self.assertIn("REFUSED", second)
         self.assertIn("already a plug site", second)
@@ -1312,6 +1325,101 @@ class LookElsewhereLaw(unittest.TestCase):
         self.assertEqual(len(client.rounds), 2)
         self.assertIn("1 written", report)
         self.assertEqual(ws["U1"].value, 6200.0)
+
+
+class StatementTranscriptionLaw(unittest.TestCase):
+    """Owner issue 1: a statement tab is a TRANSCRIPTION task — the card
+    carries the ordered statement pages, not per-row snippets."""
+
+    def test_transcript_ordered_faces_only(self):
+        from updater.packets import statement_transcript
+        it1 = _mock_item("AR", 96, "资产总计", [162674.2, 148917.4])
+        it2 = _mock_item("AR", 101, "经营活动现金流量", [2014.3, 10059.5])
+        it3 = _mock_item("AR", 21, "存货 md&a", [26171.2, 21685.3])
+        led = _mock_ledger([it1, it2, it3])
+        led.faces = {("AR", 96): "bs", ("AR", 101): "cf", ("AR", 21): None}
+        out = statement_transcript(led)
+        self.assertIn("STATEMENT PAGE p96 (bs)", out)
+        self.assertIn("STATEMENT PAGE p101 (cf)", out)
+        self.assertNotIn("md&a", out)                 # non-face excluded
+        self.assertLess(out.index("p96"), out.index("p101"))   # ordered
+
+
+class PlugFullScorecardLaw(unittest.TestCase):
+    """Owner issue 2: the plug zeroed its check and silently broke five
+    forecast years. Plugs are transactional against the WHOLE scorecard."""
+
+    def test_plug_reverts_when_it_breaks_another_year(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        # check row 3 in both years; V3 depends on U2 (roll-forward):
+        ws["T1"], ws["U1"], ws["V1"] = 100.0, 100.0, 100.0
+        ws["T2"], ws["U2"], ws["V2"] = 100.0, 76.0, "=U2"
+        ws["U3"] = "=U1-U2-48"                       # 2025 residual -24
+        ws["V3"] = "=V1-V2-24"                       # 2026 passes at 0
+        ws["T3"] = "=T1-T2"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U",
+                                                    "2026": "V"}}},
+                "check_rows": [{"sheet": "Model", "row": 3}],
+                "key_rows": []}
+        loop = AgentLoop(wb, spec, 2025, _mock_ledger([]), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_plug_residual({"check": "Model!3", "into": "Model!U2",
+                                    "why": "test"})
+        self.assertIn("REVERTED", out)
+        self.assertIn("broke", out)
+        self.assertEqual(ws["U2"].value, 76.0)       # restored — no sweep
+
+
+class PrintedLandLaw(unittest.TestCase):
+    """Owner issue 1/2 root: statement detail rows are printed facts —
+    a cell whose neighbors tie face evidence is never a plug site."""
+
+    def test_plug_refused_inside_printed_section(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T4"], ws["U4"] = 1000.0, 1200.0          # ties print
+        ws["T5"], ws["U5"] = 480.0, 700.0            # ties print
+        ws["T6"], ws["U6"] = 300.0, 320.0            # the target between them
+        ws["U9"] = "=U6-300"                         # failing check
+        ws["T9"] = "=T6-300"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+        targets = [_mock_target("Model", 4, "alpha detail", 1000.0),
+                   _mock_target("Model", 5, "beta detail", 480.0),
+                   _mock_target("Model", 6, "gamma detail", 300.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "beta detail", [700.0, 480.0])])
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_plug_residual({"check": "Model!9", "into": "Model!U6",
+                                    "why": "test"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("printed statement section", out)
+
+
+class DetailTieOutLaw(unittest.TestCase):
+    """Owner fundamental: totals-only checking is blind — EVERY row with
+    unique print evidence must tie, key or not."""
+
+    def test_non_key_detail_off_print_is_a_finding(self):
+        from updater.police import verify
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 900.0           # detail off print
+        ws["T6"], ws["U6"] = 480.0, 600.0            # ties
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
+                   _mock_target("Model", 6, "beta detail", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "beta detail", [600.0, 480.0])])
+        out = verify(wb, spec, "2025", led, targets, {}, EvidenceBook(),
+                     {"flags": []})
+        self.assertTrue(any("detail off print" in str(f)
+                            for f in out["findings"]))
 
 
 class YearTokenFilter(unittest.TestCase):

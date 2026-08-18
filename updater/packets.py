@@ -191,6 +191,15 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                                islands_mod.revenue_shaped(isl_d, cap=2)
                                if (tag, p) not in have]
             picked = picked[:7]
+            # THE STATEMENTS as ordered reading material (owner issue 1):
+            # a statement-transcription sheet needs the statements, not
+            # snippets. Attached to every compile card with open work.
+            stmt = statement_transcript(ledger)
+            if stmt:
+                chunks = [c + "\n\n== THE STATEMENTS — ordered, read "
+                          "top-to-bottom; rows that ARE statement lines "
+                          "transcribe from HERE at full precision, in "
+                          "order ==\n" + stmt for c in chunks]
             if picked:
                 block = ("\n\n== TABLE ISLANDS — intact grids from the "
                          "disclosures (headers attached to every value; "
@@ -213,6 +222,31 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
         except Exception:
             pass
     return rows, chunks
+
+
+def statement_transcript(ledger, cap_chars=12000, per_page_cap=3000):
+    """The STATEMENTS, ordered — the transcription source (owner issue 1:
+    Fable's 100%% on the Raw tab came from reading the statements
+    completely and filling in order; per-row snippets were the wrong task
+    shape for a transcription tab). Current-doc face pages only, page
+    order, every line as extracted (vision transcripts included)."""
+    prior_docs = ledger.prior_period_docs()
+    pages = sorted((d, p) for (d, p), f in ledger.faces.items()
+                   if f in ("bs", "is", "cf") and d not in prior_docs)
+    out, total = [], 0
+    for d, p in pages:
+        lines = [it.source_line for it in ledger.items
+                 if it.doc == d and it.page == p]
+        if not lines:
+            continue
+        block = (f"== STATEMENT PAGE p{p} "
+                 f"({ledger.faces[(d, p)]}) ==\n"
+                 + "\n".join(lines))[:per_page_cap]
+        if total + len(block) > cap_chars:
+            break
+        out.append(block)
+        total += len(block)
+    return "\n\n".join(out)
 
 
 def more_evidence(ledger, docs, rows_needed, exclude_pages, cap_lines=4,

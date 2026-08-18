@@ -123,6 +123,39 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
             unverified.append(name)
     out["laws"]["1_announced"] = "PASS" if not mism else f"FAIL ({len(mism)})"
     out["findings"] += [f"announced: {m}" for m in mism[:10]]
+    # DETAIL-LEVEL FACE TIE-OUT (owner issue 1/2 fundamental): the
+    # statements are FULLY printed, and the model consumes their DETAIL
+    # rows — a totals-only police is structurally blind to detail errors
+    # that cancel at the total (the CFI/CFF twin class). EVERY row with
+    # unique disclosure evidence must tie print, key or not.
+    detail_mism = []
+    for t in tl:
+        got = unique_evidence_value(ledger, tl, t)
+        if got is None:
+            continue
+        tcol = year_columns(spec, t.sheet).get(ty)
+        if not tcol:
+            continue
+        try:
+            mv = ev.cell(t.sheet, f"{tcol}{t.row}")
+        except Exception:
+            continue
+        dv = got[0]
+        if isinstance(mv, (int, float)) \
+                and abs(abs(mv) - abs(dv)) > max(row_tol(dv),
+                                                 abs(dv) * 5e-3):
+            detail_mism.append(f"{t.sheet}!{tcol}{t.row} "
+                               f"'{str(t.label)[:28]}': model {mv:,.2f} vs "
+                               f"print {dv:,.2f} ({got[1].doc} "
+                               f"p{got[1].page})")
+    if detail_mism:
+        out["laws"]["1_announced"] = (
+            out["laws"]["1_announced"].replace("PASS", "FAIL (details)")
+            if out["laws"]["1_announced"] == "PASS"
+            else out["laws"]["1_announced"] + f" +{len(detail_mism)} details")
+        out["findings"] += [f"detail off print (fix it — the value is "
+                            f"printed): {m}" for m in detail_mism[:10]]
+
     # OWNER KEYS LAW: segment/driver leaves (the hardcodes feeding the
     # revenue / gross-profit keys) must be UPDATED — a leaf still holding
     # exactly its prior value is stale, and stale segment keys fail law 4.
