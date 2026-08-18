@@ -1455,6 +1455,74 @@ class VintageIsALedgerPropertyLaw(unittest.TestCase):
         self.assertEqual(out, {"AR25.pdf": "current"})
 
 
+class FixedPointReconciliationLaw(unittest.TestCase):
+    """Owner-approved: identity-grade print application to a fixed point.
+    THE BRIGHT LINE: code writes ONLY on unique evidence — ambiguity is
+    judgment-land and never auto-writes."""
+
+    def _spec(self):
+        return {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+    def test_unique_mismatch_is_written_and_cited(self):
+        from updater import ops
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 900.0        # off print (1,200)
+        ws["T6"], ws["U6"] = 480.0, 600.0         # ties print
+        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
+                   _mock_target("Model", 6, "beta detail", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "beta detail", [600.0, 480.0])])
+        w = Writer(wb)
+        book = EvidenceBook()
+        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
+                                  w, book, lambda s: None)
+        self.assertEqual(n, 1)
+        self.assertEqual(ws["U5"].value, 1200.0)
+        self.assertIn("reconciled to print",
+                      book.entries["Model!U5"].citation
+                      + book.entries["Model!U5"].note
+                      + book.entries["Model!U5"].method
+                      if "Model!U5" in book.entries else
+                      str(ws["U5"].comment.text))
+
+    def test_ambiguity_never_auto_writes(self):
+        from updater import ops
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 900.0
+        ws["T6"], ws["U6"] = 480.0, 600.0          # anchor already at print
+        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
+                   _mock_target("Model", 6, "anchor", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
+            _mock_item("AR", 6, "alpha other scope", [1450.0, 1000.0]),
+            _mock_item("AR", 5, "anchor", [600.0, 480.0]),
+            _mock_item("AR", 6, "anchor", [600.0, 480.0])])
+        led.faces[("AR", 6)] = "bs"
+        w = Writer(wb)
+        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
+                                  w, EvidenceBook(), lambda s: None)
+        self.assertEqual(n, 0)                     # two candidates: refuse
+        self.assertEqual(ws["U5"].value, 900.0)
+
+    def test_terminates_at_fixed_point(self):
+        from updater import ops
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 1000.0, 1200.0        # already at print
+        ws["T6"], ws["U6"] = 480.0, 600.0          # already at print
+        targets = [_mock_target("Model", 5, "alpha detail", 1000.0),
+                   _mock_target("Model", 6, "anchor", 480.0)]
+        led = _mock_ledger([
+            _mock_item("AR", 5, "alpha detail", [1200.0, 1000.0]),
+            _mock_item("AR", 5, "anchor", [600.0, 480.0])])
+        w = Writer(wb)
+        n = ops.reconcile_details(wb, self._spec(), 2025, targets, led,
+                                  w, EvidenceBook(), lambda s: None)
+        self.assertEqual(n, 0)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

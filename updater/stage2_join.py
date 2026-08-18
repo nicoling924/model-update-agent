@@ -593,18 +593,27 @@ def join_bound_tables(ledger, targets, served, log=None):
     return out, decisions
 
 
-def unique_evidence_value(ledger, targets, t, _cache={}):
+def unique_evidence_value(ledger, targets, t):
     """The disclosed value for one target row by prior identity on a
     ratified current-doc face page — the loop's and the sweep's shared
     evidence oracle. -> (value, item, scale) or None: single agreeing
-    in-world candidate, or nothing."""
-    ck = id(ledger)
-    if _cache.get("key") != ck:
+    in-world candidate, or nothing.
+
+    The pool/scale cache lives ON THE LEDGER (a module dict keyed by
+    id(ledger) let a freed ledger's id be reused by a fresh object — a
+    measured stale-cache poison, the same artifact class as the vintage
+    and census diagnostic disasters)."""
+    _cache = getattr(ledger, "_oracle_cache", None)
+    if _cache is None:
         priors = [x.prior_value for x in targets
                   if isinstance(x.prior_value, (int, float))]
         pool = ledger.join_pool()
-        _cache.update(key=ck, pool=pool,
-                      scales=ratify_page_scales(pool, priors))
+        _cache = {"pool": pool,
+                  "scales": ratify_page_scales(pool, priors)}
+        try:
+            ledger._oracle_cache = _cache
+        except Exception:
+            pass
     pv = t.prior_value
     if not isinstance(pv, (int, float)) or pv == 0:
         return None
