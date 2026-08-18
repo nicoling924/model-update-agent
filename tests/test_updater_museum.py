@@ -1272,6 +1272,48 @@ class DefinitionalAlignmentLaw(unittest.TestCase):
         self.assertIn("definitional deviation", r)
 
 
+class LookElsewhereLaw(unittest.TestCase):
+    """Owner skill ruling: one table will not have all the answers — the
+    agent may ASK for other places, and the runtime serves doc-wide
+    number hits + unseen islands; only then is not_disclosed honest."""
+
+    def test_need_gets_other_places_then_write_lands(self):
+        from updater.loop import AgentLoop
+        from updater.closer import PacketCloser
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = 5100.0, 5100.0     # stale segment-ish row
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        targets = [_mock_target("Model", 1, "hydro segment", 5100.0)]
+        # the answer lives on a page NOT in the compile card's islands:
+        note = _mock_item("AR", 154, "水电分部", [6200.0, 5100.0])
+        led = _mock_ledger([note])
+
+        class _Client:
+            def __init__(self):
+                self.rounds = []
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.rounds.append(user)
+                if len(self.rounds) == 1:
+                    return {"writes": [], "need": [
+                        {"cell": "Model!U1",
+                         "looking_for": "hydro segment revenue"}],
+                        "not_disclosed": [], "flags": [], "skips": []}
+                assert "OTHER PLACES" in user and "p154" in user
+                return {"writes": [{"cell": "Model!U1", "value": 6200.0,
+                                    "why": "p154: 水电分部 6,200.0"}],
+                        "not_disclosed": [], "flags": [], "skips": []}
+        tk = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                       EvidenceBook(), client=None)
+        client = _Client()
+        pc = PacketCloser(tk, client=client, log=lambda s: None)
+        report = pc.run_compile("Model")
+        self.assertEqual(len(client.rounds), 2)
+        self.assertIn("1 written", report)
+        self.assertEqual(ws["U1"].value, 6200.0)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

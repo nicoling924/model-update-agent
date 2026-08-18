@@ -199,6 +199,55 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
     return rows, chunks
 
 
+def more_evidence(ledger, docs, rows_needed, exclude_pages, cap_lines=4,
+                  cap_islands=3):
+    """The look-elsewhere answer (owner skill ruling): for rows the agent
+    ASKED about, fetch material from OTHER places — doc-wide number-
+    anchored text hits (notes included, face or not) and the next-ranked
+    islands not yet shown. Number-anchored first; the agent judges."""
+    out = []
+    prior_docs = ledger.prior_period_docs()
+    for row in rows_needed:
+        pv = row.get("prior")
+        lines = []
+        if isinstance(pv, (int, float)) and abs(pv) >= 1.0:
+            tol = row_tol(pv)
+            for it in ledger.items:
+                if it.doc in prior_docs or not it.joinable():
+                    continue
+                if it.page in exclude_pages:
+                    continue
+                if any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
+                       for n in it.nums for s in SCALES):
+                    lines.append(f"p{it.page}: {it.source_line[:100]}")
+                if len(lines) >= cap_lines:
+                    break
+        out.append((row, lines))
+    islands_block = []
+    try:
+        from . import islands as islands_mod
+        isl = []
+        for d in docs:
+            isl += islands_mod.extract(d)
+        isl = [(p, t) for p, t in isl if p not in exclude_pages]
+        priors = [r.get("prior") for r, _l in out]
+        picked = islands_mod.relevant(isl, priors, cap=cap_islands)
+        have = {p for p, _t in picked}
+        picked += [(p, t) for p, t in islands_mod.revenue_shaped(isl, cap=2)
+                   if p not in have][:1]
+        islands_block = picked
+    except Exception:
+        pass
+    parts = []
+    for row, lines in out:
+        parts.append(f"{row['cell']} '{row['label']}' — other places:")
+        parts += [f"    {ln}" for ln in lines] or ["    (no doc-wide "
+                                                   "number hits)"]
+    for p, t in islands_block:
+        parts.append(f"-- ADDITIONAL ISLAND p{p} --\n{t}")
+    return "\n".join(parts)
+
+
 def parse_packet(pid):
     """'compile:Model' -> ('compile', 'Model'); 'residual:Model!95' ->
     ('residual', 'Model!95'); 'deliver' -> ('deliver', None)."""

@@ -134,6 +134,14 @@ To make sure of the following:
   disclosure). Segment breakdowns must be UPDATED from the MD&A/segment
   disclosures (implied-prior identity for single-year tables), not left
   stale-flagged.
+- **2026-08-18 · The look-elsewhere skill (owner, reviewing the segment
+  design):** one table (e.g. the p13 分产品 grid) will not carry all the
+  segment answers. The agent must have the ANALYST'S SKILL of searching
+  other places when the first place lacks the figure — segment note,
+  statement notes, five-year summary, other MD&A tables — as its own
+  reasoning ability (it can ASK for more places), not as a fixed
+  retrieval list. "If we can't find our specific data in one place, we
+  will find another place."
 - **2026-08-17 · Fresh start:** NO champion re-scoring — the old champion
   agent (stable-run105) is retired; "the agent of the champion is not good
   at all." We start new. Purpose of this mindmap: Fable 5 understands the
