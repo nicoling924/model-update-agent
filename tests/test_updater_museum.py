@@ -2011,3 +2011,38 @@ class NeighbourBandLaw(unittest.TestCase):
         out2 = loop.t_set_input({"cell": "Model!U2", "value": 19.08,
                                  "why": "p101: the printed line, millions"})
         self.assertIn("WRITTEN", out2)
+
+
+class LazyNDGuardLaw(unittest.TestCase):
+    """Mindmap law enforced: 'not disclosed' is a PROVEN claim — refused
+    when the current document prints the line (by exact name, or by the
+    row's prior at identity)."""
+
+    def test_nd_refused_when_line_prints(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["A1"], ws["U1"] = "收到其他与投资活动有关的现金", 1.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        it = _mock_item("AR25", 101, "收到其他与投资活动有关的现金",
+                        [19078348.0])
+
+        class _Ledger:
+            items = [it]
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        t = _mock_target("Model", 1, "收到其他与投资活动有关的现金", None)
+        t.prior_value = None
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [t], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_not_disclosed({"cell": "Model!U1",
+                                    "looked": ["statement", "notes",
+                                               "five-year summary"]})
+        self.assertIn("REFUSED", out)
+        self.assertIn("p101", out)
