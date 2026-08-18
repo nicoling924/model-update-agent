@@ -52,12 +52,16 @@ you before you write:
   last year), a prior-value tie CANNOT tell them apart — that ambiguity
   is by construction. Decide by structure (the prefix, the section
   equation), never by the tie alone.
-- **The second printing.** Reports print their important numbers more
-  than once — the narrative/analysis section repeats the statement
-  lines with comparatives and change-%. Two independent printings that
-  agree settle a number; a single reading, however well cited, does not
-  overrule an agreeing pair. If your candidate contradicts another
-  printing of the same line, you have the wrong row — stop and re-read.
+- **The second printing (when one exists).** Detailed reports often
+  print important numbers more than once — the narrative/analysis
+  section repeats statement lines with comparatives and change-%. USE a
+  second printing when the document has one: two agreeing printings
+  settle a number, and a single reading never overrules an agreeing
+  pair. But SHORT disclosures (results announcements, bare three-
+  statement filings) print each number ONCE — a missing second printing
+  is normal there and blocks nothing. The arithmetic checks (the
+  section equation, the prior-column tie) carry acceptance on their
+  own; the second printing is extra confirmation, never a requirement.
 - **The partition.** A breakdown block (segments, products, regions) is
   a partition of a printed total, and the model encodes it (look at the
   block's formulas: derived members like =parent−siblings, a residual
