@@ -132,3 +132,26 @@ or a layout.
 
 Estimated effort: the agent layer only (~2 focused sessions); the
 substrate is untouched.
+
+## 2026-08-18 (night) — EXTRACTION-FIRST (council #5, owner-directed fundamental fix)
+
+Owner: "a half edited agent shouldnt waste my time... if u think its a
+fundamental issue then fix it fundamentally." Council unanimous: the
+evidence channels were a patch spiral; the cut is ONE reading stage whose
+output is complete and PROVEN before mapping starts.
+
+Built: updater/reading.py (manifest/entity quarantine -> spine read +
+closure + articulation with bounded live repair -> demand-driven notes ->
+sufficiency inventory, ridden into _REPORT). Parent-company pages evicted
+by banner + anchor arbitration (run-24 police had cited a parent CF page
+as "print"). Face vocabulary bug fixed everywhere (pl, not is — the CF
+face was invisible to closure AND the statements transcript). Barrier law
+in closure (活动净额 rows end sections). tools/benchmark.py = gate v2:
+every paid-for failure class scored OFFLINE on the live run's own world
+(replay-ledger vision seeding); no head dispatches without the WHOLE
+benchmark green. Pins that only agent judgment can cover are watch-listed,
+not gated — the benchmark never lies about what code proved.
+
+Result on DFE (offline): 144 rows served deterministically (was 50);
+282/339 priors located; CFI/CFF twin dead (proven zero SERVED by the
+join); all coverage + pins green; museum 91.

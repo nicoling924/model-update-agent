@@ -1704,6 +1704,96 @@ class OracleIdentityTolLaw(unittest.TestCase):
         self.assertIsNotNone(unique_evidence_value(led, [t, t2, t3], t3))
 
 
+class EntityQuarantineLaw(unittest.TestCase):
+    """Council + run-24 (police cited a parent-company CF page as
+    'print'): parent-entity pages lose face authority and leave the
+    pool. Banner pages evict; anchorless twins far from an anchored
+    sibling evict; adjacent continuations (the EPS tail) are spared."""
+
+    def _led(self):
+        cons = [_mock_item("AR", 3, f"row{i}", [v * 1.1, v])
+                for i, v in enumerate((50000.0, 60000.0, 70000.0))]
+        tail = [_mock_item("AR", 4, "每股收益", [1.15, 0.94])]
+        twin = [_mock_item("AR", 9, "twinrow", [123.0, 456.0])]
+        banner = [_mock_item("AR", 10, "hdr", [1.0, 2.0])]
+        banner[0].source_line = "母公司资产负债表 2025年12月31日"
+        items = cons + tail + twin + banner
+        led = _mock_ledger(items, face="bs")
+        led.parent_pages = set()
+        for it in items:
+            it.table_id, it.row_ord, it.disputed = 0, 0, False
+        return led
+
+    def test_banner_twin_evicted_continuation_spared(self):
+        from updater.reading import entity_quarantine
+        led = self._led()
+        ts = [_mock_target("Raw", i, f"r{i}", v)
+              for i, v in enumerate((50000.0, 60000.0, 70000.0))]
+        q = entity_quarantine(led, ts, lambda *_: None)
+        self.assertIn(10, q)                     # banner page evicted
+        self.assertIn(9, q)                      # far anchorless twin
+        self.assertNotIn(4, q)                   # adjacent EPS tail spared
+        self.assertNotIn(3, q)                   # the anchored spine
+        self.assertNotIn(("AR", 9), led.faces)
+        self.assertTrue(all(it.disputed for it in led.items
+                            if it.page == 9))
+
+
+class ArticulationGateLaw(unittest.TestCase):
+    """Council: an internally closed table can still be the wrong entity
+    or a swapped year — the extracted columns must share ONE reality:
+    CA+NCA = CL+NCL+equity, and CF ending cash ties BS cash."""
+
+    def _world(self, equity_cur):
+        rows = [("total current assets", 93779.78, 101683.68),
+                ("total non-current assets", 48229.50, 60990.51),
+                ("total current liabilities", 88912.97, 102323.47),
+                ("total non-current liabilities", 9954.07, 12182.47),
+                ("total equity", 43142.24, equity_cur),
+                ("cash balance", 22502.86, 18980.96),
+                ("cash year end", 22502.80, 18980.96)]
+        items, targets, key_rows = [], [], []
+        for i, (name, pv, cv) in enumerate(rows):
+            it = _mock_item("AR", 5, name, [cv * 1e6, pv * 1e6])
+            it.table_id, it.row_ord, it.disputed = 0, i, False
+            it.verified = True
+            items.append(it)
+            t = _mock_target("Model", 10 + i, name, pv)
+            targets.append(t)
+            key_rows.append({"sheet": "Model", "row": 10 + i,
+                             "name": name})
+        led = _mock_ledger(items, face="bs")
+        return led, targets, key_rows
+
+    def test_articulating_world_passes(self):
+        from updater.reading import _articulation
+        led, ts, kr = self._world(equity_cur=48168.25)
+        checks, _vals = _articulation(led, ts, kr)
+        self.assertTrue(checks.get("bs_articulates"))
+        self.assertTrue(checks.get("cash_ties"))
+
+    def test_sheared_world_fails(self):
+        from updater.reading import _articulation
+        led, ts, kr = self._world(equity_cur=43142.24)   # stale column
+        checks, _vals = _articulation(led, ts, kr)
+        self.assertFalse(checks.get("bs_articulates", True))
+
+
+class SufficiencyLaw(unittest.TestCase):
+    """Council phase D: every open-row prior is LOCATED in the filing or
+    listed unlocated — nothing downstream may claim the document lacks a
+    figure the inventory locates."""
+
+    def test_locate_identity_only(self):
+        from updater.reading import _locate
+        it = _mock_item("AR", 44, "line", [4210670.09, 23297096.99])
+        led = _mock_ledger([it])
+        self.assertEqual(_locate(led, 23.2971, set()), 44)
+        self.assertIsNone(_locate(led, 25.0, set()))     # not identity
+        it.disputed = True                               # quarantined
+        self.assertIsNone(_locate(led, 23.2971, set()))
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
