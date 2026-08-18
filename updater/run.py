@@ -144,6 +144,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
     if not docs:
         raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
     ledger = read_documents(docs, client=client, known_values=known, log=log)
+    # VINTAGE AT READ TIME (run-19 fundamental): which document is the
+    # current period is a property of the ledger, established here for
+    # every consumer — never a join side-effect, never silent.
+    ledger.ensure_vintage(
+        [t.prior_value for t in targets
+         if isinstance(t.prior_value, (int, float))],
+        [t.prior2_value for t in targets
+         if isinstance(getattr(t, "prior2_value", None), (int, float))],
+        log=log)
 
     # -- THE ONE PAUSE: restatement (before any write; resume-friendly)
     restatement = restate_mod.check_or_pause(company_dir, period, ledger,
