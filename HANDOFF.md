@@ -103,3 +103,24 @@ find-to-act bridge) landed in the final run and fired 5 times.
    evaluation, council on major decisions.
 
 History and autopsies: RUNLOG.md. Presentation: PRESENTATION.md.
+
+## RUNBOOK — dispatching a live run (canonical, AUDIT 2026-08-18)
+
+ONE way to fly a run — never a hand-built curl:
+
+    tools/dispatch.sh <COMPANY> <PERIOD>       # e.g. tools/dispatch.sh DFE FY25
+
+It verifies local==origin on rebuild, dispatches with action=updater
+EXPLICIT, resolves the run by created-after (no newest-run race), asserts
+the run's head_sha, waits, and only reports success after the UPDATER
+FINGERPRINT is found in the run's own log. Exit 2 = wrong chain / crash —
+never score that run. Run it inside a Monitor so completion notifies.
+
+Preconditions for ANY dispatch (owner law, one-run-one-hour):
+  1. python3 -m unittest tests.test_updater_museum   -> all green
+  2. python3 tools/benchmark.py companies/<T> <P> <Y> -> ALL layers green
+  3. nothing else about to land within minutes
+
+The legacy stack is RETIRED: the workflow fails loudly (exit 64) for any
+action except `updater`, and the old chain only runs behind the explicit
+value `legacy-chain-i-am-sure`.

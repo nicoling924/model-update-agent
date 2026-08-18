@@ -62,21 +62,16 @@ jobs:
             elif [ "$code" != "0" ]; then
               exit "$code"
             fi
-          elif [ "${{ inputs.action || 'chain' }}" = "pipeline" ]; then
-            # THE CLEAN PIPELINE (rebuild branch): stages 1-4 + delivery gate.
-            # Target year derived from the period (FY25 -> 2025).
-            YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
-            python -m pipeline.cli "companies/${{ inputs.company }}" \
-              "${{ inputs.period }}" "20${YY}"
-          elif [ "${{ inputs.action || 'chain' }}" = "chain" ]; then
-            # one go: learner (skips itself if the memory tab already exists),
-            # then the objective-driven update on the same working copy
+          elif [ "${{ inputs.action }}" = "legacy-chain-i-am-sure" ]; then
+            # the RETIRED stack, kept only behind an unmistakable explicit
+            # value (AUDIT_2026-08-18: it ran silently on a defaulted input
+            # and burned two run-hours)
             python run.py learn "companies/${{ inputs.company }}" "${{ inputs.prior_period || 'FY24' }}"
             python run.py update "companies/${{ inputs.company }}" "${{ inputs.period }}"
-          elif [ "${{ inputs.action }}" = "learn" ]; then
-            python run.py learn "companies/${{ inputs.company }}" "${{ inputs.prior_period || 'FY24' }}"
           else
-            python run.py "${{ inputs.action }}" "companies/${{ inputs.company }}" "${{ inputs.period }}"
+            echo "::error::action '${{ inputs.action }}' is RETIRED — the"
+            echo "::error::updater is the agent (AUDIT_2026-08-18_dispatch.md)."
+            exit 64
           fi
       - name: Persist learner/discover/digest outputs
         if: ${{ inputs.action == 'learn' || inputs.action == 'discover' || inputs.action == 'digest' }}
