@@ -2190,3 +2190,28 @@ class ConsensusOverridesStage3Law(unittest.TestCase):
         self.assertAlmostEqual(out[("Raw", 221)]["value"], 5236.179223,
                                places=3)
         self.assertIn("OVERRODE", out[("Raw", 221)]["note"])
+
+
+class BilingualClosureLaw(unittest.TestCase):
+    """CLP prep: an English statement section closes under the same law
+    as a CJK one — 'Total ...' is a subtotal, 'of which' skips, and the
+    activity-net rows are barriers."""
+
+    def test_english_section_closes(self):
+        from updater.closure import closure_sweep
+        items = [
+            _closure_item("AR", 7, 0, 0, "Trade receivables",
+                          [1000.0, 900.0]),
+            _closure_item("AR", 7, 0, 1, "of which: from associates",
+                          [200.0, 150.0]),
+            _closure_item("AR", 7, 0, 2, "Bank deposits", [500.0]),
+            _closure_item("AR", 7, 0, 3, "Total current assets",
+                          [1500.0, 900.0]),
+        ]
+        led = _closure_ledger(items, face="bs")
+        closure_sweep(led, lambda *_: None)
+        z = [it for it in led.items
+             if getattr(it, "channel", "") == "closure"]
+        self.assertEqual(len(z), 1)
+        self.assertEqual(z[0].nums, [500.0, 0.0])   # deposits are current
+        self.assertTrue(items[0].verified)
