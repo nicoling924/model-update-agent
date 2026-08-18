@@ -1,9 +1,34 @@
 {
-  "revenue": {"print": 88018.0, "prior": 90964.0},
-  "net profit": {"print": 11546.0, "prior": 12718.0},
-  "eps": {"print": 4.14, "prior": 4.65},
-  "cash year end": {"print": 3905.0, "prior": 4976.0},
-  "operating cash flow": {"print": 24378.0, "prior": 23140.0},
-  "investing cash flow": {"print": -14328.0, "prior": -16216.0},
-  "financing cash flow": {"print": -11221.0, "prior": -7040.0}
+  "revenue": {
+    "print": 88018.0,
+    "prior": 90964.0
+  },
+  "net profit": {
+    "print": 11546.0,
+    "prior": 12718.0
+  },
+  "eps": {
+    "print": 4.14,
+    "prior": 4.65
+  },
+  "cash year end": {
+    "print": 3905.0,
+    "prior": 4976.0
+  },
+  "operating cash flow": {
+    "print": 24378.0,
+    "prior": 23140.0
+  },
+  "investing cash flow": {
+    "print": -14328.0,
+    "prior": -16216.0
+  },
+  "financing cash flow": {
+    "print": -11221.0,
+    "prior": -7040.0
+  },
+  "operating profit": {
+    "print": 14272.0,
+    "prior": 14903.0
+  }
 }
