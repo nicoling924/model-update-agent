@@ -42,10 +42,12 @@ ACCEPT BY RECONCILIATION, NOT BY CITATION (the analyst's habit):
 - a 其中/of-which line is a COMPONENT of the line above, never a peer —
   and when parent and sub-line share the same comparative, a prior-tie
   cannot tell them apart; decide by the prefix and the section equation;
-- the report prints important lines TWICE (the analysis section repeats
-  the statements with comparatives and YoY%) — an agreeing second
-  printing settles a value; never override two agreeing printings with
-  one different reading;
+- detailed reports often print important lines TWICE (the analysis
+  section repeats the statements with YoY%) — when a second printing
+  exists, an agreeing pair settles the value and one different reading
+  never overrides it; when the document is short and prints a number
+  only ONCE, that is normal — the section equation and the prior-column
+  tie carry acceptance by themselves;
 - a breakdown block is a PARTITION: read its formulas (derived members,
   residual rows, the total) before writing any member. A re-based /
   merged category must never be written into a narrower model row — see
