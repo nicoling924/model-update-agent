@@ -123,8 +123,22 @@ def certify(wbv, spec_d, target_year, ledger, bindings, log):
             continue
         mv = wbv[sheet][f"{pcol}{row}"].value
         if not isinstance(mv, (int, float)):
+            # a formula cell whose cache a tool once stripped still HAS a
+            # value — evaluate it (the CLP lesson: =AH24+AH25+AH26 with a
+            # dead cache is not "not numeric")
+            try:
+                from .evaluator import Evaluator
+                ev = certify._ev if getattr(certify, "_ev_wb", None) is wbv \
+                    else None
+                if ev is None:
+                    ev = Evaluator(certify._wbf)
+                    certify._ev, certify._ev_wb = ev, wbv
+                mv = ev.cell(sheet, f"{pcol}{row}")
+            except Exception:
+                mv = None
+        if not isinstance(mv, (int, float)):
             log(f"[onboard] REJECT {concept}@{sheet}!{row}: prior cell "
-                f"holds {mv!r} (not numeric)")
+                f"not numeric and not evaluable")
             continue
         # PERIOD IDENTITY: model prior == nominated filing comparative
         tol = max(0.6, abs(mv) * 5e-4) if abs(mv) >= 100 \
@@ -196,5 +210,6 @@ def nominate_and_certify(wb, wbv, spec_d, target_year, ledger, client, log):
     except Exception as e:
         log(f"[onboard] nomination failed: {e}")
         return []
+    certify._wbf = wb                     # formulas workbook for evaluation
     return certify(wbv, spec_d, target_year, ledger,
                    out.get("bindings"), log)
