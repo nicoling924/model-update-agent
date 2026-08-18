@@ -212,13 +212,16 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                       "structurally obsolete driver.")
             elif r["value"] is None:
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | BLANK last year AND "
-                    f"this year — if the current statement prints a value "
-                    f"for this line (a NEW line this year), map it in by "
-                    f"the row's NAME, IN THE MODEL'S UNITS (match your "
-                    f"neighbours' magnitude — the disclosure prints raw "
-                    f"currency); if the line is genuinely absent again "
-                    f"this year, skip it")
+                    f"{r['cell']} '{r['label']}' | BLANK last year — a NEW "
+                    f"line this year is completely normal and MUST be "
+                    f"mapped or the statement will not balance. Read the "
+                    f"evidence under this row: if ANY line shows a "
+                    f"current-year value for this name, WRITE it (in the "
+                    f"MODEL'S units — match your neighbours' magnitude; "
+                    f"the disclosure prints raw currency). Only respond "
+                    f"not_disclosed if the evidence is empty and the "
+                    f"statement truly lacks the line — never silently "
+                    f"skip a blank statement row.")
             elif isinstance(r["prior"], (int, float)):
                 lines.append(
                     f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "
@@ -416,11 +419,31 @@ def current_sightings(ledger, rows, cap_per_row=2):
     row's model prior at identity grade. Observation only — the agent
     judges the line's column semantics and writes with a citation; no
     machine write ever comes from a sighting (oracles observe)."""
+    from .numerics import norm_label
     prior_docs = ledger.prior_period_docs()
     out = {}
     for row in rows:
         pv = row.get("prior")
         if not isinstance(pv, (int, float)) or abs(pv) < 1.0:
+            # NAME-KEYED SIGHTING for priorless rows (owner's mapping
+            # order: the name says WHAT it is; a blank prior locates
+            # nothing, so the name carries the search) — current-doc
+            # lines whose label matches the row's exactly.
+            t_norm = norm_label(str(row.get("label") or "")).replace(" ", "")
+            if len(t_norm) < 3:
+                continue
+            hits = []
+            for it in ledger.items:
+                if (it.doc in prior_docs or getattr(it, "disputed", False)
+                        or not it.nums):
+                    continue
+                if norm_label(str(it.label)).replace(" ", "") == t_norm:
+                    hits.append(f"SIGHTED by NAME in CURRENT report "
+                                f"p{it.page}: {it.source_line[:90]}")
+                if len(hits) >= cap_per_row:
+                    break
+            if hits:
+                out[row["cell"]] = hits
             continue
         tol = max(0.6, abs(pv) * 5e-4)
         hits = []
