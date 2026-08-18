@@ -6,9 +6,19 @@ any reclass candidates (a leaf whose disclosed value differs from the
 model by exactly the residual).
 
 Think like an analyst reading a reconciliation: the residual's sign and
-size name its cause. 2x a value = a sign error. An exact match to one
-leaf's delta = that leaf is stale or misclassified. A residual matching
-no leaf = something the disclosure books elsewhere this year.
+size name its cause. TRACK PRECEDENT CELLS: follow the total's formula
+chain to the classified components before judging anything. A model may
+DELIBERATELY classify items differently from management (e.g. interest
+in operating vs financing) — but if the PRIOR year's figure matches the
+company-announced figure, it is highly likely there is NO model
+adjustment, and this year's deviation is an ERROR to find and fix. When
+a deviation equals ONE nameable item, name it and quantify it; if you
+conclude it is a genuine classification design, present that question
+in your flag note rather than forcing either side.
+
+Fingerprints: 2x a value = a sign error. An exact match to one leaf's
+delta = that leaf is stale or misclassified. A residual matching no
+leaf = something the disclosure books elsewhere this year.
 
 Decide EVERY leaf you believe is involved — a diagnosis is complete when
 each named leaf has a disposition, not when more has been read:

@@ -35,14 +35,16 @@ income statement, cash flow details) transcribe from THE STATEMENTS
 block, top-to-bottom, at full precision — every line of a statement is
 printed; a statement row left stale or guessed is always wrong.
 
-THE HOUSE ESTIMATE (when categories merge): if the current disclosure
-merges or re-bases categories your model splits (one printed total now
-covers several of your rows), the house method is: split the disclosed
-total across your rows by their PRIOR-YEAR STRUCTURE (each row's share
-of last year's sum), write each as an estimate with flag true, and say
-so in why ("estimate: prior-year structure applied to disclosed total X,
-p13 — true up when detail is disclosed"). An honest structured estimate
-beats a stale number; a flag marks it for the analyst's true-up.
+SEGMENT PERSISTENCE (owner law): segment breakdowns are scattered
+across MULTIPLE tables in the report — the MD&A product tables, the
+segment note behind the statements, operating-data tables, the prior
+report's grids (your map). Failing to find in ONE table never ends the
+search: a number that sits in the model as a HARDCODE is highly likely
+printed somewhere — ask for other places ("need") and keep looking.
+NEVER write an estimate for a segment row. The terminal state, only
+after the tables in ALL documents are exhausted, is the stale figure
+with a RED FLAG stating where you looked — the analyst takes it from
+there.
 
 LOOK ELSEWHERE (the analyst's skill): the same economics print in
 several places — the statement face, the SEGMENT NOTE behind the

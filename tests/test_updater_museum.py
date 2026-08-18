@@ -1523,6 +1523,72 @@ class FixedPointReconciliationLaw(unittest.TestCase):
         self.assertEqual(n, 0)
 
 
+class VerifiedIngestLaw(unittest.TestCase):
+    """Owner ingestion ruling: whole pages, every row checksummed —
+    copied-not-invented AND prior-anchored, or dropped."""
+
+    def _ledger(self):
+        led = _mock_ledger([
+            _mock_item("AR", 9, "营业总收入",
+                       [78615277439.83, 69695135723.47]),
+            _mock_item("AR", 9, "营业成本", [65241000000.0, 58876000000.0])])
+        return led
+
+    def test_verified_row_enters_ledger(self):
+        from updater.ingest import verified_ingest
+
+        class _Client:
+            def json(self, system, user, validate, repair_retries=1):
+                return {"rows": [
+                    {"label": "营业总收入", "current": 78615277439.83,
+                     "prior": 69695135723.47},
+                    # invented number — must be dropped
+                    {"label": "幻觉行", "current": 123456789.0,
+                     "prior": 69695135723.47},
+                    # printed AND prior-anchored — verified too
+                    {"label": "营业成本", "current": 65241000000.0,
+                     "prior": 58876000000.0}]}
+        led = self._ledger()
+        targets = [_mock_target("Model", 4, "revenue", 69695.135723),
+                   _mock_target("Model", 8, "cogs", 58876.0)]
+        import tempfile, os
+        from updater import ingest as ing
+        with tempfile.TemporaryDirectory() as d:
+            old = ing.CACHE
+            ing.CACHE = __import__("pathlib").Path(d)
+            try:
+                n = verified_ingest(led, targets, _Client(),
+                                    lambda s: None, max_pages=4)
+            finally:
+                ing.CACHE = old
+        self.assertEqual(n, 2)                     # invented row dropped
+        v = [it for it in led.items if getattr(it, "verified", False)]
+        self.assertEqual({x.label for x in v}, {"营业总收入", "营业成本"})
+
+    def test_verified_items_join_the_pool(self):
+        from updater.ledger import Item
+        led = self._ledger()
+        led.faces = {}                             # no face pages at all
+        led2_items = list(led.items)
+
+        class L:
+            items = led2_items
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+        from updater.ledger import Ledger
+        real = Ledger()
+        real.items = [Item(doc="AR", page=9, table_id=900, row_ord=0,
+                           label="营业总收入",
+                           nums=[78615277439.83, 69695135723.47],
+                           source_line="营业总收入 ...", channel="ingest",
+                           verified=True)]
+        real.faces = {}
+        real._doc_periods = {"AR": "current"}
+        self.assertEqual(len(real.join_pool()), 1)  # verified => in pool
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 
