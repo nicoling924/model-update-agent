@@ -208,6 +208,68 @@ def implied_prior_candidates(wb, spec_d, target_year, targets, ledger,
     return out
 
 
+def reconcile_details(wb, spec_d, target_year, targets, ledger, writer,
+                      book, log, max_passes=3):
+    """THE FIXED POINT (owner-approved design): identity-grade print
+    application, iterated until nothing changes.
+
+    Any row where the evidence oracle holds a UNIQUE identity-grade tie
+    (single agreeing in-world prior-anchored candidate on a ratified
+    current-doc page — the join's own evidence class) and the model
+    disagrees, is written to print through the chokepoint, grade A,
+    cited. Passes repeat because one truth-write can expose the next
+    mismatch; the statement balances, so at the fixed point the model's
+    identities hold BY CONSTRUCTION — convergence no longer depends on
+    the agent's draw.
+
+    THE BRIGHT LINE (museum-pinned): code writes ONLY on unique evidence.
+    Ambiguity, definitions, bridges, plugs — the judgment world — remain
+    the agent's alone. Truth outranks balance: these writes are prints,
+    so they are NOT check-transactional — a truth-write that breaks an
+    identity is exposing the next wrong detail, which the next pass or
+    the agent then closes."""
+    from .evaluator import Evaluator
+    from .numerics import row_tol
+    from .stage2_join import unique_evidence_value
+    tl = list(targets)
+    total = 0
+    for p in range(max_passes):
+        batch = {}
+        ev = Evaluator(wb)
+        for t in tl:
+            got = unique_evidence_value(ledger, tl, t)
+            if got is None:
+                continue                    # ambiguity = judgment-land
+            tcol = year_columns(spec_d, t.sheet).get(str(target_year))
+            if not tcol or t.sheet not in wb.sheetnames:
+                continue
+            try:
+                mv = ev.cell(t.sheet, f"{tcol}{t.row}")
+            except Exception:
+                continue
+            dv, it, _s = got
+            if isinstance(mv, (int, float)) \
+                    and abs(abs(mv) - abs(dv)) <= max(row_tol(dv),
+                                                      abs(dv) * 5e-3):
+                continue
+            batch[(t.sheet, t.row)] = {
+                "value": dv, "status": "OK", "conf": 4, "page": it.page,
+                "line": it.source_line[:60],
+                "note": (f"reconciled to print: {it.doc} p{it.page}: "
+                         f"{it.source_line[:80]}")}
+        if not batch:
+            break
+        priors = {t.key: t.prior_value for t in tl}
+        n = write_served(wb, spec_d, target_year, batch, writer, priors,
+                        book, log)
+        log(f"[ops] reconcile pass {p + 1}: {len(batch)} rows off print, "
+            f"{n} written")
+        total += n
+        if n == 0:
+            break
+    return total
+
+
 def flag_failed_checks(wb, spec_d, target_year, writer, book, log):
     """Boss law 1: balanced OR marked. Any check row still failing at the
     end of the run gets its cell red-flagged in EVERY failing year — an
