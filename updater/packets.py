@@ -219,7 +219,12 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"evidence under this row: if ANY line shows a "
                     f"current-year value for this name, WRITE it (in the "
                     f"MODEL'S units — match your neighbours' magnitude; "
-                    f"the disclosure prints raw currency). Only respond "
+                    f"the disclosure prints raw currency). BUT first check "
+                    f"the SIBLING rows: if the printed line already lives "
+                    f"in a neighbouring row (the model splits one printed "
+                    f"line across two named rows), this blank row is "
+                    f"genuinely absent this year — never write the same "
+                    f"printed line into two rows. Only respond "
                     f"not_disclosed if the evidence is empty and the "
                     f"statement truly lacks the line — never silently "
                     f"skip a blank statement row.")
