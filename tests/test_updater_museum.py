@@ -1709,6 +1709,44 @@ class SightingsLaw(unittest.TestCase):
         self.assertIn("p159", s["Raw financials!U64"][0])
 
 
+class SecondPrintingLaw(unittest.TestCase):
+    """The Fable pass as code (应收股利 class): a value printed on TWO
+    pages, each time on a line whose label matches the model row exactly
+    with the row's prior beside it, is disclosed — served grade C (red).
+    One printing alone never serves."""
+
+    def _tgt(self):
+        return _mock_target("Raw", 64, "应收股利", 23.2971)
+
+    def test_two_agreeing_printings_serve(self):
+        from updater.ops import note_anchored_serves
+        a = _mock_item("AR25", 159, "应收股利", [4210670.09, 23297096.99])
+        b = _mock_item("AR25", 266, "应收股利", [4210670.09, 23297096.99])
+        led = _mock_ledger([a, b])
+        out = note_anchored_serves(led, [self._tgt()], {},
+                                   lambda *_: None)
+        self.assertIn(("Raw", 64), out)
+        self.assertAlmostEqual(out[("Raw", 64)]["value"], 4.2107, places=3)
+        self.assertEqual(out[("Raw", 64)]["conf"], 3)      # red, reviewed
+
+    def test_single_printing_refused(self):
+        from updater.ops import note_anchored_serves
+        a = _mock_item("AR25", 159, "应收股利", [4210670.09, 23297096.99])
+        led = _mock_ledger([a])
+        out = note_anchored_serves(led, [self._tgt()], {},
+                                   lambda *_: None)
+        self.assertEqual(out, {})
+
+    def test_disagreeing_printings_refused(self):
+        from updater.ops import note_anchored_serves
+        a = _mock_item("AR25", 159, "应收股利", [4210670.09, 23297096.99])
+        b = _mock_item("AR25", 266, "应收股利", [9999999.0, 23297096.99])
+        led = _mock_ledger([a, b])
+        out = note_anchored_serves(led, [self._tgt()], {},
+                                   lambda *_: None)
+        self.assertEqual(out, {})
+
+
 class OracleIdentityTolLaw(unittest.TestCase):
     """run-24 false positive: 5e-4 relative tolerance let wrong-scale
     junk (665,327,272 at /1e4 = 66,532.73 with a 28,364 'prior') tie a

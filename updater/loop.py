@@ -987,6 +987,39 @@ class AgentLoop:
             return (f"REVERTED: the write broke previously-passing checks "
                     f"{broke[:4]} — the target cell is wrong, not the value; "
                     "trace_cell / statement_diff to find the right row")
+        # RE-BASED COMPARATIVE AUTO-FLAG (confined run 2, 2026-08-19: the
+        # engine wrote the counterpart value but dropped the mandatory red
+        # flag). If the disclosure line carrying this value prints a
+        # comparative that does NOT tie the row's prior, the basis moved —
+        # the flag is law, not a courtesy, so code sets it.
+        if not args.get("flag"):
+            pv0 = (self.targets.get((sheet, row)).prior_value
+                   if (sheet, row) in self.targets else None)
+            if isinstance(pv0, (int, float)) and abs(pv0) >= 1.0:
+                from .numerics import SCALES, to_model_units
+                prior_docs = self.ledger.prior_period_docs()
+                vtol = max(0.6, abs(value) * 5e-4)
+                ptol = max(0.6, abs(pv0) * 5e-4)
+                carriers = [it for it in self.ledger.items
+                            if it.doc not in prior_docs
+                            and len(it.nums) >= 2
+                            and any(abs(abs(to_model_units(n, s)) -
+                                        abs(value)) <= vtol
+                                    for n in it.nums for s in SCALES)]
+                if carriers and not any(
+                        abs(abs(to_model_units(n, s)) - abs(pv0)) <= ptol
+                        for it in carriers for n in it.nums for s in SCALES):
+                    c = self.wb[sheet][f"{col}{row}"]
+                    c.fill = self.writer.fills["red"]
+                    self.writer.log["flags"].append(ref)
+                    from openpyxl.comments import Comment
+                    c.comment = Comment(
+                        f"RE-BASED COMPARATIVE: the disclosure line "
+                        f"carrying {value:,.2f} prints a prior that does "
+                        f"NOT tie the model's {pv0:,.2f} — the category "
+                        f"basis moved; analyst to confirm the mapping. "
+                        f"{why[:150]}", "Model Update Agent")
+                    args["flag"] = True
         self.book.record(ref, "C" if args.get("flag") else grade, method,
                          citation=why[:150])
         self.served[(sheet, row)] = {"value": value, "status": "OK",

@@ -105,6 +105,59 @@ def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
     return n_written
 
 
+def note_anchored_serves(ledger, targets, served, log):
+    """The SECOND-PRINTING law as code (the Fable pass, run-28 应收股利):
+    a value printed in TWO independent places, each time on a line whose
+    label matches the model row exactly and whose comparative ties the
+    row's prior at identity grade, is disclosed — no face authority
+    needed. Served conf 3 (grade C, red) so the analyst still reviews the
+    note-world read. Requirements are conjunctive and strict: exact
+    normalized label, identity prior tie, >=2 distinct pages, all
+    printings agreeing on the current value."""
+    from .numerics import SCALES, norm_label, to_model_units
+    prior_docs = ledger.prior_period_docs()
+    out = {}
+    for t in targets:
+        pv = t.prior_value
+        if (t.key in served or getattr(t, "is_backout", False)
+                or not isinstance(pv, (int, float)) or abs(pv) < 1.0):
+            continue
+        t_norm = norm_label(str(t.label)).replace(" ", "")
+        if len(t_norm) < 2:
+            continue
+        tol = max(0.6, abs(pv) * 5e-4)
+        hits = []
+        for it in ledger.items:
+            if (it.doc in prior_docs or getattr(it, "disputed", False)
+                    or len(it.nums) < 2):
+                continue
+            if norm_label(str(it.label)).replace(" ", "") != t_norm:
+                continue
+            for s in SCALES:
+                ns = [to_model_units(n, s) for n in it.nums]
+                prs = [ns[i] for i in range(len(ns) - 1)
+                       if abs(abs(ns[i + 1]) - abs(pv)) <= tol]
+                if len(prs) == 1:
+                    hits.append((round(prs[0], 4), it))
+                    break
+        pages = {it.page for _v, it in hits}
+        vals = {v for v, _it in hits}
+        if len(pages) >= 2 and len(vals) == 1:
+            v, it = hits[0]
+            out[t.key] = {
+                "value": v, "status": "OK", "conf": 3, "page": it.page,
+                "line": it.label[:60],
+                "note": (f"note-anchored DOUBLE PRINTING: '{it.label[:30]}' "
+                         f"with the row's prior beside it on "
+                         f"{len(pages)} pages "
+                         f"(p{', p'.join(str(p) for p in sorted(pages))}) — "
+                         f"review (note-world read)")}
+    if out:
+        log(f"[ops] note-anchored double printings: {len(out)} rows served "
+            f"(grade C, red)")
+    return out
+
+
 def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
     """Silent staleness is illegal (r51): every rolled hardcode no proven
     read replaced is red-flagged. NOTE (new objectives): volume is honesty,
