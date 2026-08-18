@@ -158,6 +158,72 @@ def note_anchored_serves(ledger, targets, served, log):
     return out
 
 
+def new_line_serves(wb, spec_d, target_year, ledger, targets, served, log):
+    """THE NEW-LINE SERVE (owner's name-first ruling + closure proof):
+    a statement line whose label matches a BLANK model row EXACTLY
+    (normalized), carried by a closure item whose column placement the
+    section arithmetic PROVED, is disclosed for that row — served grade
+    C (red) for analyst review. Both legs are identities (exact name,
+    proven placement); nothing is guessed. Scope is deliberately tight:
+    closure-channel items only (faces, proven), target blank in BOTH
+    year columns, and the name match unique."""
+    from .checks import year_columns as _yc
+    from .numerics import norm_label
+    prior_docs = ledger.prior_period_docs()
+    out = {}
+    by_norm = {}
+    for it in ledger.items:
+        if it.doc in prior_docs or getattr(it, "channel", "") != "closure":
+            continue
+        if len(it.nums) == 2 and it.nums[0] != 0:
+            by_norm.setdefault(
+                norm_label(str(it.label)).replace(" ", ""), []).append(it)
+    if not by_norm:
+        return out
+    from .stage2_join import ratify_page_scales
+    scales = ratify_page_scales(
+        ledger.join_pool(),
+        [t.prior_value for t in targets
+         if isinstance(t.prior_value, (int, float))])
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = _yc(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if not tcol or not pcol or sheet not in wb.sheetnames:
+            continue
+        ws = wb[sheet]
+        for r in range(1, ws.max_row + 1):
+            if ws[f"{tcol}{r}"].value is not None \
+                    or ws[f"{pcol}{r}"].value is not None \
+                    or (sheet, r) in served:
+                continue
+            lab = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
+                        if isinstance(ws[f"{lc}{r}"].value, str)
+                        and ws[f"{lc}{r}"].value.strip()), None)
+            if not lab:
+                continue
+            key = norm_label(str(lab)).replace(" ", "")
+            hits = by_norm.get(key) or []
+            vals = {round(it.nums[0], 2) for it in hits}
+            if len(hits) >= 1 and len(vals) == 1:
+                it = hits[0]
+                # scale must be RATIFIED for the page — an unproven scale
+                # serves nothing (the scale law, unchanged)
+                s = scales.get((it.doc, it.page))
+                if s is None:
+                    continue
+                from .numerics import to_model_units
+                out[(sheet, r)] = {
+                    "value": to_model_units(it.nums[0], s), "status": "OK",
+                    "conf": 3, "page": it.page, "line": it.label[:60],
+                    "note": (f"NEW LINE this year: exact-name statement "
+                             f"line with closure-proven placement "
+                             f"({it.doc} p{it.page}) — review")}
+    if out:
+        log(f"[ops] new-line serves: {len(out)} blank rows filled from "
+            f"closure-proven exact-name lines (grade C, red)")
+    return out
+
+
 def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
     """Silent staleness is illegal (r51): every rolled hardcode no proven
     read replaced is red-flagged. NOTE (new objectives): volume is honesty,

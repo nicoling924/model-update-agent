@@ -20,7 +20,8 @@ from .checks import prior_column, scorecard, year_columns
 from .ledger import JOIN_FACES
 from .numerics import SCALES, kinship, row_tol, to_model_units
 
-MAX_ROWS_PER_CALL = 55        # a compile chunk the engine can hold
+MAX_ROWS_PER_CALL = 18        # small enough that the engine's attention
+                              # covers every row it signs (test-7 law)
 MAX_EVIDENCE_PER_ROW = 2
 
 

@@ -944,6 +944,33 @@ class AgentLoop:
                     f"column ({tc}{row} is the mark-to-actual site). Pass "
                     "forecast_repair=true ONLY to repair integrity in a "
                     "forecast year — never to write actuals there.")
+        # VALUE-TIES-CITATION referee (confined test 7: a counterpart
+        # value written at exactly 1/10th — matching its cited line at NO
+        # legal scale). When the write cites a page and that page carries
+        # numbers, the value must equal one of them under a LEGAL unit
+        # conversion; anything else is a units slip or a fabrication.
+        mpg = re.search(r"p(?:age)?\.?\s*(\d+)", why, re.IGNORECASE)
+        derived = bool(re.search(r"implied|comput|deriv|×|\*|1\s*\+|%|减|加|"
+                                 r"minus|plus|less|difference", why,
+                                 re.IGNORECASE))
+        if mpg and value != 0 and not derived:
+            pg = int(mpg.group(1))
+            prior_docs = self.ledger.prior_period_docs()
+            page_nums = [n for it in self.ledger.items
+                         if it.page == pg and it.doc not in prior_docs
+                         for n in it.nums]
+            if len(page_nums) >= 3:
+                vtol = max(0.02, abs(value) * 5e-4)
+                tied = any(abs(abs(to_model_units(n, s)) - abs(value)) <= vtol
+                           for n in page_nums for s in SCALES)
+                if not tied:
+                    return (f"REFUSED: {value:,.2f} does not equal any "
+                            f"number printed on your cited page p{pg} at "
+                            f"any legal unit scale — a units slip or a "
+                            f"derived figure? Re-read the line and write "
+                            f"the printed value converted to the model's "
+                            f"units (or cite the cells a derivation "
+                            f"comes from).")
         # RECONCILIATION SEATBELT (run-28, the Fable pass): the pool's
         # agreeing print outranks any single reading — a write that
         # contradicts the evidence oracle's unique agreed value is refused
@@ -980,10 +1007,13 @@ class AgentLoop:
                          and abs(self.wb[sheet][f"{pcol}{r2}"].value) > 0.01]
                 if neigh:
                     med = sorted(neigh)[len(neigh) // 2]
-                    if med > 0 and (abs(value) / med >= 500
-                                    or med / max(abs(value), 1e-12) >= 500):
+                    # above-side only: small lines beside big
+                    # subtotals are normal statement anatomy; the
+                    # raw-units slip is always a value far ABOVE the
+                    # column's world
+                    if med > 0 and abs(value) / med >= 500:
                         return (f"REFUSED: {value:,.2f} is ~"
-                                f"{max(abs(value) / med, med / abs(value)):,.0f}x "
+                                f"{abs(value) / med:,.0f}x "
                                 f"the magnitude of this row's neighbours "
                                 f"(median {med:,.2f}) — a raw-units slip? "
                                 f"The model's column speaks its own units; "

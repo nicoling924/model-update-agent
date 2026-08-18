@@ -2046,3 +2046,37 @@ class LazyNDGuardLaw(unittest.TestCase):
                                                "five-year summary"]})
         self.assertIn("REFUSED", out)
         self.assertIn("p101", out)
+
+
+class NewLineServeLaw(unittest.TestCase):
+    """Owner's name-first ruling, machine grade: an exact-name statement
+    line with closure-PROVEN placement fills a model row blank in BOTH
+    year columns — grade C (red). Unratified page scale serves nothing."""
+
+    def test_blank_row_filled_from_proven_closure(self):
+        from updater.ledger import Item
+        from updater.ops import new_line_serves
+        wb, ws = _wb()
+        ws["A2"] = "收到其他与投资活动有关的现金"        # blank T2/U2
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T",
+                                                    "2025": "U"}}}}
+        cl = Item(doc="AR", page=101, table_id=910, row_ord=0,
+                  label="收到其他与投资活动有关的现金",
+                  nums=[19078348.0, 0.0], channel="closure", verified=True,
+                  source_line="x")
+        # two anchor items ratify p101 at 1e6
+        a1 = Item(doc="AR", page=101, table_id=0, row_ord=1, label="anchor a",
+                  nums=[131301256.0, 120011125.0], channel="vision",
+                  verified=True, source_line="a")
+        a2 = Item(doc="AR", page=101, table_id=0, row_ord=2, label="anchor b",
+                  nums=[808222000.0, 555000000.0], channel="vision",
+                  verified=True, source_line="b")
+        led = _mock_ledger([cl, a1, a2])
+        t1 = _mock_target("Model", 8, "a", 120.011125)
+        t2 = _mock_target("Model", 9, "b", 555.0)
+        out = new_line_serves(wb, spec, 2025, led, [t1, t2], {},
+                              lambda *_: None)
+        self.assertIn(("Model", 2), out)
+        self.assertAlmostEqual(out[("Model", 2)]["value"], 19.078348,
+                               places=4)
+        self.assertEqual(out[("Model", 2)]["conf"], 3)
