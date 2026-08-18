@@ -1218,6 +1218,60 @@ class AtomicReclassLaw(unittest.TestCase):
         self.assertEqual(ws["U6"].value, 2000.0)
 
 
+class SegmentShapeLaw(unittest.TestCase):
+    """Owner ruling: segments are mappable (ChatGPT evidence). Where
+    numbers cannot anchor (analyst segmentation), SHAPE selects: revenue+
+    cost/margin+change headers = a segment table in any language."""
+
+    def test_revenue_shaped_selection(self):
+        from updater.islands import revenue_shaped
+        seg = ("能源装备制造 | 营业收入: 5,800,544.42 | 营业成本: 4,989,711.73 | "
+               "毛利率（%）: 13.98 | 营业收入比上年增减（%）: 22.00\n"
+               "工程与服务 | 营业收入: 1,200,000.00 | 营业成本: 900,000.00 | "
+               "毛利率（%）: 25.00 | 营业收入比上年增减（%）: 5.00\n"
+               "现代制造服务 | 营业收入: 800,000.00 | 营业成本: 700,000.00 | "
+               "毛利率（%）: 12.50 | 营业收入比上年增减（%）: -2.00")
+        holdings = ("中国西电 | 账面余额: 1,010.77 | 期末数: 1,098.27\n"
+                    "某公司 | 账面余额: 2,762,482.00 | 坏账准备: 552,496.40\n"
+                    "另一家 | 账面余额: 180,000.00 | 坏账准备: 18,000.00")
+        picked = revenue_shaped([(13, seg), (254, holdings)])
+        self.assertEqual([p for p, _t in picked], [13])
+
+
+class DefinitionalAlignmentLaw(unittest.TestCase):
+    """Owner ruling: model CF sometimes deviates from the statement BY
+    DESIGN. Prior year ties -> definitions align, must tie now; prior
+    year deviates -> designed presentation, never force equality."""
+
+    def _closer(self, model_prior, stmt_prior):
+        from updater.loop import AgentLoop
+        from updater.closer import PacketCloser
+        wb, ws = _wb()
+        raw = wb.create_sheet("Raw")
+        ws["T5"], ws["U5"] = model_prior, -6082.7
+        raw["T9"], raw["U9"] = stmt_prior, -10587.3
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}},
+                              "Raw": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [],
+                "key_rows": [
+                    {"sheet": "Model", "row": 5, "name": "investing cash flow"},
+                    {"sheet": "Raw", "row": 9, "name": "investing cash flow"}]}
+        tk = AgentLoop(wb, spec, 2025, _mock_ledger([]), [], {}, Writer(wb),
+                       EvidenceBook(), client=None)
+        return PacketCloser(tk, client=None, log=lambda s: None)
+
+    def test_aligned_priors_report_aligned(self):
+        pc = self._closer(-2773.7, -2773.7)
+        self.assertTrue(pc._prior_alignment("investing cash flow"))
+
+    def test_deviating_priors_block_forced_equality(self):
+        pc = self._closer(-2773.7, -3500.0)
+        self.assertFalse(pc._prior_alignment("investing cash flow"))
+        r = pc.atomic_reclass("investing cash flow", "investing cash flow",
+                              594.0)
+        self.assertIn("definitional deviation", r)
+
+
 class YearTokenFilter(unittest.TestCase):
     """run-60: a bare 4-digit year is a header, not data."""
 

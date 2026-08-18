@@ -95,6 +95,40 @@ def extract(pdf_path):
     return out
 
 
+_REV = re.compile(r"收入|revenue|sales|营业", re.IGNORECASE)
+_COST = re.compile(r"成本|cost", re.IGNORECASE)
+_MARGIN = re.compile(r"毛利|margin|gross", re.IGNORECASE)
+_CHG = re.compile(r"增减|同比|变动|yoy|[%％]", re.IGNORECASE)
+
+
+def revenue_shaped(doc_islands, cap=2):
+    """SEGMENT-SHAPED islands, by header semantics (owner ruling + the
+    ChatGPT evidence: the model CAN map segments cross-language when it
+    SEES the table — number anchors cannot reach analyst-defined
+    segmentations, so shape selects where numbers cannot). An island
+    whose headers name revenue + cost/margin + a change-%% is a segment
+    economics table in any language. Earliest pages win ties (MD&A sits
+    up front)."""
+    scored = []
+    for page, text in doc_islands:
+        headers = set()
+        n_rows = 0
+        for line in text.splitlines():
+            segs = line.split(" | ")
+            if len(segs) >= 2:
+                n_rows += 1
+                for seg in segs[1:]:
+                    h, sep, _v = seg.partition(":")
+                    if sep:
+                        headers.add(h.strip())
+        hdr = " ".join(headers)
+        hits = sum(1 for p in (_REV, _COST, _MARGIN, _CHG) if p.search(hdr))
+        if hits >= 3 and n_rows >= 3:
+            scored.append((-hits, page, text[:MAX_ISLAND_CHARS]))
+    scored.sort()
+    return [(page, text) for _h, page, text in scored[:cap]]
+
+
 def relevant(doc_islands, open_priors, cap=MAX_ISLANDS_PER_PACKET):
     """NUMBER-ANCHORED island selection for one packet: an island scores
     by how many of the packet's open priors its numbers tie — directly,

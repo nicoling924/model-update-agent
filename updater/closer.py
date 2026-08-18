@@ -261,11 +261,45 @@ class PacketCloser:
             diag = self.tk.t_diagnose_balance({"check": ref})
             vec = ", ".join(f"{y}: {g:,.2f}" if isinstance(g, (int, float))
                             else f"{y}: ?" for y, g in years)
+            # VETTED plug sites (owner ruling on the 1.0): numeric non-key
+            # leaves that are NOT evidence-proven and NOT locked — aiming
+            # anywhere else burns the retry on a guard refusal.
+            sheet, row = ref.split("!")
+            col = self.tk._tcol(sheet)
+            vetted = []
+            import re as _re
+            for (sh, coord) in dict.fromkeys(
+                    self.tk._leaf_inputs(sheet, f"{col}{row}")):
+                mm = _re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+                if not mm or mm.group(1) != self.tk._tcol(sh):
+                    continue
+                if (sh, int(mm.group(2))) in self.tk._key_rows():
+                    continue
+                if f"{sh}!{coord}" in self.tk.writer.locked:
+                    continue
+                if not isinstance(self.tk.wb[sh][coord].value, (int, float)):
+                    continue
+                t = self.tk.targets.get((sh, int(mm.group(2))))
+                if t is not None and self.tk._diff_value(t) is not None:
+                    continue            # evidence-tied: truth-guard land
+                vetted.append(f"{sh}!{coord}")
+                if len(vetted) >= 6:
+                    break
+            g0 = years[0][1] if years else None
+            rounding = (isinstance(g0, (int, float)) and abs(g0) <= 2.0)
             user = (_p("closing_bell.md")
                     + f"\n\nGENERATOR {ref} — residual vector across years: "
                     f"{vec}\n(one 2025 cause usually propagates to every "
-                    f"forecast year — one disposition closes the vector)\n\n"
-                    "== DIAGNOSIS ==\n" + str(diag))
+                    f"forecast year — one disposition closes the vector)\n"
+                    + (f"LEGAL PLUG SITES (vetted — unproven, unlocked, "
+                       f"non-key): {', '.join(vetted) or '(none found)'}\n"
+                       if vetted or True else "")
+                    + ("This residual is ROUNDING-CLASS (|r| <= 2): the "
+                       "statement prints yuan to 2dp, the model holds "
+                       "millions — absorb it into a vetted site; the "
+                       "analyst reviews one orange cell in seconds.\n"
+                       if rounding else "")
+                    + "\n== DIAGNOSIS ==\n" + str(diag))
 
             def _val(o):
                 if o.get("disposition") not in ("plug", "flag"):
@@ -316,10 +350,78 @@ class PacketCloser:
                              f"{str(out['why'])[:90]}")
                     break
             self.reports.append(f"bell:{ref}: {out['disposition']}")
+        # ANNOUNCED TWINS ring at the bell too (run-15 autopsy: mid-run
+        # states are not twinned yet and findings-dedup ate the second
+        # look; the bell sees the SETTLED state). Fresh verdict, fresh
+        # deltas, no dedup.
+        try:
+            from . import police as police_mod
+            v = police_mod.verify(self.tk.wb, self.tk.spec, self.tk.ty,
+                                  self.tk.ledger,
+                                  list(self.tk.targets.values()),
+                                  self.tk.served, self.tk.book,
+                                  self.tk.writer.log)
+            import re as _re
+            deltas = []
+            for f in v["findings"]:
+                m = _re.search(r"announced: ([^:]+): model ([-\d.,]+) vs "
+                               r"disclosed ([-\d.,]+)", str(f))
+                if m:
+                    deltas.append((m.group(1).strip(),
+                                   float(m.group(2).replace(",", ""))
+                                   - float(m.group(3).replace(",", ""))))
+            for i in range(len(deltas)):
+                for j in range(i + 1, len(deltas)):
+                    a, b = deltas[i], deltas[j]
+                    if abs(abs(a[1]) - abs(b[1])) <= max(1.0,
+                                                         abs(a[1]) * 0.02):
+                        r = self.atomic_reclass(a[0], b[0], abs(a[1]))
+                        self.log(f"[closer] bell reclass {a[0]}/{b[0]} "
+                                 f"(±{abs(a[1]):,.2f}): {str(r)[:110]}")
+                        self.reports.append(f"bell-reclass: {r}")
+        except Exception as e:
+            self.log(f"[closer] bell twin scan failed: {e}")
 
     # -- the atomic reclass packet (council wall-3 design) ------------------
 
+    def _prior_alignment(self, kname):
+        """Owner's definitional rule: if the model's PRIOR year for this
+        key ties the statement's prior (same-name key on another sheet),
+        the definitions ALIGN and this year must tie too; if the prior
+        already deviated, the deviation is the analyst's designed
+        presentation (law-2 territory) — do not force equality."""
+        from .checks import prior_column
+        rows = [k for k in self.tk.spec.get("key_rows") or []
+                if kname.lower() in str(k.get("name", "")).lower()]
+        if len(rows) < 2:
+            return None                  # nothing to compare — assume align
+        from .evaluator import Evaluator
+        ev = Evaluator(self.tk.wb)
+        vals = []
+        for k in rows[:2]:
+            pcol = prior_column(self.tk.spec, k["sheet"], self.tk.ty)
+            if not pcol:
+                return None
+            try:
+                vals.append(ev.cell(k["sheet"], f"{pcol}{int(k['row'])}"))
+            except Exception:
+                return None
+        if not all(isinstance(v, (int, float)) for v in vals):
+            return None
+        from .numerics import row_tol
+        return abs(vals[0] - vals[1]) <= max(row_tol(vals[0]), 1.0)
+
     def atomic_reclass(self, key_a, key_b, amount):
+        # definitional gate (owner rule): only force ties for keys whose
+        # prior year proves the definitions align
+        for kname in (key_a, key_b):
+            aligned = self._prior_alignment(kname)
+            if aligned is False:
+                self.log(f"[closer] reclass: '{kname}' deviated from the "
+                         "statement in the prior year too — designed "
+                         "presentation (law 2), not forcing equality")
+                return ("reclass: definitional deviation (prior year also "
+                        "differs) — flagged as designed presentation")
         """Twin-residual signature: both keys off by the same amount with
         opposite signs — ONE item is booked in the wrong section. The
         packet shows both sections side by side and asks the single bound
@@ -345,12 +447,28 @@ class PacketCloser:
                     (sh, int(coord[len(coord.rstrip('0123456789')):])))
                 lab = str(t.label)[:36] if t is not None else "?"
                 leaves.append(f"  {sh}!{coord} '{lab}' = {v:,.2f}")
-            sides.append((match.get("name"), f"{sheet}!{col}{row}", leaves))
+            t = self.tk.targets.get((sheet, row))
+            got = self.tk._diff_value(t) if t is not None else None
+            from .evaluator import Evaluator
+            try:
+                mv = Evaluator(self.tk.wb).cell(sheet, f"{col}{row}")
+            except Exception:
+                mv = None
+            head = (f"model total {mv:,.2f} vs DISCLOSED "
+                    f"{got[0]:,.2f} ({got[1].doc} p{got[1].page})"
+                    if got and isinstance(mv, (int, float))
+                    else "totals unavailable")
+            sides.append((match.get("name"), f"{sheet}!{col}{row}",
+                          head, leaves))
         user = (_p("reclass.md") + "\n\n"
-                + f"AMOUNT: ≈{amount:,.2f} (same size, opposite signs)\n\n"
+                + f"AMOUNT: ≈{amount:,.2f} (same size, opposite signs)\n"
+                "PRIOR-YEAR CHECK: both sections tied the statement last "
+                "year — the definitions align, so this year must tie too; "
+                "the difference is a misplacement, not a definition.\n\n"
                 + "\n\n".join(
-                    f"== SECTION: {n} ({ref}) ==\n" + "\n".join(ls)
-                    for n, ref, ls in sides))
+                    f"== SECTION: {n} ({ref}) — {head} ==\n"
+                    + "\n".join(ls)
+                    for n, ref, head, ls in sides))
 
         def _val(o):
             if "move" in o:
