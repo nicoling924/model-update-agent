@@ -98,7 +98,7 @@ def _build_pool(company_dir, period, target_year, log=None):
 
 
 def _section_health(ledger):
-    from updater.closure import _sections, _solve
+    from updater.closure import _sections, _solve, normalized_rows
     from updater.ledger import JOIN_FACES
     prior_docs = ledger.prior_period_docs()
     groups = {}
@@ -113,8 +113,13 @@ def _section_health(ledger):
     bad = []
     for key, rows in sorted(groups.items()):
         rows.sort(key=lambda x: x.row_ord)
-        for s_row, sec in _sections(rows):
+        for s_row, sec, carry in _sections(normalized_rows(rows)):
             solved, _ones = _solve(s_row, sec)
+            if carry is not None and (solved is None
+                                      or solved[0] == "gap"):
+                s2, _o2 = _solve(s_row, sec + [carry])
+                if s2 is not None and s2[0] in ("closed", "closed_col"):
+                    solved = s2
             if solved is None:
                 unresolved += 1
                 bad.append(f"p{key[1]} '{s_row.label[:24]}'")

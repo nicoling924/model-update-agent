@@ -66,20 +66,58 @@ MAX_SINGLES = 6
 TOL = 1.0                     # statements add to the cent; sections are short
 
 
+class _Row:
+    """A note-stripped view of a ledger item (the CLP lesson: HK/IFRS
+    tables print [note, current, prior] — the note column must be shed
+    before the section equation can see the two value columns)."""
+    __slots__ = ("label", "nums", "src", "row_ord")
+
+    def __init__(self, it, strip_note):
+        self.label = it.label
+        self.row_ord = getattr(it, "row_ord", 0)
+        ns = list(it.nums)
+        if strip_note and len(ns) >= 2 and float(ns[0]).is_integer() \
+                and 0 < ns[0] <= 99:
+            ns = ns[1:]
+        self.nums = ns
+        self.src = it
+
+
+def _detect_note_column(rows):
+    """A table HAS a note column when a meaningful share of its
+    multi-number rows lead with a small integer (1-99)."""
+    multi = [r for r in rows if len(r.nums) >= 2]
+    if len(multi) < 3:
+        return False
+    lead = sum(1 for r in multi
+               if float(r.nums[0]).is_integer() and 0 < r.nums[0] <= 99)
+    return lead >= max(2, len(multi) * 0.3)
+
+
+def normalized_rows(rows):
+    """Note-stripped views when the table carries a note column;
+    the raw rows otherwise. All consumers of _sections share this."""
+    strip = _detect_note_column([_Row(it, False) for it in rows])
+    return [_Row(it, strip) for it in rows]
+
+
 def _sections(rows):
     """(subtotal_row, [member rows]) per subtotal, scanning backwards to
     the previous subtotal / table start. None-section on any row shape
-    the equation cannot hold (3+ numbers = not a two-column line)."""
+    the equation cannot hold (3+ numbers = not a two-column line).
+    Rows may be ledger items or note-stripped _Row views."""
     out = []
     for si, s_row in enumerate(rows):
         if not (SUBTOTAL_RE.search(s_row.label or "")
                 and len(s_row.nums) == 2):
             continue
-        sec, ok = [], True
+        sec, ok, carry = [], True, None
         for r in reversed(rows[:si]):
             lab = r.label or ""
-            if (SUBTOTAL_RE.search(lab) and len(r.nums) >= 2) \
-                    or BARRIER_RE.search(lab):
+            if SUBTOTAL_RE.search(lab) and len(r.nums) >= 2:
+                carry = r      # P&L anatomy: subtotals are CUMULATIVE —
+                break          # the previous subtotal may carry in
+            if BARRIER_RE.search(lab):
                 break
             if SKIP_RE.match(lab) or not r.nums:
                 continue
@@ -88,7 +126,7 @@ def _sections(rows):
                 break
             sec.append(r)
         if ok and sec:
-            out.append((s_row, sec))
+            out.append((s_row, sec, carry))
     return out
 
 
@@ -165,17 +203,27 @@ def closure_sweep(ledger, log):
                if getattr(it, "channel", "") in ("closure", "closure-gap")}
     for (doc, page, _tid), rows in sorted(groups.items()):
         rows.sort(key=lambda x: x.row_ord)
-        for s_row, sec in _sections(rows):
+        rows_v = normalized_rows(rows)
+        for s_row, sec, carry in _sections(rows_v):
             solved, ones = _solve(s_row, sec)
+            if carry is not None and (
+                    solved is None or solved[0] == "gap"):
+                # cumulative-subtotal anatomy (the P&L): retry with the
+                # previous subtotal carried into the section
+                solved2, ones2 = _solve(s_row, sec + [carry])
+                if solved2 is not None and solved2[0] in ("closed",
+                                                          "closed_col"):
+                    solved, ones = solved2, ones2
             if solved is None:
                 continue
             kind, payload = solved
             if kind in ("closed", "closed_col"):
                 if kind == "closed":
                     for r in sec + [s_row]:
-                        if len(r.nums) == 2 and not getattr(r, "verified",
+                        tgt = getattr(r, "src", r)
+                        if len(r.nums) == 2 and not getattr(tgt, "verified",
                                                            False):
-                            r.verified = True
+                            tgt.verified = True
                             n_ver += 1
                 for j, o in enumerate(ones):
                     v = o.nums[0]
