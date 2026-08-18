@@ -159,6 +159,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
     if client is not None:
         from .ingest import verified_ingest
         verified_ingest(ledger, targets, client, log)
+    # SECTION CLOSURE (run-24 twin): the statements' own subtotals as an
+    # equation solver — proves single-number column placement (the
+    # absent-line zero), derives missing rows by difference, and verifies
+    # closed sections. Deterministic; faces only; runs in dry mode too.
+    from .closure import closure_sweep
+    closure_sweep(ledger, log)
 
     # -- THE ONE PAUSE: restatement (before any write; resume-friendly)
     restatement = restate_mod.check_or_pause(company_dir, period, ledger,

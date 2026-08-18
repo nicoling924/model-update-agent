@@ -197,6 +197,15 @@ def _world_tol(pv):
     return row_tol(pv, base=0.6 if abs(pv) >= 100 else 0.01)
 
 
+def _proven_zero(sv, it):
+    """The absence-as-evidence exception (run-24 twin): a served value of
+    ZERO is legal ONLY from a closure item — the section subtotal proved
+    the printed number belongs entirely to the comparative column, so the
+    current-year line is absent and its value is zero. Everything else
+    keeps the zero-refusal (a zero from any other channel is a non-read)."""
+    return sv == 0 and getattr(it, "channel", "") == "closure"
+
+
 def _in_world(sv, pv):
     """The world-band law AT JOIN TIME (the CLP dividend poison): a line can
     print a per-share figure adjacent to the total ('Fourth interim dividend
@@ -261,7 +270,7 @@ def join(ledger, targets, log=None):
                 continue                   # no tie, or ambiguous line — refuse
             if _is_elimination_line(ns, tol):
                 continue
-            if not _in_world(prs[0][0], pv):
+            if not _in_world(prs[0][0], pv) and not _proven_zero(prs[0][0], it):
                 continue                   # per-share-next-to-total class
             cands.append((prs[0][0], it, s))
         if not cands:
@@ -279,14 +288,16 @@ def join(ledger, targets, log=None):
                     f"{v:,.2f}@{it.doc}p{it.page}" for v, it, _ in cands[:4])))
             continue
         sv, it, s = cands[0]
-        if sv == 0:
+        if sv == 0 and not _proven_zero(sv, it):
             continue
         served[t.key] = {
             "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
             "line": it.label[:60], "conf": CONF_JOINED,
             "note": (f"stage-2 join: '{it.label[:40]}' prior ties {pv:,.2f} "
                      f"on ratified face {it.doc} p{it.page} at scale {s:g} "
-                     f"({len(cands)} agreeing instance(s))")}
+                     f"({len(cands)} agreeing instance(s))"
+                     + (" — CURRENT-YEAR LINE ABSENT from the statement; "
+                        "zero proven by section closure" if sv == 0 else ""))}
         prov[t.key] = (it.doc, it.page, (it.table_id, it.row_ord), pv)
         twins[(it.doc, it.page, it.label, round(sv, 2))].append(t.key)
         decisions.append(JoinDecision(
@@ -339,7 +350,7 @@ def join(ledger, targets, log=None):
             prs = _tying_pairs(ns, pv, tol_id)
             if len(prs) != 1 or _is_elimination_line(ns, tol_id):
                 continue
-            if not _in_world(prs[0][0], pv):
+            if not _in_world(prs[0][0], pv) and not _proven_zero(prs[0][0], it):
                 continue
             cands.append((prs[0][0], it, s))
         if not cands or len(cands) > MAX_CANDS:
@@ -347,7 +358,7 @@ def join(ledger, targets, log=None):
         if len({round(v, 2) for v, _i, _s in cands}) != 1:
             continue
         sv, it, s = cands[0]
-        if sv == 0:
+        if sv == 0 and not _proven_zero(sv, it):
             continue
         served[t.key] = {
             "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
@@ -355,7 +366,9 @@ def join(ledger, targets, log=None):
             "note": (f"stage-2 tier-2 join: identity-grade prior tie "
                      f"{pv:,.2f} by '{it.label[:36]}' on a page serving "
                      f"{page_sheet_serves[(it.doc, it.page, t.sheet)]} rows "
-                     f"of this sheet ({it.doc} p{it.page})")}
+                     f"of this sheet ({it.doc} p{it.page})"
+                     + (" — CURRENT-YEAR LINE ABSENT from the statement; "
+                        "zero proven by section closure" if sv == 0 else ""))}
         prov[t.key] = (it.doc, it.page, (it.table_id, it.row_ord), pv)
         twins2[(it.doc, it.page, it.label, round(sv, 2))].append(t.key)
         decisions.append(JoinDecision(
@@ -617,8 +630,12 @@ def unique_evidence_value(ledger, targets, t):
     pv = t.prior_value
     if not isinstance(pv, (int, float)) or pv == 0:
         return None
-    tol = max(0.6, abs(pv) * 5e-4)   # identity grade — world tolerance
-                                     # measured coincidence-prone here
+    # EXACT identity only (run-24 false positive: 5e-4 relative gave a
+    # 14-unit window on a 28k prior, wide enough for a wrong-scale junk
+    # line to tie and "prove" 66,532 for a segment row; disclosures
+    # reprint the comparative to the cent, so the oracle demands it —
+    # analyst-rounded priors simply stay outside oracle jurisdiction)
+    tol = max(0.6, abs(pv) * 2e-5)
     cands = []
     for it in _cache["pool"]:
         s = _cache["scales"].get((it.doc, it.page))
@@ -626,7 +643,8 @@ def unique_evidence_value(ledger, targets, t):
             continue
         ns = [to_model_units(n, s) for n in it.nums]
         prs = _tying_pairs(ns, pv, tol)
-        if len(prs) == 1 and _in_world(prs[0][0], pv):
+        if len(prs) == 1 and (_in_world(prs[0][0], pv)
+                              or _proven_zero(prs[0][0], it)):
             cands.append((prs[0][0], it, s))
     if not cands:
         return None

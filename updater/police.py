@@ -119,6 +119,15 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
         if isinstance(mv, (int, float)) and _value_match(ledger, t, mv):
             proven += 1
             continue
+        # COMPOSED-KEY PROOF (owner's precedent-cell ruling): keys the
+        # filing never prints as one line (gross profit in a CN P&L;
+        # total liabilities = CL + NCL) are proven by TRACKING PRECEDENT
+        # CELLS — walk the formula to its target-column feeders; if every
+        # branch is itself evidence-proven, the composition is proven.
+        if isinstance(mv, (int, float)) \
+                and _composed_proof(wb, spec, ty, t, tl, tmap, ledger, ev):
+            proven += 1
+            continue
         if ref not in flags and isinstance(mv, (int, float)):
             unverified.append(name)
     out["laws"]["1_announced"] = "PASS" if not mism else f"FAIL ({len(mism)})"
@@ -190,6 +199,70 @@ def verify(wb, spec, target_year, ledger, targets, served, book, writer_log):
                                     else f"FAIL ({len(adj_bad)})")
     out["findings"] += [f"adjustment: {a}" for a in adj_bad[:6]]
     return out
+
+
+def _composed_proof(wb, spec, ty, t, tl, tmap, ledger, ev, depth=4):
+    """A target-column cell is PROVEN if its value ties the evidence
+    oracle for its own row, or it is a formula ALL of whose target-column
+    references are proven (recursively). >= 2 distinct proven feeders
+    required at the top so nothing passes vacuously."""
+    import re as _re
+    from .numerics import row_tol as _rt
+    seen = set()
+
+    def _refs(formula, default_sheet):
+        """Target-column references, RANGES EXPANDED (an endpoint-only
+        read would prove =SUM(U54:U66) from two proven ends)."""
+        out = []
+        f = formula.replace("$", "")
+        for sh2, sh3, c1, r1, c2, r2 in _re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?"
+                r"([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)", f):
+            sh = (sh2 or sh3 or default_sheet).strip()
+            if sh in wb.sheetnames and c1 == c2 \
+                    and c1 == year_columns(spec, sh).get(ty) \
+                    and 0 < int(r2) - int(r1) <= 80:
+                out += [(sh, f"{c1}{r}")
+                        for r in range(int(r1), int(r2) + 1)]
+        f = _re.sub(r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", "", f)
+        for sh2, sh3, c2, r2 in _re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)", f):
+            sh = (sh2 or sh3 or default_sheet).strip()
+            if sh in wb.sheetnames and c2 == year_columns(spec, sh).get(ty):
+                out.append((sh, f"{c2}{r2}"))
+        return out
+
+    def _proven(sheet, coord, d):
+        if d < 0 or (sheet, coord) in seen or sheet not in wb.sheetnames:
+            return False
+        seen.add((sheet, coord))
+        m = _re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+        if not m or m.group(1) != year_columns(spec, sheet).get(ty):
+            return False
+        t2 = tmap.get((sheet, int(m.group(2))))
+        if t2 is not None:
+            got = unique_evidence_value(ledger, tl, t2)
+            if got is not None:
+                try:
+                    mv2 = ev.cell(sheet, coord)
+                except Exception:
+                    mv2 = None
+                if isinstance(mv2, (int, float)) and abs(
+                        abs(mv2) - abs(got[0])) <= max(_rt(got[0]),
+                                                       abs(got[0]) * 5e-3):
+                    return True
+        v = wb[sheet][coord].value
+        if not (isinstance(v, str) and v.startswith("=")):
+            return False
+        refs = set(_refs(v, sheet))
+        return bool(refs) and all(_proven(sh, cd, d - 1) for sh, cd in refs)
+
+    tcol = year_columns(spec, t.sheet).get(ty)
+    v = wb[t.sheet][f"{tcol}{t.row}"].value
+    if not (isinstance(v, str) and v.startswith("=")):
+        return False
+    top = set(_refs(v, t.sheet))
+    return len(top) >= 2 and all(_proven(sh, cd, depth) for sh, cd in top)
 
 
 def _value_match(ledger, t, mv):

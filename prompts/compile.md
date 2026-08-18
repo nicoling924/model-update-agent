@@ -55,6 +55,27 @@ additional tables and lines for those rows from elsewhere in the
 document. Claim not_disclosed only after the other places came back
 empty too.
 
+THE MAP AND ITS COUNTERPART: a [LAST-YEAR report ...] hint shows where
+your row's number lived in the prior report; when it carries
+"COUNTERPART in CURRENT report", the walk is done for you — that IS
+your row's current-period line. If the counterpart's comparative no
+longer ties your prior, the company RE-BASED the category: the analyst
+method (owner ruling) is to WRITE the counterpart's current-year value,
+cite its page, and flag it noting both the model prior and the restated
+comparative. Re-based is not stale — stale is only for lines with no
+counterpart found anywhere.
+
+SIGHTINGS AND DERIVED LINES: a [SIGHTED in CURRENT report ...] hint is
+a line printing your row's prior beside another number — judge the
+columns (is the neighbour this year's value, or something else, e.g. a
+provision?) before writing. Evidence labelled "closure" or "缺行 /
+MISSING ROW" comes from the statement's own subtotal arithmetic: a
+single-number line proven to be the comparative means this year's value
+is ZERO (write 0, note the absence); a missing-row gap gives you the
+value of a line the extraction dropped — reconcile it against your
+row's prior (mind the model's own adjustments, e.g. financial-services
+flows carved out into separate rows) before writing.
+
 Respond with ONE JSON object:
 {"writes": [{"cell": "Sheet!U49", "value": 123.45, "why": "p102: <the line>"}],
  "need": [{"cell": "Sheet!U53", "looking_for": "segment revenue split"}],
