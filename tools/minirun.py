@@ -136,6 +136,12 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
         elif want == "flag":
             good = flagged
             got = f"value {v!r}, flagged={flagged}"
+        elif isinstance(want, dict):
+            wv = float(want["value"])
+            good = (isinstance(v, (int, float))
+                    and abs(v - wv) <= max(0.02, abs(wv) * 2e-3)
+                    and (flagged or not want.get("flag")))
+            got = f"value {v!r}, flagged={flagged}"
         else:
             tol = max(0.02, abs(float(want)) * 2e-3)
             good = isinstance(v, (int, float)) and abs(v - float(want)) <= tol

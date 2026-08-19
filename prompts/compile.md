@@ -30,13 +30,26 @@ your magnitude against the nearby rows' values; being ~1,000x or
 ~1,000,000x their size is a unit slip, not a big year. This matters most
 on NEW lines, where no prior anchors the scale for you.
 
+SUB-ROWS FIRST (partition mapping order, any language): a partition
+table's MEMBERS — the indented rows, the 其中/of-which rows, the
+sub-categories — map ONE-TO-ONE onto the model's sub-rows by MEANING
+(coal-power equipment is 煤电 is thermal; gas/气电; wind/风电;
+hydro/水电; nuclear/核能 — translation is mapping, scope is what you
+verify). Map every direct counterpart FIRST. Only then handle parents:
+a parent row takes its OWN printed value, or the sum of its
+already-mapped subs — and a residual/constructed combination is the
+LAST resort, never the first move. A bridge you assembled while direct
+counterparts sat unmapped is a wrong answer even when it adds up.
+
 THE BRIDGE TEST (re-based categories): you may only combine the new
 table's rows to reconstruct a model row if the SAME combination
 reproduces the model's PRIOR from the new table's prior column — last
 year is where the truth is known, so last year is where a bridge is
 proven. A combination that cannot reproduce last year is not a bridge,
-it is an estimate — and segment estimates are never written: stale +
-RED flag, with the new partition recorded for the analyst.
+it is an estimate — and segment estimates are never written unless the
+analyst has RULED the re-basing (then: direct counterparts first, red
+flag always): otherwise stale + RED flag, with the new partition
+recorded for the analyst.
 
 THE MAPPING ORDER (owner ruling): the row's NAME says WHAT the item is —
 that is what you are mapping. Last year's NUMBER is the quick way to
