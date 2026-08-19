@@ -895,6 +895,73 @@ class AgentLoop:
             return ("REFUSED: 'why' must cite the disclosure page "
                     "(e.g. 'p102: ...') or a proven workbook cell "
                     "(e.g. 'ties Raw financials!U243') — no citation, no write")
+        # PATTERN WRITE (CLP + the owner's DFE-driver ruling): the prior
+        # actual cell's TYPE is the pattern (mark-to-actual recipe) — a
+        # constant+adjustment formula is re-instantiated for this year.
+        # Every large constant must be PRINTED in the current filing;
+        # small terms may carry from the prior pattern (the replicated
+        # analyst adjustment, law 2).
+        pf = args.get("pattern_formula")
+        if isinstance(pf, str) and pf.startswith("="):
+            s_sheet = (m.group(1) or m.group(2)).strip()
+            s_col, s_row = m.group(3), int(m.group(4))
+            if s_sheet not in self.wb.sheetnames:
+                return f"MISS: no sheet '{s_sheet}'"
+            tc0 = self._tcol(s_sheet)
+            if tc0 and s_col != tc0 and not args.get("forecast_repair"):
+                return (f"REFUSED: {ref} is not in the {self.ty} column")
+            held0 = self.wb[s_sheet][f"{s_col}{s_row}"].value
+            pcol0 = prior_column(self.spec, s_sheet, self.ty)
+            prior_f = (self.wb[s_sheet][f"{pcol0}{s_row}"].value
+                       if pcol0 else None)
+            prior_consts = set()
+            if isinstance(prior_f, str):
+                prior_consts = {float(x) for x in re.findall(
+                    r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", prior_f)}
+            prior_docs0 = self.ledger.prior_period_docs()
+            for x in re.findall(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", pf):
+                cv = float(x)
+                if abs(cv) < 100:
+                    continue              # small terms: adjustment world
+                ntol = max(0.02, abs(cv) * 5e-4)
+                printed = any(
+                    abs(abs(to_model_units(n, s)) - abs(cv)) <= ntol
+                    for it in self.ledger.items
+                    if it.doc not in prior_docs0
+                    and not getattr(it, "disputed", False)
+                    for n in it.nums for s in SCALES)
+                if not printed and cv not in prior_consts:
+                    return (f"REFUSED: constant {cv:,.2f} in your pattern "
+                            f"is not printed in the current filing at any "
+                            f"legal scale — the disclosed part of a "
+                            f"pattern must BE disclosed.")
+            before_fails = {c["name"] for c in self._card()["checks"]
+                            if c["status"] == "FAIL"}
+            pre_t = self._tie_state()
+            ok = self.writer.write(
+                s_sheet, f"{s_col}{s_row}", pf,
+                note=f"agent pattern write (prior pattern "
+                     f"{str(prior_f)[:40]}): {why[:220]}",
+                flag="red" if args.get("flag") else None)
+            if not ok:
+                return "REFUSED: the chokepoint rejected the pattern write"
+            post_t = self._tie_state()
+            broke_t0 = sorted(k for k, v in pre_t.items()
+                              if v and not post_t.get(k, False))
+            after_fails = {c["name"] for c in self._card()["checks"]
+                          if c["status"] == "FAIL"}
+            broke0 = sorted(after_fails - before_fails)
+            if broke_t0 or broke0:
+                self.writer.write(s_sheet, f"{s_col}{s_row}", held0,
+                                  note="reverted pattern write",
+                                  force_lock=True, trusted=True)
+                return (f"REVERTED: the pattern write broke "
+                        f"{(broke_t0 or broke0)[:3]} — re-check the "
+                        f"constant and the adjustment")
+            self.book.record(f"{s_sheet}!{s_col}{s_row}", "B",
+                             "pattern write", citation=why[:150])
+            return (f"WRITTEN: {s_sheet}!{s_col}{s_row} = {pf[:40]} "
+                    f"(pattern replicated from the prior actual)")
         # EMBEDDED-CONSTANT SWAP (run-28 owner review): a formula cell's
         # numeric literal is last year's disclosed figure — the write is a
         # constant REWRITE that keeps the formula, transactional like any

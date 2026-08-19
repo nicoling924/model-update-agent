@@ -32,6 +32,28 @@ EMBEDDED_RE = re.compile(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?")
 EMBEDDED_MIN = 100.0          # disclosed-figure territory; spares /12, *1.05
 
 
+
+
+def _sum_covered(ws, tcol, _cache={}):
+    """Rows of the target column consumed by some SUM range on the sheet
+    (a blank cell nothing sums is a subheader, not an input)."""
+    key = (id(ws), tcol)
+    if key in _cache:
+        return _cache[key]
+    covered = set()
+    for row in ws.iter_rows():
+        for c in row:
+            v = c.value
+            if isinstance(v, str) and v.startswith("=") and tcol in v:
+                for m in re.finditer(
+                        rf"{tcol}(\d+):{tcol}(\d+)", v.replace("$", "")):
+                    a, b = int(m.group(1)), int(m.group(2))
+                    if 0 < b - a <= 120:
+                        covered.update(range(a, b + 1))
+    _cache[key] = covered
+    return covered
+
+
 def open_rows(wb, spec, ty, sheet, served, writer_log):
     """The sheet's open work: target-column numeric inputs no proven write
     has replaced (the stale candidates), in row order — PLUS formula
@@ -54,18 +76,32 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
     for r in range(1, ws.max_row + 1):
         v = ws[f"{tcol}{r}"].value
         emb = None
+        pattern = None
         if isinstance(v, str) and v.startswith("="):
             emb = [float(x) for x in EMBEDDED_RE.findall(v)
                    if abs(float(x)) >= EMBEDDED_MIN]
             if not emb:
-                continue
+                # THE PATTERN ROW (CLP + owner's DFE driver ruling): the
+                # PRIOR actual cell may hold the input pattern —
+                # '=4976+23', a printed figure plus an analyst adjustment
+                # — while the target holds a roll/forecast formula. The
+                # prior's TYPE is the pattern (mark-to-actual recipe);
+                # its constant anchors the last-year map.
+                pv_cell = ws[f"{pcol}{r}"].value if pcol else None
+                if isinstance(pv_cell, str) and pv_cell.startswith("="):
+                    p_emb = [float(x) for x in EMBEDDED_RE.findall(pv_cell)
+                             if abs(float(x)) >= EMBEDDED_MIN]
+                    if p_emb:
+                        emb, pattern = p_emb, pv_cell
+                if not emb:
+                    continue
         elif v is None:
             # THE NEW-LINE CLASS (owner ruling 2026-08-19): a row blank
-            # last year and printed this year is completely normal — a
-            # census blind to blank cells hid it from the agent entirely.
-            # Visible when it looks like a real line: labelled, inside
-            # the sheet's numeric span, next to numeric rows, and blank
-            # in the prior column too (a rolled value would not be blank)
+            # last year and printed this year is completely normal.
+            # SUBHEADER LAW (CLP first flight, owner): a subheader has NO
+            # numbers in ANY year and nothing sums it — only rows with
+            # previous numbers, forecasts, or a consuming SUM range are
+            # inputs. Both tests are structural, not linguistic.
             pv0 = ws[f"{pcol}{r}"].value if pcol else None
             import bisect as _b
             i = _b.bisect_left(numeric_rows, r)
@@ -75,7 +111,13 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
             lab0 = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
                          if isinstance(ws[f"{lc}{r}"].value, str)
                          and ws[f"{lc}{r}"].value.strip()), None)
-            if not (lab0 and pv0 is None and lo <= r <= hi and near):
+            year_cols = list((year_columns(spec, sheet) or {}).values())
+            has_any_year = any(
+                isinstance(ws[f"{yc}{r}"].value, (int, float))
+                for yc in year_cols)
+            in_sum = r in _sum_covered(ws, tcol)
+            if not (lab0 and pv0 is None and lo <= r <= hi and near
+                    and (has_any_year or in_sum)):
                 continue
         elif not isinstance(v, (int, float)):
             continue
@@ -91,6 +133,8 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
                "prior": pv if isinstance(pv, (int, float)) else None}
         if emb:
             row["embedded"] = emb
+            if pattern:
+                row["pattern"] = pattern
             if row["prior"] is None:
                 # the constant IS last year's figure — it anchors the
                 # last-year map and sightings exactly like a prior
@@ -202,7 +246,24 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
         lines = [f"SHEET: {sheet}   TARGET YEAR: {ty}   "
                  f"open rows {i + 1}-{i + len(chunk)} of {len(rows)}"]
         for r in chunk:
-            if r.get("embedded"):
+            if r.get("pattern"):
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | the PRIOR actual cell "
+                    f"holds the INPUT PATTERN {str(r['pattern'])[:44]} — a "
+                    f"disclosed figure, possibly plus an analyst "
+                    f"adjustment (constants: "
+                    + ", ".join(f"{c:,.2f}" for c in r["embedded"])
+                    + "). Mark-to-actual: REPLICATE the pattern for THIS "
+                      "year — find this year's counterpart of the "
+                      "disclosed constant (the hints below locate where "
+                      "it lived last year; find the SAME section in the "
+                      "current report), infer whether the adjustment "
+                      "carries (its logic, per the model), and respond "
+                      "{\"cell\": ..., \"pattern_formula\": "
+                      "\"=<new constant>+<adjustment>\", \"why\": "
+                      "\"p..\"}; flag if the adjustment's logic is "
+                      "uncertain.")
+            elif r.get("embedded"):
                 lines.append(
                     f"{r['cell']} '{r['label']}' | FORMULA "
                     f"{str(r['value'])[:48]} with EMBEDDED CONSTANT(S) "

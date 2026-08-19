@@ -214,8 +214,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                          book, run_log.append)
         for ln in run_log[-4:]:
             log(f"[run] {ln}")
+        _ruling_p = company_dir / 'updates' / 'rebased_ruling.json'
+        _ruling = (json.loads(_ruling_p.read_text())
+                   if _ruling_p.exists() else None)
         ops.declare_rebased_blocks(wb, spec_d, target_year, ledger,
-                                   targets, writer, book, run_log.append)
+                                   targets, writer, book, run_log.append,
+                                   ruling=_ruling)
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,
@@ -249,7 +253,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         # hardcode is flagged, every still-failing check cell marked.
         # Honesty is CODE, never an agent choice.
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
-                       book, run_log.append)
+                       book, run_log.append, ledger=ledger)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,
                                book, run_log.append)
         ops.flag_failed_checks(wb, spec_d, target_year, writer, book,
@@ -277,7 +281,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         ops.implied_prior_candidates(wb, spec_d, target_year, targets,
                                      ledger, served, run_log.append)
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
-                       book, run_log.append)
+                       book, run_log.append, ledger=ledger)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,
                                book, run_log.append)
         ops.flag_failed_checks(wb, spec_d, target_year, writer, book,

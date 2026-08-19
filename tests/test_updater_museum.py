@@ -1810,12 +1810,15 @@ class EmbeddedHardcodeLaw(unittest.TestCase):
         ws["A1"], ws["T1"], ws["U1"] = "row a", 10.0, 10.0
         ws["A2"] = "收到其他与投资活动有关的现金"      # blank both years
         ws["A3"], ws["T3"], ws["U3"] = "row c", 5.0, 5.0
+        ws["U4"] = "=SUM(U1:U3)"          # a SUM consumes the blank row
+        ws["A5"] = "Subheader with no numbers anywhere"  # true subheader
         ws["A9"] = "far away spacer"                  # outside the span
         rows = open_rows(wb, self._spec(), "2025", "Model", {},
                          {"written": []})
         by_row = {r["row"]: r for r in rows}
         self.assertIn(2, by_row)                      # new-line visible
         self.assertIsNone(by_row[2]["value"])
+        self.assertNotIn(5, by_row)                   # subheader stays out
         self.assertNotIn(9, by_row)                   # spacer stays out
 
     def test_swap_rewrites_constant_keeps_formula(self):

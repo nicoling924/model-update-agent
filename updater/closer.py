@@ -220,7 +220,9 @@ class PacketCloser:
                                          "why": why,
                                          "flag": bool(w.get("flag")),
                                          "swap_constant":
-                                         w.get("swap_constant")})
+                                         w.get("swap_constant"),
+                                         "pattern_formula":
+                                         w.get("pattern_formula")})
                 if str(r).startswith("WRITTEN"):
                     n_ok += 1
                 else:

@@ -106,7 +106,7 @@ def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
 
 
 def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
-                           writer, book, log):
+                           writer, book, log, ruling=None):
     """THE REBASED BLOCK AS STATE (runs 29/31/32: write-time guards were
     re-phrased around under repair pressure, three full runs in a row).
     When >=2 segment leaves on one sheet have priors that tie NO
@@ -167,15 +167,34 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 and not _ties_filing(pv):
             fails_by_sheet.setdefault(sh, []).append(row)
     rebased = set()
+    ruled = bool(ruling and ruling.get("write_current"))
     for sh, rows in fails_by_sheet.items():
         if len(rows) < 2:
             continue
         tc = _yc(spec_d, sh).get(str(target_year))
         for row in rows:
             ref = f"{sh}!{tc}{row}"
-            rebased.add((sh, row))
             cell = wb[sh][f"{tc}{row}"]
             cell.fill = writer.fills["red"]
+            if ruled:
+                # THE ANALYST HAS RULED (restatement answered): keep the
+                # prior year untouched, keep the structure, WRITE the
+                # current year from the new partition — mandatory red.
+                # Rows stay OPEN; derived mappings are analyst-sanctioned.
+                writer.log.setdefault("rebased_ruled", []).append(
+                    f"{sh}!{row}")
+                cell.comment = Comment(
+                    "REBASED — ANALYST RULED: write the current year from "
+                    "the filing's new partition (mapping judgment, red "
+                    "flag kept); the prior year stays as the model held "
+                    "it. " + str((ruling or {}).get("ruled", ""))[:150],
+                    "Model Update Agent")
+                if ref not in writer.log["flags"]:
+                    writer.log["flags"].append(ref)
+                book.record(ref, "C", "rebased — ruled write-current",
+                            note="analyst ruling applied")
+                continue
+            rebased.add((sh, row))
             cell.comment = Comment(
                 "SEGMENT BASIS CHANGED (restatement class): this row's "
                 "prior-year figure ties nothing in the current filing — "
@@ -347,15 +366,34 @@ def new_line_serves(wb, spec_d, target_year, ledger, targets, served, log):
     return out
 
 
-def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
-    """Silent staleness is illegal (r51): every rolled hardcode no proven
-    read replaced is red-flagged. NOTE (new objectives): volume is honesty,
-    and there is NO budget — flags route review, they never block delivery.
-    The loop is expected to clear what it can prove and claim non-disclosure
-    (with a search trail) for what the document genuinely lacks."""
-    n_stale = 0
+def flag_stale(wb, spec_d, target_year, census, served, writer, book, log,
+               ledger=None):
+    """FLAG DISCIPLINE (owner's 2026-08-17 stale ruling, re-affirmed on
+    the CLP first flight: "why is almost every input red?"): a red flag
+    marks a figure the filing DEMONSTRABLY CARRIES (its prior is
+    locatable) that the run failed to resolve — review it. A row the
+    filing genuinely does not print stays quietly stale with one line in
+    _REPORT and NO cell flag. Flags route review; wallpaper is noise."""
+    from .numerics import SCALES as _S, to_model_units as _tmu
+    prior_docs = ledger.prior_period_docs() if ledger is not None else set()
+    cur_nums = ([n for it in ledger.items
+                 if it.doc not in prior_docs
+                 and not getattr(it, "disputed", False)
+                 for n in it.nums] if ledger is not None else None)
+
+    def _locatable(pv):
+        if cur_nums is None:
+            return True                    # no ledger: legacy behavior
+        if not isinstance(pv, (int, float)) or abs(pv) < 1.0:
+            return False
+        tol = max(0.6, abs(pv) * 5e-4)
+        return any(abs(abs(_tmu(n, s)) - abs(pv)) <= tol
+                   for n in cur_nums for s in _S)
+
+    n_stale = n_quiet = 0
     for sheet, rows in census.items():
         tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
         for r in rows:
             ref = f"{sheet}!{tcol}{r}"
             if (sheet, r) in served or ref in writer.log["written"]:
@@ -363,17 +401,26 @@ def flag_stale(wb, spec_d, target_year, census, served, writer, book, log):
             cell = wb[sheet][f"{tcol}{r}"]
             if not isinstance(cell.value, (int, float)):
                 continue
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
-                "STALE INPUT: rolled from the prior actual column; no proven "
-                "disclosure read replaced it — review or accept.",
-                "Model Update Agent")
-            writer.log["flags"].append(ref)
-            book.record(ref, "C", "stale rolled input",
-                        note="prior-year value carried; not yet proven")
-            n_stale += 1
-    if n_stale:
-        log(f"[ops] {n_stale} unserved hardcode inputs flagged STALE (red)")
+            pv = wb[sheet][f"{pcol}{r}"].value if pcol else None
+            if _locatable(pv):
+                cell.fill = writer.fills["red"]
+                cell.comment = Comment(
+                    "STALE INPUT: the filing prints this figure's world "
+                    "(its prior is locatable) but no proven read replaced "
+                    "it — review.", "Model Update Agent")
+                writer.log["flags"].append(ref)
+                book.record(ref, "C", "stale rolled input",
+                            note="prior locatable in filing; unresolved")
+                n_stale += 1
+            else:
+                book.record(ref, "C", "not located in filing",
+                            note="quietly stale — the filing does not "
+                                 "print this figure's prior (listed, "
+                                 "no cell flag)")
+                n_quiet += 1
+    if n_stale or n_quiet:
+        log(f"[ops] stale inputs: {n_stale} red-flagged (locatable), "
+            f"{n_quiet} quietly stale (_REPORT only)")
     return n_stale
 
 

@@ -93,8 +93,12 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     for ln in run_log[-4:]:
         log(f"[mini] {ln}")
 
+        _ruling_p = company_dir / 'updates' / 'rebased_ruling.json'
+        _ruling = (json.loads(_ruling_p.read_text())
+                   if _ruling_p.exists() else None)
     ops.declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
-                               writer, book, run_log.append)
+                               writer, book, run_log.append,
+                                   ruling=_ruling)
     loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                      writer, book, client, run_log, budget=40,
                      restatement=None, docs=docs, census=census)
@@ -106,7 +110,7 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     # honesty pass on the tested sheets only
     ops.flag_stale(wb, spec_d, target_year,
                    {s: census.get(s, []) for s in sheets}, served, writer,
-                   book, run_log.append)
+                   book, run_log.append, ledger=ledger)
 
     # ---- score ----
     if not expect_path:
