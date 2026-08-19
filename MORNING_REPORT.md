@@ -85,3 +85,24 @@ Zero key mismatches (nothing wrong was written).
 DFE took a 33-run campaign to reach its bar; CLP starts from "runs
 end-to-end, honest, shallow" — the campaign infrastructure (confined
 runs, benchmark, museum) is ready to iterate it the same way.
+
+## CLP campaign day 1 (post-DFE-close)
+
+Laws built, all generic, museum-pinned:
+- **The 2D matrix join**: segment notes printing regions ACROSS columns
+  are re-read as position-true grids (text-strategy keeps empty cells);
+  a row's prior anchors row+column, the sibling matrix serves the same
+  column; multiple anchors must AGREE. Verified live: Australia revenue
+  34,191 exact.
+- **The row-shape law**: rows with >=5 numbers refuse the 1D slot-by-tie
+  (matrix neighbours are regions, not [cur, prior]) — this was writing
+  Mainland's number into Australia with grade-A confidence.
+- CFI key certified; CFO/CFF correctly refused: the model reclassifies
+  ±1,765 between operating and financing (the mindmap's interest
+  example, live) — law-2 adjustment work queued.
+- EBITDAF class: two tables disagree (EBITDAF vs operating earnings) —
+  the machine refuses definitional forks and leaves them red for
+  judgment, as designed.
+
+CLP run 2 in flight with all of it. DFE closed at run 36 (delivered);
+owner review pending on J6 scope + the rollover-design-formula question.
