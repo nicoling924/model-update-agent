@@ -1037,10 +1037,30 @@ class AgentLoop:
                 return (f"REVERTED: the swap broke "
                         f"{', '.join(sorted(broke)[:3])} — the constant may "
                         "not be what you think it is; trace the formula")
-            self.book.record(f"{s_sheet}!{s_col}{s_row}", "B",
+            leftover = [x for x in re.findall(
+                r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", newf)
+                if abs(float(x)) < 100]
+            if leftover:
+                # small constants that ride along are CARRIED analyst
+                # adjustments — the analyst reviews them (law 2): red
+                c0 = self.wb[s_sheet][f"{s_col}{s_row}"]
+                c0.fill = self.writer.fills["red"]
+                ref0 = f"{s_sheet}!{s_col}{s_row}"
+                if ref0 not in self.writer.log["flags"]:
+                    self.writer.log["flags"].append(ref0)
+                from openpyxl.comments import Comment
+                c0.comment = Comment(
+                    f"ADJUSTMENT CARRIED: the swapped pattern keeps the "
+                    f"prior adjustment term(s) {', '.join(leftover)} — "
+                    f"verify the adjustment's logic still applies. "
+                    f"{why[:120]}", "Model Update Agent")
+            self.book.record(f"{s_sheet}!{s_col}{s_row}",
+                             "C" if leftover else "B",
                              "embedded-constant swap", citation=why[:150])
             return (f"WRITTEN: {s_sheet}!{s_col}{s_row} constant {tok} -> "
-                    f"{new_txt} (formula kept: {newf[:48]})")
+                    f"{new_txt} (formula kept: {newf[:48]}"
+                    + ("; carried adjustment red-flagged" if leftover
+                       else "") + ")")
         try:
             value = float(args.get("value"))
         except (TypeError, ValueError):
