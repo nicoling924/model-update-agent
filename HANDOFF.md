@@ -178,3 +178,18 @@ re-scoped to key rows (mirror rows are legal). NEXT: CLP run 4 verifies
 both refinements; then remaining classes 4-5 (allocation judgment, SoC
 machinery) per owner appetite. Agreement 71-73% vs Fable; zero
 wrong-with-confidence classes remain.
+
+## CLP campaign — run 7 milestone (75%, campaign best)
+
+Header class CLOSED at all three doors (agent card / machine server /
+stage-3 no-checksum mode) — verified, all five header cells clean.
+Illegal-character sanitization at every cell writer (run 6's crash).
+Agreement vs the Fable hand version: 73% → 75%, with zero systematic
+error classes remaining. The 25% gap = the judgment tail:
+1. Allocation splits (Aus retail/wholesale etc.) — analyst-ruling rows.
+2. The Scheme-of-Control sub-model (HK Sales / SOC / SOC Accounts /
+   ROAFNA interplay) — candidate for its own focused build, like the
+   segment matrix was.
+3. Sign conventions on 2 cost cells.
+Awaiting owner: SoC build yes/no; DFE J6 scope + rollover-formula
+rulings still open.
