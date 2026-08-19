@@ -115,6 +115,15 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
                    {s: census.get(s, []) for s in sheets}, served, writer,
                    book, run_log.append, ledger=ledger)
 
+    out_p = (Path("/private/tmp/claude-501/-Users-lingling-Project-M/"
+                  "eabe2a43-d1d7-47c0-a1ea-69e46653ce80/scratchpad")
+             / f"minirun_{company_dir.name}_latest.xlsx")
+    try:
+        wb.save(out_p)
+        log(f"[mini] workbook saved: {out_p}")
+    except Exception as e:
+        log(f"[mini] save failed: {e}")
+
     # ---- score ----
     if not expect_path:
         log("[mini] no expectations file — done")
