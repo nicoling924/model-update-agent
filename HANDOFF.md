@@ -168,3 +168,13 @@ zero wrong values. NEXT, in order:
 4. EBITDAF definitional fork (EBITDAF vs operating earnings tables):
    agent judgment via label kinship — teach if it recurs.
 Owner rulings pending: DFE J6 scope, rollover design-formula question.
+
+## CLP campaign — after run 3 + refinements (committed)
+
+Fable-diff verdicts: class 2 (group-total pastes) FIXED; class 3 (JV
+blocks) mostly fixed; class 1 half (Aus exact, CN dashed-row lead fixed
+post-run — dashed matrix rows now leave the 1D pool); cross-sheet guard
+re-scoped to key rows (mirror rows are legal). NEXT: CLP run 4 verifies
+both refinements; then remaining classes 4-5 (allocation judgment, SoC
+machinery) per owner appetite. Agreement 71-73% vs Fable; zero
+wrong-with-confidence classes remain.
