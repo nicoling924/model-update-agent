@@ -292,9 +292,19 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"statement truly lacks the line — never silently "
                     f"skip a blank statement row.")
             elif isinstance(r["prior"], (int, float)):
+                ruled = f"{sheet}!{r['row']}" in (
+                    writer_log.get("rebased_ruled") or [])
                 lines.append(
                     f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "
-                    f"| currently STALE at {r['value']:,.2f}")
+                    f"| currently STALE at {r['value']:,.2f}"
+                    + (" | THE ANALYST HAS RULED this re-based block: the "
+                       "prior year stays untouched and THIS year MUST be "
+                       "written from the new partition — sub-rows first "
+                       "(the 其中/of-which members map one-to-one by "
+                       "meaning), parents from their own printed line or "
+                       "the sum of mapped subs. Stale is NOT acceptable "
+                       "here; every write keeps its red flag."
+                       if ruled else ""))
             else:
                 lines.append(
                     f"{r['cell']} '{r['label']}' | no prior | "
