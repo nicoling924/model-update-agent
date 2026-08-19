@@ -86,6 +86,15 @@ def big_moves(wb, spec, target_year):
     return out
 
 
+
+
+def _clean(text):
+    """openpyxl refuses control characters — PDF-extracted text carries
+    them (run 6 died at the finish line writing a search trail)."""
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+    return ILLEGAL_CHARACTERS_RE.sub(" ", text)
+
+
 def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
                  police=None, loop_summary="", reading=None):
     """book = EvidenceBook; snapshot = snapshot_projections() taken pre-write;
@@ -108,7 +117,7 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
 
     def plain(text):
         nonlocal r
-        ws[f"A{r}"] = str(text)[:250]
+        ws[f"A{r}"] = _clean(str(text)[:250])
         r += 1
 
     def link_row(ref, note):
@@ -118,7 +127,7 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
         ws[f"A{r}"].hyperlink = f"#{_syn(sheet)}!{coord}"
         ws[f"A{r}"].font = _LINK
         ws[f"B{r}"] = f"={_syn(sheet)}!{coord}"
-        ws[f"C{r}"] = str(note)[:250]
+        ws[f"C{r}"] = _clean(str(note)[:250])
         r += 1
 
     verdict = "DELIVERED"

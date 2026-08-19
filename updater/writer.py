@@ -37,6 +37,7 @@ import re
 
 import openpyxl
 from openpyxl.comments import Comment
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import PatternFill
 
 AUTHOR = "Model Update Agent"
