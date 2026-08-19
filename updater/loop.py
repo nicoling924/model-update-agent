@@ -1206,6 +1206,23 @@ class AgentLoop:
                             f"was renamed into that sibling, the blank row "
                             f"is genuinely absent this year: leave it (or "
                             f"write 0 with a note), never a second copy.")
+        # CROSS-SHEET TOTAL GUARD (CLP diff class 2: the GROUP's D&A
+        # -9,718 was pasted into a region's D&A row). A value that
+        # identity-equals an already-served value of a DIFFERENT row is
+        # that row's figure, not this one's — a component never equals
+        # the group line to the cent.
+        if value != 0:
+            vtol2 = max(0.01, abs(value) * 1e-6)
+            for (s_sh, s_rw), ent in self.served.items():
+                ev0 = ent.get("value")
+                if (s_sh, s_rw) != (sheet, row) \
+                        and isinstance(ev0, (int, float)) \
+                        and abs(ev0 - value) <= vtol2:
+                    return (f"REFUSED: {value:,.2f} is already the served "
+                            f"figure of {s_sh}!{s_rw} ('{ent.get('line', '')[:30]}') "
+                            f"— a component row never equals another row's "
+                            f"figure to the cent. Find THIS row's own "
+                            f"number (its region/scope column), or flag.")
         # NEIGHBOUR BAND (confined test 4): a NEW line has no prior, so
         # the world band cannot judge it — but the column's neighbours
         # can. A value ~1000x the nearby rows' magnitude is a raw-units
