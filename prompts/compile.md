@@ -51,6 +51,15 @@ analyst has RULED the re-basing (then: direct counterparts first, red
 flag always): otherwise stale + RED flag, with the new partition
 recorded for the analyst.
 
+EQUITY-ACCOUNTED BLOCKS (structure before numbers): a region or
+entity the group carries at SHARE OF RESULTS (a JV/associate) has NO
+consolidated-style P&L of its own in the model — only its
+share-of-results lines carry numbers. Read the block's PRIOR years: a
+block whose prior columns are empty or zero throughout is empty BY
+DESIGN; writing statutory-looking revenue/costs into it is a structural
+error, not an update. The filing's segment matrix confirms it: an
+equity-accounted region shows '–' in the consolidated columns.
+
 THE MAPPING ORDER (owner ruling): the row's NAME says WHAT the item is —
 that is what you are mapping. Last year's NUMBER is the quick way to
 find WHERE the item lived (find the prior in the report, read across).

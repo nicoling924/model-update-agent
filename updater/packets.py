@@ -223,6 +223,75 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
     return hits
 
 
+
+
+def matrix_snippets(docs, rows, cap_pages=2):
+    """Position-true matrix grids for the card (CLP diff class 1: agent
+    fallback on refused matrix rows read flat text and grabbed the wrong
+    region's column). Pages whose grids anchor any open row's prior are
+    rendered with explicit column indices and the anchored column marked
+    — the agent reads columns, not neighbouring digits."""
+    from pathlib import Path as _P
+    from .islands import matrix_grids
+    priors = [r.get("prior") for r in rows
+              if isinstance(r.get("prior"), (int, float))
+              and abs(r.get("prior")) > 1.0]
+    if not priors or not docs:
+        return ""
+    out = []
+    for d in docs:
+        if len(out) >= cap_pages:
+            break
+        try:
+            import pdfplumber
+            with pdfplumber.open(d) as pdf:
+                npages = len(pdf.pages)
+        except Exception:
+            continue
+        # cheap: only scan pages we can anchor — try the whole doc is too
+        # slow; use a pre-pass grid on a sample? Instead: grids for pages
+        # discovered lazily by the caller via ledger would be better; here
+        # we accept a modest scan of up to 40 mid-document pages.
+        candidates = list(range(1, min(npages, 300) + 1))
+        grids = matrix_grids(d, candidates[:0])   # placeholder, filled below
+        # anchor-scan in chunks to bound cost
+        found = {}
+        for start in range(1, min(npages, 300), 60):
+            g = matrix_grids(d, list(range(start, min(start + 60,
+                                                      npages + 1))))
+            for pno, rws in g.items():
+                score = 0
+                marks = {}
+                for lab, vals in rws:
+                    for j, v in enumerate(vals):
+                        if v is None:
+                            continue
+                        for pv in priors:
+                            if abs(abs(v) - abs(pv)) <= max(0.6,
+                                                            abs(pv) * 2e-5):
+                                score += 1
+                                marks[j] = marks.get(j, 0) + 1
+                if score >= 3:
+                    found[pno] = (score, rws, marks)
+            if len(found) >= cap_pages:
+                break
+        for pno, (score, rws, marks) in sorted(
+                found.items(), key=lambda x: -x[1][0])[:cap_pages]:
+            col_star = max(marks, key=marks.get) if marks else None
+            lines = [f"-- MATRIX GRID {_P(d).name[:24]} p{pno} — columns "
+                     f"are REGIONS/CATEGORIES; your rows' priors anchor "
+                     f"column {col_star + 1 if col_star is not None else '?'}"
+                     f" — read THAT column only --"]
+            for lab, vals in rws[:24]:
+                cells = " | ".join(
+                    (f"[{v:,.1f}]" if j == col_star and v is not None else
+                     f"{v:,.1f}" if v is not None else "–")
+                    for j, v in enumerate(vals))
+                lines.append(f"  {lab[:34]:36s} {cells}")
+            out.append("\n".join(lines))
+    return "\n\n".join(out)
+
+
 def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
     """The compile packet's whole world: the open column, in order, each
     row with its label, prior, current (stale) value, and evidence slice.
@@ -400,6 +469,14 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                           "top-to-bottom; rows that ARE statement lines "
                           "transcribe from HERE at full precision, in "
                           "order ==\n" + stmt for c in chunks]
+            try:
+                msnip = matrix_snippets(docs, rows)
+            except Exception:
+                msnip = ""
+            if msnip:
+                chunks = [c + "\n\n== MATRIX GRIDS (position-true; the "
+                          "marked column is yours) ==\n" + msnip
+                          for c in chunks]
             if picked:
                 block = ("\n\n== TABLE ISLANDS — intact grids from the "
                          "disclosures (headers attached to every value; "
