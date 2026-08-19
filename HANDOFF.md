@@ -152,3 +152,19 @@ TO RESUME (in order):
    tools/dispatch.sh per the runbook (gates green first).
 Open owner ruling still pending: CLP cash +23 (bind with adjustment
 inference, or leave unbound).
+
+## RESUME POINT — CLP campaign (after CLP run 2)
+
+Run 2 delivered: Aus revenue exact via the 2D matrix join; all
+consolidated keys converging with coverage (NP 10,115→11,546 target);
+zero wrong values. NEXT, in order:
+1. CN sheet confined test: `python3 tools/minirun.py companies/CLP FY25 2025 "CN" companies/CLP/replay/FY25/mini_expect.json`
+   — grow expectations from the segment matrix (p177/178) CN column.
+2. HK Sales / SOC sheets (operating stats — sources are the business
+   review + stats appendices, likely matrix-shaped too).
+3. The ±1,765 CFO/CFF reclassification: law-2 adjustment binding
+   (model CFO = filing CFO − adj; the adjustment's FY25 magnitude must
+   be inferred from the model's own structure — Final rows 101-140).
+4. EBITDAF definitional fork (EBITDAF vs operating earnings tables):
+   agent judgment via label kinship — teach if it recurs.
+Owner rulings pending: DFE J6 scope, rollover design-formula question.
