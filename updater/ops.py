@@ -324,11 +324,40 @@ def new_line_serves(wb, spec_d, target_year, ledger, targets, served, log):
                 norm_label(str(it.label)).replace(" ", ""), []).append(it)
     if not by_norm:
         return out
-    from .stage2_join import ratify_page_scales
-    scales = ratify_page_scales(
-        ledger.join_pool(),
-        [t.prior_value for t in targets
-         if isinstance(t.prior_value, (int, float))])
+    # CENT-EXACT page ratification (resume test: the loose ratifier
+    # picked a wrong scale on one draw and the serve landed 1000x off —
+    # at 2e-5 tolerance junk cannot tie, so only the true scale
+    # survives; ambiguity serves nothing)
+    from .numerics import to_model_units as _tmu2
+    model_priors = sorted({abs(t.prior_value) for t in targets
+                           if isinstance(t.prior_value, (int, float))
+                           and abs(t.prior_value) > 100})
+    page_items = {}
+    for it in ledger.items:
+        if it.doc not in prior_docs and not getattr(it, "disputed", False):
+            page_items.setdefault((it.doc, it.page), []).append(it)
+
+    def _tight_scale(doc, page):
+        import bisect as _b
+        best = []
+        for s2 in (1.0, 1e3, 1e4, 1e6, 1e8):
+            hits = 0
+            for it in page_items.get((doc, page), []):
+                for n in it.nums[1:]:
+                    a = abs(_tmu2(n, s2))
+                    i = _b.bisect_left(model_priors, a - 1)
+                    if i < len(model_priors) and abs(
+                            model_priors[i] - a) <= max(
+                                0.6, model_priors[i] * 2e-5):
+                        hits += 1
+                        break
+            best.append((hits, s2))
+        best.sort(reverse=True)
+        if best[0][0] >= 2 and best[0][0] > best[1][0]:
+            return best[0][1]
+        return None
+
+    scales = {}
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = _yc(spec_d, sheet).get(str(target_year))
         pcol = prior_column(spec_d, sheet, target_year)
@@ -352,6 +381,9 @@ def new_line_serves(wb, spec_d, target_year, ledger, targets, served, log):
                 it = hits[0]
                 # scale must be RATIFIED for the page — an unproven scale
                 # serves nothing (the scale law, unchanged)
+                if (it.doc, it.page) not in scales:
+                    scales[(it.doc, it.page)] = _tight_scale(it.doc,
+                                                             it.page)
                 s = scales.get((it.doc, it.page))
                 if s is None:
                     continue
