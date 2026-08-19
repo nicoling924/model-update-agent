@@ -126,7 +126,9 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 for n in it.nums]
 
     def _ties_filing(pv):
-        tol = max(0.6, abs(pv) * 5e-4)
+        # cent-exact (the oracle's lesson): a loose tolerance lets junk
+        # coincidences mask a re-base
+        tol = max(0.6, abs(pv) * 2e-5)
         return any(abs(abs(_tmu(n, s)) - abs(pv)) <= tol
                    for n in cur_nums for s in _S)
 
@@ -354,6 +356,19 @@ def new_line_serves(wb, spec_d, target_year, ledger, targets, served, log):
                 if s is None:
                     continue
                 from .numerics import to_model_units
+                # NEIGHBOUR SANITY (resume test: one draw ratified the
+                # page at the wrong scale and the serve landed 1000x off
+                # — the write path here has no band, so the column's own
+                # neighbours judge the unit world)
+                cand = to_model_units(it.nums[0], s)
+                neigh = [abs(ws[f"{pcol}{r2}"].value)
+                         for r2 in range(max(1, r - 6), r + 7)
+                         if isinstance(ws[f"{pcol}{r2}"].value, (int, float))
+                         and abs(ws[f"{pcol}{r2}"].value) > 0.01]
+                if neigh:
+                    med = sorted(neigh)[len(neigh) // 2]
+                    if med > 0 and abs(cand) / med >= 500:
+                        continue
                 out[(sheet, r)] = {
                     "value": to_model_units(it.nums[0], s), "status": "OK",
                     "conf": 3, "page": it.page, "line": it.label[:60],
