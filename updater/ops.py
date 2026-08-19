@@ -912,3 +912,85 @@ def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
     log(f"[rebase] ruled block: {n} rows written from the certified "
         f"current column (red)")
     return n
+
+
+def matrix_serves(wb, spec_d, target_year, ledger, targets, served, log):
+    """THE 2D JOIN (the CLP segment matrix): a note printing regions
+    ACROSS columns and metrics DOWN rows, twice — current year and prior
+    year as sibling matrices. A target row's prior value appearing at
+    column position k of a prior-matrix row, whose same-labelled row
+    exists in the current matrix with matching width, serves the current
+    row's position k. Identity anchors the row; POSITION carries the
+    column meaning across — both are structural facts, nothing is
+    guessed. Ambiguity (multiple positions, width mismatch, twin rows)
+    serves nothing."""
+    from .numerics import SCALES as _S, norm_label, to_model_units as _tmu
+    prior_docs = ledger.prior_period_docs()
+    tables = {}
+    for it in ledger.items:
+        if (it.doc in prior_docs or getattr(it, "disputed", False)
+                or it.table_id is None or not it.label):
+            continue
+        tables.setdefault((it.doc, it.page, it.table_id), []).append(it)
+    # wide tables only (a matrix row carries 4+ numbers)
+    wide = {k: v for k, v in tables.items()
+            if sum(1 for it in v if len(it.nums) >= 4) >= 4}
+
+    def _norm(x):
+        return norm_label(str(x)).replace(" ", "")
+
+    # pair matrices by label-set overlap (the counterpart machinery's law)
+    keys = list(wide)
+    labelsets = {k: {_norm(it.label) for it in wide[k]} - {""}
+                 for k in keys}
+    out = {}
+    for t in targets:
+        pv = t.prior_value
+        if (t.key in served or not isinstance(pv, (int, float))
+                or abs(pv) < 1.0):
+            continue
+        tol = max(0.6, abs(pv) * 2e-5)
+        hits = []
+        for k in keys:
+            for it in wide[k]:
+                if len(it.nums) < 4:
+                    continue
+                for j, n in enumerate(it.nums):
+                    for s in _S:
+                        if abs(abs(_tmu(n, s)) - abs(pv)) <= tol:
+                            hits.append((k, it, j, s))
+                            break
+        if len(hits) != 1:
+            continue                       # no anchor, or ambiguous
+        k0, row0, pos, s0 = hits[0]
+        # the sibling matrix: best label-overlap with the anchor's table
+        best, bestn = None, 2
+        for k in keys:
+            if k == k0:
+                continue
+            n0 = len(labelsets[k] & labelsets[k0])
+            if n0 > bestn:
+                best, bestn = k, n0
+        if best is None:
+            continue
+        cand = [it for it in wide[best]
+                if _norm(it.label) == _norm(row0.label)
+                and len(it.nums) == len(row0.nums)]
+        if len(cand) != 1 or len(cand[0].nums) <= pos:
+            continue
+        cur = _tmu(cand[0].nums[pos], s0)
+        # sign follows the model's prior
+        if (pv < 0) != (cur < 0) and cur != 0:
+            cur = -cur if (pv < 0) != (cur < 0) else cur
+        out[t.key] = {
+            "value": round(cur, 4), "status": "OK", "conf": 3,
+            "page": cand[0].page, "line": cand[0].label[:60],
+            "note": (f"2D matrix join: prior {pv:,.2f} anchors column "
+                     f"position {pos + 1} of '{row0.label[:30]}' "
+                     f"(p{row0.page}); the sibling matrix's same row "
+                     f"serves position {pos + 1} (p{cand[0].page}) — "
+                     f"review the column meaning")}
+    if out:
+        log(f"[ops] 2D matrix join: {len(out)} rows served by "
+            f"position-across (grade C, red)")
+    return out
