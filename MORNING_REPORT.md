@@ -9,7 +9,8 @@
 | 29 | **10/10** (first ever) | 9/12 | 1 fail (segment sum −9) | segment estimates leaked under residual pressure |
 | 30 | 7/10 | 11/12 | twin re-entered via stage-3 | the 其中 sub-line's last door |
 | 31 | **10/10** | **12/12** | NEW: one line written into two sibling rows | the campaign target met, minus one new class |
-| 32 | in flight | — | — | carries the one-printed-line-one-row guard |
+| 32 | 10/10 | 9/12 | off by 23 (FX-into-RE write) | double-count guard held; guards get re-phrased around |
+| **33** | **10/10** | **12/12** | **ALL YEARS PASS** | **keys law PASS (27 proven) — THE BAR. Rebased block = state** |
 
 Every failure was closed at its fundamental, teaching-first, referees for
 what the engine drops (owner-ratified boundary: code proves/refuses,
@@ -58,3 +59,29 @@ dispatches) before any full run flew.
 Zero legacy-chain incidents since the canonical dispatcher; every run
 sha-asserted and fingerprint-verified; all iteration between runs was
 confined tests and offline benchmarks.
+
+
+## CLP first flight (post-run-33, fingerprint-verified, ~75 min, 244 calls)
+
+**Genericity: the machinery ran end-to-end on a completely different
+anatomy with zero CLP-specific code** — English filing, multi-sheet
+country/segment workbook, 157/163 priors located, compile packets across
+10 sheets, honest flags everywhere, revenue bound+written EXACT (88,018).
+Zero key mismatches (nothing wrong was written).
+
+**The CLP gaps list (the diagnostic's product):**
+1. CLP's consolidated keys are SUMS OF THE COUNTRY SHEETS — NP/OP/EPS
+   understate because the country sheets are only partially updated
+   (41 rows written; many honest not-disclosed on CN/SEA/HK Sales).
+   The next campaign: mapping the AR's regional business-review sections
+   into the country sheets (the multi-sheet anatomy challenge).
+2. CFO/CFI/CFF unbound at onboarding — the nominate round missed the
+   Final sheet's CF rows; needs a second nomination pass scoped to CF.
+3. Balance: Final!99 off 560 (2025) and ~33k in forecast years — partial
+   segment updates disturb the roll-forward; same class DFE had before
+   its campaign.
+4. Cash binding awaits the owner's ruling (+23 analyst adjustment).
+
+DFE took a 33-run campaign to reach its bar; CLP starts from "runs
+end-to-end, honest, shallow" — the campaign infrastructure (confined
+runs, benchmark, museum) is ready to iterate it the same way.
