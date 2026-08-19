@@ -200,8 +200,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
-        na = ops.note_anchored_serves(ledger, targets, served,
-                                      run_log.append)
+        na = ops.home_serves(wb, spec_d, target_year, ledger, targets,
+                             served, run_log.append)
+        na.update(ops.note_anchored_serves(ledger, targets, served,
+                                           run_log.append))
         na.update(ops.new_line_serves(wb, spec_d, target_year, ledger,
                                       targets, served, run_log.append))
         na.update(ops.matrix_serves(wb, spec_d, target_year, ledger,
@@ -275,8 +277,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
-        na = ops.note_anchored_serves(ledger, targets, served,
-                                      run_log.append)
+        na = ops.home_serves(wb, spec_d, target_year, ledger, targets,
+                             served, run_log.append)
+        na.update(ops.note_anchored_serves(ledger, targets, served,
+                                           run_log.append))
         na.update(ops.new_line_serves(wb, spec_d, target_year, ledger,
                                       targets, served, run_log.append))
         na.update(ops.matrix_serves(wb, spec_d, target_year, ledger,

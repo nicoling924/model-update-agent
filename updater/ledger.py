@@ -287,13 +287,46 @@ class Ledger:
     def face(self, doc, page):
         return self.faces.get((doc, page))
 
+    def note_pages(self):
+        """(doc, page) set whose tables lead with a NOTE-REF column —
+        closure's law (>=30% of multi-number lines lead with a small
+        integer 1-99), applied ledger-wide. A note ref offered as a value
+        poisoned the oracle (SoC class, 2026-08-20: 'Fuel clause account
+        20 – 370' made 20.00 the row's \"agreeing print\")."""
+        cache = getattr(self, "_note_pages_cache", None)
+        if cache is None:
+            by_pg = {}
+            for it in self.items:
+                if len(it.nums) >= 2:
+                    by_pg.setdefault((it.doc, it.page), []).append(it)
+            cache = set()
+            for pg, its in by_pg.items():
+                lead = sum(1 for it in its
+                           if float(it.nums[0]).is_integer()
+                           and 0 < it.nums[0] <= 99)
+                if len(its) >= 3 and lead >= max(2, len(its) * 0.3):
+                    cache.add(pg)
+            self._note_pages_cache = cache
+        return cache
+
+    def strip_note_ref(self, it):
+        """The item's value row with a leading note-ref removed (a copy)
+        when its page carries a note column and its lead is a small int;
+        the item itself otherwise. source_line keeps the audit trail."""
+        if (it.doc, it.page) in self.note_pages() and len(it.nums) >= 2 \
+                and float(it.nums[0]).is_integer() and 0 < it.nums[0] <= 99:
+            import dataclasses
+            return dataclasses.replace(it, nums=list(it.nums[1:]))
+        return it
+
     def join_pool(self):
         """Items eligible to even be CONSIDERED by Stage 2: structurally
         joinable AND on a statement-face page (face authority is a pool
         property — parent pages were never admitted to the map) AND not
-        from a prior-period document."""
+        from a prior-period document. Note-ref leads are stripped here —
+        the one choke point every join-side consumer shares."""
         prior_docs = self.prior_period_docs()
-        return [it for it in self.items
+        return [self.strip_note_ref(it) for it in self.items
                 if it.joinable() and it.doc not in prior_docs
                 and (self.faces.get((it.doc, it.page)) in JOIN_FACES
                      or getattr(it, "verified", False))]

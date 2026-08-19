@@ -69,6 +69,20 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
     rebased = set(writer_log.get("rebased") or [])
     out = []
     ws = wb[sheet]
+    # BLOCK HEADERS (SoC class, 2026-08-20): a model row's own label can
+    # be generic ("Closing balance", "Total") — the ACCOUNT'S name lives
+    # in the text-only header above it (all year cells empty). The block
+    # name travels with the row: it is how the analyst knows WHAT a
+    # generic-labelled row is, and how evidence can name-match it.
+    _yc_all = list((year_columns(spec, sheet) or {}).values())
+    blocks, _cur_blk = {}, None
+    for r in range(1, ws.max_row + 1):
+        lab_b = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
+                      if isinstance(ws[f"{lc}{r}"].value, str)
+                      and ws[f"{lc}{r}"].value.strip()), None)
+        if lab_b and all(ws[f"{yc}{r}"].value is None for yc in _yc_all):
+            _cur_blk = str(lab_b).strip()[:40]
+        blocks[r] = _cur_blk
     numeric_rows = sorted(r for r in range(1, ws.max_row + 1)
                           if isinstance(ws[f"{tcol}{r}"].value, (int, float)))
     lo = numeric_rows[0] if numeric_rows else 0
@@ -95,6 +109,8 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
                               if isinstance(ws[f"{lc}{r}"].value, str)
                               and ws[f"{lc}{r}"].value.strip()), "")
                 row["label"] = str(lab_o)[:48]
+                if blocks.get(r) and blocks[r] != row["label"]:
+                    row["block"] = blocks[r]
                 if (sheet, r) not in served                         and f"{sheet}!{tcol}{r}" not in written:
                     out.append(row)
                 continue
@@ -154,6 +170,8 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
         row = {"row": r, "cell": f"{sheet}!{tcol}{r}",
                "label": str(lab)[:48], "value": v,
                "prior": pv if isinstance(pv, (int, float)) else None}
+        if blocks.get(r) and blocks[r] != row["label"]:
+            row["block"] = blocks[r]
         if emb:
             row["embedded"] = emb
             if pattern:
@@ -194,9 +212,15 @@ def derive_queue(wb, spec, ty, served, writer_log):
     return queue
 
 
-def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
+def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW,
+                   home=frozenset()):
     """Up to N candidate disclosure lines for one open row: prior-tie
-    first (number-anchored — the reliable signal), then label kinship."""
+    first (number-anchored — the reliable signal), then label kinship.
+
+    HOME pages outrank everything (SoC class, 2026-08-20): a prior like
+    80 ties dozens of junk lines across a 300-page report, and the cap
+    fills in page order before the real statement line is reached. Lines
+    from the sheet's own statement pages are scanned FIRST."""
     pv = row.get("prior")
     hits, seen = [], set()
     prior_docs = ledger.prior_period_docs()
@@ -208,16 +232,26 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
         seen.add(key)
         hits.append(f"p{it.page} [{why}] {it.source_line[:100]}")
 
-    if isinstance(pv, (int, float)) and abs(pv) >= 1.0:
+    def sweep(pool, why):
+        if not (isinstance(pv, (int, float)) and abs(pv) >= 1.0):
+            return
         tol = row_tol(pv)
-        for it in ledger.items:
+        for it in pool:
             if it.doc in prior_docs or not it.joinable():
                 continue
             if any(abs(abs(to_model_units(n, s)) - abs(pv)) <= tol
                    for n in it.nums for s in SCALES):
-                add(it, "prior-tie")
+                add(it, why)
             if len(hits) >= max_hits:
-                return hits
+                return
+
+    if home:
+        sweep([it for it in ledger.items if (it.doc, it.page) in home],
+              "prior-tie|sheet's own statement page")
+    if len(hits) < max_hits:
+        sweep(ledger.items, "prior-tie")
+    if len(hits) >= max_hits:
+        return hits
     for it in ledger.items:
         if it.doc in prior_docs or not it.joinable():
             continue
@@ -225,7 +259,112 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW):
             add(it, "label-kin")
         if len(hits) >= max_hits:
             break
+    # BLOCK-NAME fallback (SoC class): a generic row label ("Closing
+    # balance") can never name-match its printed line — the account's
+    # name is the BLOCK header ("Fuel Clause Recovery" finds the
+    # statement's "Fuel clause account" line). Only when nothing else
+    # matched: the direct label stays the stronger signal.
+    if not hits and row.get("block"):
+        for it in ledger.items:
+            if it.doc in prior_docs or not it.joinable():
+                continue
+            if kinship(row["block"], it.label):
+                add(it, "block-kin: the row's section header names it")
+            if len(hits) >= max_hits:
+                break
     return hits
+
+
+YEAR_RUN_RE = re.compile(r"((?:19|20)\d{2})\D{1,8}((?:19|20)\d{2})"
+                         r"\D{1,8}((?:19|20)\d{2})")
+
+
+def home_pages(wb, spec, ty, sheet, ledger, min_hits=4, cap=3,
+               targets=None):
+    """THE SHEET'S OWN STATEMENT (SoC class, 2026-08-20): a page where
+    MANY of the sheet's prior-column values print together IS the
+    schedule this sheet models — whatever the page calls itself, in any
+    language (a Scheme-of-Control statement, a five-year statistics
+    table, a regulated-business schedule). Discovered by number mass,
+    never by caption. Returns [(doc, page, n_distinct_priors_tied)]."""
+    pcol = prior_column(spec, sheet, ty)
+    if not pcol or sheet not in wb.sheetnames:
+        return []
+    ws = wb[sheet]
+    uniq = []
+
+    def _take(v):
+        if isinstance(v, (int, float)) and abs(v) >= 1.0:
+            if not any(abs(v - q) <= 0.01 for q in uniq):
+                uniq.append(float(v))
+    for r in range(1, min(ws.max_row, 400) + 1):
+        _take(ws[f"{pcol}{r}"].value)
+    # a DERIVED schedule's prior column is mostly formulas — the sheet's
+    # evaluated priors (targets) carry the mass the raw cells cannot
+    for t in (targets or {}).values() if isinstance(targets, dict) \
+            else (targets or []):
+        if getattr(t, "sheet", None) == sheet:
+            _take(getattr(t, "prior_value", None))
+    if len(uniq) < min_hits:
+        return []
+    prior_docs = ledger.prior_period_docs()
+    tied = {}
+    for it in ledger.items:
+        if it.doc in prior_docs or not it.nums:
+            continue
+        for j, p in enumerate(uniq):
+            tol = row_tol(p)
+            if any(abs(abs(to_model_units(n, s)) - abs(p)) <= tol
+                   for n in it.nums for s in SCALES):
+                tied.setdefault((it.doc, it.page), set()).add(j)
+    scored = sorted(((len(js), doc, page)
+                     for (doc, page), js in tied.items()
+                     if len(js) >= min_hits), key=lambda x: -x[0])
+    return [(doc, page, n) for n, doc, page in scored[:cap]]
+
+
+def home_transcript(ledger, homes, ty, cap_lines=44):
+    """Render the sheet's own statement pages, top-to-bottom in printed
+    order, with a year-run column note when the page is a multi-year
+    summary. The agent reads it like an analyst reads the schedule."""
+    if not homes:
+        return ""
+    out = []
+    for doc, page, n in homes:
+        items = sorted((it for it in ledger.items
+                        if it.doc == doc and it.page == page),
+                       key=lambda it: it.row_ord)
+        if not items:
+            continue
+        years = None
+        for it in items[:8]:
+            m = YEAR_RUN_RE.search(it.source_line)
+            if m:
+                years = m.group(0)
+                break
+        head = (f"-- THIS SHEET'S OWN STATEMENT — p{page} of {doc[:28]} "
+                f"prints {n} of this sheet's prior-year values together: "
+                f"it is the schedule this sheet models. Read it "
+                f"top-to-bottom; transcription-first applies. --")
+        if years:
+            head += (f"\n   (columns are YEARS: {years} ... — your value "
+                     f"is the {ty} column; the neighbouring year column "
+                     f"must reproduce this sheet's priors. A prior that "
+                     f"does NOT tie means the definition moved — the "
+                     f"counterpart law applies: WRITE the {ty} column's "
+                     f"value with a red flag noting both priors; leaving "
+                     f"the row stale because the prior moved is the one "
+                     f"wrong answer.)")
+        lines = [head]
+        seen = set()
+        for it in items[:cap_lines]:
+            sl = it.source_line[:104]
+            if sl in seen:
+                continue
+            seen.add(sl)
+            lines.append(f"  {sl}")
+        out.append("\n".join(lines))
+    return "\n\n".join(out)
 
 
 
@@ -297,7 +436,8 @@ def matrix_snippets(docs, rows, cap_pages=2):
     return "\n\n".join(out)
 
 
-def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
+def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
+                 targets=None):
     """The compile packet's whole world: the open column, in order, each
     row with its label, prior, current (stale) value, and evidence slice.
     Returned as chunks the engine can hold.
@@ -332,15 +472,23 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
         cs = current_sightings(ledger, rows)
     except Exception:
         cs = {}
+    try:
+        homes = home_pages(wb, spec, ty, sheet, ledger, targets=targets)
+        home_set = frozenset((d, p) for d, p, _n in homes)
+        home_block = home_transcript(ledger, homes, ty)
+    except Exception:
+        home_set, home_block = frozenset(), ""
     chunks = []
     for i in range(0, len(rows), MAX_ROWS_PER_CALL):
         chunk = rows[i:i + MAX_ROWS_PER_CALL]
         lines = [f"SHEET: {sheet}   TARGET YEAR: {ty}   "
                  f"open rows {i + 1}-{i + len(chunk)} of {len(rows)}"]
         for r in chunk:
+            _dl = (f"{r['block']} › {r['label']}" if r.get("block")
+                   else r["label"])
             if r.get("pattern"):
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | the PRIOR actual cell "
+                    f"{r['cell']} '{_dl}' | the PRIOR actual cell "
                     f"holds the INPUT PATTERN {str(r['pattern'])[:44]} — a "
                     f"disclosed figure, possibly plus an analyst "
                     f"adjustment (constants: "
@@ -357,7 +505,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                       "uncertain.")
             elif r.get("embedded"):
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | FORMULA "
+                    f"{r['cell']} '{_dl}' | FORMULA "
                     f"{str(r['value'])[:48]} with EMBEDDED CONSTANT(S) "
                     + ", ".join(f"{c:,.2f}" for c in r["embedded"])
                     + " — each constant is LAST YEAR'S disclosed figure "
@@ -368,7 +516,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                       "structurally obsolete driver.")
             elif r["value"] is None:
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | BLANK last year — a NEW "
+                    f"{r['cell']} '{_dl}' | BLANK last year — a NEW "
                     f"line this year is completely normal and MUST be "
                     f"mapped or the statement will not balance. Read the "
                     f"evidence under this row: if ANY line shows a "
@@ -387,7 +535,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                 ruled = f"{sheet}!{r['row']}" in (
                     writer_log.get("rebased_ruled") or [])
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | prior (hardcode) "
+                    f"{r['cell']} '{_dl}' | prior (hardcode) "
                     f"{r['prior']:,.2f} | this year holds a FORECAST "
                     f"formula {str(r['value'])[:36]} — mark-to-actual "
                     f"REPLACES it with the disclosed actual (the prior "
@@ -399,7 +547,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                 ruled = f"{sheet}!{r['row']}" in (
                     writer_log.get("rebased_ruled") or [])
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | prior {r['prior']:,.2f} "
+                    f"{r['cell']} '{_dl}' | prior {r['prior']:,.2f} "
                     f"| currently STALE at {r['value']:,.2f}"
                     + (" | THE ANALYST HAS RULED this re-based block: the "
                        "prior year stays untouched and THIS year MUST be "
@@ -411,7 +559,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                        if ruled else ""))
             else:
                 lines.append(
-                    f"{r['cell']} '{r['label']}' | no prior | "
+                    f"{r['cell']} '{_dl}' | no prior | "
                     f"currently {r['value']:,.2f}")
             c = ip.get(f"{sheet}!{r['row']}")
             if c:
@@ -419,13 +567,16 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"    p{c['page']} [implied-prior] current "
                     f"{c['value']:,.2f} with {c['pct']:+.2f}% reproduces "
                     f"this row's prior — {c['cite'][:70]}")
-            for h in evidence_slice(ledger, r):
+            for h in evidence_slice(ledger, r, home=home_set):
                 lines.append(f"    {h}")
             for h in pm.get(r["cell"], []):
                 lines.append(f"    [{h}] — find this line's counterpart "
                              "in the CURRENT report")
             for h in cs.get(r["cell"], []):
                 lines.append(f"    [{h}]")
+        if home_block:
+            lines.append("")
+            lines.append(home_block)
         chunks.append("\n".join(lines))
     # TABLE ISLANDS (council wall-1 design): intact grids, selected
     # number-anchored on this packet's own priors. The agent reads the

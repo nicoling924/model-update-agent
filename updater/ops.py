@@ -321,6 +321,81 @@ def consensus_filter(gap, ledger, targets, log):
     return gap
 
 
+def home_serves(wb, spec_d, target_year, ledger, targets, served, log):
+    """HOME-SCOPED JOIN (SoC class, 2026-08-20): on the sheet's OWN
+    statement page (packets.home_pages — discovered by prior-column mass,
+    no captions, any language), a unique cent-exact two-number
+    [current, prior] line IS the row's print. Global-oracle ambiguity (a
+    prior like 80 ties junk lines all over a 300-page report) dissolves
+    under home locality. Served conf 3 (grade C, red) — the analyst still
+    reviews. Sign follows the model's own convention: the printed pair's
+    prior sign is mapped onto the model prior's sign."""
+    from .numerics import SCALES, to_model_units
+    from .packets import home_pages
+    from .stage2_join import _ofwhich_block
+    out = {}
+    # KEY rows are out of jurisdiction (DFE benchmark catch, 2026-08-20:
+    # a grade-C home serve mutated the printed net-profit key). Keys are
+    # pinned by the key gate and served by identity machinery only.
+    key_rows = {(k["sheet"], int(k["row"]))
+                for k in spec_d.get("key_rows") or []}
+    sheets = {t.sheet for t in targets
+              if t.key not in served
+              and isinstance(t.prior_value, (int, float))
+              and abs(t.prior_value) >= 1.0}
+    for sheet in sorted(sheets):
+        try:
+            homes = frozenset(
+                (d, p) for d, p, _n in home_pages(
+                    wb, spec_d, str(target_year), sheet, ledger,
+                    targets=targets))
+        except Exception:
+            homes = frozenset()
+        if not homes:
+            continue
+        _strip = getattr(ledger, "strip_note_ref", lambda x: x)
+        pool = [_strip(it) for it in ledger.items
+                if (it.doc, it.page) in homes]
+        for t in targets:
+            if (t.sheet != sheet or t.key in served or t.key in out
+                    or t.key in key_rows
+                    or getattr(t, "is_backout", False)
+                    or not isinstance(t.prior_value, (int, float))
+                    or abs(t.prior_value) < 1.0):
+                continue
+            pv = t.prior_value
+            tol = max(0.05, abs(pv) * 2e-5)
+            cands = []
+            for it in pool:
+                if len(it.nums) != 2 \
+                        or _ofwhich_block(t.label, it.label):
+                    continue
+                for s in SCALES:
+                    p_print = to_model_units(it.nums[1], s)
+                    if abs(abs(p_print) - abs(pv)) <= tol:
+                        cv = to_model_units(it.nums[0], s)
+                        sgn = 1 if (p_print >= 0) == (pv >= 0) else -1
+                        v = cv * sgn
+                        if not any(abs(v - v0) <= max(0.05,
+                                                      abs(v0) * 5e-3)
+                                   for v0, _i in cands):
+                            cands.append((v, it))
+                        break
+            if len(cands) == 1:
+                v, it = cands[0]
+                out[t.key] = {
+                    "value": round(v, 4), "status": "OK", "conf": 3,
+                    "page": it.page, "line": it.label[:60],
+                    "note": (f"home-statement join: the sheet's own "
+                             f"statement (p{it.page}) prints "
+                             f"'{it.source_line[:60]}' — unique pair "
+                             f"tying prior {pv:,.2f}")}
+    if out:
+        log(f"[ops] home-statement join: {len(out)} rows served from "
+            f"sheets' own statement pages (grade C, red)")
+    return out
+
+
 def note_anchored_serves(ledger, targets, served, log):
     """The SECOND-PRINTING law as code (the Fable pass, run-28 应收股利):
     a value printed in TWO independent places, each time on a line whose

@@ -105,6 +105,26 @@ ACCEPT BY RECONCILIATION, NOT BY CITATION (the analyst's habit):
   find this year's counterpart — or flag the driver as structurally
   obsolete if its category no longer exists.
 
+EVENT ROWS ROLL TO ZERO, NOT STALE: some input rows record an EVENT of
+the year, not a balance — a capacity retirement/addition, a disposal, a
+one-off rebate or levy. Read the row and its block (a "net additions" /
+"retired" / "special" heading gives it away, in any language). Last
+year's value was last year's event; leaving it stale asserts the event
+HAPPENED AGAIN, which is a positive error. If this year's disclosure
+shows no same-kind event (the capacity table is unchanged, the program
+ended, no disposal is reported), the honest value is 0 — write 0 and
+say in "why" what you checked. Only a printed same-kind event this year
+justifies a non-zero value.
+
+ACCOUNTS THAT FLIP SIDES: a balance that can be receivable OR payable
+(an over/under-recovery account, a clawback fund) prints on whichever
+side of the balance sheet its sign puts it — so last year's number may
+sit on a DIFFERENT row of the statement than this year's, and the
+prior-tie will fail. Map by the account's NAME and note number, take
+this year's printed balance from whichever side it now sits, and apply
+the MODEL's sign convention (read how the prior sign relates to the
+prior side). A side-flip is normal, not a restatement.
+
 SEGMENT PERSISTENCE (owner law): segment breakdowns are scattered
 across MULTIPLE tables in the report — the MD&A product tables, the
 segment note behind the statements, operating-data tables, the prior

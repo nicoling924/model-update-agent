@@ -179,6 +179,23 @@ class AgentLoop:
         return {(k["sheet"], int(k["row"]))
                 for k in self.spec.get("key_rows") or []}
 
+    def _home_page_set(self, sheet):
+        """The sheet's own statement pages (packets.home_pages), cached —
+        the home-statement seatbelt consults them on every write."""
+        cache = getattr(self, "_homes_cache", None)
+        if cache is None:
+            cache = self._homes_cache = {}
+        if sheet not in cache:
+            try:
+                from .packets import home_pages
+                cache[sheet] = frozenset(
+                    (d, p) for d, p, _n in home_pages(
+                        self.wb, self.spec, self.ty, sheet, self.ledger,
+                        targets=self.targets))
+            except Exception:
+                cache[sheet] = frozenset()
+        return cache[sheet]
+
     # -- bulk mechanics as tools (the agent decides when) --------------------
 
     def t_do_rollover(self, args):
@@ -990,8 +1007,8 @@ class AgentLoop:
                         f"{self.ty} column — swap constants in the "
                         "mark-to-actual column only")
             try:
-                old = float(swap.get("old"))
-                new = float(swap.get("new"))
+                old = float(str(swap.get("old")).replace(",", "").strip())
+                new = float(str(swap.get("new")).replace(",", "").strip())
             except (TypeError, ValueError):
                 return "MISS: swap_constant needs numeric old and new"
             toks = re.findall(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", held0)
@@ -1176,6 +1193,50 @@ class AgentLoop:
                             f"your {value:,.2f} contradicts it. Write the "
                             f"printed value, or flag your disagreement with "
                             f"the reason; never override an agreeing print.")
+        # HOME-STATEMENT SEATBELT (SoC class, 2026-08-20: the engine
+        # mapped a p237 narrative into SOC 'Misc' while p236 — the
+        # sheet's own statement — printed the row's [current, prior]
+        # pair). On the sheet's own statement page, a clean two-number
+        # line whose comparative ties this row's prior IS the row's
+        # print; a contradicting write is refused with the line quoted.
+        if t_row is not None \
+                and isinstance(t_row.prior_value, (int, float)) \
+                and abs(t_row.prior_value) >= 1.0:
+            pv_abs = abs(t_row.prior_value)
+            homes = self._home_page_set(sheet)
+            if homes:
+                # CENT-EXACT only (iteration-3 collateral: a 0.6 floor
+                # let prior 44.3 "tie" an unrelated 44 and refuse the
+                # correct write) — small priors print their decimals.
+                tol_h = max(0.05, pv_abs * 2e-5)
+                cands = []
+                _strip = getattr(self.ledger, "strip_note_ref",
+                                 lambda x: x)
+                for it0 in self.ledger.items:
+                    if (it0.doc, it0.page) not in homes:
+                        continue
+                    it = _strip(it0)
+                    if len(it.nums) != 2:
+                        continue
+                    for s in SCALES:
+                        if abs(abs(to_model_units(it.nums[1], s))
+                               - pv_abs) <= tol_h:
+                            cv = abs(to_model_units(it.nums[0], s))
+                            if not any(abs(cv - c0) <= max(0.6, c0 * 5e-3)
+                                       for c0, _i in cands):
+                                cands.append((cv, it))
+                            break
+                if len(cands) == 1:
+                    cv, it0 = cands[0]
+                    if abs(abs(value) - cv) > max(0.6, cv * 5e-3):
+                        return (f"REFUSED: this sheet's own statement page "
+                                f"(p{it0.page}) prints this row's pair — "
+                                f"'{it0.source_line[:70]}' — current "
+                                f"{cv:,.2f} against your {value:,.2f}. The "
+                                f"sheet's statement outranks any other "
+                                f"section's story. Write the statement's "
+                                f"value (model sign convention), or flag "
+                                f"your disagreement with the reason.")
         pcol = prior_column(self.spec, sheet, self.ty)
         # REBASED-BLOCK STATE (runs 29/31/32): rows held for the
         # analyst's re-basing ruling accept no writes, however phrased.
@@ -1199,6 +1260,30 @@ class AgentLoop:
                 v2 = self.wb[sheet][f"{col}{r2}"].value
                 if isinstance(v2, (int, float)) \
                         and abs(v2 - value) <= vtol0:
+                    # DESIGN-MIRROR exemption (SoC class, 2026-08-20:
+                    # ROAFNA holds 'Local peak demand' AND 'System
+                    # demand' as the same figure by design — the guard
+                    # blocked the second row and it went stale). Two
+                    # rows whose PRIORS are also identical are the
+                    # model's own mirror; the of-which twin (the class
+                    # this guard exists for) carries partition grammar
+                    # in its print. Mirror writes pass with a red flag.
+                    if pcol:
+                        p_t = self.wb[sheet][f"{pcol}{row}"].value
+                        p_2 = self.wb[sheet][f"{pcol}{r2}"].value
+                        of_which = re.search(
+                            r"其中|of which|thereof|includ", why, re.I)
+                        if isinstance(p_t, (int, float)) \
+                                and isinstance(p_2, (int, float)) \
+                                and abs(p_t - p_2) <= 0.01 \
+                                and not of_which:
+                            args["flag"] = True
+                            grade = "C"
+                            why = (f"{why} | design-mirror row: prior "
+                                   f"identical to {sheet}!{r2} — same "
+                                   f"print serves both by model design; "
+                                   f"confirm intended")[:290]
+                            break
                     return (f"REFUSED: {value:,.2f} already sits at "
                             f"{sheet}!{col}{r2} — one printed line lives in "
                             f"ONE model row; a second copy double-counts "
@@ -1206,6 +1291,30 @@ class AgentLoop:
                             f"was renamed into that sibling, the blank row "
                             f"is genuinely absent this year: leave it (or "
                             f"write 0 with a note), never a second copy.")
+        # ZERO-PRIOR DOUBLE-COUNT (SoC class, 2026-08-20: the provision
+        # line, already home-served into its own row, was written AGAIN —
+        # abs-value, 11 rows away — into a row whose prior is 0; the
+        # agent's own note admitted the printed comparative ties the
+        # OTHER row). A row with no prior of its own may not receive a
+        # value (either sign) that an already-served same-sheet row
+        # carries: the printed line's comparative names its owner.
+        if value != 0:
+            pv_own = (self.wb[sheet][f"{pcol}{row}"].value
+                      if pcol else None)
+            if not (isinstance(pv_own, (int, float)) and abs(pv_own) >= 1):
+                vtolz = max(0.01, abs(value) * 1e-6)
+                for (s_sh, s_rw), ent in self.served.items():
+                    ev = ent.get("value") if isinstance(ent, dict) else None
+                    if s_sh == sheet and (s_sh, s_rw) != (sheet, row) \
+                            and isinstance(ev, (int, float)) \
+                            and abs(abs(ev) - abs(value)) <= vtolz:
+                        return (f"REFUSED: |{value:,.2f}| already serves "
+                                f"{s_sh}!{s_rw} (prior-tied there) and "
+                                f"THIS row has no prior of its own — the "
+                                f"printed line's comparative names its "
+                                f"owner row. A no-prior row takes only a "
+                                f"line no sibling owns; otherwise leave "
+                                f"it (or 0) with a note.")
         # CROSS-SHEET TOTAL GUARD (CLP diff class 2: the GROUP's D&A
         # -9,718 was pasted into a region's D&A row). A value that
         # identity-equals an already-served value of a DIFFERENT row is

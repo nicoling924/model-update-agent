@@ -2422,3 +2422,321 @@ class IllegalCharacterLaw(unittest.TestCase):
         self.assertNotIn("\x0b", out)
         self.assertNotIn("\x00", out)
         self.assertIn("searched p23", out)
+
+
+class HomePageDiscovery(unittest.TestCase):
+    """SoC class (2026-08-20, CLP run 7): the SOC sheet's inputs stayed
+    stale because prior 80 tied junk lines across a 300-page report and
+    the 2-slot evidence cap filled in page order — while p236, printing
+    15 of the sheet's priors in one column, never reached the card. A
+    page that MASS-TIES the sheet's prior column IS the sheet's own
+    statement; its lines are discovered by number mass (no caption, any
+    language) and outrank single-value ties from anywhere."""
+
+    def _fixture(self):
+        from updater.ledger import Item
+        wb, ws = _wb()
+        for i, pv in enumerate((5571.0, 19713.0, 5800.0, 80.0, 5683.0),
+                               start=1):
+            ws[f"T{i}"] = pv
+            ws[f"U{i}"] = pv          # stale
+        spec = {"year_axis":
+                {"Model": {"columns": {"2024": "T", "2025": "U"}}}}
+        items = []
+        # junk: three early pages each print an 80 beside another number
+        for pg in (12, 40, 77):
+            items.append(Item("ar.pdf", pg, 0, 1, "Staff quarters note",
+                              [80.0, 33.0],
+                              source_line="Staff quarters note 80 33"))
+        # the home page: prints every prior beside this year's value
+        rows = [("SoC revenue", [49121.0, 50804.0]),
+                ("Operating costs", [6040.0, 5571.0]),
+                ("Fuel", [17674.0, 19713.0]),
+                ("Purchases of nuclear electricity", [5885.0, 5800.0]),
+                ("Provision for asset decommissioning", [90.0, 80.0]),
+                ("Depreciation", [5832.0, 5683.0])]
+        for k, (lab, ns) in enumerate(rows):
+            items.append(Item("ar.pdf", 236, 0, k, lab, ns,
+                              source_line=lab + " "
+                              + " ".join(f"{n:,.0f}" for n in ns)))
+
+        class _Ledger:
+            pass
+        led = _Ledger()
+        led.items = items
+        led.prior_period_docs = lambda: set()
+        return wb, spec, led
+
+    def test_mass_tie_discovers_the_home_page(self):
+        from updater.packets import home_pages
+        wb, spec, led = self._fixture()
+        homes = home_pages(wb, spec, "2025", "Model", led)
+        self.assertEqual([(d, p) for d, p, _n in homes],
+                         [("ar.pdf", 236)])
+        self.assertGreaterEqual(homes[0][2], 4)
+
+    def test_home_line_outranks_junk_ties(self):
+        from updater.packets import evidence_slice, home_pages
+        wb, spec, led = self._fixture()
+        homes = home_pages(wb, spec, "2025", "Model", led)
+        home_set = frozenset((d, p) for d, p, _n in homes)
+        hits = evidence_slice(led, {"label": "Misc", "prior": 80.0},
+                              home=home_set)
+        self.assertTrue(hits and "p236" in hits[0]
+                        and "own statement" in hits[0], hits)
+
+    def test_year_run_column_note(self):
+        from updater.ledger import Item
+        from updater.packets import home_transcript
+
+        class _Ledger:
+            pass
+        led = _Ledger()
+        led.items = [
+            Item("ar.pdf", 243, 0, 0, "Five-year Summary",
+                 [2025.0, 2024.0, 2023.0, 2022.0, 2021.0],
+                 source_line="2025 2024 2023 2022 2021"),
+            Item("ar.pdf", 243, 0, 1, "Average Basic Tariff",
+                 [98.0, 96.6, 93.7, 93.7, 93.7],
+                 source_line="Average Basic Tariff 98.0 96.6 93.7 93.7 93.7")]
+        led.prior_period_docs = lambda: set()
+        text = home_transcript(led, [("ar.pdf", 243, 6)], "2025")
+        self.assertIn("columns are YEARS", text)
+        self.assertIn("2025 2024 2023", text)
+        self.assertIn("Average Basic Tariff", text)
+
+
+class DesignMirrorExemption(unittest.TestCase):
+    """SoC class (2026-08-20): ROAFNA holds 'Local peak demand' AND
+    'System demand' as the same figure by design — the duplicate-print
+    guard blocked the second write and the row went stale. Two rows with
+    IDENTICAL priors are the model's own mirror (allowed, red-flagged);
+    the of-which twin the guard exists for is still refused."""
+
+    def _loop(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T5"], ws["T6"] = 7336.0, 7336.0     # identical priors: mirror
+        ws["U5"], ws["U6"] = 7455.0, 7336.0     # row 5 already updated
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        return AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_mirror_write_passes_with_red_flag(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U6", "value": 7455.0,
+                                "why": "p244: Local, MW 7,455 7,336"})
+        self.assertIn("WRITTEN", out)
+        self.assertEqual(ws["U6"].value, 7455.0)
+        self.assertIn("Model!U6", loop.writer.log["flags"])
+
+    def test_of_which_twin_still_refused(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U6", "value": 7455.0,
+                                "why": "p88: 其中：吸收投资 7,455"})
+        self.assertIn("REFUSED", out)
+        self.assertEqual(ws["U6"].value, 7336.0)
+
+
+class HomeStatementSeatbelt(unittest.TestCase):
+    """SoC class (2026-08-20): the engine mapped a p237 narrative (185)
+    into SOC 'Misc' while p236 — the sheet's own statement — printed the
+    row's [current, prior] pair (90, 80). The sheet's statement outranks
+    any other section's story: a unique contradicting home pair refuses
+    the write; the agreeing value passes."""
+
+    def _loop(self):
+        from updater.ledger import Item
+        from updater.loop import AgentLoop
+        from updater.targets import TargetRow
+        wb, ws = _wb()
+        for r, pv in ((1, 5571.0), (2, 19713.0), (3, 5800.0), (4, -80.0),
+                      (5, 5683.0)):
+            ws[f"T{r}"] = pv
+            ws[f"U{r}"] = pv
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        rows = [("Operating costs", [6040.0, 5571.0]),
+                ("Fuel", [17674.0, 19713.0]),
+                ("Purchases of nuclear electricity", [5885.0, 5800.0]),
+                ("Provision for asset decommissioning", [90.0, 80.0]),
+                ("Depreciation", [5832.0, 5683.0])]
+        items = [Item("ar.pdf", 236, 0, k, lab, ns,
+                      source_line=lab + " "
+                      + " ".join(f"{n:,.0f}" for n in ns))
+                 for k, (lab, ns) in enumerate(rows)]
+
+        class _Ledger:
+            pass
+        led = _Ledger()
+        led.items = items
+        led.faces = {}
+        led.prior_period_docs = lambda: set()
+        led.join_pool = lambda: []
+        targets = [TargetRow(sheet="Model", row=r, label=lab,
+                             prior_value=pv)
+                   for r, lab, pv in ((1, "Opex", 5571.0),
+                                      (2, "Fuel", 19713.0),
+                                      (3, "Nuclear", 5800.0),
+                                      (4, "Misc", -80.0),
+                                      (5, "D&A", 5683.0))]
+        return AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_contradicting_write_refused(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U4", "value": -185.0,
+                                "why": "p237: sale of properties"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("own statement", out)
+        self.assertEqual(ws["U4"].value, -80.0)
+
+    def test_agreeing_write_passes(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U4", "value": -90.0,
+                                "why": "p236: Provision 90 80"})
+        self.assertIn("WRITTEN", out)
+        self.assertEqual(ws["U4"].value, -90.0)
+
+
+class NoteRefNeverAValue(unittest.TestCase):
+    """SoC class (2026-08-20): the BS prints 'Fuel clause account 20
+    (1,043) –' — 20 is the NOTE reference, and the oracle offered it as
+    the row's \"agreeing print\". Closure's note-column law (>=30% of a
+    page's multi-number lines lead with a small integer) now strips the
+    lead at the join pool — the one choke point all join consumers
+    share."""
+
+    def _ledger(self):
+        from updater.ledger import Item, Ledger
+        led = Ledger()
+        for k, (lab, ns, sl) in enumerate((
+                ("Trade receivables", [18.0, 4521.0, 4210.0],
+                 "Trade receivables 18 4,521 4,210"),
+                ("Fuel clause account", [20.0, 370.0],
+                 "Fuel clause account 20 – 370"),
+                ("Bank balances", [21.0, 3905.0, 4976.0],
+                 "Bank balances 21 3,905 4,976"))):
+            led.add(Item("ar.pdf", 168, 0, k, lab, ns, source_line=sl))
+        return led
+
+    def test_note_page_detected_and_lead_stripped(self):
+        led = self._ledger()
+        self.assertIn(("ar.pdf", 168), led.note_pages())
+        it = next(i for i in led.items
+                  if i.label == "Fuel clause account")
+        stripped = led.strip_note_ref(it)
+        self.assertEqual(stripped.nums, [370.0])
+        self.assertEqual(it.nums, [20.0, 370.0])   # original untouched
+
+    def test_clean_page_untouched(self):
+        from updater.ledger import Item, Ledger
+        led = Ledger()
+        for k, ns in enumerate(([6040.0, 5571.0], [17674.0, 19713.0],
+                                [5885.0, 5800.0])):
+            led.add(Item("ar.pdf", 236, 0, k, f"Line {k}", ns,
+                         source_line="x"))
+        self.assertNotIn(("ar.pdf", 236), led.note_pages())
+        self.assertEqual(led.strip_note_ref(led.items[0]).nums,
+                         [6040.0, 5571.0])
+
+
+class HomeScopedJoin(unittest.TestCase):
+    """SoC class (2026-08-20): SOC 'Misc' (prior -80) stayed stale —
+    globally, 80 ties junk everywhere, so the oracle stood down. On the
+    sheet's OWN statement page the pair is unique and cent-exact: served
+    deterministically (grade C, red), sign mapped onto the model's own
+    convention."""
+
+    def _fixture(self):
+        from updater.ledger import Item, Ledger
+        from updater.targets import TargetRow
+        wb, ws = _wb()
+        for r, pv in ((1, 5571.0), (2, 19713.0), (3, 5800.0), (4, -80.0),
+                      (5, 5683.0), (6, -425.0)):
+            ws[f"T{r}"] = pv
+            ws[f"U{r}"] = pv
+        spec = {"year_axis":
+                {"Model": {"columns": {"2024": "T", "2025": "U"}}}}
+        led = Ledger()
+        rows = [("Operating costs", [6040.0, 5571.0]),
+                ("Fuel", [17674.0, 19713.0]),
+                ("Purchases of nuclear electricity", [5885.0, 5800.0]),
+                ("Provision for asset decommissioning", [90.0, 80.0]),
+                ("Depreciation", [5832.0, 5683.0]),
+                ("Transfer from TSF", [386.0, -425.0])]
+        for k, (lab, ns) in enumerate(rows):
+            led.add(Item("ar.pdf", 236, 0, k, lab, ns, source_line=lab))
+        targets = [TargetRow(sheet="Model", row=r, label=lab,
+                             prior_value=pv)
+                   for r, lab, pv in ((1, "Opex", 5571.0),
+                                      (2, "Fuel", 19713.0),
+                                      (3, "Nuclear", 5800.0),
+                                      (4, "Misc", -80.0),
+                                      (5, "D&A", 5683.0),
+                                      (6, "TSF transfer", -425.0))]
+        return wb, spec, led, targets
+
+    def test_sign_maps_to_model_convention(self):
+        from updater import ops
+        wb, spec, led, targets = self._fixture()
+        out = ops.home_serves(wb, spec, 2025, led, targets, {},
+                              lambda s: None)
+        self.assertEqual(out[("Model", 4)]["value"], -90.0)   # 80->-80
+        self.assertEqual(out[("Model", 6)]["value"], 386.0)   # (425) tie
+        self.assertEqual(out[("Model", 4)]["conf"], 3)        # red review
+
+
+class ZeroPriorDoubleCount(unittest.TestCase):
+    """SoC class (2026-08-20): the provision line, already served into
+    its own row (prior-tied), was written AGAIN — abs-value, 11 rows
+    away — into a zero-prior row. A no-prior row takes only a line no
+    sibling owns."""
+
+    def _loop(self, prior9):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T4"], ws["U4"] = -80.0, -90.0
+        ws["T9"], ws["U9"] = prior9, prior9
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        loop.served[("Model", 4)] = {"value": -90.0, "status": "OK",
+                                     "conf": 3, "page": 236, "line": "prov"}
+        return loop, ws
+
+    def test_zero_prior_refused(self):
+        loop, ws = self._loop(0.0)
+        out = loop.t_set_input({"cell": "Model!U9", "value": 90.0,
+                                "why": "p236: provision 90 80"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("no prior of its own", out)
+        self.assertEqual(ws["U9"].value, 0.0)
+
+    def test_real_prior_not_blocked(self):
+        loop, ws = self._loop(85.0)
+        out = loop.t_set_input({"cell": "Model!U9", "value": 90.0,
+                                "why": "p88: its own line 90 85"})
+        self.assertIn("WRITTEN", out)
