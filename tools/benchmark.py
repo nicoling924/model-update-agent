@@ -188,6 +188,18 @@ def main(company_dir, period, target_year):
     company_dir = Path(company_dir)
     fails = []
 
+    print("== LAYER 0: static sanity (undefined names crash live paths "
+          "the dry gate never executes — run 34) ==")
+    r0 = subprocess.run([sys.executable, "-m", "pyflakes", "updater",
+                         "tools"], capture_output=True, text=True)
+    undef = [ln for ln in r0.stdout.splitlines() if "undefined name" in ln]
+    for ln in undef[:6]:
+        print("  " + ln)
+    if undef:
+        fails.append(f"{len(undef)} undefined names (live-path crashes)")
+    else:
+        print("  clean")
+
     print("== LAYER 1: dry outcomes (key gate: balance + printed keys) ==")
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "key_gate.py"),
                         str(company_dir), period, str(target_year)],

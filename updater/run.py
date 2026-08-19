@@ -14,6 +14,7 @@ client=None = dry run: deterministic tools only (rollover, join, stale
 sweep, police deterministic layer), scripted directly as a TEST harness —
 the production control flow is the agent's own decisions.
 """
+import json
 import shutil
 from pathlib import Path
 
