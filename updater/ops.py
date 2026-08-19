@@ -961,23 +961,31 @@ def matrix_serves(wb, spec_d, target_year, ledger, targets, served, log,
                 for j, v in enumerate(vals):
                     if v is not None and abs(abs(v) - abs(pv)) <= tol:
                         hits.append((k, lab, vals, j))
-        if len(hits) != 1:
+        if not hits or len(hits) > 6:
             continue
-        k0, lab0, vals0, pos = hits[0]
-        best, bestn = None, 3
-        for k in grids:
-            if k == k0:
+        # AGREEMENT law (the join's own rule): a prior printed in several
+        # tables anchors several serves — accept when every resolvable
+        # anchor serves the SAME current value; disagreement serves
+        # nothing.
+        serves = []
+        for k0, lab0, vals0, pos in hits:
+            best, bestn = None, 3
+            for k in grids:
+                if k == k0:
+                    continue
+                n0 = len(labelsets[k] & labelsets[k0])
+                if n0 > bestn:
+                    best, bestn = k, n0
+            if best is None:
                 continue
-            n0 = len(labelsets[k] & labelsets[k0])
-            if n0 > bestn:
-                best, bestn = k, n0
-        if best is None:
+            cand = [vals for lab, vals in grids[best]
+                    if _norm(lab) == _norm(lab0) and len(vals) > pos]
+            if len(cand) != 1 or cand[0][pos] is None:
+                continue
+            serves.append((cand[0][pos], k0, lab0, pos, best))
+        if not serves or len({round(x[0], 2) for x in serves}) != 1:
             continue
-        cand = [vals for lab, vals in grids[best]
-                if _norm(lab) == _norm(lab0) and len(vals) > pos]
-        if len(cand) != 1 or cand[0][pos] is None:
-            continue
-        cur = cand[0][pos]
+        cur, k0, lab0, pos, best = serves[0]
         if (pv < 0) != (cur < 0) and cur != 0:
             cur = -cur
         out[t.key] = {
