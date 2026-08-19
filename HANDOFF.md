@@ -124,3 +124,31 @@ Preconditions for ANY dispatch (owner law, one-run-one-hour):
 The legacy stack is RETIRED: the workflow fails loudly (exit 64) for any
 action except `updater`, and the old chain only runs behind the explicit
 value `legacy-chain-i-am-sure`.
+
+## RESUME POINT — 2026-08-19 (owner took the machine; local work stopped cleanly)
+
+State: DFE bar MET (run 33: balance PASS all years, keys law PASS 27
+proven, 12/12 mistakes). CLP first flight flown (diagnostic: generic ✓,
+quality shallow). Owner's post-review rulings ALL IMPLEMENTED and
+committed (museum 111 green):
+- DFE rebased ruling live (updates/rebased_ruling.json): 2024 untouched,
+  structure kept, 2025 WRITTEN from new partition + mandatory red.
+- Subheader law (no numbers any year + nothing sums it = not work).
+- Pattern rows (prior cell's formula = the input logic; constants anchor
+  the last-year map; pattern_formula write with printed-constant law).
+- Flag discipline (red only when the filing demonstrably carries the
+  figure; else quietly stale + _REPORT line).
+
+TO RESUME (in order):
+1. `python3 tools/minirun.py companies/DFE FY25 2025 "Raw financials,Driver" companies/DFE/replay/FY25/mini_expect.json`
+   (expect: rebased rows now WRITTEN+red per ruling; caches warm, ~10 min)
+2. `python3 tools/minirun.py companies/CLP FY25 2025 "Final" companies/CLP/replay/FY25/mini_expect.json`
+   (expect: no subheader writes; Final!57 pattern resolved-or-flagged)
+3. CLP BALANCE AUDIT (owner's point 3, not yet done): why did the
+   residual/surgeon/bell machinery barely engage on CLP's 8 failing
+   checks? Inspect the CLP first-flight artifact (scratchpad/clp1) run
+   log for residual packets; suspect check-row discovery or the queue.
+4. Then: benchmarks (DFE + CLP) → dispatch DFE + CLP via
+   tools/dispatch.sh per the runbook (gates green first).
+Open owner ruling still pending: CLP cash +23 (bind with adjustment
+inference, or leave unbound).
