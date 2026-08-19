@@ -935,6 +935,14 @@ class AgentLoop:
                             f"is not printed in the current filing at any "
                             f"legal scale — the disclosed part of a "
                             f"pattern must BE disclosed.")
+            carried = [x for x in re.findall(
+                r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", pf)
+                if abs(float(x)) < 100 and float(x) in prior_consts]
+            if carried:
+                # a CARRIED analyst adjustment is exactly what the
+                # analyst reviews (law 2: replicate, flag) — red is
+                # mandatory, not a courtesy
+                args["flag"] = True
             before_fails = {c["name"] for c in self._card()["checks"]
                             if c["status"] == "FAIL"}
             pre_t = self._tie_state()
