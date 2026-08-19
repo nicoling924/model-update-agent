@@ -87,6 +87,8 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     na = ops.note_anchored_serves(ledger, targets, served, run_log.append)
     na.update(ops.new_line_serves(wb, spec_d, target_year, ledger, targets,
                                   served, run_log.append))
+    na.update(ops.matrix_serves(wb, spec_d, target_year, ledger,
+                                targets, served, run_log.append))
     served.update(na)
     ops.write_served(wb, spec_d, target_year, na, writer, priors, book,
                      run_log.append)

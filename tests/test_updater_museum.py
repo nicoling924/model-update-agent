@@ -2331,3 +2331,53 @@ class OnePrintedLineOneRowLaw(unittest.TestCase):
                                 "why": "p96: counterpart of this line"})
         self.assertIn("REFUSED", out)
         self.assertIn("ONE model row", out)
+
+
+class MatrixJoinLaw(unittest.TestCase):
+    """The CLP segment matrix: identity anchors the row, POSITION
+    carries the column meaning across sibling matrices. Ambiguity
+    serves nothing."""
+
+    def _world(self):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active; ws.title = "Aus"
+        ws["A5"], ws["AH5"] = "Revenue", 37097.0
+        ws["AI5"] = None
+        spec = {"year_axis": {"Aus": {"columns": {"2024": "AH",
+                                                  "2025": "AI"}}}}
+        cur = _mock_item("AR", 177, "Revenue",
+                         [51940.0, 1872.0, 34191.0, 0.0, 3.0, 12.0,
+                          88018.0])
+        pri = _mock_item("AR", 178, "Revenue",
+                         [48000.0, 1900.0, 37097.0, 0.0, 2.0, 10.0,
+                          86000.0])
+        for i, x in enumerate((cur, pri)):
+            x.table_id, x.row_ord, x.disputed = i, 0, False
+        for lab in ("EBITDAF", "Finance costs", "Income tax expense"):
+            a = _mock_item("AR", 177, lab, [1.0]*7)
+            b = _mock_item("AR", 178, lab, [2.0]*7)
+            a.table_id, a.row_ord, a.disputed = 0, 1, False
+            b.table_id, b.row_ord, b.disputed = 1, 1, False
+        led = _mock_ledger([cur, pri])
+        # give both tables shared labels for pairing
+        extra = []
+        for lab in ("EBITDAF", "Finance costs", "Income tax expense",
+                    "Profit for the year"):
+            a = _mock_item("AR", 177, lab, [1.0, 2.0, 3.0, 4.0, 5.0])
+            b = _mock_item("AR", 178, lab, [6.0, 7.0, 8.0, 9.0, 10.0])
+            a.table_id, a.row_ord, a.disputed = 0, 2, False
+            b.table_id, b.row_ord, b.disputed = 1, 2, False
+            extra += [a, b]
+        led.items.extend(extra)
+        t = _mock_target("Aus", 5, "Revenue", 37097.0)
+        return wb, spec, led, t
+
+    def test_position_carries_across(self):
+        from updater.ops import matrix_serves
+        wb, spec, led, t = self._world()
+        out = matrix_serves(wb, spec, 2025, led, [t], {},
+                            lambda *_: None)
+        self.assertIn(("Aus", 5), out)
+        self.assertAlmostEqual(out[("Aus", 5)]["value"], 34191.0,
+                               places=2)
