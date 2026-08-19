@@ -84,7 +84,10 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     priors = {t.key: t.prior_value for t in targets}
     ops.write_served(wb, spec_d, target_year, served, writer, priors, book,
                      run_log.append)
-    na = ops.note_anchored_serves(ledger, targets, served, run_log.append)
+    na = ops.home_serves(wb, spec_d, target_year, ledger, targets, served,
+                         run_log.append)
+    na.update(ops.note_anchored_serves(ledger, targets, served,
+                                       run_log.append))
     na.update(ops.new_line_serves(wb, spec_d, target_year, ledger, targets,
                                   served, run_log.append))
     na.update(ops.matrix_serves(wb, spec_d, target_year, ledger,
@@ -130,6 +133,8 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
         return 0
     exp = json.loads(Path(expect_path).read_text())
     from updater.checks import prior_column, year_columns
+    from updater.evaluator import Evaluator
+    _ev = Evaluator(wb)
     flags = set(writer.log["flags"])
     n_pass = 0
     print("\n== SCORE ==")
@@ -140,6 +145,11 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
         pcol = prior_column(spec_d, sheet, target_year)
         cell = f"{tcol}{row}"
         v = wb[sheet][cell].value
+        if isinstance(v, str) and v.startswith("="):
+            try:
+                v = _ev.cell(sheet, cell)     # formula rows score by value
+            except Exception:
+                pass
         pv = wb[sheet][f"{pcol}{row}"].value if pcol else None
         flagged = f"{sheet}!{tcol}{row}" in flags
         if want == "stale":

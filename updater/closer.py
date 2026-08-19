@@ -86,7 +86,8 @@ class PacketCloser:
     def run_compile(self, sheet):
         rows, chunks = packets.compile_card(
             self.tk.wb, self.tk.spec, self.tk.ty, sheet, self.tk.served,
-            self.tk.writer.log, self.tk.ledger, docs=self.tk.docs)
+            self.tk.writer.log, self.tk.ledger, docs=self.tk.docs,
+            targets=self.tk.targets)
         if not rows:
             report = f"compile:{sheet}: nothing open"
             self.reports.append(report)
@@ -227,6 +228,7 @@ class PacketCloser:
                     n_ok += 1
                 else:
                     round_rej.append(f"{w.get('cell')}: {str(r)[:140]}")
+                    self.log(f"[closer] rej {w.get('cell')}: {str(r)[:110]}")
             for nd in out.get("not_disclosed", []) or []:
                 r = self.tk.t_not_disclosed(
                     {"cell": str(nd.get("cell")),

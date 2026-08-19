@@ -663,8 +663,12 @@ def unique_evidence_value(ledger, targets, t):
     # 14-unit window on a 28k prior, wide enough for a wrong-scale junk
     # line to tie and "prove" 66,532 for a segment row; disclosures
     # reprint the comparative to the cent, so the oracle demands it —
-    # analyst-rounded priors simply stay outside oracle jurisdiction)
-    tol = max(0.6, abs(pv) * 2e-5)
+    # analyst-rounded priors simply stay outside oracle jurisdiction).
+    # Floor 0.05, not 0.6 (SoC class, 2026-08-20: a 0.6 floor let prior
+    # -20 "tie" an unrelated small-stat line and the oracle refused the
+    # correct write with a bogus 7.40 print) — small priors print their
+    # decimals too.
+    tol = max(0.05, abs(pv) * 2e-5)
     cands = []
     for it in _cache["pool"]:
         s = _cache["scales"].get((it.doc, it.page))
