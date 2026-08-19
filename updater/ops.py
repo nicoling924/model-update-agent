@@ -161,6 +161,65 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
             if tc and k["sheet"] in wb.sheetnames:
                 walk(k["sheet"], f"{tc}{int(k['row'])}")
 
+    # A PRESENTATION-LAYER segment block feeds FROM the key, not into it
+    # (DFE: Driver!J14 = Model!U4, so a walk down from revenue never
+    # reaches the block). Such a block announces itself: its TOTAL row
+    # references a key cell; its own formulas within the neighbourhood
+    # name the members.
+    prior_by_row = {t.key: t.prior_value for t in targets
+                    if isinstance(t.prior_value, (int, float))}
+    key_cells = set()
+    key_priors = set()
+    for k in spec_d.get("key_rows") or []:
+        if any(w in str(k.get("name", "")).lower()
+               for w in ("revenue", "sales", "gross")):
+            tc = _yc(spec_d, k["sheet"]).get(str(target_year))
+            if tc:
+                key_cells.add((k["sheet"].lower(), f"{tc}{int(k['row'])}"))
+            t0 = next((t for t in targets
+                       if t.key == (k["sheet"], int(k["row"]))), None)
+            kv = getattr(t0, "prior_value", None)
+            if isinstance(kv, (int, float)) and abs(kv) > 100:
+                key_priors.add(abs(kv))
+    for sh in (spec_d.get("year_axis") or {}):
+        tc = _yc(spec_d, sh).get(str(target_year))
+        if not tc or sh not in wb.sheetnames:
+            continue
+        ws = wb[sh]
+        for r in range(1, ws.max_row + 1):
+            v = ws[f"{tc}{r}"].value
+            if not (isinstance(v, str) and v.startswith("=")):
+                continue
+            refs = _re.findall(
+                r"(?:'([^']+)'|([A-Za-z0-9 _]+))!([A-Z]{1,3})(\d+)",
+                v.replace("$", ""))
+            ref_hit = any(((a or b).strip().lower(), f"{c}{d}")
+                          in key_cells for a, b, c, d in refs)
+            if not ref_hit:
+                # VALUE anchor (the fablemode principle — anchor by
+                # number, not by reference): a formula total whose
+                # PRIOR-year value ties a key's prior cent-exact IS the
+                # block total, whatever its formula shape. Priors come
+                # from the census (the workbook view holds formulas).
+                pv0 = prior_by_row.get((sh, r))
+                if not (isinstance(pv0, (int, float)) and any(
+                        abs(abs(pv0) - kp) <= max(0.6, kp * 2e-5)
+                        for kp in key_priors)):
+                    continue
+            # anchor found: harvest same-sheet member rows from formulas
+            # in the neighbourhood
+            for r2 in range(max(1, r - 12), r + 4):
+                v2 = ws[f"{tc}{r2}"].value
+                if isinstance(v2, str) and v2.startswith("="):
+                    for c3, r3 in _re.findall(r"(?<![A-Za-z0-9_!'])"
+                                              r"([A-Z]{1,3})(\d+)",
+                                              v2.replace("$", "")):
+                        if c3 == tc and abs(int(r3) - r) <= 14:
+                            leaves.append((sh, int(r3)))
+                elif isinstance(v2, (int, float)):
+                    if abs(r2 - r) <= 14:
+                        leaves.append((sh, r2))
+
     fails_by_sheet = {}
     for sh, row in leaves:
         pcol = prior_column(spec_d, sh, target_year)
@@ -183,8 +242,9 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 # prior year untouched, keep the structure, WRITE the
                 # current year from the new partition — mandatory red.
                 # Rows stay OPEN; derived mappings are analyst-sanctioned.
-                writer.log.setdefault("rebased_ruled", []).append(
-                    f"{sh}!{row}")
+                rr = writer.log.setdefault("rebased_ruled", [])
+                if f"{sh}!{row}" not in rr:
+                    rr.append(f"{sh}!{row}")
                 cell.comment = Comment(
                     "REBASED — ANALYST RULED: write the current year from "
                     "the filing's new partition (mapping judgment, red "
