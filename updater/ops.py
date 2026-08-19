@@ -381,14 +381,25 @@ def flag_stale(wb, spec_d, target_year, census, served, writer, book, log,
                  and not getattr(it, "disputed", False)
                  for n in it.nums] if ledger is not None else None)
 
+    gap_priors = ([it.nums[1] for it in ledger.items
+                   if getattr(it, "channel", "") == "closure-gap"
+                   and len(it.nums) == 2 and it.nums[1]]
+                  if ledger is not None else [])
+
     def _locatable(pv):
         if cur_nums is None:
             return True                    # no ledger: legacy behavior
         if not isinstance(pv, (int, float)) or abs(pv) < 1.0:
             return False
         tol = max(0.6, abs(pv) * 5e-4)
-        return any(abs(abs(_tmu(n, s)) - abs(pv)) <= tol
-                   for n in cur_nums for s in _S)
+        if any(abs(abs(_tmu(n, s)) - abs(pv)) <= tol
+               for n in cur_nums for s in _S):
+            return True
+        # a model-ADJUSTED row's prior is not printed, but its printed
+        # line's derived gap sits within the adjustment's world — the
+        # figure is in the filing (the 销售商品 carve-out signature)
+        return any(any(abs(abs(_tmu(g, s)) - abs(pv)) <= abs(pv) * 0.05
+                       for s in _S) for g in gap_priors)
 
     n_stale = n_quiet = 0
     for sheet, rows in census.items():
