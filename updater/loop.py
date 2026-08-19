@@ -1073,11 +1073,20 @@ class AgentLoop:
         if isinstance(held, str) and held.startswith("="):
             from .writer import resolve_input_site
             pcol0 = prior_column(self.spec, sheet, self.ty)
-            site = (resolve_input_site(self.wb, sheet, row, pcol0)
-                    if pcol0 else None)
-            if site is None or site == (sheet, row):
-                return (f"REFUSED: {ref} is a designed formula ({held[:40]}) — "
-                        "repair its COMPONENTS, never the total (trace_cell it)")
+            prior_c = (self.wb[sheet][f"{pcol0}{row}"].value
+                       if pcol0 else None)
+            if isinstance(prior_c, (int, float)):
+                # MARK-TO-ACTUAL RECIPE: the prior cell's TYPE wins — a
+                # hardcode prior means THIS cell is the input; the
+                # forecast formula is replaced by the actual
+                site = (sheet, row)
+            else:
+                site = (resolve_input_site(self.wb, sheet, row, pcol0)
+                        if pcol0 else None)
+                if site is None or site == (sheet, row):
+                    return (f"REFUSED: {ref} is a designed formula "
+                            f"({held[:40]}) — repair its COMPONENTS, "
+                            "never the total (trace_cell it)")
             s_sheet, s_row = site
             s_tcol = self._tcol(s_sheet)
             if not s_tcol:

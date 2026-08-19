@@ -80,6 +80,24 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
         if isinstance(v, str) and v.startswith("="):
             emb = [float(x) for x in EMBEDDED_RE.findall(v)
                    if abs(float(x)) >= EMBEDDED_MIN]
+            pv_c = ws[f"{pcol}{r}"].value if pcol else None
+            if not emb and isinstance(pv_c, (int, float)):
+                # MARK-TO-ACTUAL RECIPE (the prior cell's TYPE wins): a
+                # forecast formula sitting where the actual belongs, with
+                # a HARDCODE prior, is an INPUT — the actual replaces the
+                # formula. (DFE Driver!J7 = I7*(1+growth): invisible to
+                # every census until now.)
+                row = {"row": r, "cell": f"{sheet}!{tcol}{r}",
+                       "label": "", "value": v, "prior": pv_c,
+                       "overwrite": True}
+                lab_o = next((ws[f"{lc}{r}"].value
+                              for lc in ("A", "B", "C", "D")
+                              if isinstance(ws[f"{lc}{r}"].value, str)
+                              and ws[f"{lc}{r}"].value.strip()), "")
+                row["label"] = str(lab_o)[:48]
+                if (sheet, r) not in served                         and f"{sheet}!{tcol}{r}" not in written:
+                    out.append(row)
+                continue
             if not emb:
                 # THE PATTERN ROW (CLP + owner's DFE driver ruling): the
                 # PRIOR actual cell may hold the input pattern —
@@ -291,6 +309,18 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=()):
                     f"not_disclosed if the evidence is empty and the "
                     f"statement truly lacks the line — never silently "
                     f"skip a blank statement row.")
+            elif r.get("overwrite"):
+                ruled = f"{sheet}!{r['row']}" in (
+                    writer_log.get("rebased_ruled") or [])
+                lines.append(
+                    f"{r['cell']} '{r['label']}' | prior (hardcode) "
+                    f"{r['prior']:,.2f} | this year holds a FORECAST "
+                    f"formula {str(r['value'])[:36]} — mark-to-actual "
+                    f"REPLACES it with the disclosed actual (the prior "
+                    f"cell's TYPE is the pattern); write the value"
+                    + (" | THE ANALYST HAS RULED this re-based block: "
+                       "write THIS year from the new partition, sub-rows "
+                       "first, red flag kept." if ruled else ""))
             elif isinstance(r["prior"], (int, float)):
                 ruled = f"{sheet}!{r['row']}" in (
                     writer_log.get("rebased_ruled") or [])

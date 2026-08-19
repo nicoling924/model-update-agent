@@ -833,7 +833,12 @@ def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
     card.append("== THE MODEL BLOCK (its FORMULAS define each row's "
                 "scope: a row derived as parent minus siblings is a "
                 "COMPONENT; a parent excludes whatever sibling rows "
-                "outside it carry — map SCOPES, not just names) ==")
+                "outside it carry — map SCOPES, not just names. A row "
+                "whose PRIOR-year cell is a HARDCODE is an INPUT even if "
+                "this year's cell holds a forecast formula — mark-to-"
+                "actual replaces the formula, so MAP IT; a row that "
+                "derives from its mapped siblings needs no mapping of "
+                "its own) ==")
     shown = set()
     for ref in ruled:
         sh, r = ref.split("!")
