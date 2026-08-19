@@ -753,3 +753,122 @@ def sweep_compositions(wb, spec_d, target_year, census, writer, book, log):
     if n_comp:
         log(f"[ops] {n_comp} compositions backed out (orange)")
     return n_comp
+
+
+def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
+                  ruling, client, log):
+    """THE REBASE PACKET (owner-ruled blocks only): one focused call,
+    machine-certified. The counterpart partition table is identified BY
+    NUMBER (its total's current value ties the revenue key's oracle
+    print cent-exact); its CURRENT column is identified the same way.
+    The LLM maps model rows onto that table's rows by meaning; code
+    accepts a value only if it IS a cell of the identified current
+    column, or a parent equal to the sum of 2-4 such cells (sub-rows
+    first). Every write is red (the ruling's law). Wrong-column and
+    wrong-scale answers are impossible, not discouraged."""
+    if client is None or not (ruling and ruling.get("write_current")):
+        return 0
+    ruled = list(writer.log.get("rebased_ruled") or [])
+    if not ruled:
+        return 0
+    from .checks import year_columns as _yc
+    from .numerics import SCALES as _S, to_model_units as _tmu
+    from .stage2_join import unique_evidence_value
+    tl = list(targets)
+    tmap = {t.key: t for t in tl}
+    # the revenue key's CURRENT print, via the oracle
+    rev_cur = None
+    for k in spec_d.get("key_rows") or []:
+        if "revenue" in str(k.get("name", "")).lower() \
+                or "sales" in str(k.get("name", "")).lower():
+            t0 = tmap.get((k["sheet"], int(k["row"])))
+            got = unique_evidence_value(ledger, tl, t0) if t0 else None
+            if got is not None:
+                rev_cur = abs(got[0])
+                break
+    if rev_cur is None:
+        log("[rebase] no oracle print for revenue — packet skipped")
+        return 0
+    # the counterpart table + its current column, BY NUMBER
+    prior_docs = ledger.prior_period_docs()
+    tables = {}
+    for it in ledger.items:
+        if it.doc in prior_docs or getattr(it, "disputed", False) \
+                or it.table_id is None:
+            continue
+        tables.setdefault((it.doc, it.page, it.table_id), []).append(it)
+    home = col = None
+    for key, rows in tables.items():
+        for it in rows:
+            for j, n in enumerate(it.nums):
+                for s in _S:
+                    if abs(abs(_tmu(n, s)) - rev_cur) <= max(
+                            0.6, rev_cur * 2e-5):
+                        home, col, scale = key, j, s
+                        break
+                if home:
+                    break
+            if home:
+                break
+        if home:
+            break
+    if home is None:
+        log("[rebase] no partition table ties the revenue print — skipped")
+        return 0
+    rows = sorted(tables[home], key=lambda x: x.row_ord)
+    legal = {}
+    for it in rows:
+        if len(it.nums) > col:
+            legal[str(it.label)[:40]] = round(
+                _tmu(it.nums[col], scale), 4)
+    card = ["THE ANALYST RULED this re-based partition: prior year stays; "
+            "THIS year is written from the new partition. Map each MODEL "
+            "row to the new table's rows BY MEANING (any language). "
+            "sub-rows first; a parent may be the sum of its mapped subs. "
+            "Respond {\"mapping\": [{\"cell\": \"Sheet!row\", \"rows\": "
+            "[\"<table row label>\", ...]}]} — use 'rows': [] to leave a "
+            "model row stale.",
+            "== THE NEW PARTITION (current-year column, model units) =="]
+    card += [f"  {lab}: {v:,.2f}" for lab, v in legal.items()]
+    card.append("== THE MODEL BLOCK ==")
+    for ref in ruled:
+        sh, r = ref.split("!")
+        t0 = tmap.get((sh, int(r)))
+        card.append(f"  {sh}!{r} '{str(getattr(t0, 'label', ''))[:36]}' "
+                    f"prior {getattr(t0, 'prior_value', None)}")
+
+    def _val(o):
+        return [] if isinstance(o.get("mapping"), list) \
+            else ["'mapping' list required"]
+    try:
+        out = client.json("You map a model's segment rows onto a filing's "
+                          "re-based partition. Meaning maps; the machine "
+                          "verifies.", "\n".join(card), _val,
+                          repair_retries=1)
+    except Exception as e:
+        log(f"[rebase] packet failed: {e}")
+        return 0
+    n = 0
+    from openpyxl.comments import Comment
+    for m in out.get("mapping", []) or []:
+        ref = str(m.get("cell", ""))
+        names = [str(x) for x in (m.get("rows") or [])]
+        if ref not in ruled or not names or len(names) > 4:
+            continue
+        vals = [legal.get(x[:40]) for x in names]
+        if any(v is None for v in vals):
+            continue
+        value = round(sum(vals), 4)
+        sh, r = ref.split("!")
+        tc = _yc(spec_d, sh).get(str(target_year))
+        ok = writer.write(sh, f"{tc}{r}", value, flag="red",
+                          note=(f"REBASED (analyst-ruled): mapped from the "
+                                f"new partition rows {', '.join(names[:3])}"
+                                f" — verify the scope"))
+        if ok:
+            book.record(f"{sh}!{tc}{r}", "C", "rebase mapping",
+                        citation=f"partition p{home[1]}")
+            n += 1
+    log(f"[rebase] ruled block: {n} rows written from the certified "
+        f"current column (red)")
+    return n
