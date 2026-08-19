@@ -826,8 +826,11 @@ def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
             "row to the new table's rows BY MEANING (any language). "
             "sub-rows first; a parent may be the sum of its mapped subs. "
             "Respond {\"mapping\": [{\"cell\": \"Sheet!row\", \"rows\": "
-            "[\"<table row label>\", ...]}]} — use 'rows': [] to leave a "
-            "model row stale.",
+            "[\"<table row label>\", ...]}]} — every ruled row must "
+            "appear; 'rows': [] is only legal WITH a concrete "
+            "why_unmappable (the analyst has already ruled the block "
+            "writable — the safe-looking refusal is the wrong answer "
+            "here).",
             "== THE NEW PARTITION (current-year column, model units) =="]
     card += [f"  {lab}: {v:,.2f}" for lab, v in legal.items()]
     card.append("== THE MODEL BLOCK (its FORMULAS define each row's "
@@ -862,8 +865,21 @@ def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
                         f"{str(v2)[:44]!r}")
 
     def _val(o):
-        return [] if isinstance(o.get("mapping"), list) \
-            else ["'mapping' list required"]
+        if not isinstance(o.get("mapping"), list):
+            return ["'mapping' list required"]
+        covered = {str(m.get("cell")) for m in o["mapping"]
+                   if isinstance(m, dict)}
+        missing = [r for r in ruled if r not in covered]
+        if missing:
+            return [f"every ruled row must appear: missing {missing}"]
+        for m in o["mapping"]:
+            if not m.get("rows") and not str(m.get("why_unmappable",
+                                                   "")).strip():
+                return [f"{m.get('cell')}: the analyst RULED this block "
+                        "writable — map it, or state why_unmappable in "
+                        "one concrete sentence (silent refusal is not "
+                        "an answer)"]
+        return []
     try:
         out = client.json("You map a model's segment rows onto a filing's "
                           "re-based partition. Meaning maps; the machine "
