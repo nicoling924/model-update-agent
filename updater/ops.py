@@ -286,9 +286,20 @@ def consensus_filter(gap, ledger, targets, log):
     from .stage2_join import unique_evidence_value
     tmap = {t.key: t for t in targets}
     n = 0
+    n_noprior = 0
     for k in list(gap.keys()):
         t = tmap.get(k)
         if t is None:
+            continue
+        # NO-PRIOR STAGE-3 WRITES DIE HERE (CLP run 5: the "no
+        # comparative to checksum" acceptance wrote group figures into
+        # section headers). Stage-3's authority IS the checksum; a row
+        # with no prior belongs to new_line_serves (name-exact +
+        # closure-proven) or to nobody.
+        if not isinstance(t.prior_value, (int, float)) \
+                or abs(t.prior_value) < 0.01:
+            del gap[k]
+            n_noprior += 1
             continue
         got = unique_evidence_value(ledger, targets, t)
         if got is None:
@@ -303,9 +314,10 @@ def consensus_filter(gap, ledger, targets, log):
                                f"{dv:,.2f} ({got[1].doc} p{got[1].page}: "
                                f"'{got[1].source_line[:60]}')")}
             n += 1
-    if n:
+    if n or n_noprior:
         log(f"[ops] consensus filter: {n} stage-3 reads overridden by the "
-            f"pool's agreeing print")
+            f"pool's agreeing print; {n_noprior} no-prior reads dropped "
+            f"(no checksum, no write)")
     return gap
 
 
