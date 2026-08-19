@@ -2382,3 +2382,29 @@ class MatrixJoinLaw(unittest.TestCase):
         self.assertAlmostEqual(out[("Aus", 5)]["value"], 34191.0, places=2)
         self.assertAlmostEqual(out[("Aus", 25)]["value"], -404.0, places=2)
 
+
+
+class NoPriorNoChecksumLaw(unittest.TestCase):
+    """CLP run 5: stage-3's no-comparative acceptance wrote group figures
+    into section headers — a row with no prior has no checksum, and
+    stage-3's authority IS the checksum. Dropped at the filter."""
+
+    def test_no_prior_gap_dropped(self):
+        from updater.ops import consensus_filter
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        t = _mock_target("Final", 123, "Cash flow from investing (CFI)",
+                         None)
+        t.prior_value = None
+        gap = {("Final", 123): {"value": -14328.0, "conf": 3,
+                                "note": "stage-3 read (no prior)"}}
+        out = consensus_filter(gap, _Ledger(), [t], lambda *_: None)
+        self.assertEqual(out, {})
