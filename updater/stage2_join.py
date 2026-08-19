@@ -176,7 +176,14 @@ def ratify_page_scales(items, priors, log=None):
 def _tying_pairs(ns, pv, tol):
     """Signed slot-by-tie: [(served_value, index)] for adjacent pairs whose
     SECOND element ties ±pv. The sign of the tie propagates to the served
-    value (a row the face prints negated serves negated)."""
+    value (a row the face prints negated serves negated).
+
+    WIDE rows refuse (CLP: a segment MATRIX row's adjacent numbers are
+    different REGIONS of the same year — the [current, prior] adjacency
+    assumption dies at >=5 numbers; the 2D matrix join owns that shape).
+    """
+    if len(ns) >= 5:
+        return []
     out = []
     for i in range(len(ns) - 1):
         if abs(ns[i + 1] - pv) <= tol:
