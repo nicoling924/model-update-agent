@@ -1816,8 +1816,10 @@ class EmbeddedHardcodeLaw(unittest.TestCase):
         rows = open_rows(wb, self._spec(), "2025", "Model", {},
                          {"written": []})
         by_row = {r["row"]: r for r in rows}
-        self.assertIn(2, by_row)                      # new-line visible
-        self.assertIsNone(by_row[2]["value"])
+        # CLP run-4 law: a row blank in EVERY year is MACHINE-ONLY work
+        # (new_line_serves) — never offered to the agent, because SUM
+        # ranges span section headers
+        self.assertNotIn(2, by_row)
         self.assertNotIn(5, by_row)                   # subheader stays out
         self.assertNotIn(9, by_row)                   # spacer stays out
 
