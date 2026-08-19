@@ -1212,17 +1212,23 @@ class AgentLoop:
         # that row's figure, not this one's — a component never equals
         # the group line to the cent.
         if value != 0:
+            # scope: KEY rows only — models legitimately MIRROR figures
+            # across sheets (CLP's fuel transfer prints identically in
+            # two sheets by design); only the group's key totals may
+            # never land in a component row
             vtol2 = max(0.01, abs(value) * 1e-6)
-            for (s_sh, s_rw), ent in self.served.items():
-                ev0 = ent.get("value")
-                if (s_sh, s_rw) != (sheet, row) \
-                        and isinstance(ev0, (int, float)) \
+            for (s_sh, s_rw) in self._key_rows():
+                if (s_sh, s_rw) == (sheet, row):
+                    continue
+                ent = self.served.get((s_sh, s_rw))
+                ev0 = ent.get("value") if ent else None
+                if isinstance(ev0, (int, float)) \
                         and abs(ev0 - value) <= vtol2:
-                    return (f"REFUSED: {value:,.2f} is already the served "
-                            f"figure of {s_sh}!{s_rw} ('{ent.get('line', '')[:30]}') "
-                            f"— a component row never equals another row's "
-                            f"figure to the cent. Find THIS row's own "
-                            f"number (its region/scope column), or flag.")
+                    return (f"REFUSED: {value:,.2f} is the GROUP figure "
+                            f"already served at {s_sh}!{s_rw} — a "
+                            f"component row never equals the group line "
+                            f"to the cent. Find THIS row's own number "
+                            f"(its region/scope column), or flag.")
         # NEIGHBOUR BAND (confined test 4): a NEW line has no prior, so
         # the world band cannot judge it — but the column's neighbours
         # can. A value ~1000x the nearby rows' magnitude is a raw-units

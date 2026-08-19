@@ -258,9 +258,16 @@ class Item:
         """Structural admission for Stage 2: a disputed item, an item without
         table structure, or an item with fewer than two numbers (no
         current+prior pair to tie) is Stage-3 material, not join material."""
+        # a row printing 2+ dash/em-dash cells is a MATRIX row whose
+        # empty columns collapsed in flat text — its adjacent numbers are
+        # different regions, not [cur, prior]; the 2D join owns it (the
+        # CLP CN-associates class: 4 numbers, 3 dashes, wrong-year serve)
+        dashes = str(self.source_line or "").count("–") \
+            + str(self.source_line or "").count("—")
         return (not self.disputed
                 and self.table_id is not None and self.row_ord is not None
                 and len(self.nums) >= 2
+                and dashes < 2
                 and admissible_label(self.label))
 
 
