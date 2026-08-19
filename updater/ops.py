@@ -830,12 +830,31 @@ def rebase_serves(wb, spec_d, target_year, ledger, targets, writer, book,
             "model row stale.",
             "== THE NEW PARTITION (current-year column, model units) =="]
     card += [f"  {lab}: {v:,.2f}" for lab, v in legal.items()]
-    card.append("== THE MODEL BLOCK ==")
+    card.append("== THE MODEL BLOCK (its FORMULAS define each row's "
+                "scope: a row derived as parent minus siblings is a "
+                "COMPONENT; a parent excludes whatever sibling rows "
+                "outside it carry — map SCOPES, not just names) ==")
+    shown = set()
     for ref in ruled:
         sh, r = ref.split("!")
         t0 = tmap.get((sh, int(r)))
         card.append(f"  {sh}!{r} '{str(getattr(t0, 'label', ''))[:36]}' "
                     f"prior {getattr(t0, 'prior_value', None)}")
+        shown.add((sh, int(r)))
+    # neighbouring block rows (formulas included) give the structure
+    for ref in ruled[:1]:
+        sh, _r0 = ref.split("!")
+        tc0 = _yc(spec_d, sh).get(str(target_year))
+        rows_n = sorted({int(x.split("!")[1]) for x in ruled
+                         if x.startswith(sh + "!")})
+        lo0, hi0 = max(1, rows_n[0] - 2), rows_n[-1] + 3
+        card.append(f"  -- structure of {sh} rows {lo0}-{hi0} --")
+        for r2 in range(lo0, hi0 + 1):
+            v2 = wb[sh][f"{tc0}{r2}"].value
+            lab2 = next((wb[sh][f"{c}{r2}"].value for c in "AB"
+                         if isinstance(wb[sh][f"{c}{r2}"].value, str)), "")
+            card.append(f"    r{r2} '{str(lab2)[:30]}' holds "
+                        f"{str(v2)[:44]!r}")
 
     def _val(o):
         return [] if isinstance(o.get("mapping"), list) \
