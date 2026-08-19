@@ -1,3 +1,85 @@
+# Morning report — overnight 2026-08-20 (SoC sub-model session)
+
+## The one-line summary
+
+The Scheme-of-Control sub-model — the last structural CLP gap — is
+closed: the four SoC sheets went from 57 wrong cells (run 7) to a
+stable ~90-93% agreement with your hand-completed model in confined
+tests, the SoC core panel scores 6/6 deterministically, and **CLP run 8
+is in flight** on the new head (all gates green, fingerprint-verified
+dispatch). Fable-diff runs when it lands.
+
+## What the night found (and why it was generic, not SoC-specific)
+
+Run 7's ~57 SoC diffs collapsed to **8 stale input cells** — everything
+else was formula fallout. The 8 stales shared four *generic* root causes:
+
+1. **Evidence ranking was first-come, not statement-anchored.** A prior
+   like 80 ties dozens of junk lines in a 300-page report; the 2-slot
+   evidence cap filled in page order and the real line (p236, the SoC
+   statement) never reached the agent. → **Home-page discovery**: pages
+   that mass-print a sheet's prior column ARE that sheet's own statement
+   (found by number mass — no captions, no language, works for any
+   company's supplementary schedules and five-year tables). The card now
+   carries the sheet's own statement as a transcript; evidence from home
+   pages outranks everything; a unique cent-exact [current, prior] pair
+   on a home page serves deterministically (red).
+2. **Note references offered as values.** "Fuel clause account 20
+   (1,043)" — the oracle called 20 the row's "agreeing print". Closure's
+   note-column law now strips note-ref leads at the join pool, one choke
+   point for every consumer.
+3. **Model design the guards didn't know.** Design-mirror rows (two rows
+   holding the same figure by design — local peak / system demand) are
+   now exempt from the duplicate-print guard when priors are identical;
+   conversely a zero-prior row may no longer take an abs-value a sibling
+   already owns (the provision 90 was being double-counted 11 rows away).
+4. **Event rows** (capacity retirements, one-off rebates) now taught:
+   stale is an assertion the event repeated; no same-kind event this
+   year = write 0 with a note. (Your CAPCO −1,050 retirement no longer
+   haunts 2025.)
+
+Plus two referee-precision fixes both companies inherit: the oracle's
+identity floor tightened 0.6 → 0.05 (cent-exact; it was manufacturing
+false "agreeing prints" against small priors) and the home-statement
+seatbelt (a write contradicting the sheet's own statement is refused
+with the line quoted).
+
+## Confined-test scoreboard (6 iterations, zero cloud runs burned)
+
+| Iteration | SoC core panel | Note |
+|---|---|---|
+| run-7 baseline | 0/6 | all 8 inputs stale |
+| 2 (home pages + blocks) | 3/6 | tariffs + event-row landed |
+| 4 (note-strip + home join + mirror) | **6/6** | fuel-clause −1,043, SOC −90, mirror 7,455 |
+| 5-6 (zero-prior guard, swap coercion) | 6-7/10 extended panel | SOC sheet perfect (0 diffs) |
+
+Remaining knowingly-open (honest red flags, all listed in _REPORT):
+- HK Sales tariff cells (98.0 / 46.3): the model's year-end priors print
+  NOWHERE in the FY25 docs (the five-year table prints *averages* with
+  different priors) — irreducibly the counterpart-law judgment; Luna
+  writes-with-red or flags-stale run to run. Both honest.
+- ROAFNA "Other assets" (both pattern constants moved) and the fuel-mix
+  allocation splits — analyst-judgment territory, red-flagged.
+- DFE benchmark caught home_serves touching a printed key (net profit)
+  before dispatch — keys are now out of grade-C jurisdiction entirely.
+  Both companies' full benchmarks green after the fix.
+
+## Open questions for you (unchanged from last night, plus none new)
+
+1. DFE Driver J6 scope (58,005 new-category total vs 35,779 sub-row sum).
+2. The rollover design-formula question (HK Sales!7 '=AH7' carry is the
+   same class: should the actual column inherit the prior ACTUAL column's
+   formula pattern instead of the forecast's carry?).
+3. CLP ±1,765 CFO/CFF interest reclassification binding.
+
+## In flight now
+
+CLP run 8 (dispatched via tools/dispatch.sh, head 19144f9, museum 125 +
+both benchmarks green). On arrival: fingerprint check → Fable-diff →
+delivered workbook + updated scoreboard here.
+
+---
+
 # Morning report — overnight 2026-08-19 → 20 (extraction-first campaign)
 
 ## Where things stand (as of run 32, in flight)
