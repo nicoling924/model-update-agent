@@ -180,3 +180,64 @@ def relevant(doc_islands, open_priors, cap=MAX_ISLANDS_PER_PACKET):
             scored.append((score, page, text[:MAX_ISLAND_CHARS]))
     scored.sort(key=lambda x: -x[0])
     return [(page, text) for _s, page, text in scored[:cap]]
+
+
+def matrix_grids(pdf_path, page_numbers):
+    """Position-true grids for matrix pages (regions across columns):
+    pdfplumber text-strategy keeps empty cells, so column positions are
+    REAL. -> {page: [(label, [value_or_None, ...])]}"""
+    import pdfplumber
+    out = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for pno in page_numbers:
+            if pno < 1 or pno > len(pdf.pages):
+                continue
+            try:
+                tb = pdf.pages[pno - 1].extract_table(
+                    {"vertical_strategy": "text",
+                     "horizontal_strategy": "text"})
+            except Exception:
+                continue
+            if not tb:
+                continue
+            rows = []
+            for raw in tb:
+                cells = [c if c is not None else "" for c in raw]
+                label_parts, vals = [], []
+                started = False
+                for c in cells:
+                    t = str(c).strip()
+                    num = _num_or_none(t)
+                    if num is not None or t in ("–", "-", "—", ""):
+                        if t in ("–", "-", "—") or (t == "" and started):
+                            vals.append(None)
+                            started = True
+                        elif num is not None:
+                            vals.append(num)
+                            started = True
+                        elif not started:
+                            continue
+                    else:
+                        if started:
+                            vals.append(None)   # stray text mid-row
+                        else:
+                            label_parts.append(t)
+                label = " ".join(x for x in label_parts if x).strip()
+                nums_present = [v for v in vals if v is not None]
+                if label and len(vals) >= 4 and nums_present:
+                    rows.append((label, vals))
+            if rows:
+                out[pno] = rows
+    return out
+
+
+def _num_or_none(t):
+    t = t.replace(",", "").strip()
+    neg = t.startswith("(") and t.endswith(")")
+    if neg:
+        t = t[1:-1]
+    try:
+        v = float(t)
+        return -v if neg else v
+    except ValueError:
+        return None
