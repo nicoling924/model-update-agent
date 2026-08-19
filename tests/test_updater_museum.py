@@ -2408,3 +2408,17 @@ class NoPriorNoChecksumLaw(unittest.TestCase):
                                 "note": "stage-3 read (no prior)"}}
         out = consensus_filter(gap, _Ledger(), [t], lambda *_: None)
         self.assertEqual(out, {})
+
+
+class IllegalCharacterLaw(unittest.TestCase):
+    """CLP run 6 died at the finish line: PDF-extracted text carries
+    control characters openpyxl refuses — every cell-text writer
+    sanitizes."""
+
+    def test_report_survives_control_chars(self):
+        from updater.report import _clean
+        dirty = "searched p23\x0bp26; notes\x00 and MD&A"
+        out = _clean(dirty)
+        self.assertNotIn("\x0b", out)
+        self.assertNotIn("\x00", out)
+        self.assertIn("searched p23", out)
