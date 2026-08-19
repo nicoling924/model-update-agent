@@ -133,9 +133,14 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
             has_any_year = any(
                 isinstance(ws[f"{yc}{r}"].value, (int, float))
                 for yc in year_cols)
-            in_sum = r in _sum_covered(ws, tcol)
+            # CLP run-4 lesson: SUM ranges SPAN header rows, so in-SUM
+            # alone admits section headers — the agent wrote group
+            # figures into them. A blank row with NO number in ANY year
+            # is NEVER agent work: only the machine may fill it
+            # (new_line_serves: name-exact + closure-proven). The agent
+            # sees blank rows only when some year holds a number.
             if not (lab0 and pv0 is None and lo <= r <= hi and near
-                    and (has_any_year or in_sum)):
+                    and has_any_year):
                 continue
         elif not isinstance(v, (int, float)):
             continue
