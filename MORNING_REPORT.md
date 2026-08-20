@@ -72,11 +72,15 @@ Remaining knowingly-open (honest red flags, all listed in _REPORT):
    formula pattern instead of the forecast's carry?).
 3. CLP ±1,765 CFO/CFF interest reclassification binding.
 
-## In flight now
+## Run 8 result (landed 2026-08-20 morning)
 
-CLP run 8 (dispatched via tools/dispatch.sh, head 19144f9, museum 125 +
-both benchmarks green). On arrival: fingerprint check → Fable-diff →
-delivered workbook + updated scoreboard here.
+**82% whole-book agreement with the hand version (1073/1305) — campaign
+best, up from 75%.** SOC sheet perfect 49/49; HK Sales 70/71 (the tariff
+judgment cells landed as red-flagged writes); fuel clause −1,043 correct.
+Remaining weak sheets: Aus/SEA/India (65-67% — allocation-split judgment
+rows) and Driver (68%). Run id 32313308199, fingerprint verified. A
+duplicate dispatch (retry after a sandbox keychain failure masked the
+first dispatcher's output) was caught and cancelled before it scored.
 
 ---
 
