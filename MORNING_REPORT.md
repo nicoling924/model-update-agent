@@ -192,3 +192,19 @@ Laws built, all generic, museum-pinned:
 
 CLP run 2 in flight with all of it. DFE closed at run 36 (delivered);
 owner review pending on J6 scope + the rollover-design-formula question.
+
+## Evening addendum (2026-08-20, balance campaign close-out)
+
+State at head 57d2b7b4 — everything machinery-side is done and proven:
+- **Truth-tie council ruling implemented + confined-proven 2/2**: ties on
+  incomplete columns are coincidences and yield; complete-cone ties still
+  revert. The U207/U214 revert class (cost DFE its ICF key twice) is
+  closed — both cells land exactly in the confined test.
+- **Plug law**: identity-proven (grade-A/locked) cells are never plug
+  sites (the −23 shaved off a proven cell in run 39 is impossible now).
+- CLP balance is two ANALYST RULINGS away (see push notification):
+  (1) perpetual capital securities 3,872 — into the MI row (hand-version
+  style, making 9,815) or a new row; (2) fuel clause r87 −1,043
+  double-count — confirm zeroing. One paired dispatch after the rulings
+  should deliver 3_balance PASS on CLP and restore DFE to run-36 grade.
+- Museum: 137 exhibits. Runs spent today: CLP 8-11, DFE 37-39.
