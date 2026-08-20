@@ -2879,3 +2879,58 @@ class StaleInCostume(unittest.TestCase):
         out = loop.t_diagnose_balance({"check": "Model!9"})
         self.assertIn("GUILTY-PATTERN", out)
         self.assertIn("=3905+23", out)
+
+
+class LabeledLineOverride(unittest.TestCase):
+    """CLP run 9 last mile: the home seatbelt's number-pair [5,943|6,063]
+    (the perpetual-securities line) vetoed writing the correctly-LABELED
+    'Non-controlling interests 9,815' into the MI row. A number-only
+    pair never out-ranks a labeled home line printing the written value:
+    the definitional conflict goes to the analyst as a red flag."""
+
+    def _loop(self):
+        from updater.ledger import Item, Ledger
+        from updater.loop import AgentLoop
+        from updater.targets import TargetRow
+        wb, ws = _wb()
+        for r, pv in ((1, 5571.0), (2, 19713.0), (3, 5800.0),
+                      (4, 6063.0), (5, 5683.0)):
+            ws[f"T{r}"] = pv
+            ws[f"U{r}"] = pv
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        led = Ledger()
+        rows = [("Operating costs", [6040.0, 5571.0]),
+                ("Fuel", [17674.0, 19713.0]),
+                ("Purchases of nuclear electricity", [5885.0, 5800.0]),
+                ("Perpetual capital securities", [5943.0, 6063.0]),
+                ("Non-controlling interests", [9815.0, 9363.0]),
+                ("Depreciation", [5832.0, 5683.0])]
+        for k, (lab, ns) in enumerate(rows):
+            led.add(Item("ar.pdf", 168, 0, k, lab, ns,
+                         source_line=lab + " "
+                         + " ".join(f"{n:,.0f}" for n in ns)))
+        targets = [TargetRow(sheet="Model", row=r, label=lab,
+                             prior_value=pv)
+                   for r, lab, pv in ((1, "Opex", 5571.0),
+                                      (2, "Fuel", 19713.0),
+                                      (3, "Nuclear", 5800.0),
+                                      (4, "Minority Interests", 6063.0),
+                                      (5, "D&A", 5683.0))]
+        return AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None), ws
+
+    def test_labeled_line_beats_number_pair_with_flag(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U4", "value": 9815.0,
+                                "why": "p168: Non-controlling interests"})
+        self.assertIn("WRITTEN", out)
+        self.assertEqual(ws["U4"].value, 9815.0)
+        self.assertIn("Model!U4", loop.writer.log["flags"])
+
+    def test_unlabeled_contradiction_still_refused(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U4", "value": 7777.0,
+                                "why": "p239: some other tale"})
+        self.assertIn("REFUSED", out)
+        self.assertEqual(ws["U4"].value, 6063.0)

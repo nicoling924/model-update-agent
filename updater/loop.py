@@ -1439,14 +1439,52 @@ class AgentLoop:
                 if len(cands) == 1:
                     cv, it0 = cands[0]
                     if abs(abs(value) - cv) > max(0.6, cv * 5e-3):
-                        return (f"REFUSED: this sheet's own statement page "
-                                f"(p{it0.page}) prints this row's pair — "
-                                f"'{it0.source_line[:70]}' — current "
-                                f"{cv:,.2f} against your {value:,.2f}. The "
-                                f"sheet's statement outranks any other "
-                                f"section's story. Write the statement's "
-                                f"value (model sign convention), or flag "
-                                f"your disagreement with the reason.")
+                        # LABELED-LINE OVERRIDE (CLP run 9: the pair
+                        # [5,943|6,063] was the PERPETUAL SECURITIES
+                        # line — number-only evidence — and it vetoed
+                        # writing the correctly-LABELED 'Non-controlling
+                        # interests 9,815' into the MI row). A home line
+                        # whose label kinships the row and prints the
+                        # written value is the analyst's counterpart:
+                        # the definitional conflict goes to the analyst
+                        # as a red flag, never as a refusal.
+                        from .numerics import kinship as _kin
+                        labeled = None
+                        for it2r in self.ledger.items:
+                            if (it2r.doc, it2r.page) not in homes:
+                                continue
+                            it2 = _strip(it2r)
+                            if len(it2.nums) < 2 \
+                                    or not _kin(t_row.label, it2.label):
+                                continue
+                            if any(abs(abs(to_model_units(it2.nums[0], s))
+                                       - abs(value))
+                                   <= max(0.6, abs(value) * 5e-3)
+                                   for s in SCALES):
+                                labeled = it2
+                                break
+                        if labeled is not None:
+                            args["flag"] = True
+                            grade = "C"
+                            why = (f"{why} | DEFINITIONAL CONFLICT on the "
+                                   f"sheet's statement: the number-pair "
+                                   f"line '{it0.source_line[:40]}' "
+                                   f"continues the prior at {cv:,.2f}, "
+                                   f"but the LABELED line "
+                                   f"'{labeled.label[:36]}' prints "
+                                   f"{value:,.2f} — analyst to confirm "
+                                   f"the row's definition")[:290]
+                        else:
+                            return (
+                                f"REFUSED: this sheet's own statement "
+                                f"page (p{it0.page}) prints this row's "
+                                f"pair — '{it0.source_line[:70]}' — "
+                                f"current {cv:,.2f} against your "
+                                f"{value:,.2f}. The sheet's statement "
+                                f"outranks any other section's story. "
+                                f"Write the statement's value (model "
+                                f"sign convention), or flag your "
+                                f"disagreement with the reason.")
         pcol = prior_column(self.spec, sheet, self.ty)
         # REBASED-BLOCK STATE (runs 29/31/32): rows held for the
         # analyst's re-basing ruling accept no writes, however phrased.
