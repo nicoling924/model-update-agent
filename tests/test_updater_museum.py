@@ -3002,3 +3002,58 @@ class ProvenCellNeverPlugged(unittest.TestCase):
         self.assertIn("REFUSED", out)
         self.assertIn("identity-proven", out)
         self.assertEqual(ws["U5"].value, 1016.53)
+
+
+class CoincidentalTieYields(unittest.TestCase):
+    """Council ruling (truth-tie session, 2026-08-20): a summary row
+    that 'print-ties' while its dependency cone holds unwritten, stale,
+    or placeholder members is an arithmetic coincidence, not truth — it
+    yields to the incoming write. A complete-cone tie still reverts
+    (the FX-into-RE catch survives)."""
+
+    def _loop(self, u1, u2, written):
+        from updater.ledger import Item, Ledger
+        from updater.loop import AgentLoop
+        from updater.targets import TargetRow
+        wb, ws = _wb()
+        ws["T1"], ws["T2"], ws["T3"] = 8000.0, 2000.0, 5000.0
+        ws["U1"], ws["U2"], ws["U3"] = u1, u2, 5100.0
+        ws["T9"], ws["U9"] = "=T1+T2", "=U1+U2"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [], "key_rows": []}
+        led = Ledger()
+        for k, (lab, ns) in enumerate((("Alpha line", [9500.0, 8000.0]),
+                                       ("Gamma line", [5100.0, 5000.0]),
+                                       ("Summary line", [10000.0, 10000.0]))):
+            led.add(Item("ar.pdf", 99, 0, k, lab, ns, stmt_face="cf",
+                         source_line=lab))
+        led.faces = {("ar.pdf", 99): "cf"}
+        targets = [TargetRow(sheet="Model", row=1, label="Alpha",
+                             prior_value=8000.0),
+                   TargetRow(sheet="Model", row=3, label="Gamma",
+                             prior_value=5000.0),
+                   TargetRow(sheet="Model", row=9, label="Summary",
+                             prior_value=10000.0),
+                   TargetRow(sheet="Model", row=2, label="Other paid",
+                             prior_value=2000.0)]
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        loop.writer.log["written"] += written
+        # sanity: the summary tie must exist pre-write for the exhibit
+        assert loop._tie_state().get(("Model", 9)) is True
+        return loop, ws
+
+    def test_incomplete_cone_tie_yields(self):
+        # U2 is a placeholder: the summary "ties" 10,000 coincidentally
+        loop, ws = self._loop(9999.99, 0.01, ["Model!U1"])
+        out = loop.t_set_input({"cell": "Model!U2", "value": 153.5,
+                                "why": "p101: printed 153.5 for this row"})
+        self.assertIn("WRITTEN", out, out)
+        self.assertEqual(ws["U2"].value, 153.5)
+
+    def test_complete_cone_tie_still_reverts(self):
+        loop, ws = self._loop(6000.0, 4000.0, ["Model!U1", "Model!U2"])
+        out = loop.t_set_input({"cell": "Model!U2", "value": 153.5,
+                                "why": "p101: a printed FX figure"})
+        self.assertIn("REVERTED", out, out)
+        self.assertEqual(ws["U2"].value, 4000.0)
