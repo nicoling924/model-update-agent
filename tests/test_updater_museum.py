@@ -2934,3 +2934,34 @@ class LabeledLineOverride(unittest.TestCase):
                                 "why": "p239: some other tale"})
         self.assertIn("REFUSED", out)
         self.assertEqual(ws["U4"].value, 6063.0)
+
+
+class ParentPageNeverHome(unittest.TestCase):
+    """DFE run 37 (2026-08-20): the parent-company statement pages
+    mass-tie the group's priors (near-identical magnitudes) and the home
+    machinery — which bypassed entity quarantine — served PARENT figures
+    into GROUP rows, shifting values across rows (J132/J137) and costing
+    a printed key. A quarantine-evicted page can never be a home page."""
+
+    def test_parent_page_excluded(self):
+        from updater.ledger import Item, Ledger
+        from updater.packets import home_pages
+        wb, ws = _wb()
+        for i, pv in enumerate((5571.0, 19713.0, 5800.0, 80.0, 5683.0),
+                               start=1):
+            ws[f"T{i}"] = pv
+            ws[f"U{i}"] = pv
+        spec = {"year_axis":
+                {"Model": {"columns": {"2024": "T", "2025": "U"}}}}
+        led = Ledger()
+        rows = [("Operating costs", [6040.0, 5571.0]),
+                ("Fuel", [17674.0, 19713.0]),
+                ("Purchases", [5885.0, 5800.0]),
+                ("Provision", [90.0, 80.0]),
+                ("Depreciation", [5832.0, 5683.0])]
+        for k, (lab, ns) in enumerate(rows):
+            led.add(Item("ar.pdf", 209, 0, k, lab, ns, source_line=lab))
+        led.parent_pages = {("ar.pdf", 209)}
+        self.assertEqual(home_pages(wb, spec, "2025", "Model", led), [])
+        led.parent_pages = set()
+        self.assertTrue(home_pages(wb, spec, "2025", "Model", led))
