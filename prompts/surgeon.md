@@ -31,6 +31,18 @@ each named leaf has a disposition, not when more has been read:
   flagged orange for the analyst automatically.
 
 HOW A CLOSE ENDS: the analyst's own method is "back out the numbers and
+THE RECONCILIATION LAW (an imbalance is the SUM of line errors): a
+balance check does not fail by magic — it fails by exactly the sum of
+the errors in its component rows. The diagnosis names GUILTY rows
+(contradicting their own print) and CANDIDATE rows (the sheet's own
+statement names the row but the comparative moved — counterpart law:
+write WITH a red flag). Re-map every named row to its statement's value
+FIRST — their deltas sum to the residual, so the check closes by
+arithmetic, not by hope. When the sheet's own statement page is shown
+below, map from it like an analyst reading the schedule top to bottom.
+Plugging while named errors remain is forbidden — a plug on top of a
+mis-mapped row buries two errors where there was one.
+
 mark them" — when you have decided every provable leaf and a real
 residual remains, the honest ending is a flagged PLUG on a non-key line,
 because the analyst reviews a named orange cell in seconds but a broken

@@ -320,6 +320,10 @@ def home_pages(wb, spec, ty, sheet, ledger, min_hits=4, cap=3,
     scored = sorted(((len(js), doc, page)
                      for (doc, page), js in tied.items()
                      if len(js) >= min_hits), key=lambda x: -x[0])
+    # a multi-statement sheet (P&L+BS+CF in one) masses priors across
+    # more pages than a single schedule — the cap scales with the mass
+    # (CLP run 8: Final's cap of 3 dropped the BS first page itself)
+    cap = max(cap, min(6, 2 + len(uniq) // 40))
     return [(doc, page, n) for n, doc, page in scored[:cap]]
 
 

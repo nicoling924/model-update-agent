@@ -156,7 +156,7 @@ class AgentLoop:
                     if not isinstance(v, str) or not v.startswith("="):
                         return
                     for sh2, sh3, c2, r2 in _re.findall(
-                            r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?"
+                            r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?"
                             r"([A-Z]{1,3})(\d+)", v.replace("$", "")):
                         s2 = (sh2 or sh3 or sh).strip()
                         if s2 in self.wb.sheetnames:
@@ -288,7 +288,7 @@ class AgentLoop:
             out.append(f"evaluation failed: {e}")
         if isinstance(v, str) and v.startswith("="):
             refs = re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?([A-Z]{1,3})(\d+)",
                 v.replace("$", ""))[:24]
             for sh2, sh3, c2, r2 in refs:
                 sh = (sh2 or sh3 or sheet).strip()
@@ -400,6 +400,44 @@ class AgentLoop:
         from .stage2_join import unique_evidence_value
         return unique_evidence_value(self.ledger, list(self.targets.values()), t)
 
+    def _current_counterpart(self, c):
+        """This year's value for a figure whose LAST-year value is c: the
+        current-doc line printing c as a comparative gives the current
+        number immediately to its left. Unique agreeing answer or None."""
+        tol = max(0.02, abs(c) * 5e-4)
+        prior_docs = self.ledger.prior_period_docs()
+        _strip = getattr(self.ledger, "strip_note_ref", lambda x: x)
+        cands = []
+        pages = {}
+        for it0 in self.ledger.items:
+            if it0.doc in prior_docs or len(it0.nums) < 2:
+                continue
+            it = _strip(it0)
+            for j in range(1, len(it.nums)):
+                if abs(abs(to_model_units(it.nums[j], 1.0)) - abs(c)) <= tol:
+                    cv = it.nums[j - 1]
+                    hit = next((x for x in cands
+                                if abs(cv - x[0]) <= max(0.05,
+                                                         abs(x[0]) * 5e-3)),
+                               None)
+                    if hit is None:
+                        cands.append((cv, it))
+                        pages[cv] = {(it.doc, it.page)}
+                    else:
+                        pages[hit[0]].add((it.doc, it.page))
+                    break
+        if len(cands) == 1:
+            return cands[0]
+        # page-majority (run-8 probe: the true pair prints on 2-3 pages,
+        # a stray coincidence on one — one odd page must not blind us)
+        if len(cands) > 1:
+            ranked = sorted(cands, key=lambda x: -len(pages.get(x[0], ())))
+            if len(pages.get(ranked[0][0], ())) >= 2 \
+                    and len(pages.get(ranked[0][0], ())) \
+                    >= 2 * len(pages.get(ranked[1][0], ())):
+                return ranked[0]
+        return None
+
     def _leaf_inputs(self, sheet, coord, depth=0, seen=None):
         seen = seen if seen is not None else set()
         if depth > 6 or (sheet, coord) in seen or len(seen) > 400:
@@ -411,9 +449,32 @@ class AgentLoop:
         if not isinstance(v, str) or not v.startswith("="):
             return []
         out = []
-        for sh2, sh3, c2, r2 in re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
-                v.replace("$", "")):
+        vv = v.replace("$", "")
+        # SUM-RANGE interiors (CLP run 8: r60/r65 sat INSIDE SUM ranges
+        # and the endpoint-only walk never reached them)
+        for shq, shu, cm, a, b in re.findall(
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?"
+                r"([A-Z]{1,3})(\d+):\3(\d+)", vv):
+            sh_r = (shq or shu or sheet).strip()
+            a, b = int(a), int(b)
+            if 0 < b - a <= 120 and sh_r in self.wb.sheetnames:
+                for rr in range(a, b + 1):
+                    out += self._leaf_inputs(sh_r, f"{cm}{rr}",
+                                             depth + 1, seen)
+        vv = re.sub(r"(?:'[^']+'!|[A-Za-z0-9 _]+!)?"
+                    r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", "", vv)
+        refs = re.findall(
+            r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?([A-Z]{1,3})(\d+)",
+            vv)
+        if not refs and not out:
+            # a formula with NO cell refs AND no ranges (=4976+23) is an
+            # input wearing a formula costume — the pattern-write class.
+            # CLP run 8's whole unbalanced BS column was these, and the
+            # walk's blind spot made the surgeon see ZERO leaves under a
+            # failing check. (A SUM-range row keeps its expanded
+            # interiors — it is a tree node, never a leaf.)
+            return [(sheet, coord)]
+        for sh2, sh3, c2, r2 in refs:
             sh = (sh2 or sh3 or sheet).strip()
             if sh in self.wb.sheetnames:
                 out += self._leaf_inputs(sh, f"{c2}{r2}", depth + 1, seen)
@@ -479,6 +540,7 @@ class AgentLoop:
                 return f"MISS: check row does not evaluate: {e}"
             out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
         guilty = 0
+        named_delta = 0.0
         flagged_refs = set(self.writer.log["flags"])
         for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{col}{row}")):
             mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
@@ -486,16 +548,110 @@ class AgentLoop:
                 continue
             t = self.targets.get((sh, int(mm.group(2))))
             cur = self.wb[sh][coord].value
+            cur_f = cur if isinstance(cur, str) and cur.startswith("=") \
+                else None
+            if cur_f is not None:
+                try:
+                    cur = ev.cell(sh, coord)
+                except Exception:
+                    cur = None
+            # STALE-IN-COSTUME leaf (CLP run 8): a constant-only formula
+            # whose large constants are ALL the prior cell's constants is
+            # last year's pattern copied verbatim — the un-swapped
+            # constants ARE the imbalance. Counterpart pairs name this
+            # year's values.
+            if cur_f is not None:
+                pcol0 = prior_column(self.spec, sh, self.ty)
+                prior_f = (self.wb[sh][f"{pcol0}{int(mm.group(2))}"].value
+                           if pcol0 else None)
+                p_consts = ({float(x) for x in re.findall(
+                    r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", prior_f)}
+                    if isinstance(prior_f, str) else set())
+                consts = [float(x) for x in re.findall(
+                    r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", cur_f)
+                    if abs(float(x)) >= 100]
+                if consts and p_consts and all(
+                        any(abs(c - p) <= 0.01 for p in p_consts)
+                        for c in consts):
+                    swaps, proposed = [], cur_f
+                    for c in consts:
+                        cp = self._current_counterpart(c)
+                        if cp is None:
+                            swaps = None
+                            break
+                        swaps.append((c, cp))
+                        proposed = proposed.replace(
+                            f"{c:g}", f"{cp[0]:g}", 1)
+                    guilty += 1
+                    lab = str(t.label)[:30] if t else "?"
+                    if swaps:
+                        cites = "; ".join(
+                            f"{c:,.0f} -> {cp[0]:,.2f} (p{cp[1].page}: "
+                            f"'{cp[1].source_line[:44]}')"
+                            for c, cp in swaps)
+                        try:
+                            import ast as _ast
+                            pv_new = eval(compile(_ast.parse(
+                                proposed[1:], mode="eval"), "<f>", "eval"),
+                                {"__builtins__": {}}, {})
+                            if isinstance(cur, (int, float)):
+                                named_delta += cur - pv_new
+                        except Exception:
+                            pass
+                        out.append(
+                            f"  GUILTY-PATTERN {sh}!{int(mm.group(2))} "
+                            f"'{lab}' holds LAST YEAR'S formula {cur_f} — "
+                            f"counterparts: {cites} -> respond with "
+                            f"pattern_formula \"{proposed}\"")
+                    else:
+                        out.append(
+                            f"  GUILTY-PATTERN {sh}!{int(mm.group(2))} "
+                            f"'{lab}' holds LAST YEAR'S formula {cur_f} "
+                            f"(constants never swapped) — find each "
+                            f"constant's current-year counterpart (the "
+                            f"line printing it as a comparative) and "
+                            f"re-instantiate the pattern")
+                    continue
             got = self._diff_value(t) if t is not None else None
             if got is not None and isinstance(cur, (int, float)):
                 dv, it, _s = got
                 tol = max(0.6, abs(dv) * 5e-3)
                 if abs(cur - dv) > tol:
                     guilty += 1
+                    named_delta += cur - dv
                     out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
                                f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
                                f"disclosed {dv:,.2f} ({it.doc} p{it.page}) -> "
                                f"apply_diff {{\"row\": \"{sh}!{mm.group(2)}\"}}")
+                continue
+            # HOME-STATEMENT RECONCILIATION (CLP run 8, 2026-08-20: the
+            # model delivered unbalanced because mis-mapped BS rows had
+            # no globally-unique print — their own statement page named
+            # them all along). The sheet's own statement is asked before
+            # a leaf is declared evidence-less.
+            hp = (ops.home_pair(self.ledger, t, self._home_page_set(sh))
+                  if t is not None else None)
+            if hp is not None and isinstance(cur, (int, float)):
+                dv, it, kind = hp
+                if abs(cur - dv) > max(0.6, abs(dv) * 5e-3):
+                    guilty += 1
+                    named_delta += cur - dv
+                    if kind == "pair":
+                        out.append(
+                            f"  GUILTY {sh}!{int(mm.group(2))} "
+                            f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
+                            f"its OWN statement page {dv:,.2f} (p{it.page}: "
+                            f"'{it.source_line[:50]}') -> set_input the "
+                            f"statement's value")
+                    else:
+                        out.append(
+                            f"  CANDIDATE {sh}!{int(mm.group(2))} "
+                            f"'{str(t.label)[:30]}': model {cur:,.2f}, but "
+                            f"the sheet's own statement names this row "
+                            f"'{it.label[:36]}' = {dv:,.2f} (p{it.page}; "
+                            f"comparative does NOT tie the model prior — "
+                            f"counterpart law: if you judge it the row, "
+                            f"write it WITH a red flag noting both)")
                 continue
             if isinstance(cur, (int, float)) and cur != 0 \
                     and (f"{sh}!{coord}" in flagged_refs
@@ -507,6 +663,21 @@ class AgentLoop:
                 lab = str(t.label)[:30] if t else "?"
                 out.append(f"  SUSPECT {sh}!{coord} '{lab}' = {cur:,.2f} "
                            f"(unproven: flagged/no-prior){hint}")
+        if guilty:
+            out.append(
+                f"  RECONCILIATION: the named rows' errors sum to "
+                f"{named_delta:+,.2f} against a residual of "
+                f"{residual:,.2f} — "
+                + ("they EXPLAIN the imbalance: re-map each named row to "
+                   "its own print and the check closes"
+                   if abs(named_delta - residual) <= max(1.0,
+                                                         abs(residual) * 0.1)
+                   else "they explain only PART of it; re-map them first, "
+                        "then re-diagnose (diagnose_balance) for the "
+                        "remainder")
+                + ". The analyst's law: an imbalance is the SUM of line "
+                  "errors — reconcile lines, never plug while named "
+                  "errors remain.")
         # RECLASS FINDER (run-6 law: the −12,116 was a reclassification —
         # prior-triangulation can never see the destination row, but the
         # residual fingerprints it). For evidence-less leaves, hunt a kin
@@ -936,6 +1107,45 @@ class AgentLoop:
                 prior_consts = {float(x) for x in re.findall(
                     r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", prior_f)}
             prior_docs0 = self.ledger.prior_period_docs()
+            # STALE-IN-COSTUME (CLP run 8, 2026-08-20: five BS rows got
+            # =4976+23 — the prior cell's formula VERBATIM — and the
+            # model delivered unbalanced by exactly their year-deltas;
+            # the printed-constant law passed because last year's figure
+            # prints in the current filing AS THE COMPARATIVE). A pattern
+            # whose large constants are all the prior cell's constants is
+            # not an update: the [current, old-constant] pair in the
+            # filing names this year's value on the same line.
+            new_large = [float(x) for x in re.findall(
+                r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", pf)
+                if abs(float(x)) >= 100]
+            if new_large and all(
+                    any(abs(cv - p0) <= 0.01 for p0 in prior_consts)
+                    for cv in new_large):
+                hint = ""
+                for cv in new_large:
+                    tolh = max(0.02, cv * 5e-4)
+                    for it in self.ledger.items:
+                        if it.doc in prior_docs0 or len(it.nums) < 2:
+                            continue
+                        sit = getattr(self.ledger, "strip_note_ref",
+                                      lambda x: x)(it)
+                        if len(sit.nums) >= 2 and any(
+                                abs(abs(to_model_units(sit.nums[j], s))
+                                    - cv) <= tolh
+                                for j in range(1, len(sit.nums))
+                                for s in SCALES):
+                            hint = (f" The filing prints your old constant "
+                                    f"as a COMPARATIVE on p{it.page}: "
+                                    f"'{it.source_line[:60]}' — this "
+                                    f"year's value is on that same line.")
+                            break
+                    if hint:
+                        break
+                return (f"REFUSED: every large constant in your pattern "
+                        f"is LAST YEAR'S constant (the prior cell's own "
+                        f"formula) — replicating the pattern means "
+                        f"swapping in THIS year's counterpart, not "
+                        f"copying the old number.{hint}")
             for x in re.findall(r"(?<![A-Za-z0-9_.:$])\d+(?:\.\d+)?", pf):
                 cv = float(x)
                 if abs(cv) < 100:

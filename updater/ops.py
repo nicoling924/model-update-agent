@@ -148,7 +148,7 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
         if not isinstance(v, str) or not v.startswith("="):
             return
         for sh2, sh3, c2, r2 in _re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?([A-Z]{1,3})(\d+)",
                 v.replace("$", "")):
             s2 = (sh2 or sh3 or sh).strip()
             if s2 in wb.sheetnames:
@@ -394,6 +394,67 @@ def home_serves(wb, spec_d, target_year, ledger, targets, served, log):
         log(f"[ops] home-statement join: {len(out)} rows served from "
             f"sheets' own statement pages (grade C, red)")
     return out
+
+
+def home_pair(ledger, t, homes):
+    """The sheet's-own-statement print for ONE target row (balance
+    reconciliation law, 2026-08-20: CLP run 8 delivered unbalanced
+    because mis-mapped BS rows had no globally-unique print — but their
+    own statement page named them all along).
+
+    -> (value, item, kind) | None.
+    kind='pair':  a unique cent-exact [current, prior] home line ties the
+                  row's prior — identity grade, sign mapped to the model.
+    kind='label': no pair, but a unique home line KINSHIPS the row's
+                  label (comparative does not tie) — counterpart-law
+                  candidate, mandatory red flag if written. Scale is
+                  unprovable without the prior anchor, so document scale
+                  1 only, magnitude-banded against the model prior."""
+    from .numerics import SCALES, kinship, to_model_units
+    from .stage2_join import _ofwhich_block
+    if not homes:
+        return None
+    _strip = getattr(ledger, "strip_note_ref", lambda x: x)
+    pool = [_strip(it) for it in ledger.items
+            if (it.doc, it.page) in homes]
+    pv = t.prior_value
+    if isinstance(pv, (int, float)) and abs(pv) >= 1.0:
+        tol = max(0.05, abs(pv) * 2e-5)
+        cands = []
+        for it in pool:
+            if len(it.nums) != 2 or _ofwhich_block(t.label, it.label):
+                continue
+            for s in SCALES:
+                p_print = to_model_units(it.nums[1], s)
+                if abs(abs(p_print) - abs(pv)) <= tol:
+                    cv = to_model_units(it.nums[0], s)
+                    v = cv * (1 if (p_print >= 0) == (pv >= 0) else -1)
+                    if not any(abs(v - v0) <= max(0.05, abs(v0) * 5e-3)
+                               for v0, _i in cands):
+                        cands.append((v, it))
+                    break
+        if len(cands) == 1:
+            return (cands[0][0], cands[0][1], "pair")
+    # label-candidate mode: the comparative moved (restated / different
+    # definition) but the statement still names the row
+    lab_cands = []
+    for it in pool:
+        if len(it.nums) < 2 or not kinship(t.label, it.label) \
+                or _ofwhich_block(t.label, it.label):
+            continue
+        cv = it.nums[0]
+        if isinstance(pv, (int, float)) and abs(pv) >= 1.0 \
+                and not (abs(pv) / 100 <= abs(cv) <= abs(pv) * 100):
+            continue
+        if not any(abs(cv - c0) <= max(0.05, abs(c0) * 5e-3)
+                   for c0, _i in lab_cands):
+            lab_cands.append((cv, it))
+    if len(lab_cands) == 1:
+        cv, it = lab_cands[0]
+        if isinstance(pv, (int, float)) and pv < 0 <= cv:
+            cv = -cv
+        return (cv, it, "label")
+    return None
 
 
 def note_anchored_serves(ledger, targets, served, log):

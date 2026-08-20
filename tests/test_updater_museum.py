@@ -2740,3 +2740,142 @@ class ZeroPriorDoubleCount(unittest.TestCase):
         out = loop.t_set_input({"cell": "Model!U9", "value": 90.0,
                                 "why": "p88: its own line 90 85"})
         self.assertIn("WRITTEN", out)
+
+
+class BalanceReconciliation(unittest.TestCase):
+    """CLP run 8 (2026-08-20): delivered UNBALANCED — mis-mapped BS rows
+    (MI took the wrong equity line, NFA a wrong composition) had no
+    globally-unique print, so the surgeon saw no guilty rows and gave
+    up. The sheet's own statement page named them all along: home_pair
+    answers per-leaf, and the diagnosis sums the named errors against
+    the residual (the analyst's law: an imbalance is the SUM of line
+    errors)."""
+
+    def _fixture(self):
+        from updater.ledger import Item, Ledger
+        from updater.targets import TargetRow
+        led = Ledger()
+        rows = [("Total assets", [238644.0, 230000.0]),
+                ("Cash and equivalents", [3928.0, 4200.0]),
+                ("Non-controlling interests", [9815.0, 9100.0]),
+                ("Share capital", [23243.0, 23243.0]),
+                ("Trade receivables", [14035.0, 13000.0])]
+        for k, (lab, ns) in enumerate(rows):
+            led.add(Item("ar.pdf", 167, 0, k, lab, ns,
+                         source_line=lab + " "
+                         + " ".join(f"{n:,.0f}" for n in ns)))
+        t_mi = TargetRow(sheet="Model", row=97, label="Minority Interests",
+                         prior_value=9100.0)
+        t_cash = TargetRow(sheet="Model", row=57, label="Cash and equiv",
+                           prior_value=4200.0)
+        return led, t_mi, t_cash
+
+    def test_pair_mode_finds_the_print(self):
+        from updater import ops
+        led, t_mi, t_cash = self._fixture()
+        homes = frozenset({("ar.pdf", 167)})
+        v, it, kind = ops.home_pair(led, t_mi, homes)
+        self.assertEqual((v, kind), (9815.0, "pair"))
+        v2, _it2, kind2 = ops.home_pair(led, t_cash, homes)
+        self.assertEqual((v2, kind2), (3928.0, "pair"))
+
+    def test_label_mode_when_comparative_moved(self):
+        from updater import ops
+        from updater.targets import TargetRow
+        led, _t, _t2 = self._fixture()
+        t = TargetRow(sheet="Model", row=97, label="Minority Interests",
+                      prior_value=8500.0)   # restated: no pair ties
+        v, it, kind = ops.home_pair(led, t, frozenset({("ar.pdf", 167)}))
+        self.assertEqual(kind, "label")
+        self.assertEqual(v, 9815.0)
+
+    def test_diagnosis_sums_named_errors(self):
+        from updater.loop import AgentLoop
+        from updater.targets import TargetRow
+        from updater.ledger import Item, Ledger
+        wb, ws = _wb()
+        # check row 9 = U1 + U2 - U3 (assets - L&E style); leaves 1,2,3
+        ws["T1"], ws["T2"], ws["T3"] = 4200.0, 9100.0, 13743.0
+        ws["U1"], ws["U2"], ws["U3"] = 4999.0, 5943.0, 13743.0
+        ws["T4"], ws["U4"] = 230000.0, 230000.0   # home-mass anchor
+        ws["U9"], ws["T9"] = "=U1+U2-U3", "=T1+T2-T3"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+        led = Ledger()
+        for k, (lab, ns) in enumerate((
+                ("Cash and equivalents", [3928.0, 4200.0]),
+                ("Non-controlling interests", [9815.0, 9100.0]),
+                ("Long-term debt", [13743.0, 13743.0]),
+                ("Total assets", [238644.0, 230000.0]))):
+            led.add(Item("ar.pdf", 167, 0, k, lab, ns,
+                         source_line=lab))
+        targets = [TargetRow(sheet="Model", row=1, label="Cash",
+                             prior_value=4200.0),
+                   TargetRow(sheet="Model", row=2, label="Minority Interests",
+                             prior_value=9100.0),
+                   TargetRow(sheet="Model", row=3, label="Long-term debt",
+                             prior_value=13743.0),
+                   TargetRow(sheet="Model", row=4, label="Total assets",
+                             prior_value=230000.0)]
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        out = loop.t_diagnose_balance({"check": "Model!9"})
+        self.assertIn("GUILTY", out)
+        self.assertIn("RECONCILIATION", out)
+        self.assertIn("EXPLAIN", out)
+
+
+class StaleInCostume(unittest.TestCase):
+    """CLP run 8 (2026-08-20): five BS rows carried =4976+23 — the prior
+    cell's formula VERBATIM — and the model delivered unbalanced by
+    exactly their year-deltas. The printed-constant law had passed
+    because last year's figure prints in the current filing AS THE
+    COMPARATIVE. Three doors now closed: the walk sees ref-free formulas
+    as leaves, the pattern guard refuses a verbatim copy, and the
+    diagnosis proposes the counterpart swap."""
+
+    def _loop(self):
+        from updater.ledger import Item, Ledger
+        from updater.loop import AgentLoop
+        from updater.targets import TargetRow
+        wb, ws = _wb()
+        ws["T1"], ws["U1"] = "=4976+23", "=4976+23"     # verbatim copy
+        ws["T2"], ws["U2"] = 9100.0, 9100.0
+        ws["T3"], ws["U3"] = 14099.0, 14099.0
+        ws["T4"], ws["U4"] = 230000.0, 230000.0
+        ws["T9"], ws["U9"] = "=T1+T2+T3-T4", "=U1+U2+U3-U4"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+        led = Ledger()
+        led.add(Item("ar.pdf", 203, 0, 0, "Bank balances and cash",
+                     [3905.0, 4976.0],
+                     source_line="Bank balances and cash 3,905 4,976"))
+        led.add(Item("ar.pdf", 203, 0, 1, "Deposits", [880.0, 630.0],
+                     source_line="Deposits 880 630"))
+        targets = [TargetRow(sheet="Model", row=1, label="Cash",
+                             prior_value=4999.0)]
+        loop = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                         EvidenceBook(), client=None)
+        return loop, ws
+
+    def test_ref_free_formula_is_a_leaf(self):
+        loop, ws = self._loop()
+        leaves = loop._leaf_inputs("Model", "U9")
+        self.assertIn(("Model", "U1"), leaves)
+
+    def test_verbatim_pattern_refused_with_counterpart(self):
+        loop, ws = self._loop()
+        out = loop.t_set_input({"cell": "Model!U1",
+                                "pattern_formula": "=4976+23",
+                                "why": "p203 replicate"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("LAST YEAR'S constant", out)
+        self.assertIn("3,905", out.replace("3905", "3,905"))
+
+    def test_diagnosis_proposes_the_swap(self):
+        loop, ws = self._loop()
+        out = loop.t_diagnose_balance({"check": "Model!9"})
+        self.assertIn("GUILTY-PATTERN", out)
+        self.assertIn("=3905+23", out)

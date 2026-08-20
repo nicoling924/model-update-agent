@@ -17,6 +17,7 @@ appear as rejection REASONS in apply reports, which is how a mid-tier
 model learns from THIS run instead of a rulebook of past ones.
 """
 import json
+import re
 from pathlib import Path
 
 from . import packets
@@ -266,9 +267,27 @@ class PacketCloser:
             self.reports.append(report)
             return report
         n_ok = n_flag = n_plug = n_rej = 0
+        # the check sheet's OWN statement page rides along (reconciliation
+        # law): the surgeon re-maps from the statement, never from memory
+        home_block = ""
+        try:
+            m0 = re.match(r"^(?:key:)?(?:'([^']+)'|([^!]+))!",
+                          check_ref + "!")
+            c_sheet = ((m0.group(1) or m0.group(2)) or "").strip() \
+                if m0 else ""
+            if c_sheet in (self.tk.wb.sheetnames or []):
+                homes = packets.home_pages(
+                    self.tk.wb, self.tk.spec, self.tk.ty, c_sheet,
+                    self.tk.ledger, targets=self.tk.targets)
+                home_block = packets.home_transcript(
+                    self.tk.ledger, homes, self.tk.ty)
+        except Exception:
+            home_block = ""
         user = (_p("surgeon.md") + "\n\n== DIAGNOSIS (auto-surfaced) ==\n"
-                + str(diag) + (("\n\n" + extra_context) if extra_context
-                               else ""))
+                + str(diag)
+                + (("\n\n" + home_block) if home_block else "")
+                + (("\n\n" + extra_context) if extra_context
+                   else ""))
         for round_i in range(SURGEON_ROUNDS):
             try:
                 out = self._json(_p("method.md"), user, self._val_surgeon)

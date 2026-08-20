@@ -216,7 +216,7 @@ def _composed_proof(wb, spec, ty, t, tl, tmap, ledger, ev, depth=4):
         out = []
         f = formula.replace("$", "")
         for sh2, sh3, c1, r1, c2, r2 in _re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?"
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?"
                 r"([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)", f):
             sh = (sh2 or sh3 or default_sheet).strip()
             if sh in wb.sheetnames and c1 == c2 \
@@ -226,7 +226,7 @@ def _composed_proof(wb, spec, ty, t, tl, tmap, ledger, ev, depth=4):
                         for r in range(int(r1), int(r2) + 1)]
         f = _re.sub(r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", "", f)
         for sh2, sh3, c2, r2 in _re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)", f):
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?([A-Z]{1,3})(\d+)", f):
             sh = (sh2 or sh3 or default_sheet).strip()
             if sh in wb.sheetnames and c2 == year_columns(spec, sh).get(ty):
                 out.append((sh, f"{c2}{r2}"))
@@ -314,7 +314,7 @@ def _stale_driver_leaves(wb, spec, ty, max_leaves=400):
             return []
         acc = []
         for sh2, sh3, c2, r2 in _re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?([A-Z]{1,3})(\d+)",
                 v.replace("$", "")):
             sh = (sh2 or sh3 or sheet).strip()
             if sh in wb.sheetnames:
