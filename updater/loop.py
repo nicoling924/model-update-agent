@@ -1193,6 +1193,46 @@ class AgentLoop:
                                                             abs(dv) * 5e-3)
         return ties
 
+    def _tie_is_coincidental(self, key):
+        """Council ruling (truth-tie session, 2026-08-20): a tie whose
+        dependency cone contains UNWRITTEN, STALE, or PLACEHOLDER cells
+        was established on an incomplete column — an arithmetic
+        coincidence, not a proven fact. Only complete-cone ties deserve
+        the revert; coincidental ties yield to the incoming write (the
+        row is downgraded to pending-reverification).
+
+        Measured: Model!119 'tied' while its components U207/U214 sat at
+        None/0.01 — the guard reverted the CORRECT completions twice."""
+        sheet, row = key
+        tcol = self._tcol(sheet)
+        if not tcol:
+            return False
+        v = self.wb[sheet][f"{tcol}{row}"].value
+        if isinstance(v, (int, float)):
+            return False              # hardcode tie: its own value, proven
+        written = set(self.writer.log.get("written") or [])
+        pcol = prior_column(self.spec, sheet, self.ty)
+        for (sh2, coord) in self._leaf_inputs(sheet, f"{tcol}{row}"):
+            mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+            if not mm or mm.group(1) != self._tcol(sh2):
+                continue
+            lv = self.wb[sh2][coord].value
+            ref2 = f"{sh2}!{coord}"
+            if ref2 in written:
+                continue              # a written member is proven —
+                                      # a written 0 is a proven zero
+            if lv is None:
+                return True           # unwritten member
+            if isinstance(lv, (int, float)):
+                if abs(lv) <= 0.02:
+                    return True       # placeholder member
+                if pcol:
+                    pv2 = self.wb[sh2][f"{pcol}{mm.group(2)}"].value
+                    if isinstance(pv2, (int, float)) \
+                            and abs(lv - pv2) <= 0.005:
+                        return True   # stale member (prior carried)
+        return False
+
     def _row_ref(self, args):
         """Tolerant row-ref parsing (run-1-live autopsy: the agent lost its
         endgame to arg-format misses). Accepts row/cell/ref keys, optional
@@ -1380,6 +1420,8 @@ class AgentLoop:
             before_fails = {c["name"] for c in self._card()["checks"]
                             if c["status"] == "FAIL"}
             pre_t = self._tie_state()
+            pre_c0 = {k for k, v in pre_t.items()
+                      if v and self._tie_is_coincidental(k)}
             ok = self.writer.write(
                 s_sheet, f"{s_col}{s_row}", pf,
                 note=f"agent pattern write (prior pattern "
@@ -1389,7 +1431,8 @@ class AgentLoop:
                 return "REFUSED: the chokepoint rejected the pattern write"
             post_t = self._tie_state()
             broke_t0 = sorted(k for k, v in pre_t.items()
-                              if v and not post_t.get(k, False))
+                              if v and not post_t.get(k, False)
+                              and k not in pre_c0)
             after_fails = {c["name"] for c in self._card()["checks"]
                           if c["status"] == "FAIL"}
             broke0 = sorted(after_fails - before_fails)
@@ -1823,6 +1866,8 @@ class AgentLoop:
         before_fails = {c["name"] for c in self._card()["checks"]
                         if c["status"] == "FAIL"}
         pre_ties = self._tie_state()
+        pre_coinc = {k for k, v in pre_ties.items()
+                     if v and self._tie_is_coincidental(k)}
         ok = self.writer.write(sheet, f"{col}{row}", value,
                                prior_coord=f"{pcol}{row}" if pcol else None,
                                note=f"agent: {why[:300]}",
@@ -1839,7 +1884,17 @@ class AgentLoop:
         # ties; ordinary writes now do too)
         post_ties = self._tie_state()
         broke_t = sorted(k for k, v in pre_ties.items()
-                         if v and not post_ties.get(k, False))
+                         if v and not post_ties.get(k, False)
+                         and k not in pre_coinc)
+        coinc_hit = sorted(k for k, v in pre_ties.items()
+                           if v and not post_ties.get(k, False)
+                           and k in pre_coinc)
+        if coinc_hit:
+            # council ruling: a coincidental tie (incomplete cone) yields
+            # to the incoming write — downgrade, never revert
+            self.log.append(
+                f"[tie] coincidental tie yielded: {coinc_hit[:3]} -> "
+                f"pending re-verification (cone was incomplete)")
         if broke_t:
             self.writer.write(sheet, f"{col}{row}", held,
                               prior_coord=f"{pcol}{row}" if pcol else None,
