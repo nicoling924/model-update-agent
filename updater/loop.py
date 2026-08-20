@@ -179,6 +179,15 @@ class AgentLoop:
         return {(k["sheet"], int(k["row"]))
                 for k in self.spec.get("key_rows") or []}
 
+    def locked_or_proven(self):
+        """Refs no plug may touch: writer-locked cells plus every
+        grade-A (identity/checksum-proven) entry in the evidence book."""
+        out = set(self.writer.locked)
+        for ref, p in (getattr(self.book, "entries", None) or {}).items():
+            if getattr(p, "grade", None) == "A":
+                out.add(ref)
+        return out
+
     def _home_page_set(self, sheet):
         """The sheet's own statement pages (packets.home_pages), cached —
         the home-statement seatbelt consults them on every write."""
@@ -996,6 +1005,18 @@ class AgentLoop:
                                  mi.group(3), int(mi.group(4)))
         if (i_sheet, i_row) in self._key_rows():
             return "REFUSED: key rows are never plug sites (run-38 law)"
+        # IDENTITY-PROVEN cells are never plug sites (DFE run 39: the
+        # closing bell shaved 23 off a join-served identity-grade cell
+        # to absorb an equity residual — a plug on top of a PROVEN value
+        # buries the real error inside a correct number).
+        i_tc = self._tcol(i_sheet)
+        i_ref = f"{i_sheet}!{i_tc}{i_row}" if i_tc else None
+        if i_ref and i_ref in self.locked_or_proven():
+            return (f"REFUSED: {i_ref} is identity-proven (join/checksum "
+                    f"grade) — a plug there buries the real error inside "
+                    f"a correct number. Plug only unproven cells; if none "
+                    f"exists, the check stays red with the residual "
+                    f"named.")
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")

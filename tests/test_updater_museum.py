@@ -2965,3 +2965,40 @@ class ParentPageNeverHome(unittest.TestCase):
         self.assertEqual(home_pages(wb, spec, "2025", "Model", led), [])
         led.parent_pages = set()
         self.assertTrue(home_pages(wb, spec, "2025", "Model", led))
+
+
+class ProvenCellNeverPlugged(unittest.TestCase):
+    """DFE run 39 (2026-08-20): the closing bell shaved 23 off a
+    join-served IDENTITY-GRADE cell (Raw financials!U76, 1,016.53 ->
+    993.53) to absorb an equity residual — a plug on top of a proven
+    value buries the real error inside a correct number. Grade-A cells
+    and locked cells are never plug sites."""
+
+    def test_plug_refuses_grade_a_cell(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T5"], ws["U5"] = 836.53, 1016.53
+        ws["T9"], ws["U9"] = "=T5-T5", "=U5-U5+23"
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+
+        class _Ledger:
+            items = []
+            faces = {}
+
+            def prior_period_docs(self):
+                return set()
+
+            def join_pool(self):
+                return []
+        book = EvidenceBook()
+        book.record("Model!U5", "A", "join/checksum read",
+                    citation="p95 identity tie")
+        loop = AgentLoop(wb, spec, 2025, _Ledger(), [], {}, Writer(wb),
+                         book, client=None)
+        out = loop.t_plug_residual({"check": "Model!9", "into": "Model!U5",
+                                    "why": "absorb 23"})
+        self.assertIn("REFUSED", out)
+        self.assertIn("identity-proven", out)
+        self.assertEqual(ws["U5"].value, 1016.53)
