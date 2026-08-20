@@ -54,6 +54,7 @@ both beat fiction.
 Respond with ONE JSON object:
 {"decisions": [
   {"leaf": "Sheet!U49", "do": "write", "value": 123.45, "why": "p102: <line>"},
+  {"leaf": "Sheet!U50", "do": "write", "pattern_formula": "=3905+23", "why": "p203: constants re-instantiated for this year (GUILTY-PATTERN)"},
   {"leaf": "Sheet!U50", "do": "flag", "why": "not separately disclosed"},
   {"leaf": "Sheet!U51", "do": "retain"},
   {"leaf": "Sheet!U52", "do": "plug", "why": "residual is real; nothing ties this line"}

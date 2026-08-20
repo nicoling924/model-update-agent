@@ -302,6 +302,9 @@ class PacketCloser:
                 if do == "write":
                     r = self.tk.t_set_input({"cell": leaf,
                                              "value": d.get("value"),
+                                             "pattern_formula":
+                                             d.get("pattern_formula"),
+                                             "flag": bool(d.get("flag")),
                                              "why": why})
                     if str(r).startswith("WRITTEN"):
                         n_ok += 1
@@ -348,8 +351,10 @@ class PacketCloser:
                     or d.get("do") not in ("write", "flag", "retain", "plug"):
                 return ["each decision needs leaf + do in "
                         "write|flag|retain|plug"]
-            if d.get("do") == "write" and d.get("value") is None:
-                return ["write decisions need a value"]
+            if d.get("do") == "write" and d.get("value") is None \
+                    and not d.get("pattern_formula"):
+                return ["write decisions need a value or a "
+                        "pattern_formula"]
         return []
 
     # -- the closing bell (council wall-2 design) ---------------------------
