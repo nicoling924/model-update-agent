@@ -212,10 +212,13 @@ class Writer:
                 guard_v = float(eval(value[1:], {"__builtins__": {}}, {}))
             except Exception:
                 guard_v = None
-        # world-band guard (run-112b/115)
+        # world-band guard (run-112b/115). PLACEHOLDER priors are exempt
+        # (DFE run 38: a 0.01 'row exists' marker anchored the band and
+        # refused the statement's own printed 153.5 — a 1-cent prior is
+        # the analyst's placeholder, never a magnitude basis).
         if not trusted and isinstance(guard_v, (int, float)) and guard_v != 0:
             pv = self._prior_for(ws, sheet, coord, prior_coord)
-            if isinstance(pv, (int, float)) and pv != 0 and (
+            if isinstance(pv, (int, float)) and 0.02 < abs(pv) and (
                     abs(guard_v) > BAND_RATIO * abs(pv)
                     or abs(guard_v) * BAND_RATIO < abs(pv)):
                 self.log["band_refused"].append(
