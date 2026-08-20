@@ -308,9 +308,15 @@ def home_pages(wb, spec, ty, sheet, ledger, min_hits=4, cap=3,
     if len(uniq) < min_hits:
         return []
     prior_docs = ledger.prior_period_docs()
+    # ENTITY QUARANTINE APPLIES (DFE run 37: the PARENT-company statement
+    # pages mass-tie the group's priors too — near-identical magnitudes —
+    # and home serves shifted parent figures into group rows). A page the
+    # quarantine evicted can never be a sheet's home.
+    parent = getattr(ledger, "parent_pages", None) or set()
     tied = {}
     for it in ledger.items:
-        if it.doc in prior_docs or not it.nums:
+        if it.doc in prior_docs or not it.nums \
+                or (it.doc, it.page) in parent:
             continue
         for j, p in enumerate(uniq):
             tol = row_tol(p)
