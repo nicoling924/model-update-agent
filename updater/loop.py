@@ -400,6 +400,54 @@ class AgentLoop:
         from .stage2_join import unique_evidence_value
         return unique_evidence_value(self.ledger, list(self.targets.values()), t)
 
+    def _labeled_home_disagreement(self, sheet, t, cur):
+        """A home line whose LABEL kinships the row but whose current
+        value disagrees with the cell — the definitional-conflict signal
+        (unique by value, of-which excluded). -> (value, item) | None."""
+        from .numerics import STOPWORDS, norm_label
+        from .stage2_join import _ofwhich_block
+        homes = self._home_page_set(sheet)
+        if not homes:
+            return None
+        _strip = getattr(self.ledger, "strip_note_ref", lambda x: x)
+        SYN = {"controlling": "minority", "noncontrolling": "minority",
+               "turnover": "revenue", "sales": "revenue"}
+
+        def toks(lab):
+            ws0 = {SYN.get(w, w) for w in norm_label(lab).split()
+                   if w not in STOPWORDS and len(w) > 2}
+            return ws0
+        wa = toks(t.label)
+        if not wa:
+            return None
+        pv = t.prior_value
+        scored = []
+        for it0 in self.ledger.items:
+            if (it0.doc, it0.page) not in homes:
+                continue
+            it = _strip(it0)
+            if len(it.nums) < 2 or _ofwhich_block(t.label, it.label):
+                continue
+            wb_ = toks(it.label)
+            inter = wa & wb_
+            if not inter:
+                continue
+            score = len(inter) / len(wa | wb_)
+            v = it.nums[0]
+            if isinstance(pv, (int, float)) and pv < 0 <= v:
+                v = -v
+            if abs(v - cur) <= max(0.6, abs(cur) * 5e-3):
+                continue                      # agrees — no conflict
+            scored.append((score, v, it))
+        if not scored:
+            return None
+        scored.sort(key=lambda x: -x[0])
+        # the top label match must be STRICTLY better than the runner-up
+        # (every 'interests' line on a BS page kinships weakly)
+        if len(scored) > 1 and scored[0][0] <= scored[1][0] + 1e-9:
+            return None
+        return (scored[0][1], scored[0][2])
+
     def _current_counterpart(self, c):
         """This year's value for a figure whose LAST-year value is c: the
         current-doc line printing c as a comparative gives the current
@@ -541,7 +589,18 @@ class AgentLoop:
             out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
         guilty = 0
         named_delta = 0.0
+        corr = []      # (ref, delta_if_corrected, one-line action)
         flagged_refs = set(self.writer.log["flags"])
+
+        def _flagged(sh0, coord0):
+            if f"{sh0}!{coord0}" in flagged_refs:
+                return True
+            try:
+                f0 = self.wb[sh0][coord0].fill
+                return bool(f0 and f0.start_color
+                            and str(f0.start_color.rgb) == "FFFFC7CE")
+            except Exception:
+                return False
         for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{col}{row}")):
             mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not mm or mm.group(1) != self._tcol(sh):
@@ -619,6 +678,8 @@ class AgentLoop:
                 if abs(cur - dv) > tol:
                     guilty += 1
                     named_delta += cur - dv
+                    corr.append((f"{sh}!{int(mm.group(2))}", cur - dv,
+                                 f"write {dv:,.2f} (its own print)"))
                     out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
                                f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
                                f"disclosed {dv:,.2f} ({it.doc} p{it.page}) -> "
@@ -633,9 +694,38 @@ class AgentLoop:
                   if t is not None else None)
             if hp is not None and isinstance(cur, (int, float)):
                 dv, it, kind = hp
+                if kind == "pair" \
+                        and abs(cur - dv) <= max(0.6, abs(dv) * 5e-3):
+                    # the pair CONTINUES the prior — but if a LABELED
+                    # home line disagrees, the row's definition is in
+                    # question (CLP MI: pair = perpetual securities,
+                    # label = non-controlling interests 9,815). Surface
+                    # it for the combination proof; analyst decides.
+                    lbv = self._labeled_home_disagreement(sh, t, cur)
+                    if lbv is not None:
+                        v2, it2 = lbv
+                        corr.append((f"{sh}!{int(mm.group(2))}",
+                                     cur - v2,
+                                     f"write {v2:,.2f} (labeled line "
+                                     f"'{it2.label[:30]}' — red flag: "
+                                     f"definitional)"))
+                        out.append(
+                            f"  DEFINITIONAL-CANDIDATE "
+                            f"{sh}!{int(mm.group(2))} "
+                            f"'{str(t.label)[:30]}': the statement pair "
+                            f"continues the prior at {cur:,.2f}, but the "
+                            f"LABELED line '{it2.label[:34]}' prints "
+                            f"{v2:,.2f} (p{it2.page}) — if the residual "
+                            f"proof below names this row, write the "
+                            f"labeled value WITH a red flag.")
+                    continue
                 if abs(cur - dv) > max(0.6, abs(dv) * 5e-3):
                     guilty += 1
                     named_delta += cur - dv
+                    corr.append((f"{sh}!{int(mm.group(2))}", cur - dv,
+                                 f"write {dv:,.2f} "
+                                 + ("(statement pair)" if kind == "pair"
+                                    else "(labeled line — red flag)")))
                     if kind == "pair":
                         out.append(
                             f"  GUILTY {sh}!{int(mm.group(2))} "
@@ -654,15 +744,83 @@ class AgentLoop:
                             f"write it WITH a red flag noting both)")
                 continue
             if isinstance(cur, (int, float)) and cur != 0 \
-                    and (f"{sh}!{coord}" in flagged_refs
+                    and (_flagged(sh, coord)
                          or t is None
                          or not isinstance(t.prior_value, (int, float))):
                 closes = abs(abs(cur) - abs(residual))
                 hint = (" <== zeroing ~CLOSES the residual"
                         if closes <= max(1.0, abs(residual) * 0.1) else "")
                 lab = str(t.label)[:30] if t else "?"
+                if hint or _flagged(sh, coord):
+                    corr.append((f"{sh}!{coord}", cur,
+                                 "write 0 (zeroing removes it)"))
                 out.append(f"  SUSPECT {sh}!{coord} '{lab}' = {cur:,.2f} "
                            f"(unproven: flagged/no-prior){hint}")
+        # NODE MISMATCH (CLP 'perpetual securities' class, 2026-08-20):
+        # a SECTION TOTAL whose own printed pair disagrees while its
+        # members pass means a printed member is MISSING from the
+        # model's mapping — a NEW line with a dash comparative is
+        # invisible to every prior-tie; only the section's arithmetic
+        # can name its absence.
+        n_nodes = 0
+        tc2 = self._tcol(sheet)
+        pc2 = prior_column(self.spec, sheet, self.ty)
+        ws2 = self.wb[sheet] if sheet in self.wb.sheetnames else None
+        for r2 in range(1, (ws2.max_row if ws2 is not None else 0) + 1):
+            if n_nodes >= 8 or ws2 is None or not tc2 or not pc2:
+                break
+            sh2 = sheet
+            v2 = ws2[f"{tc2}{r2}"].value
+            if not (isinstance(v2, str) and v2.startswith("=")
+                    and re.search(r"[A-Z]{1,3}\d", v2)):
+                continue
+            # a node's prior lives in the model's own prior column — the
+            # targets census has no values for formula rows (the archived
+            # workbook carries no cached results)
+            try:
+                pv2 = ev.cell(sh2, f"{pc2}{r2}")
+            except Exception:
+                continue
+            if not isinstance(pv2, (int, float)) or abs(pv2) < 1000:
+                continue
+            lab2 = next((ws2[f"{lc}{r2}"].value for lc in ("A", "B", "C")
+                         if isinstance(ws2[f"{lc}{r2}"].value, str)
+                         and ws2[f"{lc}{r2}"].value.strip()), "")
+
+            class _T2:
+                label = str(lab2)[:40]
+                prior_value = pv2
+            t2 = _T2()
+            hp2 = ops.home_pair(self.ledger, t2,
+                                self._home_page_set(sh2))
+            if hp2 is not None and hp2[2] == "pair":
+                print_v, print_it = hp2[0], hp2[1]
+            else:
+                # pair-mode ONLY: the adjacent-pair fallback poisoned
+                # this report with merged-matrix junk ('Total assets
+                # prints 3,476') and false-positived the model's own
+                # ADJUSTED definitions — the wide-row law applies to
+                # nodes too. Merged dual-column pages stay silent; the
+                # home transcript still shows the surgeon the block.
+                continue
+            try:
+                cv2 = ev.cell(sh2, f"{tc2}{r2}")
+            except Exception:
+                continue
+            if isinstance(cv2, (int, float)) \
+                    and abs(cv2 - print_v) > max(0.6, abs(print_v) * 5e-3):
+                n_nodes += 1
+                out.append(
+                    f"  NODE MISMATCH {sh2}!{r2} "
+                    f"'{str(t2.label)[:28]}': the model's section sums "
+                    f"to {cv2:,.2f} but its own statement prints "
+                    f"{print_v:,.2f} (p{print_it.page}: "
+                    f"'{print_it.source_line[:44]}') — a printed MEMBER of "
+                    f"this section is missing from the model's mapping "
+                    f"(a NEW line with a dash comparative is invisible "
+                    f"to prior-ties). Read the statement block, find the "
+                    f"unmapped line, and map it in (new-line law; the "
+                    f"receiving row keeps a red flag).")
         if guilty:
             out.append(
                 f"  RECONCILIATION: the named rows' errors sum to "
@@ -678,12 +836,40 @@ class AgentLoop:
                 + ". The analyst's law: an imbalance is the SUM of line "
                   "errors — reconcile lines, never plug while named "
                   "errors remain.")
+        # COMBINATION PROOF (CLP run 10: MI 3,872 + fuel clause 1,043 =
+        # the residual 4,915 to the cent — neither alone matches, so the
+        # single-line hunts stay silent; the PAIR is jointly proven).
+        combo_found = False
+        if isinstance(residual, (int, float)) and abs(residual) > 1 \
+                and len(corr) >= 2:
+            import itertools as _it
+            tol_c = max(1.0, abs(residual) * 5e-3)
+            found = None
+            for k in (2, 3):
+                for combo in _it.combinations(corr[:14], k):
+                    if abs(sum(d for _r, d, _a in combo)
+                           - residual) <= tol_c \
+                            and any(not a.startswith("write 0")
+                                    for _r, _d, a in combo):
+                        found = combo
+                        break
+                if found:
+                    break
+            if found:
+                combo_found = True
+                out.append(
+                    "  COMBINATION PROVEN: these corrections sum to the "
+                    "residual to the cent — jointly they close the check: "
+                    + "; ".join(f"{r} -> {a}" for r, _d, a in found)
+                    + ". Apply ALL of them (red flags where noted).")
         # RECLASS FINDER (run-6 law: the −12,116 was a reclassification —
         # prior-triangulation can never see the destination row, but the
         # residual fingerprints it). For evidence-less leaves, hunt a kin
         # face line whose disclosed value differs from the model by ≈ the
-        # residual, and hand the agent the exact set_input.
-        if guilty == 0:
+        # residual, and hand the agent the exact set_input. A proven
+        # COMBINATION silences it (run-10: its weak-kin guesses sent the
+        # surgeon chasing 'receivables' for a payables row).
+        if guilty == 0 and not combo_found:
             from .numerics import kinship
             from .stage2_join import ratify_page_scales
             pool = self.ledger.join_pool()
