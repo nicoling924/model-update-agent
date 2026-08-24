@@ -312,21 +312,49 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
     blank()
 
     # ---- 2. WHAT TO REVIEW (red) -------------------------------------
+    # de-cluttered (owner): grouped by sheet, one line per item, note as
+    # a HOVER comment not a text column, biggest first, capped at 20
     band(f"REVIEW — the agent could not prove these ({len(reds)})",
          _RED_BAND)
-    for p in reds[:40]:
+    ws[f"A{r}"] = "hover a name for the agent's note · full list on _REPORT_DETAIL"
+    ws[f"A{r}"].font = _MUTED_I
+    r += 1
+    ev_r = Evaluator(wb)
+
+    def _live(p):
         sheet, coord = p.ref.split("!", 1)
-        row_n = int(re.sub(r"[A-Z]", "", coord))
-        lab = _label(wb, sheet, row_n) or p.ref
-        ws[f"A{r}"] = _clean(f"{lab}  ({sheet})")[:60]
-        ws[f"A{r}"].hyperlink = f"#{_syn(sheet)}!{coord}"
-        ws[f"A{r}"].font = _LINK
-        ws[f"B{r}"] = f"={_syn(sheet)}!{coord}"
-        ws[f"C{r}"] = _first_sentence(p.note or p.method)
+        try:
+            v = ev_r.cell(sheet, coord)
+            return v if isinstance(v, (int, float)) else None
+        except Exception:
+            return None
+    reds_sized = sorted(((p, _live(p)) for p in reds),
+                        key=lambda x: -(abs(x[1]) if x[1] else 0))[:20]
+    by_sheet = {}
+    for p, v in reds_sized:
+        by_sheet.setdefault(p.ref.split("!", 1)[0], []).append((p, v))
+    from openpyxl.comments import Comment as _C
+    for sheet in sorted(by_sheet):
+        ws[f"A{r}"] = _clean(sheet)
+        ws[f"A{r}"].font = Font(bold=True, color="FF7F7F7F")
         r += 1
-    if len(reds) > 40:
-        ws[f"A{r}"] = _clean(f"…and {len(reds) - 40} more — see "
+        for p, v in by_sheet[sheet]:
+            _sh, coord = p.ref.split("!", 1)
+            row_n = int(re.sub(r"[A-Z]", "", coord))
+            lab = _label(wb, _sh, row_n) or p.ref
+            ws[f"B{r}"] = _clean(str(lab))[:44]
+            ws[f"B{r}"].hyperlink = f"#{_syn(_sh)}!{coord}"
+            ws[f"B{r}"].font = _LINK
+            note = _clean(str(p.note or p.method))[:250]
+            if note:
+                ws[f"B{r}"].comment = _C(note, "Model Update Agent")
+            ws[f"C{r}"] = f"={_syn(_sh)}!{coord}"
+            ws[f"C{r}"].number_format = "#,##0.0"
+            r += 1
+    if len(reds) > 20:
+        ws[f"B{r}"] = _clean(f"…{len(reds) - 20} smaller items on "
                              f"_REPORT_DETAIL")
+        ws[f"B{r}"].font = _MUTED_I
         r += 1
     if not reds:
         ws[f"A{r}"] = "(none)"
