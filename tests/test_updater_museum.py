@@ -3057,3 +3057,31 @@ class CoincidentalTieYields(unittest.TestCase):
                                 "why": "p101: a printed FX figure"})
         self.assertIn("REVERTED", out, out)
         self.assertEqual(ws["U2"].value, 4000.0)
+
+
+class HumanFirstReport(unittest.TestCase):
+    """Owner ruling 2026-08-24: the _REPORT page is for the ANALYST —
+    key figures with estimate-vs-actual and a one-line why on top,
+    review lists below with row LABELS not cell refs; the machine dump
+    moves to _REPORT_DETAIL."""
+
+    def test_report_shape(self):
+        from updater.report import build_report
+        wb, ws = _wb()
+        ws["A5"] = "Revenue"
+        ws["T5"], ws["U5"] = 69695.0, 78615.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "key_rows": [{"sheet": "Model", "row": 5, "name": "revenue"}]}
+        book = EvidenceBook()
+        book.record("Model!U7", "C", "low-confidence read",
+                    note="two candidate scopes")
+        snapshot = {"target": [("revenue", "Model!U5", 76000.0)],
+                    "forecast": {}}
+        rep = build_report(wb, spec, 2025, book, snapshot,
+                           police={"laws": {"3_balance": "PASS"}})
+        text = " ".join(str(c.value) for row in rep.iter_rows()
+                        for c in row if c.value is not None)
+        self.assertIn("KEY FIGURES", text)
+        self.assertIn("REVIEW", text)
+        self.assertIn("_REPORT_DETAIL", wb.sheetnames)
+        self.assertEqual(wb.sheetnames[0], "_REPORT")

@@ -314,7 +314,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
     report_mod.build_report(wb, spec_d, target_year, book, snapshot,
                             adjustments=adjustments, police=verdict,
                             loop_summary=loop_summary,
-                            reading=reading_report)
+                            reading=reading_report, client=client)
     spec_d["_last_run"] = {
         "period": period, "served": len(served),
         "flags": len(set(writer.log["flags"])),

@@ -38,6 +38,29 @@ Analyst will use the model to do the following task:
   data is restated, then they may not reconcile → only restate the previous
   data if the analyst agrees
 
+## Special situation: RECLASSIFICATION (owner addition, 2026-08-24)
+
+Distinct from restatement. A RECLASSIFICATION is when the current period's
+PRESENTATION changes — segment/breakdown categories are cut differently
+in 2025 vs 2024 (e.g. Dongfang's sales breakdown) — while the prior-year
+numbers in the model are NOT contradicted.
+
+- The agent does NOT stop for a reclassification. It should EITHER
+  (a) interpret and map by itself based on the MEANING of the item
+  (translation is mapping; scope is what it verifies), OR
+  (b) back out the number (derive it from totals and known relationships)
+  and highlight it for the analyst to review.
+- The agent must NOT alter the model structure — no new rows, no changed
+  row/column headers, no re-basing of the model's categories. Structural
+  changes are the ANALYST'S work.
+- If it cannot map an item by meaning, it simply backs the number out
+  (orange) or leaves it flagged (red) — it never stalls the run and never
+  invents structure.
+
+Rule of thumb: restatement = the PAST changed → full stop, ask.
+Reclassification = the PRESENTATION changed → map by meaning or back out,
+flag, keep moving, never touch structure.
+
 ## Key required output from an updated model
 
 ### 1. Model balanced → the 3 statements have to reconcile; no accounting errors
