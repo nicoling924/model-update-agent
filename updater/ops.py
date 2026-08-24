@@ -158,11 +158,15 @@ def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
                 # order unexpected — refuse to guess
                 continue
 
+            OFW_RE = re.compile(r"^\s*(其中|其 中|of which|incl\.)", re.I)
+
             def members(sub, lo):
                 out = []
                 for m in range(lo + 1, sub):
-                    if num(m) is not None:
-                        out.append(m)
+                    if num(m) is not None \
+                            and not OFW_RE.search(lab(m)):
+                        out.append(m)     # 其中 sub-rows are components
+                                          # of the line above, never peers
                 return out
             # the inflow block starts at the ACTIVITY HEADER above it —
             # blank 差额 helper rows sit between members and subtotals,

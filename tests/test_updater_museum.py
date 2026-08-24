@@ -3157,6 +3157,7 @@ class ConstructedBlockClosure(unittest.TestCase):
         # the RA2 no-fire shape: blank 差额 helper rows directly above
         # each subtotal (label present, no number)
         rows_helper = {5.5: "投资活动现金流入差额(合计平衡项目)",
+                       7.5: "其中：子公司支付给少数股东的现金",
                        8.5: "投资活动现金流出差额(合计平衡项目)"}
         if coherent:
             rows[5] = (rows[5][0], 10720.3)     # 25155.7+10720.3=35876
@@ -3164,7 +3165,8 @@ class ConstructedBlockClosure(unittest.TestCase):
             rows[9] = (rows[9][0], 46463.32)    # 35876-46463.32=-10587.32
         # renumber with helper rows interleaved
         seq = sorted(list(rows.items())
-                     + [(k, (v, None)) for k, v in rows_helper.items()])
+                     + [(k, (v, 124.1 if "其中" in v else None))
+                        for k, v in rows_helper.items()])
         rr = 2
         self.map = {}
         for key, (lab, v) in seq:
