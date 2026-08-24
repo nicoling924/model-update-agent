@@ -3149,25 +3149,40 @@ class ConstructedBlockClosure(unittest.TestCase):
             6: ("投资活动现金流入小计", 35876.0),
             7: ("购建固定资产支付的现金", 4284.3),
             8: ("支付其他与投资活动有关的现金", 153514.6),
+            85: None,   # placeholder, replaced below
             9: ("投资活动现金流出小计", 38649.7),
             10: ("投资活动产生的现金流量净额", -10587.32),
         }
+        del rows[85]
+        # the RA2 no-fire shape: blank 差额 helper rows directly above
+        # each subtotal (label present, no number)
+        rows_helper = {5.5: "投资活动现金流入差额(合计平衡项目)",
+                       8.5: "投资活动现金流出差额(合计平衡项目)"}
         if coherent:
             rows[5] = (rows[5][0], 10720.3)     # 25155.7+10720.3=35876
             rows[8] = (rows[8][0], 42179.02)    # 4284.3+42179.02=46463.32
             rows[9] = (rows[9][0], 46463.32)    # 35876-46463.32=-10587.32
-        for r, (lab, v) in rows.items():
-            ws[f"A{r}"] = lab
+        # renumber with helper rows interleaved
+        seq = sorted(list(rows.items())
+                     + [(k, (v, None)) for k, v in rows_helper.items()])
+        rr = 2
+        self.map = {}
+        for key, (lab, v) in seq:
+            rr += 1
+            self.map[key] = rr
+            ws[f"A{rr}"] = lab
             if v is not None:
-                ws[f"U{r}"] = v
+                ws[f"U{rr}"] = v
         return wb, ws
 
     def _close(self, wb):
         from updater import ops
         from updater.writer import Writer
         book = EvidenceBook()
-        book.record("Raw!U10", "A", "join/checksum read", citation="p23")
-        book.record("Raw!U8", "C", "constructed", note="estimate")
+        book.record(f"Raw!U{self.map[10]}", "A", "join/checksum read",
+                    citation="p23")
+        book.record(f"Raw!U{self.map[8]}", "C", "constructed",
+                    note="estimate")
         spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}}}}
         return ops.close_constructed_cf(wb, spec, 2025, book, Writer(wb),
                                         lambda s: None), book
@@ -3176,16 +3191,20 @@ class ConstructedBlockClosure(unittest.TestCase):
         wb, ws = self._wb(coherent=False)
         n, book = self._close(wb)
         self.assertEqual(n, 1)
-        self.assertEqual(ws["U6"].value, "=SUM(U4,U5)")
-        self.assertEqual(ws["U9"].value, "=U6-U10")
-        self.assertEqual(ws["U8"].value, "=U9-SUM(U7)")
+        m = self.map
+        self.assertEqual(ws[f"U{m[6]}"].value,
+                         f"=SUM(U{m[4]},U{m[5]})")
+        self.assertEqual(ws[f"U{m[9]}"].value, f"=U{m[6]}-U{m[10]}")
+        self.assertEqual(ws[f"U{m[8]}"].value,
+                         f"=U{m[9]}-SUM(U{m[7]})")
         from updater.evaluator import Evaluator
         ev = Evaluator(wb)
-        self.assertAlmostEqual(ev.cell("Raw", "U6")
-                               - ev.cell("Raw", "U9"), -10587.32, places=2)
+        self.assertAlmostEqual(ev.cell("Raw", f"U{m[6]}")
+                               - ev.cell("Raw", f"U{m[9]}"),
+                               -10587.32, places=2)
 
     def test_coherent_block_untouched(self):
         wb, ws = self._wb(coherent=True)
         n, _book = self._close(wb)
         self.assertEqual(n, 0)
-        self.assertEqual(ws["U6"].value, 35876.0)
+        self.assertEqual(ws[f"U{self.map[6]}"].value, 35876.0)
