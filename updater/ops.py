@@ -25,12 +25,20 @@ def rollover_all(wb, spec_d, target_year, writer, log):
     """The owner's column convention on every axis sheet. Returns the
     hardcode census {sheet: [rows]} — the inputs actuals must overwrite."""
     census = {}
+    from openpyxl.utils import column_index_from_string as _ci
+    axis_offsets = {}
+    for sh0 in (spec_d.get("year_axis") or {}):
+        t0 = year_columns(spec_d, sh0).get(str(target_year))
+        p0 = prior_column(spec_d, sh0, target_year)
+        if t0 and p0:
+            axis_offsets[sh0] = _ci(t0) - _ci(p0)
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         pcol = prior_column(spec_d, sheet, target_year)
         if not (tcol and pcol and sheet in wb.sheetnames):
             continue
-        hard = rollover_column(wb, sheet, pcol, tcol)
+        hard = rollover_column(wb, sheet, pcol, tcol,
+                               axis_offsets=axis_offsets)
         census[sheet] = hard
         years = sorted(year_columns(spec_d, sheet))
         py = years[years.index(str(target_year)) - 1]

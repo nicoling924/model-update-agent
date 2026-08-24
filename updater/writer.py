@@ -94,7 +94,64 @@ def shift_formula_excel(formula, offset=1):
     return "".join(p if p.startswith("'") else pat.sub(sub, p) for p in parts)
 
 
-def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
+def axis_correct_formula(shifted, own_off, sheet, axis_offsets):
+    """INTERIM STRIDE LAW (owner test 2026-08-25, 1H25 attempt 2): sheets
+    carry interim panels at DIFFERENT strides (Model H1/H2 interleave =
+    stride 2; Raw financials 1H block = stride 1), so a uniform Excel
+    shift sends cross-sheet refs one column too far ('Raw financials'!AU
+    where AT is the period). Every sheet-qualified ref is re-shifted by
+    the REFERENCED sheet's own offset. FY runs have equal offsets — the
+    correction is a no-op there."""
+    import re as _re
+    from openpyxl.utils import column_index_from_string, get_column_letter
+
+    def fix_one(m):
+        q, bare, dollar, col, rest = m.groups()
+        ref_sheet = (q or bare or "").strip()
+        ox = axis_offsets.get(ref_sheet)
+        if ox is None or ref_sheet == sheet or ox == own_off:
+            return m.group(0)
+        # relative columns were already shifted by own_off; absolutes not
+        shift_back = 0 if dollar else own_off
+        orig = column_index_from_string(col) - shift_back
+        newc = get_column_letter(orig + ox)
+        head = f"'{q}'!" if q else f"{bare}!"
+        return f"{head}{dollar}{newc}{rest}"
+
+    return _re.sub(
+        r"(?:'([^']+)'|([A-Za-z0-9 _]+))!(\$?)([A-Z]{1,3})(\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)",
+        lambda m: _fix_range(m, fix_one, own_off, sheet, axis_offsets),
+        shifted)
+
+
+def _fix_range(m, fix_one, own_off, sheet, axis_offsets):
+    """Ranges ('X'!AT4:AU9) carry the qualifier once — both endpoints
+    move together by the referenced sheet's offset."""
+    import re as _re
+    from openpyxl.utils import column_index_from_string, get_column_letter
+    q, bare, dollar, col, rest = m.groups()
+    ref_sheet = (q or bare or "").strip()
+    ox = axis_offsets.get(ref_sheet)
+    if ox is None or ref_sheet == sheet or ox == own_off:
+        return m.group(0)
+
+    def move(dol, c):
+        shift_back = 0 if dol else own_off
+        return get_column_letter(column_index_from_string(c)
+                                 - shift_back + ox)
+    head = f"'{q}'!" if q else f"{bare}!"
+    out = f"{head}{dollar}{move(dollar, col)}"
+    mr = _re.match(r"(\$?\d+):(\$?)([A-Z]{1,3})(\$?\d+)$", rest)
+    if mr:
+        r1, d2, c2, r2 = mr.groups()
+        out += f"{r1}:{d2}{move(d2, c2)}{r2}"
+    else:
+        out += rest
+    return out
+
+
+def rollover_column(wb, sheet, from_col, to_col, skip_rows=(),
+                    axis_offsets=None):
     """The owner's convention: the new actual column IS the prior actual
     column carried forward. Copies every cell — formulas Excel-shifted one
     column, hardcodes as-is, styles and number formats — and returns the
@@ -114,7 +171,10 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
             dst.value = None
             continue
         if isinstance(v, str) and v.startswith("="):
-            dst.value = shift_formula_excel(v, offset)
+            fx = shift_formula_excel(v, offset)
+            if axis_offsets:
+                fx = axis_correct_formula(fx, offset, sheet, axis_offsets)
+            dst.value = fx
         else:
             dst.value = v
             if isinstance(v, (int, float)):
