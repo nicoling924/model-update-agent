@@ -1,3 +1,25 @@
+
+# Morning report — overnight 2026-08-25 (interim + announcement tests)
+
+H1: 84% (4 attempts: 68 -> 83 -> 84 after three root fixes). Q1: 87%
+first try. Announcement-only: 7/10 keys exact (all three CF NET totals
+captured from the variation table; constructed CF components have scale
+slips and do not reconcile to the proven nets — flagged red).
+
+New permanent laws (museum 140): interim dual-anchor comparatives
+(BS prints prior YEAR-END), per-sheet stride rollover translation,
+alt-anchor join pass. Interim axis discovered from the model's own
+headers (H125/1H2025/Q125 forms); annual-only sheets drop out of scope
+automatically.
+
+NEXT FUNDAMENTAL (fresh eyes, maybe council): constructed-block closure
+— components of an estimated section must reconcile to an
+identity-proven subtotal/net (plug the residual into the 'other' member,
+orange). Also: interim balance check rows (1-2 fails per interim run).
+
+Local DFE model = stripped test copy; answer sheet archived at
+model-archive/DFE Model (1H25 ANSWER SHEET).xlsx (gitignored).
+
 # Morning report — overnight 2026-08-20 (SoC sub-model session)
 
 ## The one-line summary
