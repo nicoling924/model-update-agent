@@ -153,6 +153,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             raise SystemExit(
                 f"no interim ({_kind}) columns found for {target_year} in "
                 f"the model — cannot run period {period}")
+        spec_d["_annual_axis"] = spec_d.get("year_axis")
         spec_d["year_axis"] = interim_axis
         log(f"[run] interim axis ({_kind}): "
             + ", ".join(f"{sh}!{v['columns'][str(target_year)]}"
@@ -180,6 +181,22 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
     # -- census + digest (read once; artifacts cached by stage 1)
     targets = targets_mod.from_workbook(wb_values, spec_d, target_year,
                                         wb_formulas=wb)
+    if _kind != "FY":
+        # second comparative anchor: an interim filing's BS comparatives
+        # are the prior YEAR-END — the model's annual prior column
+        ann = spec_d.get("_annual_axis") or {}
+        n_alt = 0
+        for t in targets:
+            cols = (ann.get(t.sheet) or {}).get("columns") or {}
+            prior_yr = str(int(target_year) - 1)
+            col = cols.get(prior_yr)
+            if col and t.sheet in wb_values.sheetnames:
+                v = wb_values[t.sheet][f"{col}{t.row}"].value
+                if isinstance(v, (int, float)):
+                    t.alt_prior_value = float(v)
+                    n_alt += 1
+        run_log.append(f"[run] interim alt-anchors: {n_alt} rows carry the "
+                       f"annual {prior_yr} year-end comparative")
     known = targets_mod.known_prior_values(targets)
     log(f"[run] census: {len(targets)} target rows, {len(known)} priors")
     docs = _disclosures(company_dir, period)
