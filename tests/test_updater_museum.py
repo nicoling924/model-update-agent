@@ -3085,3 +3085,45 @@ class HumanFirstReport(unittest.TestCase):
         self.assertIn("REVIEW", text)
         self.assertIn("_REPORT_DETAIL", wb.sheetnames)
         self.assertEqual(wb.sheetnames[0], "_REPORT")
+
+
+class InterimStrideRollover(unittest.TestCase):
+    """1H25 attempt 2 (2026-08-25): Model's H-panel strides 2 columns
+    (H1/H2 interleave) while Raw financials' 1H panel strides 1 — the
+    uniform Excel shift sent cross-sheet refs one column too far
+    ('Raw financials'!AU where AT is the period). Cross-sheet refs
+    re-shift by the REFERENCED sheet's own offset; FY runs (equal
+    offsets) are untouched."""
+
+    def test_cross_sheet_refs_use_referenced_sheets_stride(self):
+        import openpyxl
+        from updater.writer import rollover_column
+        wb = openpyxl.Workbook()
+        m = wb.active
+        m.title = "Model"
+        raw = wb.create_sheet("Raw")
+        # Model prior col B (stride 2 -> target D); Raw prior col B
+        # (stride 1 -> target C)
+        m["B4"] = "='Raw'!B4"
+        m["B5"] = "=B4*2"
+        m["B6"] = "=SUM('Raw'!B10:B12)"
+        m["B7"] = "='Raw'!$B$9"
+        raw["B4"], raw["C4"] = 100.0, 110.0
+        rollover_column(wb, "Model", "B", "D",
+                        axis_offsets={"Model": 2, "Raw": 1})
+        self.assertEqual(m["D4"].value, "='Raw'!C4")
+        self.assertEqual(m["D5"].value, "=D4*2")          # same-sheet: own stride
+        self.assertEqual(m["D6"].value, "=SUM('Raw'!C10:C12)")
+        self.assertEqual(m["D7"].value, "='Raw'!$C$9")    # absolutes remap too
+
+    def test_equal_offsets_noop(self):
+        import openpyxl
+        from updater.writer import rollover_column
+        wb = openpyxl.Workbook()
+        m = wb.active
+        m.title = "Model"
+        wb.create_sheet("Raw")
+        m["B4"] = "='Raw'!B4"
+        rollover_column(wb, "Model", "B", "C",
+                        axis_offsets={"Model": 1, "Raw": 1})
+        self.assertEqual(m["C4"].value, "='Raw'!C4")
