@@ -61,23 +61,44 @@ def _year_of(v):
     are not a year-end month (a consistent 06-30 panel is a half-year
     panel; Dec-end and Jan/Mar fiscal ends stay annual-plausible)."""
     if isinstance(v, bool):
-        return None, False
+        return None, None
     if isinstance(v, (int, float)):
         y = int(v)
         if YEAR_MIN <= y <= YEAR_MAX and abs(v - y) < 0.5:
-            return y, False
-        return None, False
+            return y, None
+        return None, None
     if hasattr(v, "year"):
         if YEAR_MIN <= v.year <= YEAR_MAX:
-            return v.year, v.month in (6, 9)
-        return None, False
+            return v.year, ("1H" if v.month in (6, 9) else None)
+        return None, None
     if isinstance(v, str):
-        m = re.search(r"(19\d{2}|20\d{2})", v)
+        t = v.strip().upper()
+        # compact interim forms measured on live models: H125 = 1H-2025,
+        # H225E = 2H-2025 estimate, Q106 = Q1-2006, 1H2025, 2025H1
+        m = re.match(r"^H([12])(\d{2})E?$", t)
+        if m:
+            return 2000 + int(m.group(2)), f"{m.group(1)}H"
+        m = re.match(r"^Q([1-4])(\d{2})E?$", t)
+        if m:
+            return 2000 + int(m.group(2)), f"{m.group(1)}Q"
+        m = re.match(r"^([12])H(19\d{2}|20\d{2})$", t) \
+            or re.match(r"^(?:(19\d{2}|20\d{2})H([12]))$", t)
+        if m:
+            g = m.groups()
+            return (int(g[1]), f"{g[0]}H") if len(g[0]) == 1 \
+                else (int(g[0]), f"{g[1]}H")
+        m = re.match(r"^([1-4])Q(19\d{2}|20\d{2})$", t) \
+            or re.match(r"^(19\d{2}|20\d{2})Q([1-4])$", t)
+        if m:
+            g = m.groups()
+            return (int(g[1]), f"{g[0]}Q") if len(g[0]) == 1 \
+                else (int(g[0]), f"{g[1]}Q")
+        m = re.search(r"(19\d{2}|20\d{2})", t)
         if m:
             interim = bool(_INTERIM_TEXT.search(v)
                            or re.search(r"[-/](?:06|6)[-/]30|[-/](?:09|9)[-/]30", v))
-            return int(m.group(1)), interim
-    return None, False
+            return int(m.group(1)), ("1H" if interim else None)
+    return None, None
 
 
 def find_year_axis(ws, period_kind="FY"):
@@ -88,15 +109,28 @@ def find_year_axis(ws, period_kind="FY"):
     panel, an interim update the interim panel — the 1H-panel trap), then
     run length, then topmost row."""
     from .evaluator import n2col
-    want_interim = period_kind.upper() != "FY"
+    pk = period_kind.upper()
+    want_tag = None if pk == "FY" else pk       # '1H','2H','1Q'..'4Q'
+    if want_tag in ("H1", "H2"):
+        want_tag = want_tag[1] + "H"
+    want_interim = want_tag is not None
     cands = []
     for row in ws.iter_rows(min_row=1, max_row=min(_SCAN_ROWS, ws.max_row)):
         marks = []
         for c in row:
-            y, interim = _year_of(getattr(c, "value", None))
-            if y is not None and getattr(c, "column", None):
-                marks.append((c.column, y, interim))
-        if len(marks) < _MIN_RUN:
+            y, tag = _year_of(getattr(c, "value", None))
+            if y is None or not getattr(c, "column", None):
+                continue
+            if want_interim:
+                if tag != want_tag:
+                    continue                     # H1 runs see H1 columns only
+                marks.append((c.column, y, True))
+            else:
+                if tag is not None:
+                    continue                     # FY runs never see interim cols
+                marks.append((c.column, y, False))
+        min_run = 2 if want_interim else _MIN_RUN
+        if len(marks) < min_run:
             continue
         run = [marks[0]]
         runs = []
@@ -104,10 +138,10 @@ def find_year_axis(ws, period_kind="FY"):
             if cur[1] == prev[1] + 1 and cur[0] > prev[0]:
                 run.append(cur)
             else:
-                if len(run) >= _MIN_RUN:
+                if len(run) >= min_run:
                     runs.append(run)
                 run = [cur]
-        if len(run) >= _MIN_RUN:
+        if len(run) >= min_run:
             runs.append(run)
         rowno = next((c.row for c in row if hasattr(c, "row")), 99)
         for rn in runs:
