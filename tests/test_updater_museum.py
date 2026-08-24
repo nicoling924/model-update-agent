@@ -3127,3 +3127,65 @@ class InterimStrideRollover(unittest.TestCase):
         rollover_column(wb, "Model", "B", "C",
                         axis_offsets={"Model": 1, "Raw": 1})
         self.assertEqual(m["C4"].value, "='Raw'!C4")
+
+
+class ConstructedBlockClosure(unittest.TestCase):
+    """Council ruling 2026-08-25 (announcement-only CF): the activity NET
+    is identity-proven, components are estimates with slips — the model
+    displayed −149,157 against a proven −10,587. The block closes LIVE:
+    inflow subtotal = SUM(members), outflow subtotal = inflow − net,
+    the outflow 'other' member absorbs the residual. Orange, noted;
+    proven cells untouched; coherent blocks left alone."""
+
+    def _wb(self, coherent):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Raw"
+        rows = {
+            3: ("投资活动产生的现金流量：", None),
+            4: ("收回投资收到的现金", 25155.7),
+            5: ("收到其他与投资活动有关的现金", 19078.348),
+            6: ("投资活动现金流入小计", 35876.0),
+            7: ("购建固定资产支付的现金", 4284.3),
+            8: ("支付其他与投资活动有关的现金", 153514.6),
+            9: ("投资活动现金流出小计", 38649.7),
+            10: ("投资活动产生的现金流量净额", -10587.32),
+        }
+        if coherent:
+            rows[5] = (rows[5][0], 10720.3)     # 25155.7+10720.3=35876
+            rows[8] = (rows[8][0], 42179.02)    # 4284.3+42179.02=46463.32
+            rows[9] = (rows[9][0], 46463.32)    # 35876-46463.32=-10587.32
+        for r, (lab, v) in rows.items():
+            ws[f"A{r}"] = lab
+            if v is not None:
+                ws[f"U{r}"] = v
+        return wb, ws
+
+    def _close(self, wb):
+        from updater import ops
+        from updater.writer import Writer
+        book = EvidenceBook()
+        book.record("Raw!U10", "A", "join/checksum read", citation="p23")
+        book.record("Raw!U8", "C", "constructed", note="estimate")
+        spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}}}}
+        return ops.close_constructed_cf(wb, spec, 2025, book, Writer(wb),
+                                        lambda s: None), book
+
+    def test_incoherent_block_closes_to_proven_net(self):
+        wb, ws = self._wb(coherent=False)
+        n, book = self._close(wb)
+        self.assertEqual(n, 1)
+        self.assertEqual(ws["U6"].value, "=SUM(U4,U5)")
+        self.assertEqual(ws["U9"].value, "=U6-U10")
+        self.assertEqual(ws["U8"].value, "=U9-SUM(U7)")
+        from updater.evaluator import Evaluator
+        ev = Evaluator(wb)
+        self.assertAlmostEqual(ev.cell("Raw", "U6")
+                               - ev.cell("Raw", "U9"), -10587.32, places=2)
+
+    def test_coherent_block_untouched(self):
+        wb, ws = self._wb(coherent=True)
+        n, _book = self._close(wb)
+        self.assertEqual(n, 0)
+        self.assertEqual(ws["U6"].value, 35876.0)
