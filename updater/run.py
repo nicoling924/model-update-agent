@@ -15,6 +15,7 @@ sweep, police deterministic layer), scripted directly as a TEST harness —
 the production control flow is the agent's own decisions.
 """
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -126,7 +127,38 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
             f"({len(spec_d['year_axis'])} sheets, "
             f"{len(spec_d['check_rows'])} checks, "
             f"{len(spec_d['key_rows'])} keys)")
-    spec_mod.extend_axis(spec_d, target_year)
+    # INTERIM PERIODS (owner test, 2026-08-25): a half-year/quarterly run
+    # must target the model's OWN interim columns (H125 / 1H2025 / Q125),
+    # which an annual spec cannot name — the axis is rebuilt from the
+    # workbook's headers via discovery (period_kind-aware), sheets without
+    # interim columns drop out of scope automatically, and the annual
+    # extend step is skipped (interim columns already exist).
+    _p = str(period).upper()
+    _m = re.match(r"^([12])H|^H([12])", _p) or re.match(r"^([1-4])Q|^Q([1-4])", _p)
+    if _m and "H" in _p[:3]:
+        _kind = (_m.group(1) or _m.group(2)) + "H"
+    elif _m:
+        _kind = (_m.group(1) or _m.group(2)) + "Q"
+    else:
+        _kind = "FY"
+    if _kind != "FY":
+        from .discover import find_year_axis
+        probe_f = load(_model_path(company_dir, spec_d))
+        interim_axis = {}
+        for sh in probe_f.sheetnames:
+            ax = find_year_axis(probe_f[sh], period_kind=_kind)
+            if ax and str(target_year) in ax:
+                interim_axis[sh] = {"columns": ax}
+        if not interim_axis:
+            raise SystemExit(
+                f"no interim ({_kind}) columns found for {target_year} in "
+                f"the model — cannot run period {period}")
+        spec_d["year_axis"] = interim_axis
+        log(f"[run] interim axis ({_kind}): "
+            + ", ".join(f"{sh}!{v['columns'][str(target_year)]}"
+                        for sh, v in sorted(interim_axis.items())))
+    else:
+        spec_mod.extend_axis(spec_d, target_year)
     # A spec without key_rows would make Police law 4 pass VACUOUSLY (the
     # run-1-live false PASS): supplement keys/checks from discovery so the
     # law always has teeth. Discovery is additive here — never overrides
