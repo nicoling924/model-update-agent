@@ -29,6 +29,29 @@ BIG_MOVE_CAP = 30
 _BOLD = Font(bold=True)
 _LINK = Font(color="FF0563C1", underline="single")
 
+# dashboard palette (owner: "easier to read finance dashboard")
+from openpyxl.styles import Alignment, Border, PatternFill, Side
+_NAVY = PatternFill("solid", start_color="FF1F3864")
+_BAND = PatternFill("solid", start_color="FF2E5496")
+_RED_BAND = PatternFill("solid", start_color="FFC00000")
+_AMBER_BAND = PatternFill("solid", start_color="FFBF6000")
+_ZEBRA = PatternFill("solid", start_color="FFF2F5FA")
+_CHIP_OK = PatternFill("solid", start_color="FFC6E0B4")
+_CHIP_WARN = PatternFill("solid", start_color="FFFFD6D6")
+_WHITE_B = Font(bold=True, color="FFFFFFFF")
+_WHITE_B14 = Font(bold=True, color="FFFFFFFF", size=14)
+_GOOD = Font(color="FF107C41")
+_BAD = Font(color="FFC00000")
+_MUTED_I = Font(italic=True, color="FF7F7F7F")
+_THIN = Border(bottom=Side(style="thin", color="FFD0D7E5"))
+
+# the mindmap's OWN key-item list (BOSS_MINDMAP "Key numbers include") —
+# the report's top table shows THESE, not every discovered key
+HEADLINE_RE = re.compile(
+    r"revenue|sales|gross profit|net profit|eps|dps|dividend|cash year|"
+    r"cash balance|total assets|total equity|"
+    r"operating cash|investing cash|financing cash", re.I)
+
 
 def _syn(sheet):
     return f"'{sheet}'" if re.search(r"[^A-Za-z0-9]", sheet) else sheet
@@ -203,57 +226,94 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
         nonlocal r
         r += 1
 
-    verdict = "all checks PASS"
     fails = [k for k, v in ((police or {}).get("laws") or {}).items()
              if v not in ("PASS", "n/a")]
-    if fails:
-        verdict = "REVIEW: " + ", ".join(sorted(fails))
-    head(f"RESULTS UPDATE — FY{target_year}   ({verdict})", big=True)
     reds = book.by_grade("C")
     oranges = book.by_grade("D")
-    ws[f"A{r}"] = _clean(f"{len(reds)} cells need review (red) · "
-                         f"{len(oranges)} backed out (orange) · detail on "
-                         f"the _REPORT_DETAIL tab")
+    # title bar
+    ws.merge_cells(f"A{r}:F{r}")
+    ws[f"A{r}"] = _clean(f"RESULTS UPDATE — FY{target_year}")
+    ws[f"A{r}"].font = _WHITE_B14
+    ws[f"A{r}"].fill = _NAVY
+    ws.row_dimensions[r].height = 26
+    ws[f"A{r}"].alignment = Alignment(vertical="center")
+    r += 1
+    # status chips
+    ws[f"A{r}"] = ("✓ all checks PASS" if not fails
+                   else "⚠ review: " + ", ".join(sorted(fails)))
+    ws[f"A{r}"].fill = _CHIP_OK if not fails else _CHIP_WARN
+    ws[f"A{r}"].font = Font(bold=True)
+    ws[f"B{r}"] = f"{len(reds)} to review"
+    ws[f"B{r}"].fill = _CHIP_WARN if reds else _CHIP_OK
+    ws[f"C{r}"] = f"{len(oranges)} backed out"
+    ws[f"D{r}"] = "detail → _REPORT_DETAIL"
+    ws[f"D{r}"].font = _MUTED_I
     r += 2
 
     # ---- 1. KEY FIGURES ----------------------------------------------
-    head("KEY FIGURES — actual vs last year and vs our estimate")
-    keys = key_panel_rows(wb, spec, target_year, snapshot)
+    def band(text, fill=_BAND):
+        nonlocal r
+        ws.merge_cells(f"A{r}:F{r}")
+        ws[f"A{r}"] = _clean(text)
+        ws[f"A{r}"].font = _WHITE_B
+        ws[f"A{r}"].fill = fill
+        r += 1
+
+    band("KEY FIGURES — actual vs last year and vs our estimate")
+    all_keys = key_panel_rows(wb, spec, target_year, snapshot)
+    keys = [k for k in all_keys if HEADLINE_RE.search(k[0])][:12] \
+        or all_keys[:10]
     moves = big_moves(wb, spec, target_year)
     why = commentary(client, keys, moves, wb)
     hdr = ("", "Actual", "Prior yr", "YoY", "Our est.", "vs est.")
     for j, h in enumerate(hdr):
         c = ws.cell(row=r, column=1 + j, value=h)
         c.font = _BOLD
+        c.border = _THIN
     r += 1
+    zebra = False
     for name, ref, act, pri, est in keys:
         sheet, coord = ref.split("!", 1)
-        ws[f"A{r}"] = _clean(name)
+        ws[f"A{r}"] = _clean(name).title()
         ws[f"A{r}"].hyperlink = f"#{_syn(sheet)}!{coord}"
-        ws[f"A{r}"].font = _LINK
+        ws[f"A{r}"].font = Font(bold=True, color="FF1F3864")
         ws[f"B{r}"] = act
         ws[f"C{r}"] = pri
         if isinstance(act, (int, float)) and isinstance(pri, (int, float)) \
                 and pri:
-            ws[f"D{r}"] = (act - pri) / abs(pri)
+            pct = (act - pri) / abs(pri)
+            ws[f"D{r}"] = pct
             ws[f"D{r}"].number_format = "+0.0%;-0.0%"
+            ws[f"D{r}"].font = _GOOD if pct >= 0 else _BAD
         ws[f"E{r}"] = est if isinstance(est, (int, float)) else None
         if isinstance(act, (int, float)) and isinstance(est, (int, float)) \
                 and est:
-            ws[f"F{r}"] = (act - est) / abs(est)
+            pe = (act - est) / abs(est)
+            ws[f"F{r}"] = pe
             ws[f"F{r}"].number_format = "+0.0%;-0.0%"
+            ws[f"F{r}"].font = _GOOD if abs(pe) <= 0.02 \
+                else (_BAD if pe < 0 else _GOOD)
         for cc in ("B", "C", "E"):
             ws[f"{cc}{r}"].number_format = "#,##0.0"
+        if zebra:
+            for cc in "ABCDEF":
+                ws[f"{cc}{r}"].fill = _ZEBRA
         r += 1
         line = why.get(name)
         if line:
             ws[f"B{r}"] = _clean(f"— {line}")
-            ws[f"B{r}"].font = Font(italic=True, color="FF666666")
+            ws.merge_cells(f"B{r}:F{r}")
+            ws[f"B{r}"].font = _MUTED_I
+            if zebra:
+                for cc in "ABCDEF":
+                    ws[f"{cc}{r}"].fill = _ZEBRA
             r += 1
+        zebra = not zebra
     blank()
 
     # ---- 2. WHAT TO REVIEW (red) -------------------------------------
-    head(f"REVIEW — the agent could not prove these ({len(reds)})")
+    band(f"REVIEW — the agent could not prove these ({len(reds)})",
+         _RED_BAND)
     for p in reds[:40]:
         sheet, coord = p.ref.split("!", 1)
         row_n = int(re.sub(r"[A-Z]", "", coord))
@@ -274,8 +334,8 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
     blank()
 
     # ---- 3. BACKED OUT (orange) --------------------------------------
-    head(f"BACKED OUT — derived, will true-up from the detailed report "
-         f"({len(oranges)})")
+    band(f"BACKED OUT — derived, will true-up from the detailed report "
+         f"({len(oranges)})", _AMBER_BAND)
     for p in oranges[:25]:
         sheet, coord = p.ref.split("!", 1)
         row_n = int(re.sub(r"[A-Z]", "", coord))
@@ -296,7 +356,7 @@ def build_report(wb, spec, target_year, book, snapshot, adjustments=None,
     other = [(ref, pv, tv, pct) for ref, pv, tv, pct in moves
              if ref not in key_refs][:10]
     if other:
-        head("OTHER BIG MOVES (>50% YoY — check mapping before news)")
+        band("OTHER BIG MOVES (>50% YoY — check mapping before news)")
         for ref, pv, tv, pct in other:
             sheet, coord = ref.split("!", 1)
             row_n = int(re.sub(r"[A-Z]", "", coord))
