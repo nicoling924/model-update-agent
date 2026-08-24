@@ -93,6 +93,7 @@ CF_NET_RE = re.compile(r"产生的现金流量净额\s*$|net cash (?:generated|u
 CF_SUBTOTAL_RE = re.compile(r"小计\s*$|subtotal", re.I)
 CF_OTHER_RE = re.compile(r"其他|other", re.I)
 CF_IN_RE = re.compile(r"流入|inflow", re.I)
+CF_ACT_RE = re.compile(r"活动产生的现金流量\s*[:：]|cash flows? (?:from|used)", re.I)
 
 
 def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
@@ -163,10 +164,13 @@ def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
                     if num(m) is not None:
                         out.append(m)
                 return out
-            # find the row where the inflow block starts (previous net /
-            # activity header with no number)
+            # the inflow block starts at the ACTIVITY HEADER above it —
+            # blank 差额 helper rows sit between members and subtotals,
+            # so walking "while numbered" stops instantly (RA2 no-fire)
             lo_in = in_sub - 1
-            while lo_in > 1 and num(lo_in) is not None:
+            while lo_in > 1 and not CF_ACT_RE.search(lab(lo_in)) \
+                    and not CF_NET_RE.search(lab(lo_in)) \
+                    and not CF_SUBTOTAL_RE.search(lab(lo_in)):
                 lo_in -= 1
             in_m = members(in_sub, lo_in)
             out_m = members(out_sub, in_sub)
