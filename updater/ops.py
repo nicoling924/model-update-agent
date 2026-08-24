@@ -49,11 +49,44 @@ def rollover_all(wb, spec_d, target_year, writer, log):
 
 
 def run_join(ledger, targets, run_log):
-    """Stage-2 deterministic join: faces, then bound non-statement tables."""
+    """Stage-2 deterministic join: faces, then bound non-statement tables.
+
+    ALT-ANCHOR PASS (interim runs, 2026-08-25): an interim filing's BS
+    lines print [Jun-25, Dec-24] — the Dec-24 comparative ties the
+    model's ANNUAL prior (alt_prior_value), not the Jun-24 interim prior.
+    Unserved rows carrying an alt anchor get a second join pass with the
+    alt as the identity key; serves are marked so notes say which anchor
+    proved them."""
     served, decisions = join(ledger, targets, run_log)
     extra, dec2 = join_bound_tables(ledger, targets, served, run_log)
     served.update(extra)
-    return served, decisions + dec2
+    alt_ts = []
+    import dataclasses as _dc
+    for t in targets:
+        alt = getattr(t, "alt_prior_value", None)
+        if t.key in served or not isinstance(alt, (int, float)) \
+                or abs(alt) < 1.0:
+            continue
+        if isinstance(t.prior_value, (int, float)) \
+                and abs(alt - t.prior_value) <= max(0.02,
+                                                    abs(alt) * 1e-4):
+            continue
+        alt_ts.append(_dc.replace(t, prior_value=alt))
+    if alt_ts:
+        s2, d2 = join(ledger, alt_ts, run_log)
+        n_new = 0
+        for k, entry in s2.items():
+            if k in served:
+                continue
+            entry["note"] = ("year-end comparative anchor (interim BS "
+                             "law): " + str(entry.get("note") or ""))[:200]
+            served[k] = entry
+            n_new += 1
+        if n_new:
+            run_log.append(f"[ops] alt-anchor join: {n_new} rows served "
+                           f"via the prior YEAR-END comparative")
+        decisions += d2
+    return served, decisions
 
 
 def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
