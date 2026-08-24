@@ -43,6 +43,13 @@ class TargetRow:
                                  # what the PRIOR cell holds in the formulas
                                  # workbook; derived rows are computed, never
                                  # written, never bound-table joined
+    alt_prior_value: float = None
+                                 # INTERIM runs (owner test 2026-08-25): a
+                                 # half-year report's BALANCE-SHEET
+                                 # comparative is the prior YEAR-END, not
+                                 # prior-H1 — this carries the model's
+                                 # annual prior value as the second legal
+                                 # comparative anchor
 
     @property
     def key(self):

@@ -56,9 +56,17 @@ def scan(ledger, targets):
             if not kinship(t.label, it.label):
                 continue
             tol = row_tol(pv)
+            alt = getattr(t, "alt_prior_value", None)
             for s in SCALES:
                 ns = [to_model_units(n, s) for n in it.nums]
                 if any(abs(abs(n) - abs(pv)) <= tol for n in ns):
+                    tied = True
+                    break
+                # interim runs: the prior YEAR-END is an equally legal
+                # comparative (BS lines print Dec-31, not Jun-30)
+                if isinstance(alt, (int, float)) and abs(alt) >= 10.0 \
+                        and any(abs(abs(n) - abs(alt)) <= row_tol(alt)
+                                for n in ns):
                     tied = True
                     break
                 world = [n for n in ns if n != 0
