@@ -228,7 +228,14 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 and not _ties_filing(pv):
             fails_by_sheet.setdefault(sh, []).append(row)
     rebased = set()
-    ruled = bool(ruling and ruling.get("write_current"))
+    # RECLASSIFICATION LAW (owner ruling 2026-08-24, BOSS_MINDMAP): a
+    # re-cut partition whose PRIOR history is uncontradicted is a
+    # reclassification, not a restatement — the agent maps the current
+    # year by MEANING (or backs out), red-flagged, structure untouched,
+    # and never stalls the block waiting for a ruling. The freeze path
+    # remains only when an explicit ruling file says {"write_current":
+    # false} (an analyst can still order a freeze).
+    ruled = not (ruling and ruling.get("write_current") is False)
     for sh, rows in fails_by_sheet.items():
         if len(rows) < 2:
             continue
@@ -246,15 +253,17 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 if f"{sh}!{row}" not in rr:
                     rr.append(f"{sh}!{row}")
                 cell.comment = Comment(
-                    "REBASED — ANALYST RULED: write the current year from "
-                    "the filing's new partition (mapping judgment, red "
-                    "flag kept); the prior year stays as the model held "
-                    "it. " + str((ruling or {}).get("ruled", ""))[:150],
+                    "RECLASSIFIED partition (owner law): the filing re-cut "
+                    "this breakdown; prior history is uncontradicted. The "
+                    "current year is written by MEANING from the new "
+                    "partition (or backed out), red flag kept; the prior "
+                    "year and the model's structure stay untouched. "
+                    + str((ruling or {}).get("ruled", ""))[:120],
                     "Model Update Agent")
                 if ref not in writer.log["flags"]:
                     writer.log["flags"].append(ref)
-                book.record(ref, "C", "rebased — ruled write-current",
-                            note="analyst ruling applied")
+                book.record(ref, "C", "reclassified — write by meaning",
+                            note="reclassification law (structure untouched)")
                 continue
             rebased.add((sh, row))
             cell.comment = Comment(

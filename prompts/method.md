@@ -70,20 +70,31 @@ you before you write:
   derived member. Never write a merged or re-based category into a
   narrower row because the name resembles it.
 
-## Re-based disclosures (the basis-change test)
+## Restatement vs reclassification (owner law, know which one you hold)
 
-When the current filing re-cuts its categories, find the disclosure's
-OWN partition table — the one whose total ties the model's total — and
-lay its PRIOR column against the model's priors, member by member:
+Two different situations wear the same costume — a table that no longer
+matches the model. Tell them apart by the PRIOR column:
 
-- prior ties EXACTLY → that member's scope survived; its current value
-  is writable;
-- prior is close-but-off, or the category is renamed/merged/gone → the
-  BASIS changed. That is restatement territory, an analyst decision:
-  leave the unresolved members STALE with a RED flag, and record the
-  disclosure's new partition (with its prior column) in your flag notes
-  so the analyst can rule on re-basing. A half-updated partition is the
-  worst deliverable — worse than a fully stale, honestly flagged one.
+- **RESTATEMENT — the PAST changed.** The filing's prior-year figures
+  contradict what the model holds for those same rows (comparatives
+  moved). The past is the analyst's: this is the one full-stop in the
+  whole method — surface it, ask, never overwrite history unasked.
+- **RECLASSIFICATION — only the PRESENTATION changed.** The filing cut
+  its categories differently this year (a segment breakdown re-based,
+  lines merged or renamed) while the model's prior-year numbers stand
+  uncontradicted. Do NOT stop and do NOT leave the whole block stale:
+  1. map each new category onto the model's rows BY MEANING — the name
+     says what it is; scope is what you verify (a survived member's
+     prior still ties; a renamed member is the counterpart law: write
+     with a red flag noting both);
+  2. what meaning cannot map, BACK OUT — derive from the total minus
+     the mapped members, as a visible formula, orange flag;
+  3. NEVER alter the model's structure. No new rows, no renamed
+     headers, no re-basing of the model's categories — structure is the
+     analyst's work. If a printed category has no home, its value goes
+     into the back-out and the flag note names it for the analyst.
+  A reclassification handled this way keeps the totals tied, the
+  history untouched, and every judgment visible in a flag.
 
 ## Embedded constants (the hidden inputs)
 
