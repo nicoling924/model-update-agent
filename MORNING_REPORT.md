@@ -2,9 +2,13 @@
 # Morning report — overnight 2026-08-25 (interim + announcement tests)
 
 H1: 84% (4 attempts: 68 -> 83 -> 84 after three root fixes). Q1: 87%
-first try. Announcement-only: 7/10 keys exact (all three CF NET totals
-captured from the variation table; constructed CF components have scale
-slips and do not reconcile to the proven nets — flagged red).
+first try. Announcement-only FINAL: 8/10 keys exact after the council's
+constructed-block closure law was implemented and proven overnight
+(ICF now exact; blocks close LIVE to proven nets, orange). The two
+remaining misses are announcement information limits: FCF net lacked an
+identity-grade anchor this run (delta 192, flagged), and cash-year-end
+is CF-basis while the announcement prints only gross monetary funds
+(restricted split undisclosed) — red-flag territory by design.
 
 New permanent laws (museum 140): interim dual-anchor comparatives
 (BS prints prior YEAR-END), per-sheet stride rollover translation,
