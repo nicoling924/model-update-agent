@@ -89,6 +89,138 @@ def run_join(ledger, targets, run_log):
     return served, decisions
 
 
+CF_NET_RE = re.compile(r"产生的现金流量净额\s*$|net cash (?:generated|used|flow)", re.I)
+CF_SUBTOTAL_RE = re.compile(r"小计\s*$|subtotal", re.I)
+CF_OTHER_RE = re.compile(r"其他|other", re.I)
+CF_IN_RE = re.compile(r"流入|inflow", re.I)
+
+
+def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
+    """CONSTRUCTED-BLOCK CONTRACT (council ruling 2026-08-25): in
+    announcement-only mode the activity NET totals are identity-proven
+    but the components are estimates — and estimate slips made the model
+    display a nonsense net. Where an activity net is grade-A and its
+    block holds constructed members that do not cohere, the block is
+    closed LIVE: the inflow subtotal becomes =SUM(members), the outflow
+    subtotal =inflow−net (anchored to the proven net), and the outflow
+    block's 'other' member absorbs the residual =subtotal−SUM(siblings).
+    All rewritten cells go ORANGE with the methodology note; grade-A
+    cells are never touched; coherent blocks are left alone."""
+    from openpyxl.comments import Comment as _C
+    graded = getattr(book, "entries", {}) or {}
+    n_closed = 0
+    for sheet in (spec_d.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        if not tcol:
+            continue
+        ws = wb[sheet]
+
+        def lab(r):
+            for lc in ("A", "B", "C"):
+                v = ws[f"{lc}{r}"].value
+                if isinstance(v, str) and v.strip():
+                    return v.strip()
+            return ""
+
+        def num(r):
+            v = ws[f"{tcol}{r}"].value
+            return v if isinstance(v, (int, float)) else None
+
+        rows = list(range(1, min(ws.max_row, 400) + 1))
+        for r in rows:
+            if not CF_NET_RE.search(lab(r)):
+                continue
+            ref = f"{sheet}!{tcol}{r}"
+            if getattr(graded.get(ref), "grade", None) != "A":
+                continue
+            net = num(r)
+            if net is None:
+                continue
+            # walk back: outflow subtotal, then inflow subtotal, then
+            # their member ranges (statement order: in-members, in-sub,
+            # out-members, out-sub, net)
+            subs = []
+            rr = r - 1
+            while rr > 1 and len(subs) < 2:
+                if CF_SUBTOTAL_RE.search(lab(rr)):
+                    subs.append(rr)
+                elif CF_NET_RE.search(lab(rr)):
+                    break
+                rr -= 1
+            if len(subs) != 2:
+                continue
+            out_sub, in_sub = subs[0], subs[1]
+            if not (CF_IN_RE.search(lab(in_sub))
+                    and not CF_IN_RE.search(lab(out_sub))):
+                # order unexpected — refuse to guess
+                continue
+
+            def members(sub, lo):
+                out = []
+                for m in range(lo + 1, sub):
+                    if num(m) is not None:
+                        out.append(m)
+                return out
+            # find the row where the inflow block starts (previous net /
+            # activity header with no number)
+            lo_in = in_sub - 1
+            while lo_in > 1 and num(lo_in) is not None:
+                lo_in -= 1
+            in_m = members(in_sub, lo_in)
+            out_m = members(out_sub, in_sub)
+            if not in_m or not out_m:
+                continue
+            block = in_m + out_m + [in_sub, out_sub]
+            if any(getattr(graded.get(f"{sheet}!{tcol}{m}"), "grade", None)
+                   in ("C", "D") for m in block) is False:
+                continue          # no constructed members — not our case
+            in_v = num(in_sub)
+            out_v = num(out_sub)
+            coherent = (in_v is not None and out_v is not None
+                        and abs(sum(num(m) or 0 for m in in_m) - in_v) <= 1
+                        and abs(sum(num(m) or 0 for m in out_m) - out_v) <= 1
+                        and abs(in_v - out_v - net) <= 1)
+            if coherent:
+                continue
+            plug = next((m for m in reversed(out_m)
+                         if CF_OTHER_RE.search(lab(m))), None)
+            if plug is None:
+                continue
+            if any(getattr(graded.get(f"{sheet}!{tcol}{m}"), "grade", None)
+                   == "A" for m in (in_sub, out_sub, plug)):
+                continue          # never touch proven cells
+            sib = [m for m in out_m if m != plug]
+            note = ("CONSTRUCTED-BLOCK CLOSURE (council law): the activity "
+                    "NET is identity-proven; components are estimates. "
+                    "This cell closes the block live to the proven net — "
+                    "true up from the detailed report.")
+            ws[f"{tcol}{in_sub}"] = ("=SUM(" + ",".join(
+                f"{tcol}{m}" for m in in_m) + ")")
+            ws[f"{tcol}{out_sub}"] = f"={tcol}{in_sub}-{tcol}{r}"
+            sib_expr = ("-SUM(" + ",".join(f"{tcol}{m}" for m in sib) + ")"
+                        if sib else "")
+            ws[f"{tcol}{plug}"] = f"={tcol}{out_sub}{sib_expr}"
+            for m in (in_sub, out_sub, plug):
+                cell = ws[f"{tcol}{m}"]
+                cell.fill = writer.fills["orange"]
+                cell.comment = _C(note, "Model Update Agent")
+                mref = f"{sheet}!{tcol}{m}"
+                book.record(mref, "D", "constructed-block closure",
+                            note=note[:180])
+                if mref not in writer.log["flags"]:
+                    writer.log["flags"].append(mref)
+            n_closed += 1
+            log(f"[ops] constructed-block closure: {sheet} rows "
+                f"{in_sub}/{out_sub}/{plug} closed live to proven net "
+                f"{sheet}!{tcol}{r}")
+    if n_closed:
+        log(f"[ops] constructed-block closure: {n_closed} activity "
+            f"blocks reconciled to proven nets")
+    return n_closed
+
+
 def write_served(wb, spec_d, target_year, served, writer, priors, book, log):
     """Served values -> input cells (mark-to-actual + redirect sign law —
     the run-1 GP autopsy). Records provenance per write."""
