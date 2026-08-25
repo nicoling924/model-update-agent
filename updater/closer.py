@@ -98,6 +98,32 @@ class PacketCloser:
             report = f"compile:{sheet}: nothing open"
             self.reports.append(report)
             return report
+        # DECISION LEDGER REPLAY (council law): a judgment whose evidence
+        # fingerprint is unchanged is CASE LAW — apply it, never re-roll.
+        dl = getattr(self.tk, "decisions", None)
+        if dl is not None:
+            from .decisions import evidence_hash
+            n_replay = 0
+            for r in rows:
+                d = dl.lookup(sheet, r["row"],
+                              evidence_hash(r.get("card", "")))
+                if d and self._apply_decision(sheet, r, d):
+                    n_replay += 1
+                    dl.replayed += 1
+            if n_replay:
+                self.log(f"[closer] decision ledger: {n_replay} judgments "
+                         f"replayed (case law, not re-rolled)")
+                rows, chunks = packets.compile_card(
+                    self.tk.wb, self.tk.spec, self.tk.ty, sheet,
+                    self.tk.served, self.tk.writer.log, self.tk.ledger,
+                    docs=self.tk.docs, targets=self.tk.targets,
+                    adjustments=adjustments)
+                if not rows:
+                    report = (f"compile:{sheet}: fully covered by "
+                              f"replayed decisions")
+                    self.reports.append(report)
+                    return report
+        self._row_cards = {r["cell"]: r for r in rows}
         n_ok = n_rej = n_nd = n_flag = 0
         for chunk in chunks:
             result = self._compile_chunk(sheet, chunk)
@@ -150,6 +176,103 @@ class PacketCloser:
         self.reports.append(report)
         return report
 
+
+
+    def _merge_opinions(self, sheet, a, b):
+        """Merge two independent compile opinions. Writes that agree
+        (same cell, values within tolerance or identical formulas) pass
+        once; contradictions become flags naming both candidates; a cell
+        only one opinion wrote passes as-is. not_disclosed and flags are
+        unioned (write beats not_disclosed)."""
+        def wmap(o):
+            out = {}
+            for w in o.get("writes", []) or []:
+                if w.get("cell"):
+                    out[str(w["cell"])] = w
+            return out
+        wa, wb = wmap(a), wmap(b)
+        writes, flags = [], list(a.get("flags") or [])
+        n_conflict = 0
+        for cell in sorted(set(wa) | set(wb)):
+            x, y = wa.get(cell), wb.get(cell)
+            if x is None or y is None:
+                writes.append(x or y)
+                continue
+            vx, vy = x.get("value"), y.get("value")
+            same = False
+            if isinstance(vx, (int, float)) and isinstance(vy, (int, float)):
+                same = abs(vx - vy) <= max(0.02, abs(vx) * 5e-3)
+            elif x.get("pattern_formula") or y.get("pattern_formula"):
+                same = x.get("pattern_formula") == y.get("pattern_formula")
+            elif x.get("swap_constant") or y.get("swap_constant"):
+                same = x.get("swap_constant") == y.get("swap_constant")
+            else:
+                same = vx == vy
+            if same:
+                writes.append(x)
+            else:
+                n_conflict += 1
+                flags.append({
+                    "cell": cell,
+                    "why": (f"TWO OPINIONS DISAGREE — candidate A: "
+                            f"{str(vx or x.get('pattern_formula'))[:40]} "
+                            f"({str(x.get('why'))[:60]}) vs candidate B: "
+                            f"{str(vy or y.get('pattern_formula'))[:40]} "
+                            f"({str(y.get('why'))[:60]}) — analyst to "
+                            f"decide")})
+        if n_conflict:
+            self.log(f"[closer] second opinion: {n_conflict} "
+                     f"contradictions -> red flags (both candidates named)")
+        nd_a = {str(n.get("cell")): n for n in a.get("not_disclosed") or []}
+        nd_b = {str(n.get("cell")): n for n in b.get("not_disclosed") or []}
+        written_cells = {str(w.get("cell")) for w in writes}
+        nd = [v for c, v in sorted({**nd_b, **nd_a}.items())
+              if c not in written_cells]
+        f_seen, f_out = set(), []
+        for f in flags + list(b.get("flags") or []):
+            c = str(f.get("cell"))
+            if c in f_seen or c in written_cells:
+                continue
+            f_seen.add(c)
+            f_out.append(f)
+        return {"writes": writes, "need": a.get("need") or [],
+                "not_disclosed": nd, "flags": f_out,
+                "skips": a.get("skips") or []}
+
+    def _apply_decision(self, sheet, r, d):
+        """Replay one ledger entry through the guarded tools. Flags
+        persist; a guard rejection invalidates nothing (the cell simply
+        returns to the agent's queue this run)."""
+        act = d.get("action")
+        why = f"replayed decision (case law): {d.get('why', '')}"
+        if act == "write":
+            p = d.get("payload") or {}
+            res = self.tk.t_set_input({
+                "cell": r["cell"], "value": p.get("value"),
+                "swap_constant": p.get("swap_constant"),
+                "pattern_formula": p.get("pattern_formula"),
+                "flag": bool(d.get("flag")), "why": why})
+            return str(res).startswith("WRITTEN")
+        if act == "flag":
+            return str(self.tk.t_flag_cell(
+                {"cell": r["cell"], "why": why})).startswith("FLAGGED")
+        if act == "not_disclosed":
+            return str(self.tk.t_not_disclosed(
+                {"cell": r["cell"],
+                 "looked": (d.get("payload") or {}).get("looked")
+                 or ["replayed decision"]})).startswith("ACCEPTED")
+        return False
+
+    def _record_decision(self, sheet, cell, action, payload=None,
+                         flag=False, why=""):
+        dl = getattr(self.tk, "decisions", None)
+        rc = getattr(self, "_row_cards", {}).get(cell)
+        if dl is None or rc is None:
+            return
+        from .decisions import evidence_hash
+        dl.record(sheet, rc["row"], evidence_hash(rc.get("card", "")),
+                  action, payload=payload, flag=flag, why=why)
+
     def _val_compile(self, o):
         errs = []
         if not isinstance(o.get("writes", []), list):
@@ -182,6 +305,24 @@ class PacketCloser:
             except Exception as e:
                 self.log(f"[closer] compile call failed: {e}")
                 break
+            if round_i == 0:
+                # SECOND OPINION (council law, k=2 forced diversity): the
+                # same evidence, re-derived skeptically. Disagreement on a
+                # cell becomes a RED FLAG naming both candidates — never a
+                # lucky roll. Agreement and single votes proceed.
+                try:
+                    out2 = self._json(
+                        _p("method.md"),
+                        user + "\n\n== SECOND OPINION PASS ==\nRe-derive "
+                        "every row INDEPENDENTLY and skeptically: re-read "
+                        "the evidence, distrust label resemblance, verify "
+                        "each section sum yourself. When genuinely "
+                        "uncertain, prefer flag over write.",
+                        self._val_compile)
+                except Exception:
+                    out2 = None
+                if out2 is not None:
+                    out = self._merge_opinions(sheet, out, out2)
             # THE LOOK-ELSEWHERE SKILL (owner ruling): the agent may ask
             # for other places for specific rows; the runtime answers with
             # doc-wide number hits + islands it has not yet seen. Once.
@@ -232,6 +373,12 @@ class PacketCloser:
                                          w.get("pattern_formula")})
                 if str(r).startswith("WRITTEN"):
                     n_ok += 1
+                    self._record_decision(
+                        sheet, str(w.get("cell")), "write",
+                        payload={"value": w.get("value"),
+                                 "swap_constant": w.get("swap_constant"),
+                                 "pattern_formula": w.get("pattern_formula")},
+                        flag=bool(w.get("flag")), why=why[:150])
                 else:
                     round_rej.append(f"{w.get('cell')}: {str(r)[:140]}")
                     self.log(f"[closer] rej {w.get('cell')}: {str(r)[:110]}")
@@ -241,6 +388,9 @@ class PacketCloser:
                      "looked": nd.get("looked") or []})
                 if str(r).startswith("ACCEPTED"):
                     n_nd += 1
+                    self._record_decision(
+                        sheet, str(nd.get("cell")), "not_disclosed",
+                        payload={"looked": nd.get("looked") or []})
                 else:
                     round_rej.append(f"{nd.get('cell')}: {str(r)[:140]}")
             for f in out.get("flags", []) or []:
@@ -248,6 +398,9 @@ class PacketCloser:
                                          "why": str(f.get("why", ""))})
                 if str(r).startswith("FLAGGED"):
                     n_flag += 1
+                    self._record_decision(
+                        sheet, str(f.get("cell")), "flag", flag=True,
+                        why=str(f.get("why", ""))[:150])
             n_rej = len(round_rej)
             if not round_rej or round_i == COMPILE_ROUNDS - 1:
                 break

@@ -526,6 +526,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
         lines = [f"SHEET: {sheet}   TARGET YEAR: {ty}   "
                  f"open rows {i + 1}-{i + len(chunk)} of {len(rows)}"]
         for r in chunk:
+            _row_start = len(lines)
             _dl = (f"{r['block']} › {r['label']}" if r.get("block")
                    else r["label"])
             if r.get("pattern"):
@@ -616,6 +617,7 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
                              "in the CURRENT report")
             for h in cs.get(r["cell"], []):
                 lines.append(f"    [{h}]")
+            r["card"] = "\n".join(lines[_row_start:])
             adj = next((a for a in (adjustments or [])
                         if a.get("row") == f"{sheet}!{r['row']}"), None)
             if adj:
