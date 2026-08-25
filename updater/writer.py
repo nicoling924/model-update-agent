@@ -40,6 +40,15 @@ from openpyxl.comments import Comment
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import PatternFill
 
+def safe_comment(text, author="Model Update Agent"):
+    """EVERY cell comment goes through here (CLP validation run: a
+    control character from PDF-sourced text corrupted the workbook's
+    comment XML — Excel-fatal). openpyxl rejects some; XML chokes on
+    the rest; one chokepoint sanitizes all."""
+    from openpyxl.comments import Comment as _C
+    return _C(ILLEGAL_CHARACTERS_RE.sub(" ", str(text))[:700], author)
+
+
 AUTHOR = "Model Update Agent"
 FLAG_UNCERTAIN = "FFC7CE"    # light red: uncertain / needs analyst review
 FLAG_BACKEDOUT = "FFC000"    # orange: backed-out / derived, awaiting true-up
@@ -339,7 +348,7 @@ class Writer:
             cell.fill = self.fills[flag]
             self.log["flags"].append(ref)
         if note:
-            cell.comment = Comment(str(note)[:700], AUTHOR)
+            cell.comment = safe_comment(note, AUTHOR)
         got = ws[coord].value
         if got != value:
             raise WriteError(f"read-back mismatch {ref}: wrote {value!r} got {got!r}")
@@ -359,7 +368,7 @@ class Writer:
         ws = self.wb[sheet]
         old = ws[coord].value
         ws[coord].value = new_value
-        ws[coord].comment = Comment(f"RESTATED: was {old!r}. {why}"[:700], AUTHOR)
+        ws[coord].comment = safe_comment(f"RESTATED: was {old!r}. {why}", AUTHOR)
         self.log["restatements"].append(f"{sheet}!{coord}: {old!r} -> {new_value!r} ({why})")
 
     def format_rollover(self, sheet, from_col, to_col):
