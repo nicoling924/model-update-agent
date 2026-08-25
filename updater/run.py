@@ -107,6 +107,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
            log=print):
     company_dir = Path(company_dir)
     run_log = []
+    dec_ledger = None
 
     # -- spec or discovery (no spec anywhere -> the agent reasons the model
     # out itself; the draft persists to _SPEC for the analyst)
@@ -277,14 +278,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                                    ruling=_ruling)
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
         from .decisions import DecisionLedger
-        decisions = DecisionLedger(company_dir, spec_d)
-        if decisions.data:
-            run_log.append(f"[run] decision ledger: {len(decisions.data)} "
-                           f"prior judgments loaded (case law)")
+        dec_ledger = DecisionLedger(company_dir, spec_d)
+        if dec_ledger.data:
+            run_log.append(f"[run] decision ledger: "
+                           f"{len(dec_ledger.data)} prior judgments "
+                           f"loaded (case law)")
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,
                          restatement=restatement, docs=docs, census=census)
-        loop.decisions = decisions
+        loop.decisions = dec_ledger
         from .closer import PacketCloser
         closer = PacketCloser(loop, client, log)
         loop_summary = closer.run()
@@ -374,11 +376,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                             adjustments=adjustments, police=verdict,
                             loop_summary=loop_summary,
                             reading=reading_report, client=client)
-    if 'decisions' in dir():
-        n_dec = decisions.save(spec_d)
+    if dec_ledger is not None:
+        n_dec = dec_ledger.save(spec_d)
         run_log.append(f"[run] decision ledger saved: {n_dec} judgments "
-                       f"({decisions.replayed} replayed, "
-                       f"{decisions.recorded} new)")
+                       f"({dec_ledger.replayed} replayed, "
+                       f"{dec_ledger.recorded} new)")
     spec_d["_last_run"] = {
         "period": period, "served": len(served),
         "flags": len(set(writer.log["flags"])),
