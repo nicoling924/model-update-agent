@@ -91,6 +91,19 @@ class DecisionLedger:
     def save(self, spec_d=None):
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            # MERGE-ON-SAVE (race lesson: a concurrent run's persist
+            # clobbered an analyst ruling committed mid-flight): re-read
+            # the on-disk file and merge — analyst entries ALWAYS
+            # survive, whichever side holds them
+            try:
+                disk = json.loads(self.path.read_text())
+            except Exception:
+                disk = {}
+            for k, v in disk.items():
+                if isinstance(v, dict) and v.get("analyst"):
+                    self.data[k] = v
+                else:
+                    self.data.setdefault(k, v)
             self.path.write_text(json.dumps(self.data, indent=1,
                                             ensure_ascii=False))
         if spec_d is not None:

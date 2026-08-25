@@ -36,15 +36,14 @@
   "why": "p25/p168: Cash and cash equivalents are 3,905 for 2025 and 4,976 for 2024; the other 23.00 component remains unchanged. | check: section=not a stateme"
  },
  "Final!87:compile": {
-  "evidence_hash": "b117467eba9e722f",
+  "evidence_hash": "analyst",
+  "analyst": true,
   "action": "write",
   "payload": {
-   "value": -1043.0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "value": 0.0
   },
-  "flag": false,
-  "why": "p25: Fuel clause account is zero on the current-asset side and (1,043) on the current-liability side. The account flipped sides; the model sign conven"
+  "flag": true,
+  "why": "ANALYST RULING 2026-08-26: fuel clause account payable 1,043 already sits inside payables — this row is zeroed to remove the double-count"
  },
  "Final!106:compile": {
   "evidence_hash": "45b44066ea879283",
