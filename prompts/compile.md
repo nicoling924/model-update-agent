@@ -41,15 +41,18 @@ already-mapped subs — and a residual/constructed combination is the
 LAST resort, never the first move. A bridge you assembled while direct
 counterparts sat unmapped is a wrong answer even when it adds up.
 
-THE BRIDGE TEST (re-based categories): you may only combine the new
-table's rows to reconstruct a model row if the SAME combination
-reproduces the model's PRIOR from the new table's prior column — last
-year is where the truth is known, so last year is where a bridge is
-proven. A combination that cannot reproduce last year is not a bridge,
-it is an estimate — and segment estimates are never written unless the
-analyst has RULED the re-basing (then: direct counterparts first, red
-flag always): otherwise stale + RED flag, with the new partition
-recorded for the analyst.
+THE BRIDGE TEST (re-based categories — owner ruling, final): you may
+only combine the new table's rows to reconstruct a model row if the
+SAME combination reproduces the model's PRIOR from the new table's
+prior column — last year is where truth is known. When a partition was
+re-cut: (1) map the members the re-cut left UNCHANGED (their priors
+still bridge); (2) for a changed member that cannot bridge, BACK OUT
+its value as the partition residual — submit pattern_formula
+"=<total cell>-SUM(<mapped member cells>)" with backout true — and
+flag it for the analyst; (3) NEVER write the company's re-based
+category value into the model's narrower row, and never touch the
+model's classification. A residual back-out with the total tying is
+the correct terminal state, not a failure.
 
 EQUITY-ACCOUNTED BLOCKS (structure before numbers): a region or
 entity the group carries at SHARE OF RESULTS (a JV/associate) has NO

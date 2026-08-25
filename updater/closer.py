@@ -367,6 +367,7 @@ class PacketCloser:
                                          "value": w.get("value"),
                                          "why": why,
                                          "flag": bool(w.get("flag")),
+                                         "backout": bool(w.get("backout")),
                                          "swap_constant":
                                          w.get("swap_constant"),
                                          "pattern_formula":

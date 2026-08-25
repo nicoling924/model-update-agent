@@ -583,22 +583,24 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
                     f"formula {str(r['value'])[:36]} — mark-to-actual "
                     f"REPLACES it with the disclosed actual (the prior "
                     f"cell's TYPE is the pattern); write the value"
-                    + (" | THE ANALYST HAS RULED this re-based block: "
-                       "write THIS year from the new partition, sub-rows "
-                       "first, red flag kept." if ruled else ""))
+                    + (" | RECLASSIFIED block (owner law): map the "
+                       "members the re-cut left unchanged; back out the "
+                       "changed ones (=total-SUM(mapped), backout true); "
+                       "never the re-based category value." if ruled
+                       else ""))
             elif isinstance(r["prior"], (int, float)):
                 ruled = f"{sheet}!{r['row']}" in (
                     writer_log.get("rebased_ruled") or [])
                 lines.append(
                     f"{r['cell']} '{_dl}' | prior {r['prior']:,.2f} "
                     f"| currently STALE at {r['value']:,.2f}"
-                    + (" | THE ANALYST HAS RULED this re-based block: the "
-                       "prior year stays untouched and THIS year MUST be "
-                       "written from the new partition — sub-rows first "
-                       "(the 其中/of-which members map one-to-one by "
-                       "meaning), parents from their own printed line or "
-                       "the sum of mapped subs. Stale is NOT acceptable "
-                       "here; every write keeps its red flag."
+                    + (" | RECLASSIFIED block (owner law): the prior "
+                       "year stays untouched. Map the members whose "
+                       "priors still bridge; for a changed member, BACK "
+                       "OUT (=<total>-SUM(<mapped members>), submit as "
+                       "pattern_formula with backout true) and it will "
+                       "be orange-flagged for the analyst. NEVER write "
+                       "the re-based category's own value into this row."
                        if ruled else ""))
             else:
                 lines.append(

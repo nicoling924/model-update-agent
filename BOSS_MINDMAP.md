@@ -45,11 +45,13 @@ PRESENTATION changes — segment/breakdown categories are cut differently
 in 2025 vs 2024 (e.g. Dongfang's sales breakdown) — while the prior-year
 numbers in the model are NOT contradicted.
 
-- The agent does NOT stop for a reclassification. It should EITHER
-  (a) interpret and map by itself based on the MEANING of the item
-  (translation is mapping; scope is what it verifies), OR
-  (b) back out the number (derive it from totals and known relationships)
-  and highlight it for the analyst to review.
+- The agent does NOT stop for a reclassification (owner ruling
+  2026-08-26, final): map the segments the reclassification left
+  UNCHANGED (the bridge-proven survivors); for changed segments that
+  cannot be mapped, BACK OUT the number (= total − mapped members, as a
+  visible formula) and flag it for the analyst. NEVER write the
+  company's re-based category value into the model's narrower row —
+  the model's classification is never changed, in any case.
 - The agent must NOT alter the model structure — no new rows, no changed
   row/column headers, no re-basing of the model's categories. Structural
   changes are the ANALYST'S work.
