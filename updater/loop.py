@@ -1422,11 +1422,17 @@ class AgentLoop:
             pre_t = self._tie_state()
             pre_c0 = {k for k, v in pre_t.items()
                       if v and self._tie_is_coincidental(k)}
+            is_backout = bool(args.get("backout"))
             ok = self.writer.write(
                 s_sheet, f"{s_col}{s_row}", pf,
-                note=f"agent pattern write (prior pattern "
-                     f"{str(prior_f)[:40]}): {why[:220]}",
-                flag="red" if args.get("flag") else None)
+                note=(("BACK-OUT (owner reclassification law): residual "
+                       "of the partition — true up / re-map when the "
+                       "analyst rules the segment. ")
+                      if is_backout else
+                      f"agent pattern write (prior pattern "
+                      f"{str(prior_f)[:40]}): ") + why[:200],
+                flag="orange" if is_backout
+                else ("red" if args.get("flag") else None))
             if not ok:
                 return "REFUSED: the chokepoint rejected the pattern write"
             post_t = self._tie_state()
