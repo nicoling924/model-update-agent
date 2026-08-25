@@ -61,8 +61,27 @@ class DecisionLedger:
             return d
         return None
 
+    def analyst_entries(self):
+        """[(sheet, row, entry)] for sticky analyst rulings — applied at
+        the TOP of the run, before any deterministic serve (the analyst
+        outranks the joins)."""
+        out = []
+        for k, d in self.data.items():
+            if not d.get("analyst"):
+                continue
+            m = k.split(":", 1)[0]
+            sheet, _, row = m.rpartition("!")
+            try:
+                out.append((sheet, int(row), d))
+            except ValueError:
+                continue
+        return out
+
     def record(self, sheet, row, ehash, action, payload=None, flag=False,
                why="", kind="compile"):
+        prev = self.data.get(self.key(sheet, row, kind))
+        if prev and prev.get("analyst"):
+            return                      # never overwrite the analyst
         self.data[self.key(sheet, row, kind)] = {
             "evidence_hash": ehash, "action": action,
             "payload": payload, "flag": bool(flag),

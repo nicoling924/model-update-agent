@@ -65,6 +65,39 @@ def rollover_all(wb, spec_d, target_year, writer, log):
     return census
 
 
+def apply_analyst_rulings(wb, spec_d, target_year, dec_ledger, served,
+                          writer, book, log):
+    """ANALYST RULINGS FIRST (owner law 2026-08-26): sticky ledger
+    entries the analyst made outrank every machine serve — applied
+    before the join, red-flagged with the ruling's own words."""
+    if dec_ledger is None:
+        return 0
+    n = 0
+    for sheet, row, d in dec_ledger.analyst_entries():
+        if d.get("action") != "write" or sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        if not tcol:
+            continue
+        v = (d.get("payload") or {}).get("value")
+        if not isinstance(v, (int, float)):
+            continue
+        ok = writer.write(sheet, f"{tcol}{row}", v,
+                          note="ANALYST RULING (case law): "
+                          + str(d.get("why", ""))[:400],
+                          flag="red" if d.get("flag") else None)
+        if ok:
+            served[(sheet, row)] = {"value": v, "status": "OK", "conf": 3,
+                                    "note": "analyst ruling"}
+            book.record(f"{sheet}!{tcol}{row}", "C", "analyst ruling",
+                        note=str(d.get("why", ""))[:180])
+            n += 1
+    if n:
+        log(f"[ops] analyst rulings applied first: {n} cells "
+            f"(outrank all machine serves)")
+    return n
+
+
 def run_join(ledger, targets, run_log):
     """Stage-2 deterministic join: faces, then bound non-statement tables.
 

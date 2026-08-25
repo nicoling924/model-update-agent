@@ -653,39 +653,59 @@
   "why": ""
  },
  "Driver!11:compile": {
-  "evidence_hash": "ff9b721c2ac18093",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Hydro is not separately disclosed in the current report. The broad 能源裝備製造 total cannot be assigned to Hydro."
+  "evidence_hash": "425fb5594ea529bb",
+  "action": "write",
+  "payload": {
+   "value": 3902.82023921,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 水电 current-period revenue 3,902,820,239.21; model units = millions. Current counterpart is explicitly identified, with a re-based comparative. |"
  },
  "Driver!40:compile": {
-  "evidence_hash": "516c82dacc17e0a8",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The p31 sighting is received cash from other operating activities, not Gas Turbine COGS. No current Gas Turbine COGS value was found."
+  "evidence_hash": "3706fbfb965437e1",
+  "action": "write",
+  "payload": {
+   "value": -7110.32075481,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 气电 current-period营业成本 7,110,320,754.81; model sign convention is negative. | check: section=not a statement line — segment cost partition; sums="
  },
  "Driver!41:compile": {
-  "evidence_hash": "be6c787906f153bc",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Nuclear power equipment COGS is not separately disclosed in the current report; broad 能源裝備製造 COGS cannot be assigned to this row."
+  "evidence_hash": "bbc9beec82e2a092",
+  "action": "write",
+  "payload": {
+   "value": -4876.70506695,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 核能 current-period营业成本 4,876,705,066.95; model sign convention is negative. | check: section=not a statement line — segment cost partition; sums="
  },
  "Driver!44:compile": {
-  "evidence_hash": "cdadb201e4f52577",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Hydro COGS is not separately disclosed in the current report; no defensible mapping from the broad current COGS category exists."
+  "evidence_hash": "ad1a910981977a29",
+  "action": "write",
+  "payload": {
+   "value": -2854.07591093,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 水电 current-period营业成本 2,854,075,910.93; model sign convention is negative. Red flag for the re-based category. | check: section=not a statement "
  },
  "Driver!45:compile": {
-  "evidence_hash": "e2fd90ddfdb715a1",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Written from p25, but current 製造服務 COGS is re-based: model prior -3,902.35 conflicts with the current table's implied comparative. Red flag retained."
+  "evidence_hash": "611bdeddc9d01812",
+  "action": "write",
+  "payload": {
+   "value": -8787.87586171,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 制造服务 current-period营业成本 8,787,875,861.71. This is the renamed/re-scoped counterpart of 现代制造服务业; model sign convention is negative and the mappin"
  },
  "Driver!83:compile": {
   "evidence_hash": "4b2644ee44017c6d",
@@ -756,74 +776,82 @@
   "why": "The embedded 15,977.70 is the prior renewable-energy-equipment COGS total. No current counterpart for that category was found, making this driver stru"
  },
  "Driver!102:compile": {
-  "evidence_hash": "328ef51ff97d0de3",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "No current depreciation disclosure was supplied; the stale prior value cannot be accepted without the PPE/fixed-asset reconciliation."
+  "evidence_hash": "6cf26c1146663486",
+  "action": "write",
+  "payload": {
+   "value": -847.66802081,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p18: current 销售费用 847,668,020.81; mapped to the model's accumulated-depreciation expense driver using the supplied counterpart and model's negative si"
  },
  "Driver!104:compile": {
-  "evidence_hash": "8ab1c1f3e4db08d4",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Current counterpart is explicitly re-based: 2025 value 462.83293496, current comparative 554.69287436, model prior 344.92."
+  "evidence_hash": "efe8d3cc18c3c673",
+  "action": "write",
+  "payload": {
+   "value": 23.01898613,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p194: 固定资产折旧 current-period value 23,018,986.13; supplied counterpart for this re-based driver. Red flag noting the model prior and the changed compar"
  },
  "Driver!172:compile": {
-  "evidence_hash": "079ed0c663a8ecc0",
+  "evidence_hash": "3919635d9a4c62e1",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative production 4,230 does not tie model prior 3,801."
+  "why": "RED: p14 re-based 水轮发电机组; current row is 8,056.6 while its printed comparative is 4,230, versus model prior 3,801.00."
  },
  "Driver!173:compile": {
-  "evidence_hash": "f0de02c3e5b751fb",
+  "evidence_hash": "7d28db21f801c7fb",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative sales 5,181.6 does not tie model prior 5,766.2."
+  "why": "RED: p14 re-based 水轮发电机组; current row is 4,230 while its printed comparative is 5,181.6, versus model prior 5,766.20."
  },
  "Driver!174:compile": {
-  "evidence_hash": "b8558533b3ebb91a",
+  "evidence_hash": "809b546d5dae79d2",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based and the inventory comparative does not tie model prior 1,355."
+  "why": "RED: p14 re-based 水轮发电机组; current row is 5,181.6 while its printed comparative is 4,230, versus model prior 1,355.00."
  },
  "Driver!176:compile": {
-  "evidence_hash": "0dde96e3830c7aa4",
+  "evidence_hash": "cd2de24c31ca14c3",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative production 51,089 does not tie model prior 44,258."
+  "why": "RED: p14 re-based 汽轮发电机; current row is 57,852 while its printed comparative is 51,089, versus model prior 44,258.00."
  },
  "Driver!177:compile": {
-  "evidence_hash": "0442fb05804fd812",
+  "evidence_hash": "37daa62f9b2a8373",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative sales 29,420 does not tie model prior 40,053."
+  "why": "RED: p14 re-based 汽轮发电机; current row is 51,089 while its printed comparative is 29,420, versus model prior 40,053.00."
  },
  "Driver!178:compile": {
-  "evidence_hash": "d5a9b95ce1044a33",
+  "evidence_hash": "1876f000761aaa23",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative inventory 29,420 does not tie model prior 22,657."
+  "why": "RED: p14 re-based 汽轮发电机; current row is 29,420 while its printed comparative is 51,089, versus model prior 22,657.00."
  },
  "Driver!180:compile": {
-  "evidence_hash": "ae06e284f1913da8",
+  "evidence_hash": "f00043d76ac27800",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Current product table is re-based: current comparative production 12,656.6 does not tie model prior 10,032.6."
+  "why": "RED: p14 re-based 风力发电机组; current row is 14,026.1 while its printed comparative is 12,656.6, versus model prior 10,032.60."
  },
  "Driver!181:compile": {
-  "evidence_hash": "2b8622becfb3f703",
+  "evidence_hash": "0c69fcb0bc8900c4",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "p27 counterpart is flagged as a re-based presentation; 12,656.6 is assigned to Sales by the table's production/sales/inventory column structure, while"
+  "why": "RED: p14 re-based 风力发电机组; current row is 12,656.6 while its printed comparative is 3,332.7, versus model prior 8,976.70."
  },
  "Driver!107:compile": {
   "evidence_hash": "69c3871ffbee119b",
@@ -833,89 +861,70 @@
   "why": "The p6 專項儲備 line is the available candidate, but its comparative 124.19315776 does not equal the embedded old constant 128.28638909."
  },
  "Driver!119:compile": {
-  "evidence_hash": "1da03827e102324a",
-  "action": "not_disclosed",
-  "payload": {
-   "looked": [
-    "statement",
-    "notes",
-    "MD&A and other places",
-    "doc-wide number hits"
-   ]
-  },
-  "flag": false,
-  "why": ""
+  "evidence_hash": "4eca6d4e9bd815ca",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "No current-period counterpart for the four embedded constants was found. Statement p209 has only the broader 折旧与摊销 aggregate; searched the statement, "
  },
  "Driver!143:compile": {
-  "evidence_hash": "cf6a7b69072a1f2d",
+  "evidence_hash": "09c0f43daadd1160",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+  "why": "Embedded 365.00 is a day-count convention rather than an identifiable current-period disclosed category; no citable counterpart was supplied in the st"
  },
  "Driver!145:compile": {
-  "evidence_hash": "e5f1ce04c7043492",
+  "evidence_hash": "a16023f874725b95",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+  "why": "Embedded 365.00 is a day-count convention rather than an identifiable current-period disclosed category; no citable counterpart was supplied in the st"
  },
  "Driver!147:compile": {
-  "evidence_hash": "5a667acc77a44783",
+  "evidence_hash": "16a1d89b30564e6d",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+  "why": "Embedded 365.00 is a day-count convention rather than an identifiable current-period disclosed category; no citable counterpart was supplied in the st"
  },
  "Driver!149:compile": {
-  "evidence_hash": "70b81318d33c9782",
+  "evidence_hash": "14803562d10569ee",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+  "why": "Embedded 365.00 is a day-count convention rather than an identifiable current-period disclosed category; no citable counterpart was supplied in the st"
  },
  "Driver!151:compile": {
-  "evidence_hash": "93e787d806f2a099",
+  "evidence_hash": "d676f353e160894e",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+  "why": "Embedded 365.00 is a day-count convention rather than an identifiable current-period disclosed category; no citable counterpart was supplied in the st"
  },
  "Driver!162:compile": {
-  "evidence_hash": "a97c6b61a51a8a6c",
-  "action": "write",
-  "payload": {
-   "value": 117251.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p1: 2025年公司新增訂單約為人民幣1,172.51億元; converted using 亿元 × 100 into model millions. | check: section=not a statement line; sums=n/a — operating statistic; p"
+  "evidence_hash": "230c61ac33e3182d",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current value is ambiguous. p242/p250 show multiple 利息支出 amounts, including 100,977.65 and 101,071.92, while p26 shows a different 101,549.77; none es"
  },
  "Driver!184:compile": {
-  "evidence_hash": "62843bd77d320400",
-  "action": "write",
-  "payload": {
-   "value": 48330,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p27: 電站汽輪機 兆瓦 current-year production is 48,330; RED flag — counterpart is re-based and its comparative does not tie the model prior 38,578.00. | chec"
+  "evidence_hash": "68a61bd394fed4d3",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: p14 re-based 电站汽轮机; current row is 48,330 while its printed comparative is 49,069, versus model prior 38,578.00."
  },
  "Driver!185:compile": {
-  "evidence_hash": "fcc978e353415928",
-  "action": "write",
-  "payload": {
-   "value": 49069,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p27: 電站汽輪機 兆瓦 current-year sales is 49,069; RED flag — counterpart is re-based and its comparative does not tie the model prior 24,246.00. | check: se"
+  "evidence_hash": "14f6504619810d84",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: p14 re-based 电站汽轮机; current row is 49,069 while its printed comparative is 14,202, versus model prior 24,246.00."
  },
  "Driver!186:compile": {
-  "evidence_hash": "6d195b9c98e35f28",
+  "evidence_hash": "f3303ea4fc4a7ac0",
   "action": "write",
   "payload": {
    "value": 14202,
@@ -923,10 +932,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p27: 電站汽輪機 兆瓦 current-year inventory is 14,202; RED flag — counterpart is re-based and its comparative does not tie the model prior 12,861.00. | check"
+  "why": "p14: 电站汽轮机库存量 14,202 兆瓦；current counterpart is re-based, so write the current-period value and flag the mapping. | check: section=not a statement line"
  },
  "Driver!188:compile": {
-  "evidence_hash": "4fd6feefa6242401",
+  "evidence_hash": "80ac6ac7c643d7b6",
   "action": "write",
   "payload": {
    "value": 28930,
@@ -934,10 +943,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p27: 電站鍋爐 兆瓦 current-year production is 28,930; RED flag — counterpart is re-based and its comparative does not tie the model prior 25,066.00. | check"
+  "why": "p14: 电站锅炉生产量 28,930 兆瓦；current counterpart is re-based, so write the current-period value and flag the mapping. | check: section=not a statement line "
  },
  "Driver!189:compile": {
-  "evidence_hash": "7d48dc787dc5bbe1",
+  "evidence_hash": "37efcef67973d99b",
   "action": "write",
   "payload": {
    "value": 28930,
@@ -945,10 +954,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p27: 電站鍋爐 兆瓦 current-year sales is 28,930; RED flag — counterpart is re-based and its comparative does not tie the model prior 25,066.00. | check: sec"
+  "why": "p14: 电站锅炉销售量 28,930 兆瓦；current counterpart is re-based, so write the current-period value and flag the mapping. | check: section=not a statement line "
  },
  "Driver!190:compile": {
-  "evidence_hash": "8d0c85fb16c32085",
+  "evidence_hash": "ec9fc16b696a6d99",
   "action": "write",
   "payload": {
    "value": 0,
@@ -956,14 +965,14 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p27: 電站鍋爐 兆瓦 current-year inventory is printed as 0; RED flag retained because the current counterpart is treated as re-based against the model classi"
+  "why": "p14: 电站锅炉库存量 0 兆瓦; the current counterpart explicitly reports zero inventory. | check: section=not a statement line — operating statistics, 电站锅炉; sums"
  },
  "Driver!182:compile": {
-  "evidence_hash": "c182574b355234f5",
+  "evidence_hash": "3fd116f56cfbebca",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "TWO OPINIONS DISAGREE — candidate A: 12656.6 (p27: 風力發電機組 兆瓦 current-year sales is 12,656.6; RED flag — co) vs candidate B: 3332.7 (p27: 風力發電機組 兆瓦, cu"
+  "why": "RED: p14 re-based 风力发电机组; current row is 3,332.7 while its printed comparative is 12,656.6, versus model prior 1,963.20."
  },
  "Driver!39:compile": {
   "evidence_hash": "a117f2ed08c18c1f",
@@ -1508,5 +1517,41 @@
   "payload": null,
   "flag": true,
   "why": "No defensible counterpart for service charge and others. p25 製造服務 is operating revenue and p33 短期借款 is borrowing principal; neither is interest/servic"
+ },
+ "Driver!7:compile": {
+  "evidence_hash": "e84f0e1986b0b4fe",
+  "action": "write",
+  "payload": {
+   "value": 5627.5712423,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 气电 current-period revenue 5,627,571,242.30; model units = millions. The current table's comparative is 7,110,320,754.81, which does not tie the "
+ },
+ "Driver!12:compile": {
+  "evidence_hash": "2ba640c8ae7715e9",
+  "action": "write",
+  "payload": {
+   "value": 12901.06909597,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p207: 制造服务 current-period revenue 12,901,069,095.97. This is the current renamed/re-scoped counterpart of the model's 现代制造服务业 row; red flag required b"
+ },
+ "Driver!6:compile": {
+  "evidence_hash": "7c43f96890bd2d97",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current report re-cuts the prior 清洁高效能源装备 category into energy-equipment members; no bridge reproducing the model prior 28,358.20 is available, so no "
+ },
+ "Driver!96:compile": {
+  "evidence_hash": "1378a8ebba70dcfd",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current counterpart for the embedded 1,265.02640492 constant is not identified; p253 is a related-party balance table, not a transfer-from-CIP movemen"
  }
 }
