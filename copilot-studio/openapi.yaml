@@ -1,0 +1,70 @@
+swagger: "2.0"
+info:
+  title: Model Update Agent
+  description: Marks equity-research Excel models to actual results from
+    attached disclosures. Runs take 30-60 minutes; poll the run status.
+  version: "1.0"
+host: REPLACE-WITH-YOUR-HOST.azurecontainerapps.io
+basePath: /
+schemes: [https]
+securityDefinitions:
+  api_key:
+    type: apiKey
+    in: header
+    name: X-API-Key
+security:
+  - api_key: []
+paths:
+  /update:
+    post:
+      operationId: StartUpdate
+      summary: Start a model update run
+      consumes: [application/json]
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [company, period]
+            properties:
+              company:
+                type: string
+                description: Company folder name, e.g. DFE or CLP
+              period:
+                type: string
+                description: Period, e.g. FY25, 1H25, 1Q25
+      responses:
+        "200":
+          description: Run started
+          schema:
+            type: object
+            properties:
+              run_id: {type: string}
+              status: {type: string}
+              note: {type: string}
+  /runs/{run_id}:
+    get:
+      operationId: GetRunStatus
+      summary: Poll a run's status and summary
+      parameters:
+        - {in: path, name: run_id, required: true, type: string}
+      responses:
+        "200":
+          description: Run state
+          schema:
+            type: object
+            properties:
+              status: {type: string, description: running | done | paused | failed}
+              company: {type: string}
+              period: {type: string}
+              error: {type: string}
+  /runs/{run_id}/model:
+    get:
+      operationId: DownloadModel
+      summary: Download the updated Excel model
+      parameters:
+        - {in: path, name: run_id, required: true, type: string}
+      produces: [application/vnd.openxmlformats-officedocument.spreadsheetml.sheet]
+      responses:
+        "200": {description: The updated workbook}
