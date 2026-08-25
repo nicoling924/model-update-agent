@@ -18,7 +18,7 @@ from openpyxl.comments import Comment
 
 from .checks import prior_column, year_columns
 from .stage2_join import infer_composition, join, join_bound_tables
-from .writer import resolve_input_site, roll_year_headers, rollover_column
+from .writer import safe_comment, resolve_input_site, roll_year_headers, rollover_column
 
 
 def rollover_all(wb, spec_d, target_year, writer, log):
@@ -230,7 +230,7 @@ def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
             for m in (in_sub, out_sub, plug):
                 cell = ws[f"{tcol}{m}"]
                 cell.fill = writer.fills["orange"]
-                cell.comment = _C(note, "Model Update Agent")
+                cell.comment = safe_comment(note, "Model Update Agent")
                 mref = f"{sheet}!{tcol}{m}"
                 book.record(mref, "D", "constructed-block closure",
                             note=note[:180])
@@ -321,7 +321,7 @@ def close_partition_duplicates(wb, spec_d, target_year, book, writer, log):
                                   + ")")
             cell = ws[f"{tcol}{dup}"]
             cell.fill = writer.fills["orange"]
-            cell.comment = _C(
+            cell.comment = safe_comment(
                 "PARTITION RESIDUAL: this member had its (合计) parent's "
                 "total duplicated into it while siblings carry real "
                 "values — replaced with the residual back-out. True up "
@@ -542,7 +542,7 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                 rr = writer.log.setdefault("rebased_ruled", [])
                 if f"{sh}!{row}" not in rr:
                     rr.append(f"{sh}!{row}")
-                cell.comment = Comment(
+                cell.comment = safe_comment(
                     "RECLASSIFIED partition (owner law): the filing re-cut "
                     "this breakdown; prior history is uncontradicted. The "
                     "current year is written by MEANING from the new "
@@ -556,7 +556,7 @@ def declare_rebased_blocks(wb, spec_d, target_year, ledger, targets,
                             note="reclassification law (structure untouched)")
                 continue
             rebased.add((sh, row))
-            cell.comment = Comment(
+            cell.comment = safe_comment(
                 "SEGMENT BASIS CHANGED (restatement class): this row's "
                 "prior-year figure ties nothing in the current filing — "
                 "the company re-cut its categories. Held STALE for the "
@@ -969,7 +969,7 @@ def flag_stale(wb, spec_d, target_year, census, served, writer, book, log,
             pv = wb[sheet][f"{pcol}{r}"].value if pcol else None
             if _locatable(pv):
                 cell.fill = writer.fills["red"]
-                cell.comment = Comment(
+                cell.comment = safe_comment(
                     "STALE INPUT: the filing prints this figure's world "
                     "(its prior is locatable) but no proven read replaced "
                     "it — review.", "Model Update Agent")
@@ -1150,7 +1150,7 @@ def flag_failed_checks(wb, spec_d, target_year, writer, book, log):
             continue
         cell.fill = writer.fills["red"]
         got = c["got"]
-        cell.comment = Comment(
+        cell.comment = safe_comment(
             f"BALANCE CHECK FAILING: residual "
             f"{got:,.2f} — unresolved by the agent; see _REPORT."
             if isinstance(got, (int, float)) else

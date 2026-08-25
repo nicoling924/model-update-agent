@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 from .adjust import infer as infer_adjustments
+from .writer import safe_comment
 from .checks import prior_column, scorecard, summarize, year_columns
 from .evaluator import Evaluator
 from .numerics import SCALES, line_numbers, row_tol, to_model_units
@@ -1029,7 +1030,7 @@ class AgentLoop:
             # run-2 autopsy: three plug attempts died on formula cells.
             # A formula 'into' redirects to where its number is typed —
             # same law as set_input.
-            from .writer import resolve_input_site
+            from .writer import safe_comment, resolve_input_site
             pcol_i = prior_column(self.spec, i_sheet, self.ty)
             site = (resolve_input_site(self.wb, i_sheet, i_row, pcol_i)
                     if pcol_i else None)
@@ -1532,7 +1533,7 @@ class AgentLoop:
                 if ref0 not in self.writer.log["flags"]:
                     self.writer.log["flags"].append(ref0)
                 from openpyxl.comments import Comment
-                c0.comment = Comment(
+                c0.comment = safe_comment(
                     f"ADJUSTMENT CARRIED: the swapped pattern keeps the "
                     f"prior adjustment term(s) {', '.join(leftover)} — "
                     f"verify the adjustment's logic still applies. "
@@ -1947,7 +1948,7 @@ class AgentLoop:
                     c.fill = self.writer.fills["red"]
                     self.writer.log["flags"].append(ref)
                     from openpyxl.comments import Comment
-                    c.comment = Comment(
+                    c.comment = safe_comment(
                         f"RE-BASED COMPARATIVE: the disclosure line "
                         f"carrying {value:,.2f} prints a prior that does "
                         f"NOT tie the model's {pv0:,.2f} — the category "
@@ -1977,7 +1978,7 @@ class AgentLoop:
         cell = self.wb[sheet][coord]
         self.writer.log["flags"].append(f"{sheet}!{coord}")
         cell.fill = self.writer.fills["red"]
-        cell.comment = Comment(str(args.get("why", "flagged for review"))[:400],
+        cell.comment = safe_comment(str(args.get("why", "flagged for review"))[:400],
                                "Model Update Agent")
         self.book.record(f"{sheet}!{coord}", "C", "flag",
                          note=str(args.get("why", ""))[:150])
@@ -2043,7 +2044,7 @@ class AgentLoop:
             if pcol:
                 cell._style = _copy.copy(self.wb[sheet][f"{pcol}{row}"]._style)
             from openpyxl.comments import Comment
-            cell.comment = Comment(
+            cell.comment = safe_comment(
                 "Not updated this period: figure not disclosed (search "
                 "trail in _REPORT).", "Model Update Agent")
         self.book.entries.pop(full, None)
