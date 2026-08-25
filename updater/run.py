@@ -309,6 +309,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         # Honesty is CODE, never an agent choice.
         ops.close_constructed_cf(wb, spec_d, target_year, book, writer,
                                  run_log.append)
+        ops.close_partition_duplicates(wb, spec_d, target_year, book,
+                                       writer, run_log.append)
         ops.flag_stale(wb, spec_d, target_year, census, served, writer,
                        book, run_log.append, ledger=ledger)
         ops.sweep_compositions(wb, spec_d, target_year, census, writer,

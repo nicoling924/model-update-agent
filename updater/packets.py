@@ -16,6 +16,7 @@ full history, other sheets, and law books do not exist here.
 """
 import re
 
+from .labels import resolve_label
 from .checks import prior_column, scorecard, year_columns
 from .ledger import JOIN_FACES
 from .numerics import SCALES, kinship, row_tol, to_model_units
@@ -104,11 +105,7 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
                 row = {"row": r, "cell": f"{sheet}!{tcol}{r}",
                        "label": "", "value": v, "prior": pv_c,
                        "overwrite": True}
-                lab_o = next((ws[f"{lc}{r}"].value
-                              for lc in ("A", "B", "C", "D")
-                              if isinstance(ws[f"{lc}{r}"].value, str)
-                              and ws[f"{lc}{r}"].value.strip()), "")
-                row["label"] = str(lab_o)[:48]
+                row["label"] = resolve_label(wb, sheet, r)[:48]
                 if blocks.get(r) and blocks[r] != row["label"]:
                     row["block"] = blocks[r]
                 if (sheet, r) not in served                         and f"{sheet}!{tcol}{r}" not in written:
@@ -142,9 +139,7 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
             near = any(0 <= j < len(numeric_rows)
                        and abs(numeric_rows[j] - r) <= 2
                        for j in (i - 1, i))
-            lab0 = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
-                         if isinstance(ws[f"{lc}{r}"].value, str)
-                         and ws[f"{lc}{r}"].value.strip()), None)
+            lab0 = resolve_label(wb, sheet, r) or blocks.get(r)
             year_cols = list((year_columns(spec, sheet) or {}).values())
             has_any_year = any(
                 isinstance(ws[f"{yc}{r}"].value, (int, float))
@@ -164,9 +159,7 @@ def open_rows(wb, spec, ty, sheet, served, writer_log):
                 or f"{sheet}!{r}" in rebased:
             continue
         pv = ws[f"{pcol}{r}"].value if pcol else None
-        lab = next((ws[f"{lc}{r}"].value for lc in ("A", "B", "C", "D")
-                    if isinstance(ws[f"{lc}{r}"].value, str)
-                    and ws[f"{lc}{r}"].value.strip()), "")
+        lab = resolve_label(wb, sheet, r)
         row = {"row": r, "cell": f"{sheet}!{tcol}{r}",
                "label": str(lab)[:48], "value": v,
                "prior": pv if isinstance(pv, (int, float)) else None}
@@ -277,6 +270,41 @@ def evidence_slice(ledger, row, max_hits=MAX_EVIDENCE_PER_ROW,
 
 YEAR_RUN_RE = re.compile(r"((?:19|20)\d{2})\D{1,8}((?:19|20)\d{2})"
                          r"\D{1,8}((?:19|20)\d{2})")
+
+
+PROSE_AMT_RE = re.compile(r"\d[\d,.]*\s*[亿億万萬]元")
+
+
+def prose_digest(ledger, cap=12):
+    """OPERATING PROSE (overnight 2026-08-25, the new-orders block): CN
+    reports print operating data in SENTENCES (新增生效订单654.85亿元，
+    同比增长16.78%…板块占37.59%) — table-anchored evidence never sees
+    them, and when the model's own prior basis differs there is no
+    number bridge either. The digest hands the agent the amount-bearing
+    sentences; translation and %-decomposition are its judgment."""
+    prior_docs = ledger.prior_period_docs()
+    cands = []
+    seen = set()
+    for it in ledger.items:
+        if it.doc in prior_docs:
+            continue
+        sl = str(it.source_line or "")
+        if not PROSE_AMT_RE.search(sl):
+            continue
+        key = sl[:60]
+        if key in seen:
+            continue
+        seen.add(key)
+        cands.append((len(sl), it.page, sl))
+    cands.sort(key=lambda x: -x[0])          # sentences beat table rows
+    if not cands:
+        return ""
+    lines = ["-- OPERATING PROSE (amount-bearing sentences; 亿元 = x100 "
+             "into a millions model; a TOTAL with segment percentages "
+             "decomposes as total x pct) --"]
+    for _l, page, sl in cands[:cap]:
+        lines.append(f"  p{page}: {sl[:150]}")
+    return "\n".join(lines)
 
 
 def home_pages(wb, spec, ty, sheet, ledger, min_hits=4, cap=3,
@@ -447,7 +475,7 @@ def matrix_snippets(docs, rows, cap_pages=2):
 
 
 def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
-                 targets=None):
+                 targets=None, adjustments=None):
     """The compile packet's whole world: the open column, in order, each
     row with its label, prior, current (stale) value, and evidence slice.
     Returned as chunks the engine can hold.
@@ -488,6 +516,10 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
         home_block = home_transcript(ledger, homes, ty)
     except Exception:
         home_set, home_block = frozenset(), ""
+    try:
+        prose_block = prose_digest(ledger)
+    except Exception:
+        prose_block = ""
     chunks = []
     for i in range(0, len(rows), MAX_ROWS_PER_CALL):
         chunk = rows[i:i + MAX_ROWS_PER_CALL]
@@ -584,9 +616,24 @@ def compile_card(wb, spec, ty, sheet, served, writer_log, ledger, docs=(),
                              "in the CURRENT report")
             for h in cs.get(r["cell"], []):
                 lines.append(f"    [{h}]")
+            adj = next((a for a in (adjustments or [])
+                        if a.get("row") == f"{sheet}!{r['row']}"), None)
+            if adj:
+                lines.append(
+                    f"    [INFERRED ANALYST ADJUSTMENT] the model's prior "
+                    f"({adj['model_prior']:,.2f}) does not equal the "
+                    f"filing's prior print ({adj['disclosed_prior']:,.2f}) "
+                    f"— the analyst adjusts this row (their own netting/"
+                    f"carve-out). Do NOT write the raw print clean: either "
+                    f"replicate the adjustment logic (the sheet's nearby "
+                    f"sub-rows usually carry it) or write with a RED flag "
+                    f"naming both numbers. {adj['cite'][:80]}")
         if home_block:
             lines.append("")
             lines.append(home_block)
+        if prose_block:
+            lines.append("")
+            lines.append(prose_block)
         chunks.append("\n".join(lines))
     # TABLE ISLANDS (council wall-1 design): intact grids, selected
     # number-anchored on this packet's own priors. The agent reads the

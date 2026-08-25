@@ -85,10 +85,15 @@ class PacketCloser:
     # -- compile ------------------------------------------------------------
 
     def run_compile(self, sheet):
+        try:
+            self.tk.t_infer_adjustments({})
+            adjustments = self.tk._adjustments or []
+        except Exception:
+            adjustments = []
         rows, chunks = packets.compile_card(
             self.tk.wb, self.tk.spec, self.tk.ty, sheet, self.tk.served,
             self.tk.writer.log, self.tk.ledger, docs=self.tk.docs,
-            targets=self.tk.targets)
+            targets=self.tk.targets, adjustments=adjustments)
         if not rows:
             report = f"compile:{sheet}: nothing open"
             self.reports.append(report)

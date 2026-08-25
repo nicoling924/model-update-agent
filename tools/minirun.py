@@ -58,13 +58,46 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
 
     # the same front half as run.update
     spec_d = spec_mod.load(company_dir, None)
-    spec_mod.extend_axis(spec_d, target_year)
+    import re as _re
+    _p = str(period).upper()
+    _m = _re.match(r"^([12])H|^H([12])", _p) or _re.match(r"^([1-4])Q|^Q([1-4])", _p)
+    if _m and "H" in _p[:3]:
+        _kind = (_m.group(1) or _m.group(2)) + "H"
+    elif _m:
+        _kind = (_m.group(1) or _m.group(2)) + "Q"
+    else:
+        _kind = "FY"
+    if _kind != "FY":
+        from updater.discover import find_year_axis
+        from updater.run import _model_path as _mp
+        probe_f = load(_mp(company_dir, spec_d))
+        interim_axis = {}
+        for sh in probe_f.sheetnames:
+            ax = find_year_axis(probe_f[sh], period_kind=_kind)
+            if ax and str(target_year) in ax:
+                interim_axis[sh] = {"columns": ax}
+        spec_d["_annual_axis"] = spec_d.get("year_axis")
+        spec_d["year_axis"] = interim_axis
+        log(f"[mini] interim axis ({_kind}): "
+            + ", ".join(f"{sh}!{v['columns'][str(target_year)]}"
+                        for sh, v in sorted(interim_axis.items())))
+    else:
+        spec_mod.extend_axis(spec_d, target_year)
     ensure_keys(spec_d, company_dir, target_year, log)
     model_path = _model_path(company_dir, spec_d)
     wb = load(model_path)
     wb_values = load(model_path, data_only=True)
     targets = targets_mod.from_workbook(wb_values, spec_d, target_year,
                                         wb_formulas=wb)
+    if _kind != "FY":
+        ann = spec_d.get("_annual_axis") or {}
+        for t in targets:
+            cols = (ann.get(t.sheet) or {}).get("columns") or {}
+            col = cols.get(str(int(target_year) - 1))
+            if col and t.sheet in wb_values.sheetnames:
+                v = wb_values[t.sheet][f"{col}{t.row}"].value
+                if isinstance(v, (int, float)):
+                    t.alt_prior_value = float(v)
     known = targets_mod.known_prior_values(targets)
     docs = _disclosures(company_dir, period)
     ledger = read_documents(docs, client=client, known_values=known, log=log)
@@ -113,6 +146,10 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
         rep = closer.run_compile(sheet)
         log(f"[mini] {rep[:180]}")
 
+    ops.close_constructed_cf(wb, spec_d, target_year, book, writer,
+                             run_log.append)
+    ops.close_partition_duplicates(wb, spec_d, target_year, book, writer,
+                                   run_log.append)
     # honesty pass on the tested sheets only
     ops.flag_stale(wb, spec_d, target_year,
                    {s: census.get(s, []) for s in sheets}, served, writer,

@@ -197,3 +197,9 @@ Your writes go through the guarded chokepoint; some may come back
 rejected with a reason (wrong magnitude, breaks a passing check, cell is
 evidence-tied). You will get one repair pass with those reasons —
 rejections are information about the model, not noise.
+
+PER-SHARE IDENTITIES (interim law): when the filing prints both an
+aggregate and its per-share figure (net profit AND EPS), the share
+count is their RATIO — a weighted-average share row is derived as
+NP ÷ EPS, cited to both prints. Never carry the period-end share count
+into a weighted-average row: placements and buybacks make them differ.
