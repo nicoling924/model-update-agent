@@ -63,13 +63,13 @@
   "why": "p7-p8: no 衍生金融资产 line is printed in the current balance sheet; treated as proven zero, not carried forward. | check: section=流动资产合计; sums=0.00; no sep"
  },
  "Raw financials!65:compile": {
-  "evidence_hash": "82cfc8e602cad348",
+  "evidence_hash": "83c3088de6b9086e",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p45",
+    "balance-sheet statement p2 and p3",
     "notes",
-    "balance-sheet detail p187 and p189"
+    "MD&A and five-year summary"
    ]
   },
   "flag": false,
@@ -116,24 +116,26 @@
   "why": "p7 prints 债权投资 16909.36610429 million, but not 其他债权投资. Writing that broader balance into the narrower model row would violate the partition mapping."
  },
  "Raw financials!86:compile": {
-  "evidence_hash": "1e18f82b16e8a178",
-  "action": "write",
-  "payload": {
-   "value": 0.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p7-p8 and p10 notes/statement schedule: no 可供出售金融资产 line is present in the current-period balance sheet; the legacy category is not carried as a curre"
- },
- "Raw financials!98:compile": {
-  "evidence_hash": "126a285dc65d13c5",
+  "evidence_hash": "b2a7b0a47bf2a3ca",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p7-p9",
+    "balance-sheet statement p2 and p3",
     "notes",
-    "MD&A/operating tables"
+    "MD&A and five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!98:compile": {
+  "evidence_hash": "4622d416f7c461e5",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "balance-sheet statement p3",
+    "notes",
+    "MD&A and five-year summary"
    ]
   },
   "flag": false,
@@ -147,11 +149,17 @@
   "why": "p3 candidate is labelled other non-operating income/expense rather than the model label 其他业务成本(金融类); written by the supplied locating instruction but "
  },
  "Raw financials!32:compile": {
-  "evidence_hash": "43efbf7f4ccb5faa",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p10 prints the broader 资产处置收益 of 1.27722862 million, but the narrower 非流动资产处置净损失 row is absent; the printed parent may already be mapped to a sibling "
+  "evidence_hash": "c2baccca6703c40d",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "P&L statement p8",
+    "notes",
+    "MD&A and five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!58:compile": {
   "evidence_hash": "ab4de537a6879544",
@@ -165,15 +173,11 @@
   "why": "p7: model row 应收票据及应收账款 mapped to the two current statement components 应收票据 1,218,566,223.25 plus 应收账款 13,616,596,574.97; converted to model millions."
  },
  "Raw financials!66:compile": {
-  "evidence_hash": "86ac5fc9176305bc",
-  "action": "write",
-  "payload": {
-   "value": 510.93927201,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p111: 其他应收款项 current-period counterpart 510,939,272.01; written in model millions. RED FLAG: the current comparative is re-based to 522,982,666.43 ver"
+  "evidence_hash": "925a7367291f4910",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p32 prints current 其他应收款 381.68600506 million against comparative 546.27976342 million, while the model prior is 522.98; current value is mapped by th"
  },
  "Raw financials!94:compile": {
   "evidence_hash": "dac4255e61cc0e3a",
@@ -196,26 +200,26 @@
   "why": ""
  },
  "Raw financials!118:compile": {
-  "evidence_hash": "c66e10eb3b4f9fce",
+  "evidence_hash": "9965ea6e87e0f89f",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p8-p9",
+    "balance-sheet statement p4",
     "notes",
-    "MD&A/operating tables"
+    "MD&A and five-year summary"
    ]
   },
   "flag": false,
   "why": ""
  },
  "Raw financials!119:compile": {
-  "evidence_hash": "c1d53f753f223539",
+  "evidence_hash": "ee8c5bd4f44578b2",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p8-p9",
+    "balance-sheet statement p4",
     "notes",
-    "MD&A/operating tables"
+    "MD&A and five-year summary"
    ]
   },
   "flag": false,
@@ -233,26 +237,31 @@
   "why": "p153: 应付股利 1,371,192,193.78; current counterpart of the model's 应付股利 row, in millions | check: section=其他应付款; sums=1371.19219378+1598.19704557 = 2969."
  },
  "Raw financials!172:compile": {
-  "evidence_hash": "7751ff3cd3c422a3",
-  "action": "write",
+  "evidence_hash": "c53d9d576ea620c5",
+  "action": "not_disclosed",
   "payload": {
-   "value": -15.19747974,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "five-year summary",
+    "other document-wide number hits"
+   ]
   },
   "flag": false,
-  "why": "p49: 外币财务报表折算差额 -15,197,479.74, converted to millions | check: section=将重分类进损益的其他综合收益; sums=-0.24780403-1.34774288-15.19747974 = -16.79332665 million;"
+  "why": ""
  },
  "Raw financials!129:compile": {
-  "evidence_hash": "6ef990c22b413b80",
-  "action": "write",
+  "evidence_hash": "f72bd7e6741f4f87",
+  "action": "not_disclosed",
   "payload": {
-   "value": 0.0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "balance-sheet statement p4",
+    "notes",
+    "MD&A and five-year summary"
+   ]
   },
   "flag": false,
-  "why": "p8: 其中：应付利息 0.00; the current column prints zero. | check: section=流动负债; sums=n/a — component line; printed current value is 0.00 raw = 0.00 million; "
+  "why": ""
  },
  "Raw financials!134:compile": {
   "evidence_hash": "93ea3af4ccc1097c",
@@ -288,15 +297,18 @@
   "why": "p9: 非流动负债表未列“应付债券”；非流动负债明细在该项为0时闭合。 | check: section=非流动负债合计; sums=3491.55943207+0+407.01003478+40.48000000+1016.54143805+5712.25449177+471.00031386+2"
  },
  "Raw financials!153:compile": {
-  "evidence_hash": "0563833fe56d0f5a",
-  "action": "write",
+  "evidence_hash": "40137bf518082845",
+  "action": "not_disclosed",
   "payload": {
-   "value": 0.0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "five-year summary",
+    "other document-wide number hits"
+   ]
   },
   "flag": false,
-  "why": "p9: 非流动负债表未列“其他非流动负债”；非流动负债合计由列示项目完整闭合。 | check: section=非流动负债合计; sums=listed non-current-liability lines + 0.00 = 11363.97822604 = printed subtotal; "
+  "why": ""
  },
  "Raw financials!155:compile": {
   "evidence_hash": "2ef308213e50964d",
@@ -343,28 +355,31 @@
   "why": "p9: 所有者权益明细与资产负债表平衡所需的权益项目闭合，无股东权益差额平衡项目。 | check: section=所有者权益合计; sums=39973.90187296+4464.53073686+0.00 = 44438.43260982 = derived total equity; pr"
  },
  "Raw financials!123:compile": {
-  "evidence_hash": "d918a8bb902106f0",
+  "evidence_hash": "8768d4076a0fb156",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p8-p9",
+    "balance-sheet statement p4",
     "notes",
-    "MD&A/operating tables"
+    "MD&A and five-year summary"
    ]
   },
   "flag": false,
   "why": ""
  },
  "Raw financials!147:compile": {
-  "evidence_hash": "a57201514effdf65",
-  "action": "write",
+  "evidence_hash": "7989884ee7181a8f",
+  "action": "not_disclosed",
   "payload": {
-   "value": 40.48,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "five-year summary",
+    "other document-wide number hits"
+   ]
   },
   "flag": false,
-  "why": "p9: 长期应付款 40,480,000.00，换算为模型百万单位。 | check: section=非流动负债合计; sums=3491.55943207+407.01003478+40.48000000+1016.54143805+5712.25449177+471.00031386+225."
+  "why": ""
  },
  "Raw financials!120:compile": {
   "evidence_hash": "56ab562f47350056",
@@ -378,22 +393,28 @@
   "why": "p8: 应付票据 15,513,358,907.01 plus 应付账款 29,279,996,803.91; the model row combines these two printed lines. | check: section=流动负债; sums=15,513,358,907.01+"
  },
  "Raw financials!166:compile": {
-  "evidence_hash": "24e1b0a2195ab74d",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p9 prints 减：库存股 current 648,882.29, equal to 0.64888229 million, while the model prior is 111.09391181 million and the comparative is absent/re-based;"
+  "evidence_hash": "a06d3262256455e9",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "MD&A and results-announcement tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!225:compile": {
-  "evidence_hash": "b41d4dba016b0ddb",
+  "evidence_hash": "040cfdcd7f10eb36",
   "action": "write",
   "payload": {
-   "value": 0.0,
+   "value": 0,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p13: 发行债券收到的现金 is absent; financing inflow closes from absorption investment, borrowings and other financing receipts, proving no bond issuance. | che"
+  "why": "p31: 收到其他與籌資活動有關的現金 prints a dash for 2025, proving zero in the current period. | check: section=筹资活动现金流入小计; sums=5,236.17922316+5,569.61608431+0 = 10"
  },
  "Raw financials!180:compile": {
   "evidence_hash": "f810a5a200b006d9",
@@ -407,13 +428,13 @@
   "why": "p7-p9: 资产总计与负债及所有者权益总计闭合，无负债及股东权益差额项目。 | check: section=负债及股东权益差额; sums=148828.84292581-104390.41031599-44438.43260982 = 0.00; prior=new line — blank "
  },
  "Raw financials!265:compile": {
-  "evidence_hash": "3e8e6b1ffe655d89",
+  "evidence_hash": "1a083e487a058e65",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "cash-flow statement p51",
-    "cash-flow supplementary schedule p171",
-    "notes and MD&A cash-flow disclosures"
+    "p31 cash flow statement",
+    "notes",
+    "other document-wide searches"
    ]
   },
   "flag": false,
@@ -453,40 +474,47 @@
   "why": "p51 and p171: no debt-to-capital conversion is reported; the supplemental cash-flow schedule contains no same-kind event, so the event row rolls to ze"
  },
  "Raw financials!188:compile": {
-  "evidence_hash": "11a024d67640f31e",
-  "action": "write",
+  "evidence_hash": "c3fe0a728508a358",
+  "action": "not_disclosed",
   "payload": {
-   "value": 40.227646,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "cash-flow statement",
+    "notes",
+    "MD&A and cash-flow tables",
+    "other document-wide number hits"
+   ]
   },
   "flag": false,
-  "why": "p51 closure: current operating-cash-inflow gap is 40,227,646.00 raw currency, derived as the missing-row difference | check: section=经营活动现金流入小计; sums="
+  "why": ""
  },
  "Raw financials!196:compile": {
-  "evidence_hash": "1617c2752a55dd2c",
+  "evidence_hash": "43cf69fac0735b89",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "No current line clearly maps to 经营活动现金流出(金融类). The p31 candidates are unrelated or unlabeled 加額 lines, so scope is ambiguous."
+ },
+ "Raw financials!205:compile": {
+  "evidence_hash": "3c6d683f82774f87",
   "action": "write",
   "payload": {
-   "value": -356.6029111,
+   "value": 0.80822178,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p12: 客户贷款及垫款净增加额 -356,602,911.10，换算为模型百万单位。 | check: section=经营活动现金流出小计; sums=16760.88386665-356.60291110+147.96812081+0.42877811+1227.48956580+938.57"
- },
- "Raw financials!205:compile": {
-  "evidence_hash": "7a2f6739aa941b63",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p13 prints only the investing inflow subtotal and mapped lines. The three omitted inflow rows together residualize to 0.14951826 million, but the repo"
+  "why": "p31: 長期資產所收回的現金淨額 808,221.78 1,147,462.33 -29.56; converted to millions. | check: section=cash flow from investing activities; sums=n/a — detail line;"
  },
  "Raw financials!214:compile": {
-  "evidence_hash": "834a6f97f0855511",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p13 gives only the investing cash-outflow subtotal and 投资支付的现金; the residual is not separately disclosed as 支付其他与投资活动有关的现金."
+  "evidence_hash": "a11b7ebfa173464f",
+  "action": "write",
+  "payload": {
+   "value": 153.51459395,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: 支付其他與投資活動有關的現金 153,514,593.95. | check: section=投资活动现金流出小计; sums=31,324.24675631+4,284.34667111+153.51459395 = 35,762.10802137; prior=current com"
  },
  "Raw financials!254:compile": {
   "evidence_hash": "7d4908c9297ed01a",
@@ -507,29 +535,40 @@
   "why": "p51: statement reconciliation/missing-row arithmetic identifies the current-period 转换汇率 value as -1.15; the agreeing disclosure print supports this va"
  },
  "Raw financials!64:compile": {
-  "evidence_hash": "e74bed066af5e9fe",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p9 prints 投资收益 (current 141,074,666.85; comparative -39,626,483.54), not 应收股利. The current balance-sheet statement p45 does not present 应收股利 separatel"
- },
- "Raw financials!148:compile": {
-  "evidence_hash": "cfadf9cb4d7b7bce",
+  "evidence_hash": "7808271c59937adb",
   "action": "write",
   "payload": {
-   "value": 0.0,
+   "value": 4.21067009,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p9: 非流动负债表未列“专项应付款”；列示明细在该项为0时闭合。 | check: section=非流动负债合计; sums=listed non-current-liability lines + 0.00 = 11363.97822604 = printed subtotal; prior="
+  "why": "p2: 应收股利 4,210,670.09; current-year column, converted from yuan to model millions. | check: section=资产负债表 › 应收股利; sums=n/a — standalone balance-sheet "
+ },
+ "Raw financials!148:compile": {
+  "evidence_hash": "bd84ba379a768322",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "five-year summary",
+    "other document-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!207:compile": {
-  "evidence_hash": "064f455ddda593ab",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p13 and the searched other places contain no separate current-period value. The investing inflow residual is shared with EL205 and EL206, so allocatio"
+  "evidence_hash": "f36bf91f0daa1b07",
+  "action": "write",
+  "payload": {
+   "value": 19.078348,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: 收到其他與投資活動有關的現金 19,078,348.00; raw yuan converted to the model's millions. | check: section=投资活动现金流入小计; sums=25,155.70481083+0.00080822178+0+19.07"
  },
  "Raw financials!275:compile": {
   "evidence_hash": "bd3e43262e3f5516",
@@ -567,15 +606,11 @@
   "why": "p96: 负债和所有者权益总计 162,674,195,217.33 minus 所有者权益合计 48,168,255,333.72; model units are millions. | check: section=负债和所有者权益总计; sums=114505.93988361+48168."
  },
  "Raw financials!185:compile": {
-  "evidence_hash": "102e56cd39b4cdab",
-  "action": "write",
-  "payload": {
-   "value": 86685.31670285,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p101 section reconciliation: 销售商品、提供劳务收到的现金 is the missing current-year line; current value is derived from the printed inflow subtotal after the othe"
+  "evidence_hash": "aa2759652b8d7225",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current p31 cash-flow section has no line labelled 銷售商品、提供勞務收到的現金. The category appears renamed or merged; no defensible current mapping or bridge"
  },
  "Raw financials!252:compile": {
   "evidence_hash": "a17bee4fdcc39d49",
@@ -604,77 +639,60 @@
   "why": ""
  },
  "Model!38:compile": {
-  "evidence_hash": "7c28d0332708d1fa",
+  "evidence_hash": "235aa37ddf88e904",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and segment tables",
+    "other places provided"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!11:compile": {
+  "evidence_hash": "ff9b721c2ac18093",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "TWO OPINIONS DISAGREE — candidate A: 1480.81225951 (p206: 应付普通股股利; the current-period amount is 1,480,812,259.51) vs candidate B: 1366.31521138 (p206:"
- },
- "Driver!11:compile": {
-  "evidence_hash": "425fb5594ea529bb",
-  "action": "write",
-  "payload": {
-   "value": 3902.82023921,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: 水电 current-period revenue 3,902,820,239.21; model units are millions. RED flag: current comparative is 2,854.07591093 million versus model prior"
+  "why": "Hydro is not separately disclosed in the current report. The broad 能源裝備製造 total cannot be assigned to Hydro."
  },
  "Driver!12:compile": {
-  "evidence_hash": "2ba640c8ae7715e9",
-  "action": "write",
-  "payload": {
-   "value": 12901.06909597,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: current category 制造服务, 12,901,069,095.97; mapped by meaning to the model's modern manufacturing service industry. RED flag: the label changed an"
+  "evidence_hash": "4756356929aed3b3",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Written from p25, but current 製造服務 is re-based: model prior 7,564.41 conflicts with the current table's implied comparative. Red flag retained."
  },
  "Driver!40:compile": {
-  "evidence_hash": "3706fbfb965437e1",
-  "action": "write",
-  "payload": {
-   "value": -4951.6786849,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: 气电 current-period operating cost 4,951,678,684.90; model COGS sign convention applied. | check: section=能源装备制造分产品营业成本; sums=气电 cost 4951.6786849"
+  "evidence_hash": "516c82dacc17e0a8",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The p31 sighting is received cash from other operating activities, not Gas Turbine COGS. No current Gas Turbine COGS value was found."
  },
  "Driver!41:compile": {
-  "evidence_hash": "bbc9beec82e2a092",
-  "action": "write",
-  "payload": {
-   "value": -4295.15509678,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: 核能 current-period operating cost 4,295,155,096.78; model COGS sign convention applied. | check: section=能源装备制造分产品营业成本; sums=核能 cost 4295.1550967"
+  "evidence_hash": "be6c787906f153bc",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Nuclear power equipment COGS is not separately disclosed in the current report; broad 能源裝備製造 COGS cannot be assigned to this row."
  },
  "Driver!44:compile": {
-  "evidence_hash": "ad1a910981977a29",
-  "action": "write",
-  "payload": {
-   "value": -3429.35371861,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: 水电 current-period operating cost 3,429,353,718.61; model COGS sign convention applied. RED flag: current comparative is 2,361.54820054 million v"
+  "evidence_hash": "cdadb201e4f52577",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Hydro COGS is not separately disclosed in the current report; no defensible mapping from the broad current COGS category exists."
  },
  "Driver!45:compile": {
-  "evidence_hash": "611bdeddc9d01812",
-  "action": "write",
-  "payload": {
-   "value": -8787.87586171,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p207: counterpart 制造服务 current-period operating cost 8,787,875,861.71; mapped by meaning to modern manufacturing service industry and signed as COGS. "
+  "evidence_hash": "e2fd90ddfdb715a1",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Written from p25, but current 製造服務 COGS is re-based: model prior -3,902.35 conflicts with the current table's implied comparative. Red flag retained."
  },
  "Driver!83:compile": {
   "evidence_hash": "4b2644ee44017c6d",
@@ -688,15 +706,18 @@
   "why": "p14: 境内 current-period revenue 7,347,606.99 thousand, converted to 7,347.60699 million. RED flag: the current regional partition does not tie the mode"
  },
  "Driver!84:compile": {
-  "evidence_hash": "ec1a7d60566b3808",
-  "action": "write",
+  "evidence_hash": "a0b7faae4b92ad48",
+  "action": "not_disclosed",
   "payload": {
-   "value": 513.92075,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and segment tables",
+    "five-year summary"
+   ]
   },
   "flag": false,
-  "why": "p14: 境外 current-period revenue 513,920.75 thousand, converted to 513.92075 million. RED flag: the current regional partition does not tie the model pr"
+  "why": ""
  },
  "Driver!88:compile": {
   "evidence_hash": "1b1e915f329a1cf2",
@@ -721,211 +742,172 @@
   "why": "p13: 境外 gross margin 11.52%, entered as 0.1152. RED flag: current regional mapping does not tie the model prior assumption of 0.35. | check: section=n"
  },
  "Driver!95:compile": {
-  "evidence_hash": "10c7cc92a69f3636",
-  "action": "write",
-  "payload": {
-   "value": 16.79343318,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p192: 本期增加金额 16,793,433.18, converted to 16.79343318 million. | check: section=not a statement line — gross PPE movement schedule; sums=n/a — addition"
+  "evidence_hash": "319b4914af970ec1",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Written from the p3 counterpart as required, but the current comparative 1,521.391459 (in model units) conflicts with model prior 211.93; category was"
  },
  "Driver!6:compile": {
-  "evidence_hash": "7c43f96890bd2d97",
+  "evidence_hash": "7bd3527a0dab56eb",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The current report re-cuts the prior product categories: current p207 has 能源装备制造 and its members, but no defensible bridge reproduces the model's prio"
+  "why": "Current p25 re-bases the prior product partition into broad categories: 能源裝備製造, 製造服務 and 新興產業. No defensible current counterpart for narrower 清潔高效能源裝備"
  },
  "Driver!10:compile": {
-  "evidence_hash": "95007c310481988f",
-  "action": "write",
-  "payload": {
-   "value": null,
-   "swap_constant": {
-    "old": 8215.03185567,
-    "new": 10424.51500811
-   },
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p162: 可再生能源装备 current-period value 10,424,515,008.11; converted from raw currency to the model's millions unit. This is the current counterpart of the"
+  "evidence_hash": "d8384a4748fa5ad3",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded 16,602.97 is the prior renewable-energy-equipment total. The current report has no defensible counterpart for that category, so the formu"
  },
  "Driver!43:compile": {
-  "evidence_hash": "2cd20df2e947d9ca",
-  "action": "write",
-  "payload": {
-   "value": null,
-   "swap_constant": {
-    "old": 7780.15489772,
-    "new": 10424.51500811
-   },
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p162: 可再生能源装备 current-period value 10,424,515,008.11; converted to model millions. The old embedded constant 7,780.15489772 is the prior-period counte"
+  "evidence_hash": "282aa24aea3269d8",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded 15,977.70 is the prior renewable-energy-equipment COGS total. No current counterpart for that category was found, making this driver stru"
  },
  "Driver!102:compile": {
-  "evidence_hash": "6cf26c1146663486",
+  "evidence_hash": "328ef51ff97d0de3",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "RED: current sales-expense counterpart is explicitly re-based and does not match the model's prior; mapping is retained only because the supplied coun"
+  "why": "No current depreciation disclosure was supplied; the stale prior value cannot be accepted without the PPE/fixed-asset reconciliation."
  },
  "Driver!104:compile": {
-  "evidence_hash": "efe8d3cc18c3c673",
+  "evidence_hash": "8ab1c1f3e4db08d4",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "RED: current fixed-asset-depreciation counterpart is explicitly re-based and does not match the model's prior; mapping is retained only because the su"
+  "why": "Current counterpart is explicitly re-based: 2025 value 462.83293496, current comparative 554.69287436, model prior 344.92."
  },
  "Driver!172:compile": {
-  "evidence_hash": "3919635d9a4c62e1",
-  "action": "write",
-  "payload": {
-   "value": 8056.6,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 水轮发电机组，生产量 8,056.6 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compa"
+  "evidence_hash": "079ed0c663a8ecc0",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative production 4,230 does not tie model prior 3,801."
  },
  "Driver!173:compile": {
-  "evidence_hash": "7d28db21f801c7fb",
-  "action": "write",
-  "payload": {
-   "value": 4230.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 水轮发电机组，销售量 4,230 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compara"
+  "evidence_hash": "f0de02c3e5b751fb",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative sales 5,181.6 does not tie model prior 5,766.2."
  },
  "Driver!174:compile": {
-  "evidence_hash": "809b546d5dae79d2",
-  "action": "write",
-  "payload": {
-   "value": 5181.6,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 水轮发电机组，库存量 5,181.6 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compa"
+  "evidence_hash": "b8558533b3ebb91a",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based and the inventory comparative does not tie model prior 1,355."
  },
  "Driver!176:compile": {
-  "evidence_hash": "cd2de24c31ca14c3",
-  "action": "write",
-  "payload": {
-   "value": 57852.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 汽轮发电机，生产量 57,852 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compara"
+  "evidence_hash": "0dde96e3830c7aa4",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative production 51,089 does not tie model prior 44,258."
  },
  "Driver!177:compile": {
-  "evidence_hash": "37daa62f9b2a8373",
-  "action": "write",
-  "payload": {
-   "value": 51089.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 汽轮发电机，销售量 51,089 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compara"
+  "evidence_hash": "0442fb05804fd812",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative sales 29,420 does not tie model prior 40,053."
  },
  "Driver!178:compile": {
-  "evidence_hash": "1876f000761aaa23",
-  "action": "write",
-  "payload": {
-   "value": 29420.0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 汽轮发电机，库存量 29,420 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current compara"
+  "evidence_hash": "d5a9b95ce1044a33",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative inventory 29,420 does not tie model prior 22,657."
  },
  "Driver!180:compile": {
-  "evidence_hash": "f00043d76ac27800",
-  "action": "write",
-  "payload": {
-   "value": 14026.1,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p14: 风力发电机组，生产量 14,026.1 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current comp"
+  "evidence_hash": "ae06e284f1913da8",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current product table is re-based: current comparative production 12,656.6 does not tie model prior 10,032.6."
  },
  "Driver!181:compile": {
-  "evidence_hash": "0c69fcb0bc8900c4",
+  "evidence_hash": "2b8622becfb3f703",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p27 counterpart is flagged as a re-based presentation; 12,656.6 is assigned to Sales by the table's production/sales/inventory column structure, while"
+ },
+ "Driver!107:compile": {
+  "evidence_hash": "69c3871ffbee119b",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The p6 專項儲備 line is the available candidate, but its comparative 124.19315776 does not equal the embedded old constant 128.28638909."
+ },
+ "Driver!119:compile": {
+  "evidence_hash": "1da03827e102324a",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and other places",
+    "doc-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!143:compile": {
+  "evidence_hash": "cf6a7b69072a1f2d",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+ },
+ "Driver!145:compile": {
+  "evidence_hash": "e5f1ce04c7043492",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+ },
+ "Driver!147:compile": {
+  "evidence_hash": "5a667acc77a44783",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+ },
+ "Driver!149:compile": {
+  "evidence_hash": "70b81318d33c9782",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+ },
+ "Driver!151:compile": {
+  "evidence_hash": "93e787d806f2a099",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 365.00 hit is only in unrelated statement/operating lines; no current counterpart for an embedded category constant was identified."
+ },
+ "Driver!162:compile": {
+  "evidence_hash": "a97c6b61a51a8a6c",
   "action": "write",
   "payload": {
-   "value": 12656.6,
+   "value": 117251.0,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 风力发电机组，销售量 12,656.6 MW. | check: section=not a statement line — operating statistics; sums=n/a — operating-data row; prior=RE-BASED: current comp"
- },
- "Driver!107:compile": {
-  "evidence_hash": "00a83f0bc48bd2ff",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "No doc-wide counterpart for the embedded impairment constants after checking the statements, notes, and other supplied report places; driver may be st"
- },
- "Driver!119:compile": {
-  "evidence_hash": "4eca6d4e9bd815ca",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "No doc-wide counterpart for the embedded amortization constants after checking the statements, notes, and other supplied report places; driver may be "
- },
- "Driver!143:compile": {
-  "evidence_hash": "09c0f43daadd1160",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "365 is a formula constant with no current-period disclosed counterpart; no defensible constant swap identified."
- },
- "Driver!145:compile": {
-  "evidence_hash": "a16023f874725b95",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "365 is a formula constant with no current-period disclosed counterpart; no defensible constant swap identified."
- },
- "Driver!147:compile": {
-  "evidence_hash": "16a1d89b30564e6d",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "365 is a formula constant with no current-period disclosed counterpart; no defensible constant swap identified."
- },
- "Driver!149:compile": {
-  "evidence_hash": "14803562d10569ee",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "365 is a formula constant with no current-period disclosed counterpart; no defensible constant swap identified."
- },
- "Driver!151:compile": {
-  "evidence_hash": "d676f353e160894e",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "365 is a formula constant with no current-period disclosed counterpart; no defensible constant swap identified."
- },
- "Driver!162:compile": {
-  "evidence_hash": "230c61ac33e3182d",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Ambiguous unlabeled row: current report contains multiple interest-expense candidates (p242/p250), and none ties model prior 101,142.00 exactly."
+  "why": "p1: 2025年公司新增訂單約為人民幣1,172.51億元; converted using 亿元 × 100 into model millions. | check: section=not a statement line; sums=n/a — operating statistic; p"
  },
  "Driver!184:compile": {
-  "evidence_hash": "68a61bd394fed4d3",
+  "evidence_hash": "62843bd77d320400",
   "action": "write",
   "payload": {
    "value": 48330,
@@ -933,10 +915,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站汽轮机，生产量 48,330 兆瓦；current counterpart replaces the stale prior-period value. | check: section=not a statement line — operating statistics, prod"
+  "why": "p27: 電站汽輪機 兆瓦 current-year production is 48,330; RED flag — counterpart is re-based and its comparative does not tie the model prior 38,578.00. | chec"
  },
  "Driver!185:compile": {
-  "evidence_hash": "14f6504619810d84",
+  "evidence_hash": "fcc978e353415928",
   "action": "write",
   "payload": {
    "value": 49069,
@@ -944,10 +926,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站汽轮机，销售量 49,069 兆瓦; current counterpart replaces the stale prior-period value. | check: section=not a statement line — operating statistics, pro"
+  "why": "p27: 電站汽輪機 兆瓦 current-year sales is 49,069; RED flag — counterpart is re-based and its comparative does not tie the model prior 24,246.00. | check: se"
  },
  "Driver!186:compile": {
-  "evidence_hash": "f3303ea4fc4a7ac0",
+  "evidence_hash": "6d195b9c98e35f28",
   "action": "write",
   "payload": {
    "value": 14202,
@@ -955,10 +937,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站汽轮机，库存量 14,202 兆瓦; current counterpart replaces the stale prior-period value. | check: section=not a statement line — operating statistics, pro"
+  "why": "p27: 電站汽輪機 兆瓦 current-year inventory is 14,202; RED flag — counterpart is re-based and its comparative does not tie the model prior 12,861.00. | check"
  },
  "Driver!188:compile": {
-  "evidence_hash": "80ac6ac7c643d7b6",
+  "evidence_hash": "4fd6feefa6242401",
   "action": "write",
   "payload": {
    "value": 28930,
@@ -966,10 +948,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站锅炉，生产量 28,930 兆瓦; current counterpart replaces the stale prior-period value. | check: section=not a statement line — operating statistics, prod"
+  "why": "p27: 電站鍋爐 兆瓦 current-year production is 28,930; RED flag — counterpart is re-based and its comparative does not tie the model prior 25,066.00. | check"
  },
  "Driver!189:compile": {
-  "evidence_hash": "37efcef67973d99b",
+  "evidence_hash": "7d48dc787dc5bbe1",
   "action": "write",
   "payload": {
    "value": 28930,
@@ -977,10 +959,10 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站锅炉，销售量 28,930 兆瓦; current counterpart replaces the stale prior-period value. | check: section=not a statement line — operating statistics, prod"
+  "why": "p27: 電站鍋爐 兆瓦 current-year sales is 28,930; RED flag — counterpart is re-based and its comparative does not tie the model prior 25,066.00. | check: sec"
  },
  "Driver!190:compile": {
-  "evidence_hash": "ec9fc16b696a6d99",
+  "evidence_hash": "8d0c85fb16c32085",
   "action": "write",
   "payload": {
    "value": 0,
@@ -988,21 +970,21 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p14: 电站锅炉，库存量 0 兆瓦; the current table explicitly reports zero inventory. | check: section=not a statement line — operating statistics, product-output "
+  "why": "p27: 電站鍋爐 兆瓦 current-year inventory is printed as 0; RED flag retained because the current counterpart is treated as re-based against the model classi"
  },
  "Driver!182:compile": {
-  "evidence_hash": "3fd116f56cfbebca",
+  "evidence_hash": "c182574b355234f5",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Re-based category: current p14 comparative is 3,332.7, not the model prior 1,963.2; current value 14,026.1 is written per counterpart rule."
+  "why": "TWO OPINIONS DISAGREE — candidate A: 12656.6 (p27: 風力發電機組 兆瓦 current-year sales is 12,656.6; RED flag — co) vs candidate B: 3332.7 (p27: 風力發電機組 兆瓦, cu"
  },
  "Driver!39:compile": {
-  "evidence_hash": "5fde9a0094441a83",
+  "evidence_hash": "a117f2ed08c18c1f",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "p231 counterpart is explicitly re-based: do not treat the 7,144.17489971 million value as a historical tie to the model's -11,892.40 prior."
+  "why": "Current p25 provides only broad 能源裝備製造 COGS; no defensible current counterpart for narrower high-efficient clean energy equipment COGS was found."
  },
  "Raw financials!10:compile": {
   "evidence_hash": "c6eb6333f107ee68",
@@ -1137,11 +1119,11 @@
   "why": "Two candidate scopes and sibling conflict: p7 在建工程 1,549,810,709.37 is already mapped to EL96, while p14 prints 91,240,842.54. It is unclear whether E"
  },
  "Raw financials!131:compile": {
-  "evidence_hash": "3175a4c207c0af2f",
+  "evidence_hash": "66d39ca3174cb3cf",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "Do not duplicate the p8 其他应付款 current value of 1,947,262,876.51 (model units 1,947.26): it is already mapped to Raw financials!EL128. EL131 carries an"
+  "why": "p4 prints 其他應付款 1,627,601,940.66 for 2025, but its comparative 1,614,378,867.21 does not tie the model prior of 1,609.81 million; scope or reclassific"
  },
  "Raw financials!132:compile": {
   "evidence_hash": "e9fc73f6b7996c62",
@@ -1195,11 +1177,15 @@
   "why": "p12-p13: derived from the cash-flow identity; the missing 汇率变动对现金的影响 is the residual between cash net increase and operating, investing and financing "
  },
  "Raw financials!206:compile": {
-  "evidence_hash": "9e980716516d22fa",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p13 and the searched other places contain no separate current-period value. The investing inflow residual is shared with EL205 and EL207, so allocatio"
+  "evidence_hash": "5fdf5ce76183ba1d",
+  "action": "write",
+  "payload": {
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: 的現金淨額 – 492,572,075.62 不適用. The current-period column prints a dash, proving zero for this event line. | check: section=cash flow from investing "
  },
  "Raw financials!213:compile": {
   "evidence_hash": "14ae8fff0052ced1",
@@ -1209,11 +1195,11 @@
   "why": "p13 gives only the investing cash-outflow subtotal and 投资支付的现金; the 274.75821879 million residual contains omitted cash-outflow lines and cannot be as"
  },
  "Raw financials!230:compile": {
-  "evidence_hash": "ec92d452c6277ac3",
+  "evidence_hash": "028977896a9b5b2d",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "p13 shows the prior-period 12.34360170 million on 支付其他与筹资活动有关的现金 and the current financing outflow subtotal, but the current-period dividend/profit/in"
+  "why": "p31 omits the prior dividend/interest-payment label; current value is inferred as the residual needed to reconcile the printed financing subtotal and "
  },
  "Raw financials!232:compile": {
   "evidence_hash": "1b4a098708ee3218",
@@ -1234,5 +1220,314 @@
   },
   "flag": false,
   "why": ""
+ },
+ "Raw financials!14:compile": {
+  "evidence_hash": "4a15142f4f51e7f4",
+  "action": "write",
+  "payload": {
+   "value": 61.58213916,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p7: 其中：利息支出 61,582,139.16; current-year column, converted from yuan to model millions. | check: section=P&L › 财务费用; sums=component printed as 61.58213"
+ },
+ "Raw financials!50:compile": {
+  "evidence_hash": "66831ea3abf618d0",
+  "action": "write",
+  "payload": {
+   "value": 1.15,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p10: 基本每股收益 1.15 (2025) and 0.94 (2024). | check: section=每股收益; sums=n/a — per-share line; aggregate net profit and EPS are separately printed; prior="
+ },
+ "Raw financials!115:compile": {
+  "evidence_hash": "b82f8d9318eaf01d",
+  "action": "write",
+  "payload": {
+   "value": 162674.19521733,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p3: 資產總計 162,674,195,217.33; current-year column, converted from yuan to model millions. The same total is printed as 負債和所有者權益總計 on p6. | check: secti"
+ },
+ "Raw financials!51:compile": {
+  "evidence_hash": "e0d837c5cbae0fe4",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "EPS statement p10",
+    "notes",
+    "MD&A and five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!168:compile": {
+  "evidence_hash": "a65fb150f67b70a7",
+  "action": "write",
+  "payload": {
+   "value": 128.26153294,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p6: 專項儲備 128,261,532.94 124,193,157.76; converted from yuan to the model's millions. | check: section=equity section of the balance sheet; sums=n/a — "
+ },
+ "Raw financials!201:compile": {
+  "evidence_hash": "b8dca0d9a7bc4484",
+  "action": "write",
+  "payload": {
+   "value": 2014.32091285,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23: 經營活動產生的現金流量淨額 2,014,320,912.85 10,059,491,408.32 -79.98; converted to millions. | check: section=cash-flow statement, operating activities; sums="
+ },
+ "Raw financials!146:compile": {
+  "evidence_hash": "3ebc5276eb5d0f40",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "balance-sheet statement",
+    "notes",
+    "five-year summary",
+    "other document-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!193:compile": {
+  "evidence_hash": "9cd5c62f7bc2d32a",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "cash-flow statement",
+    "notes",
+    "MD&A and cash-flow tables",
+    "other document-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!191:compile": {
+  "evidence_hash": "389a865aef42f26c",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current cash-flow subtotal is not printed in the supplied p31 extract, and the cited p3/p32 長期應收款 lines are unrelated balance-sheet items. Current"
+ },
+ "Raw financials!199:compile": {
+  "evidence_hash": "6fcfdc6bad0e6fe3",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current operating-cash-outflow subtotal is not present in the supplied p31 extract; the p23 revenue lines are unrelated. It cannot be reconstructe"
+ },
+ "Raw financials!210:compile": {
+  "evidence_hash": "79fbb13d836a5b37",
+  "action": "write",
+  "payload": {
+   "value": 25174.78396705178,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: investment cash inflows comprise 收回投資收到的現金 25,155,704,810.83, 長期資產所收回的現金淨額 808,221.78, 的現金淨額 0, and 收到其他與投資活動有關的現金 19,078,348.00. | check: sectio"
+ },
+ "Raw financials!212:compile": {
+  "evidence_hash": "2b9c192bed8e2576",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p31 re-cut the investment cash-flow labels and does not print the prior 投資支付的現金 label; value is a residual back-out rather than a direct counterpart."
+ },
+ "Raw financials!217:compile": {
+  "evidence_hash": "23e22a4489d3ccb1",
+  "action": "write",
+  "payload": {
+   "value": 35762.10802137,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23/p31: investment net cash flow is -10,587.32405432; reconstructed from current investment inflows and outflows. | check: section=投资活动现金流出小计; sums=2"
+ },
+ "Raw financials!228:compile": {
+  "evidence_hash": "38ad8d6137982826",
+  "action": "write",
+  "payload": {
+   "value": 10805.79530747,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: financing inflows are 吸收投資收到的現金 5,236,179,223.16, 取得借款所收到的現金 5,569,616,084.31, and zero other financing inflows. | check: section=筹资活动现金流入小计; sum"
+ },
+ "Raw financials!231:compile": {
+  "evidence_hash": "632633f614b31da4",
+  "action": "write",
+  "payload": {
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p31: no current-year 其中：子公司支付给少数股东的股利、利润 line is printed; the absent component is treated as proven zero under the current statement presentation. | c"
+ },
+ "Raw financials!235:compile": {
+  "evidence_hash": "e4c3540f7483b491",
+  "action": "write",
+  "payload": {
+   "value": 5704.1069849,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23/p31: financing net cash flow 5,101,688,322.57 and financing inflow subtotal 10,805,795,307.47 imply current financing cash outflow subtotal of 5,7"
+ },
+ "Raw financials!241:compile": {
+  "evidence_hash": "e0f78aca2a96a48d",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!242:compile": {
+  "evidence_hash": "471d0221f529a6c1",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!248:compile": {
+  "evidence_hash": "924b1821b233067b",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!250:compile": {
+  "evidence_hash": "e03cad711155d177",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!257:compile": {
+  "evidence_hash": "5e09e93b567f9943",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The exact current income-statement 财务费用 is disclosed on p7, but the model prior 88.90 does not tie either the current statement comparative 44.5478854"
+ },
+ "Raw financials!259:compile": {
+  "evidence_hash": "ea85bcde58f360cf",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "p31 cash flow statement",
+    "p15 tax expense note",
+    "other document-wide searches"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!261:compile": {
+  "evidence_hash": "4a4452788c411147",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "p31 cash flow statement",
+    "p32 balance-sheet/current-asset table",
+    "notes and other document-wide searches"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!262:compile": {
+  "evidence_hash": "28091e361a3e8c43",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "p31 cash flow statement",
+    "p32 receivables/current-asset table",
+    "notes and other document-wide searches"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!7:compile": {
+  "evidence_hash": "52a3d94ab8318254",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Gas Turbine is not separately disclosed in the current report; the current broad 能源裝備製造 category cannot be mapped into this narrower model row."
+ },
+ "Driver!8:compile": {
+  "evidence_hash": "49a2cf9752cb3b89",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The p4 sighting is 應付股利, not nuclear power equipment. No current nuclear equipment value was found."
+ },
+ "Driver!97:compile": {
+  "evidence_hash": "9a30a0c9273ee065",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "No current disposal schedule was supplied, so it is not possible to establish the event as zero rather than a stale or undisclosed non-zero disposal."
+ },
+ "Driver!132:compile": {
+  "evidence_hash": "b3d0208ccebd3abd",
+  "action": "write",
+  "payload": {
+   "value": -61.58213916,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p7: 其中：利息支出 61,582,139.16 for 2025; expense recorded using the model's negative sign convention. | check: section=not a statement line; sums=n/a — dri"
+ },
+ "Driver!137:compile": {
+  "evidence_hash": "8a60fa06487ebe57",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "No defensible counterpart for service charge and others. p25 製造服務 is operating revenue and p33 短期借款 is borrowing principal; neither is interest/servic"
  }
 }
