@@ -206,3 +206,11 @@ aggregate and its per-share figure (net profit AND EPS), the share
 count is their RATIO — a weighted-average share row is derived as
 NP ÷ EPS, cited to both prints. Never carry the period-end share count
 into a weighted-average row: placements and buybacks make them differ.
+
+BALANCE-FIRST PLACEMENT (owner law): a PROVEN printed amount with no
+exact model home (a new statement line the model never carried) does
+not stay homeless while the balance breaks — fold it into the
+BEST-FITTED row of the same printed section, write WITH a red flag
+naming exactly what was folded in, and the analyst decides its final
+home. A balanced model with a flagged best-fit beats an unbalanced
+model with an orphaned number.

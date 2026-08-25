@@ -55,7 +55,9 @@ class DecisionLedger:
 
     def lookup(self, sheet, row, ehash, kind="compile"):
         d = self.data.get(self.key(sheet, row, kind))
-        if d and d.get("evidence_hash") == ehash:
+        if d and (d.get("analyst") or d.get("evidence_hash") == ehash):
+            # an ANALYST ruling is sticky: it replays until the analyst
+            # edits or deletes it, whatever the filing does
             return d
         return None
 

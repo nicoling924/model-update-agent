@@ -64,3 +64,11 @@ Respond with ONE JSON object:
 lacks what you need, flag the check itself with what you learned and the
 close moves on. Rejected decisions come back with reasons for ONE more
 round; a rejection is the model telling you something true.
+
+BALANCE-FIRST PLACEMENT (owner law): a PROVEN printed amount with no
+exact model home (a new statement line the model never carried) does
+not stay homeless while the balance breaks — fold it into the
+BEST-FITTED row of the same printed section, write WITH a red flag
+naming exactly what was folded in, and the analyst decides its final
+home. A balanced model with a flagged best-fit beats an unbalanced
+model with an orphaned number.
