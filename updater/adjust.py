@@ -49,15 +49,30 @@ def infer(ledger, targets):
         if not isinstance(pv, (int, float)) or abs(pv) < MIN_BASE:
             continue
         cands = []
-        for it in pool:
+        pool_t = pool
+        try:
+            from .packets import home_pages
+        except Exception:
+            home_pages = None
+        for it in pool_t:
             s = scales.get((it.doc, it.page))
             if s is None or not kinship(t.label, it.label):
                 continue
             ns = [to_model_units(n, s) for n in it.nums]
             world = [n for n in ns if _in_world(n, pv)]
-            if len(world) != 2:            # clean [current, comparative] only
+            if len(world) == 2:
+                cur, comp = world[0], world[1]
+            elif (len(ns) == 2 and ns[0] and ns[1]
+                  and 0.01 <= abs(ns[0] / ns[1]) <= 100.0):
+                # SMALL-NET-PRIOR fallback (H1 财务费用 class): the model
+                # holds a carved-out NET (−0.4) while the filing prints
+                # the gross pair [45.1, 44.5] — the pv-world filter can
+                # never see it. A clean mutually-in-world face pair is a
+                # legal [current, comparative]; the adjustment may be
+                # LARGER than the base.
+                cur, comp = ns[0], ns[1]
+            else:
                 continue
-            cur, comp = world[0], world[1]
             if abs(abs(comp) - abs(pv)) <= max(row_tol(pv), abs(pv) * REL_TOL):
                 cands = []                 # ties print after all: no adjustment
                 break

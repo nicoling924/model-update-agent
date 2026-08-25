@@ -94,6 +94,48 @@ def shift_formula_excel(formula, offset=1):
     return "".join(p if p.startswith("'") else pat.sub(sub, p) for p in parts)
 
 
+def panel_translate(src, sheet, panel_maps, own_off):
+    """PANEL LAW (overnight 2026-08-25, the orders block): translate the
+    SOURCE formula in one pass. A referenced column that belongs to a
+    known period panel (FY, 1H/2H, 1Q-4Q — any sheet) rolls to the SAME
+    panel's next-year column (H1 = Q1+Q2 rolls EU+ET -> EY+EX; a
+    cross-sheet 1H ref rolls by THAT sheet's stride). Anything outside a
+    panel keeps plain Excel-copy semantics: relative refs shift by the
+    rolled panel's offset, absolutes stay."""
+    import re as _re
+    from openpyxl.utils import column_index_from_string, get_column_letter
+
+    def move(ref_sheet, dollar, col):
+        panels = panel_maps.get(ref_sheet) or []
+        for pm in panels:
+            hit_year = next((y for y, c in pm.items() if c == col), None)
+            if hit_year is not None:
+                nxt = pm.get(str(int(hit_year) + 1))
+                if nxt:
+                    return nxt
+        if dollar:
+            return col
+        return get_column_letter(column_index_from_string(col) + own_off)
+
+    def fix(m):
+        q, bare, d1, c1, rest = m.groups()
+        ref_sheet = (q or bare or sheet).strip()
+        head = (f"'{q}'!" if q else (f"{bare}!" if bare else ""))
+        out = f"{head}{d1}{move(ref_sheet, d1, c1)}"
+        mr = _re.match(r"(\$?\d+):(\$?)([A-Z]{1,3})(\$?\d+)$", rest)
+        if mr:
+            r1, d2, c2, r2 = mr.groups()
+            out += f"{r1}:{d2}{move(ref_sheet, d2, c2)}{r2}"
+        else:
+            out += rest
+        return out
+
+    return _re.sub(
+        r"(?:'([^']+)'!|([A-Za-z0-9 _]+)!)?(\$?)([A-Z]{1,3})"
+        r"(\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)",
+        fix, src)
+
+
 def axis_correct_formula(shifted, own_off, sheet, axis_offsets):
     """INTERIM STRIDE LAW (owner test 2026-08-25, 1H25 attempt 2): sheets
     carry interim panels at DIFFERENT strides (Model H1/H2 interleave =
@@ -151,7 +193,7 @@ def _fix_range(m, fix_one, own_off, sheet, axis_offsets):
 
 
 def rollover_column(wb, sheet, from_col, to_col, skip_rows=(),
-                    axis_offsets=None):
+                    axis_offsets=None, panel_maps=None):
     """The owner's convention: the new actual column IS the prior actual
     column carried forward. Copies every cell — formulas Excel-shifted one
     column, hardcodes as-is, styles and number formats — and returns the
@@ -171,9 +213,13 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(),
             dst.value = None
             continue
         if isinstance(v, str) and v.startswith("="):
-            fx = shift_formula_excel(v, offset)
-            if axis_offsets:
-                fx = axis_correct_formula(fx, offset, sheet, axis_offsets)
+            if panel_maps:
+                fx = panel_translate(v, sheet, panel_maps, offset)
+            else:
+                fx = shift_formula_excel(v, offset)
+                if axis_offsets:
+                    fx = axis_correct_formula(fx, offset, sheet,
+                                              axis_offsets)
             dst.value = fx
         else:
             dst.value = v

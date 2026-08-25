@@ -32,13 +32,30 @@ def rollover_all(wb, spec_d, target_year, writer, log):
         p0 = prior_column(spec_d, sh0, target_year)
         if t0 and p0:
             axis_offsets[sh0] = _ci(t0) - _ci(p0)
+    # PANEL MAPS: every period panel (FY, 1H/2H, Q1-Q4) on every sheet,
+    # so rolled formulas that cross panels (H1 = Q1+Q2) re-map within
+    # the referenced panel (the orders-block law)
+    from .discover import find_year_axis as _fya
+    panel_maps = {}
+    for sh0 in wb.sheetnames:
+        pms = []
+        for pk in ("FY", "1H", "2H", "1Q", "2Q", "3Q", "4Q"):
+            try:
+                a = _fya(wb[sh0], period_kind=pk)
+            except Exception:
+                a = None
+            if a and len(a) >= 2:
+                pms.append(a)
+        if pms:
+            panel_maps[sh0] = pms
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         pcol = prior_column(spec_d, sheet, target_year)
         if not (tcol and pcol and sheet in wb.sheetnames):
             continue
         hard = rollover_column(wb, sheet, pcol, tcol,
-                               axis_offsets=axis_offsets)
+                               axis_offsets=axis_offsets,
+                               panel_maps=panel_maps)
         census[sheet] = hard
         years = sorted(year_columns(spec_d, sheet))
         py = years[years.index(str(target_year)) - 1]
@@ -227,6 +244,98 @@ def close_constructed_cf(wb, spec_d, target_year, book, writer, log):
         log(f"[ops] constructed-block closure: {n_closed} activity "
             f"blocks reconciled to proven nets")
     return n_closed
+
+
+PARENT_TOTAL_RE = re.compile(r"[(（]合计[)）]|合計|\(total\)", re.I)
+
+
+def close_partition_duplicates(wb, spec_d, target_year, book, writer, log):
+    """PARENT-INTO-MEMBER duplicate (H1 其他应付款 class, 2026-08-25): a
+    (合计) parent's total was ALSO written into its residual member while
+    the sibling members are real — a double-count the ±8 duplicate guard
+    misses when both values arrive by serve. Deterministic repair: the
+    duplicated member becomes the residual formula =parent − siblings
+    (orange, noted). Fires only on the exact measured shape: member
+    value == parent value (cents), >=1 nonzero sibling, and the member
+    is not identity-proven."""
+    from openpyxl.comments import Comment as _C
+    graded = getattr(book, "entries", {}) or {}
+    n_fix = 0
+    for sheet in (spec_d.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        if not tcol:
+            continue
+        ws = wb[sheet]
+
+        def lab(r):
+            for lc in ("A", "B", "C"):
+                v = ws[f"{lc}{r}"].value
+                if isinstance(v, str) and v.strip():
+                    return v
+            return ""
+
+        def indent(r):
+            t = lab(r)
+            return len(t) - len(t.lstrip())
+
+        def num(r):
+            v = ws[f"{tcol}{r}"].value
+            return v if isinstance(v, (int, float)) else None
+        for r in range(1, min(ws.max_row, 400) + 1):
+            if not PARENT_TOTAL_RE.search(lab(r)) or num(r) is None:
+                continue
+            pind = indent(r)
+            members = []
+            m = r + 1
+            while m <= ws.max_row and (indent(m) > pind or not lab(m).strip()):
+                if num(m) is not None:
+                    members.append(m)
+                m += 1
+                if m - r > 15:
+                    break
+            if len(members) < 2:
+                continue
+            pv = num(r)
+            dups = [m for m in members
+                    if abs((num(m) or 0) - pv) <= 0.01]
+            sibs_nonzero = [m for m in members
+                            if m not in dups and abs(num(m) or 0) > 0.005]
+            if len(dups) != 1 or not sibs_nonzero:
+                continue
+            if abs(sum(num(m) or 0 for m in members) - pv) <= 0.02:
+                continue                     # partition already coheres
+            dup = dups[0]
+            ref = f"{sheet}!{tcol}{dup}"
+            if getattr(graded.get(ref), "grade", None) == "A":
+                # arithmetic outranks the badge: a member CENT-EQUAL to
+                # its own parent inside an incoherent partition is a
+                # proven double-count no matter how it was served (the
+                # alt-anchor join stamped the wrong row grade A)
+                log(f"[ops] partition duplicate OVERRIDES grade-A serve "
+                    f"at {ref}: member equals its parent to the cent")
+            sibs = [m for m in members if m != dup]
+            ws[f"{tcol}{dup}"] = (f"={tcol}{r}-SUM("
+                                  + ",".join(f"{tcol}{m}" for m in sibs)
+                                  + ")")
+            cell = ws[f"{tcol}{dup}"]
+            cell.fill = writer.fills["orange"]
+            cell.comment = _C(
+                "PARTITION RESIDUAL: this member had its (合计) parent's "
+                "total duplicated into it while siblings carry real "
+                "values — replaced with the residual back-out. True up "
+                "from the detailed report.", "Model Update Agent")
+            book.record(ref, "D", "partition residual back-out",
+                        note="parent total was duplicated into the member")
+            if ref not in writer.log["flags"]:
+                writer.log["flags"].append(ref)
+            n_fix += 1
+            log(f"[ops] partition duplicate: {ref} -> residual of "
+                f"{sheet}!{tcol}{r}")
+    if n_fix:
+        log(f"[ops] partition duplicates repaired: {n_fix}")
+    return n_fix
 
 
 def write_served(wb, spec_d, target_year, served, writer, priors, book, log):

@@ -107,12 +107,8 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
             continue
         ws = wb_values[sheet]
         for r in range(1, min(ws.max_row, max_row) + 1):
-            label = ""
-            for lc in label_cols:
-                v = ws[f"{lc}{r}"].value
-                if isinstance(v, str) and v.strip():
-                    label = v.strip()
-                    break
+            from .labels import resolve_label
+            label = resolve_label(wb_values, sheet, r, cols=label_cols)
             pv = ws[f"{pcol}{r}"].value
             # a top-of-sheet row whose prior cell is a YEAR MARK is the year
             # axis, not data — serving it wrote 2,025/1e6 = 0.002025 into a
