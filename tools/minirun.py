@@ -113,7 +113,13 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     book = EvidenceBook()
     run_log = []
     census = ops.rollover_all(wb, spec_d, target_year, writer, run_log.append)
+    from updater.decisions import DecisionLedger as _DL
+    _dl0 = _DL(company_dir, spec_d)
+    ruled = {}
+    ops.apply_analyst_rulings(wb, spec_d, target_year, _dl0, ruled,
+                              writer, book, run_log.append)
     served, _dec = ops.run_join(ledger, targets, run_log)
+    served.update(ruled)
     priors = {t.key: t.prior_value for t in targets}
     ops.write_served(wb, spec_d, target_year, served, writer, priors, book,
                      run_log.append)

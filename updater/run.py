@@ -246,7 +246,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
         # rollover, join, guarded serving, checksummed gap reads.
         census.update(ops.rollover_all(wb, spec_d, target_year, writer,
                                        run_log.append))
+        from .decisions import DecisionLedger as _DL
+        dec_ledger = _DL(company_dir, spec_d)
+        if dec_ledger.data:
+            run_log.append(f"[run] decision ledger: "
+                           f"{len(dec_ledger.data)} prior judgments "
+                           f"loaded (case law)")
+        ruled = {}
+        ops.apply_analyst_rulings(wb, spec_d, target_year, dec_ledger,
+                                  ruled, writer, book, run_log.append)
         served, _dec = ops.run_join(ledger, targets, run_log)
+        served.update(ruled)      # the analyst outranks the joins
         priors = {t.key: t.prior_value for t in targets}
         ops.write_served(wb, spec_d, target_year, served, writer, priors,
                          book, run_log.append)
@@ -277,12 +287,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                                    targets, writer, book, run_log.append,
                                    ruling=_ruling)
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
-        from .decisions import DecisionLedger
-        dec_ledger = DecisionLedger(company_dir, spec_d)
-        if dec_ledger.data:
-            run_log.append(f"[run] decision ledger: "
-                           f"{len(dec_ledger.data)} prior judgments "
-                           f"loaded (case law)")
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,
                          restatement=restatement, docs=docs, census=census)
