@@ -63,6 +63,17 @@ Rule of thumb: restatement = the PAST changed → full stop, ask.
 Reclassification = the PRESENTATION changed → map by meaning or back out,
 flag, keep moving, never touch structure.
 
+## Balance-first placement (owner ruling 2026-08-26)
+
+When a PROVEN printed amount has no exact home in the model (a NEW line
+the model never carried, e.g. perpetual capital securities inside the
+equity section), it is MORE important that the model balances than that
+the amount waits homeless: put it in the BEST-FITTED existing row (the
+row whose section the printed line sits in), flag it RED with a note
+naming what was folded in, and the analyst decides its final home.
+A balanced model with a flagged best-fit beats an unbalanced model with
+a homeless number.
+
 ## Key required output from an updated model
 
 ### 1. Model balanced → the 3 statements have to reconcile; no accounting errors

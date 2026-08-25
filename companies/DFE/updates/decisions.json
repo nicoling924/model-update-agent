@@ -659,13 +659,6 @@
   "flag": true,
   "why": "Hydro is not separately disclosed in the current report. The broad 能源裝備製造 total cannot be assigned to Hydro."
  },
- "Driver!12:compile": {
-  "evidence_hash": "4756356929aed3b3",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Written from p25, but current 製造服務 is re-based: model prior 7,564.41 conflicts with the current table's implied comparative. Red flag retained."
- },
  "Driver!40:compile": {
   "evidence_hash": "516c82dacc17e0a8",
   "action": "flag",
@@ -747,13 +740,6 @@
   "payload": null,
   "flag": true,
   "why": "Written from the p3 counterpart as required, but the current comparative 1,521.391459 (in model units) conflicts with model prior 211.93; category was"
- },
- "Driver!6:compile": {
-  "evidence_hash": "7bd3527a0dab56eb",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Current p25 re-bases the prior product partition into broad categories: 能源裝備製造, 製造服務 and 新興產業. No defensible current counterpart for narrower 清潔高效能源裝備"
  },
  "Driver!10:compile": {
   "evidence_hash": "d8384a4748fa5ad3",
@@ -1490,13 +1476,6 @@
   },
   "flag": false,
   "why": ""
- },
- "Driver!7:compile": {
-  "evidence_hash": "52a3d94ab8318254",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Gas Turbine is not separately disclosed in the current report; the current broad 能源裝備製造 category cannot be mapped into this narrower model row."
  },
  "Driver!8:compile": {
   "evidence_hash": "49a2cf9752cb3b89",
