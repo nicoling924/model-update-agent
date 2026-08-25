@@ -59,6 +59,43 @@ paths:
               company: {type: string}
               period: {type: string}
               error: {type: string}
+  /questions:
+    get:
+      operationId: GetQuestions
+      summary: RELAY MODE - pending judgment questions for the Studio flow
+      responses:
+        "200":
+          description: Pending questions
+          schema:
+            type: object
+            properties:
+              count: {type: integer}
+              pending:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string}
+                    system: {type: string, description: paste into the prompt's system/instructions}
+                    user: {type: string, description: paste into the prompt's input}
+                    instructions: {type: string}
+  /questions/{qid}/answer:
+    post:
+      operationId: AnswerQuestion
+      summary: RELAY MODE - post the built-in GPT's reply for one question
+      consumes: [application/json]
+      parameters:
+        - {in: path, name: qid, required: true, type: string}
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [answer]
+            properties:
+              answer: {type: string, description: the model's raw JSON reply}
+      responses:
+        "200": {description: Accepted}
   /runs/{run_id}/model:
     get:
       operationId: DownloadModel

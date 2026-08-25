@@ -81,3 +81,25 @@ The container image ships with the staged companies. For new periods,
 drop PDFs into `companies/<X>/disclosures/<PERIOD>/` and redeploy — or
 mount an Azure Files share at `/app/companies` so analysts update
 documents without redeploying (recommended for production).
+
+## Relay mode — the "all-Studio brain" test version (owner request)
+
+Set the container env var `LLM_MODE=relay` and the engine stops calling
+any LLM API: it queues each judgment question, and YOUR STUDIO FLOW
+answers with the built-in GPT. Wiring (Power Automate, ~30 min):
+
+1. Recurrence trigger: every 1 minute (only while a run is active).
+2. Action `GetQuestions` (custom connector). For each item in `pending`:
+3. AI Builder / Copilot "Create text with GPT using a prompt" step —
+   Instructions = the question's `system` + `instructions`;
+   Input = the question's `user`.
+4. Action `AnswerQuestion` with the question `id` and the GPT reply as
+   `answer`. The engine validates; a bad reply simply comes back as a
+   fresh question with the correction attached.
+
+Honest limits of the test version: page-image (vision) reading is off in
+relay mode (text extraction still covers the statements); each question
+consumes Copilot message quota; very large evidence cards may exceed the
+prompt step's input limit — if a question never gets answered, the run
+times out on that question and reports it. This mode is for EVALUATING
+the built-in GPT as a brain — production stays on a direct model API.

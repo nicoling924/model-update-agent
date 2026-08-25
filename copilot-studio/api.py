@@ -46,6 +46,10 @@ def _run(run_id, company, period):
     try:
         import sys
         sys.path.insert(0, str(ROOT))
+        if os.environ.get("LLM_MODE") == "relay":
+            import updater.llm as _llm
+            from updater.relay import RelayClient
+            _llm.Client = lambda *a, **k: RelayClient()
         from updater.cli import main as updater_main
         yy = "".join(c for c in period if c.isdigit())[-2:]
         code = updater_main([str(ROOT / "companies" / company), period,
@@ -72,6 +76,36 @@ def _run(run_id, company, period):
 
 @app.get("/health")
 def health():
+    return {"ok": True}
+
+
+@app.get("/questions")
+def questions(x_api_key: str = Header(default="")):
+    """RELAY MODE: pending judgment questions for the Studio flow. Each
+    item: {id, system, user, instructions}. Answer via POST
+    /questions/{id}/answer with {"answer": "<the model's raw reply>"}."""
+    _auth(x_api_key)
+    from updater.relay import RELAY_DIR
+    out = []
+    if RELAY_DIR.exists():
+        for qp in sorted(RELAY_DIR.glob("*.question.json")):
+            try:
+                out.append(json.loads(qp.read_text()))
+            except Exception:
+                continue
+    return {"pending": out[:5], "count": len(out)}
+
+
+@app.post("/questions/{qid}/answer")
+def answer(qid: str, body: dict, x_api_key: str = Header(default="")):
+    _auth(x_api_key)
+    from updater.relay import RELAY_DIR
+    qp = RELAY_DIR / f"{qid}.question.json"
+    if not qp.exists():
+        raise HTTPException(404, "unknown or already-answered question")
+    (RELAY_DIR / f"{qid}.answer.json").write_text(
+        json.dumps({"answer": str(body.get("answer", ""))},
+                   ensure_ascii=False))
     return {"ok": True}
 
 
