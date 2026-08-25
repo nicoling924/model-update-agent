@@ -1,0 +1,1088 @@
+{
+ "Final!14:compile": {
+  "evidence_hash": "927ee274d5049dbd",
+  "action": "write",
+  "payload": {
+   "value": -74206.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23: Total operating expenses derived from the statement lines preceding Operating profit. | check: section=Operating profit; sums=88,018.00 + 460.00 "
+ },
+ "Final!16:compile": {
+  "evidence_hash": "28ff750052c24414",
+  "action": "write",
+  "payload": {
+   "value": 460.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23: Other gain. | check: section=Operating profit; sums=88,018.00 - 28,950.00 - 5,987.00 - 29,551.00 - 9,718.00 + 460.00 = 14,272.00 = printed Operat"
+ },
+ "Final!57:compile": {
+  "evidence_hash": "cb1dfb9455a6ed81",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 4976.0,
+    "new": 3905.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p25/p168: Cash and cash equivalents are 3,905 for 2025 and 4,976 for 2024; the other 23.00 component remains unchanged. | check: section=not a stateme"
+ },
+ "Final!87:compile": {
+  "evidence_hash": "b117467eba9e722f",
+  "action": "write",
+  "payload": {
+   "value": -1043.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p25/p168: Fuel clause account is absent on the current-asset side and is presented as a current liability of (1,043). | check: section=Net current lia"
+ },
+ "Final!106:compile": {
+  "evidence_hash": "45b44066ea879283",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Red flag: current counterpart is 517 versus model prior 504, indicating reclassification/re-basing of Receivables and others; the old category bridge "
+ },
+ "Final!114:compile": {
+  "evidence_hash": "1e3a7cb6dfa966b4",
+  "action": "write",
+  "payload": {
+   "value": -345.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p42: Yallourn closure cost provision is (345), mapped by meaning to the Special provision account. | check: section=not a statement line; sums=n/a — s"
+ },
+ "Final!28:compile": {
+  "evidence_hash": "e5e28f76c5cfe47e",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and results announcement"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Final!29:compile": {
+  "evidence_hash": "0d52a14821036053",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and results announcement"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Final!80:compile": {
+  "evidence_hash": "2180b162de638c3c",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and results announcement"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Final!115:compile": {
+  "evidence_hash": "d5f5a8418dec9b46",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and results announcement"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Final!118:compile": {
+  "evidence_hash": "33b819305f3c5cd9",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current working-capital section p214 omits the model's prior Increase in inventories category; no doc-wide current counterpart or defensible bridge wa"
+ },
+ "Final!119:compile": {
+  "evidence_hash": "469aaeb9ddf9625c",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current report provides no doc-wide counterpart for the embedded prior Interest paid driver. Finance costs and finance income are disclosed, but t"
+ },
+ "Final!134:compile": {
+  "evidence_hash": "0ebcca3ceff34b7a",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Final!135:compile": {
+  "evidence_hash": "4e716cc646dc9560",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current p170 provides the counterpart for the 139.00 constant as distributions paid to perpetual capital securities holders of 159.00, but no current-"
+ },
+ "Final!136:compile": {
+  "evidence_hash": "4a2f66f01661e083",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current p170 provides the counterpart for the 9,817.00 constant as proceeds from long-term borrowings of 12,508.00, but no current-period counterparts"
+ },
+ "CN!5:compile": {
+  "evidence_hash": "c9d50c54fd5645aa",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: current p177 EBITDAF category is re-based; model prior is 1,434, while the current report's comparative for the mapped category is 1,434 only in "
+ },
+ "CN!10:compile": {
+  "evidence_hash": "136f2fc6f88ed761",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: current counterpart p190 prints comparative (416), not the model prior -282.00; disclosure re-based the amortisation category."
+ },
+ "CN!13:compile": {
+  "evidence_hash": "8711a0d6cb6d93d9",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: p9's current fair value movements of 224 has comparative 699, while this model row holds prior 0.00; scope/reclassification differs."
+ },
+ "CN!19:compile": {
+  "evidence_hash": "078f48954c2c3d59",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: p9's current items affecting comparability of -441 has comparative 94, while this model row holds prior 0.00; scope/reclassification differs."
+ },
+ "CN!31:compile": {
+  "evidence_hash": "94bc56bd3a4c73e5",
+  "action": "write",
+  "payload": {
+   "value": 570.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p40: - Yangjiang 570 760 524 702; current Mainland recurring NP is 570. | check: section=Nuclear recurring NP; sums=917+570 = 1,487 = printed current "
+ },
+ "CN!32:compile": {
+  "evidence_hash": "89b8772bfd80f3a2",
+  "action": "write",
+  "payload": {
+   "value": -2.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p40: Thermal (2) 5 (2) 5; current Thermal recurring NP is -2. | check: section=Thermal recurring NP; sums=0+(-2) = -2 = printed current Thermal total;"
+ },
+ "CN!39:compile": {
+  "evidence_hash": "f3175aa8885de25e",
+  "action": "write",
+  "payload": {
+   "value": -32.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p40: CLPe (32) (64) (30) (59); current CLPe recurring NP is -32. | check: section=CLPe recurring NP; sums=n/a — standalone segment line; prior=ties -6"
+ },
+ "CN!41:compile": {
+  "evidence_hash": "d38edb464b50d58f",
+  "action": "write",
+  "payload": {
+   "value": 232.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p8: Hong Kong energy business related 232 201; p37 also prints PSDC and Hong Kong Branch Line 232 201 15.4%. | check: section=Hong Kong energy busines"
+ },
+ "CN!14:compile": {
+  "evidence_hash": "2a4d304a9c591054",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and segment tables",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!35:compile": {
+  "evidence_hash": "cd0e4e7ae64d7d50",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and segment tables",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!38:compile": {
+  "evidence_hash": "5bfc4459d8f573dc",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and segment tables",
+    "five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!88:compile": {
+  "evidence_hash": "3269b69347ed649d",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "operating-capacity tables",
+    "MD&A and segment tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!125:compile": {
+  "evidence_hash": "6bffb87de26ce6a3",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "operating-capacity tables",
+    "MD&A and segment tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!128:compile": {
+  "evidence_hash": "5a2be96646c1082c",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "operating-capacity tables",
+    "MD&A and segment tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!136:compile": {
+  "evidence_hash": "0aac7e4c00daa8be",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "RED: p246 omits the model label and appears to have renamed or merged the Yangjiang category; p41 also prints Yangjiang Nuclear as 1,108MW, so the sco"
+ },
+ "CN!143:compile": {
+  "evidence_hash": "988a8a65f28e9bf6",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement pages",
+    "segment and operating-statistics notes",
+    "MD&A and capacity/renewables tables, including p11, p19 and p40",
+    "document-wide number search"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!146:compile": {
+  "evidence_hash": "a6e41823fdde9bb6",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement pages",
+    "segment and operating-statistics notes",
+    "MD&A and capacity/renewables tables, including p11, p19 and p40",
+    "document-wide number search"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "CN!147:compile": {
+  "evidence_hash": "bfcb6995b80dc238",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement pages",
+    "segment and operating-statistics notes",
+    "MD&A and capacity/renewables tables, including p11, p19 and p40",
+    "document-wide number search"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "India!3:compile": {
+  "evidence_hash": "f35f15b4fdcc1c34",
+  "action": "write",
+  "payload": {
+   "value": 0.09317,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p48: average foreign exchange rate used to convert Apraava Energy's earnings to Hong Kong dollars was 0.09317 for 2025. | check: section=not a stateme"
+ },
+ "India!8:compile": {
+  "evidence_hash": "041c92ce06943d4a",
+  "action": "write",
+  "payload": {
+   "value": -9718,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23: Depreciation and amortisation (9,718) HK$m. | check: section=income statement Consolidated EBITDAF to Operating profit; sums=25,830 + (-9,718) + "
+ },
+ "India!10:compile": {
+  "evidence_hash": "5cda4ab9f5316b0f",
+  "action": "write",
+  "payload": {
+   "value": 112,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p48: Thermal (Jhajjar) operating earnings 112 HK$m. | check: section=India operating-earnings partition; sums=140+112-52+2+19 = 221 total operating ea"
+ },
+ "India!12:compile": {
+  "evidence_hash": "501ca7e186f9102b",
+  "action": "write",
+  "payload": {
+   "value": 140,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p48: Renewables operating earnings 140 HK$m. | check: section=India operating-earnings partition; sums=140+112-52+2+19 = 221 total operating earnings,"
+ },
+ "India!13:compile": {
+  "evidence_hash": "128de975085a5225",
+  "action": "write",
+  "payload": {
+   "value": -52,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p48: Transmission operating earnings (52) HK$m. | check: section=India operating-earnings partition; sums=140+112-52+2+19 = 221 total operating earnin"
+ },
+ "India!14:compile": {
+  "evidence_hash": "77356cfdd242d5e7",
+  "action": "write",
+  "payload": {
+   "value": 224,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p9 and p29: Fair value movements 224 HK$m. | check: section=income statement Operating profit to profit before income tax; sums=15+0+209+0+0+0 = 224 f"
+ },
+ "India!15:compile": {
+  "evidence_hash": "7e1d925571dba337",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current India value maps to the p29 net finance segment schedule, while the broader statutory income statement reports finance costs of (1,860) an"
+ },
+ "India!18:compile": {
+  "evidence_hash": "0e8a6a54f9514060",
+  "action": "write",
+  "payload": {
+   "value": 879,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p23: Other non-controlling interests 879 HK$m. | check: section=profit attribution; sums=10,468+199+879 = 11,546 = printed Profit for the year; prior="
+ },
+ "India!22:compile": {
+  "evidence_hash": "693565ebd6387476",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Analyst-adjusted model prior is 85.00, while the filing prints 1,055.00 for 2024; current 1,179.00 is the disclosed raw value and should not be treate"
+ },
+ "India!50:compile": {
+  "evidence_hash": "53f2f8cac8b78d1c",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The statement prints a 2024 comparative of 158,532 for Fixed assets, but the model prior is 0.00; current disclosure is written and the historical mis"
+ },
+ "India!2:compile": {
+  "evidence_hash": "c8ec59a1d0e81fc2",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary",
+    "other doc-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "India!52:compile": {
+  "evidence_hash": "ef9f3daddbcbc0cb",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary",
+    "other doc-wide number hits"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "India!21:compile": {
+  "evidence_hash": "61320549b2b49998",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p48 reclassified the prior Gas (Paguthan) category into Group adjustments & corporate expenses; that current line combines Paguthan with corporate and"
+ },
+ "India!37:compile": {
+  "evidence_hash": "5209aa77c33fe1b4",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current counterpart for embedded prior constants 923 and 250 was not found in the supplied statement, notes, grids, or other places; the renewable"
+ },
+ "India!53:compile": {
+  "evidence_hash": "c02c8df69680e89e",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current SoC capex counterpart is clear, but its 2024 comparative is 11,171 rather than the model prior 0.00; write current value and investigate t"
+ },
+ "India!55:compile": {
+  "evidence_hash": "fe752a4c163e3729",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Renewables is sighted on p40 as 511/571/470/528 and on p48 as 140/85 and 1,567/912, but the supplied extracts do not identify which figure is PPE. The"
+ },
+ "SOC Accounts!7:compile": {
+  "evidence_hash": "17f17a516ba8ae19",
+  "action": "write",
+  "payload": {
+   "value": -1043.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p25: Fuel clause account is presented under current liabilities as (1,043); the account has flipped from receivable to payable and the model sign conv"
+ },
+ "SOC Accounts!40:compile": {
+  "evidence_hash": "f62d8f4136adf8db",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p25",
+    "notes",
+    "MD&A and results pages"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "SOC Accounts!79:compile": {
+  "evidence_hash": "5cad6307161cf825",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement and operating schedule p244",
+    "notes",
+    "MD&A and operating-data tables p38-p39",
+    "segment and matrix tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "SOC Accounts!83:compile": {
+  "evidence_hash": "ab5cf47f897d0135",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement and operating schedule p244",
+    "notes",
+    "MD&A and operating-data tables p38-p39",
+    "segment and matrix tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "SOC Accounts!6:compile": {
+  "evidence_hash": "810aa7e6109f98cf",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 100.00 literal is a percentage/unit conversion factor, but no current-period line definitively identifies it as a replaced disclosed category. The"
+ },
+ "SOC Accounts!39:compile": {
+  "evidence_hash": "8196c8e50be23b2e",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 100.00 literal is a percentage/unit conversion factor, but no current-period line definitively identifies it as a replaced disclosed category. The"
+ },
+ "SOC Accounts!61:compile": {
+  "evidence_hash": "17bb0f3c88fd5770",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 8,760 and 1,000 literals are formula conversion factors (hours per year and unit scaling), not identifiable annual disclosed category totals; no d"
+ },
+ "SOC Accounts!62:compile": {
+  "evidence_hash": "021348eab9216c91",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 8,760 and 1,000 literals are formula conversion factors (hours per year and unit scaling), not identifiable annual disclosed category totals; no d"
+ },
+ "SOC Accounts!96:compile": {
+  "evidence_hash": "e4ea5188b15870bd",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 1,000 literal is a unit conversion factor. The p18 1,000MWh and p219 registered-capital references are unrelated to Black Point SO2; no current co"
+ },
+ "SOC Accounts!97:compile": {
+  "evidence_hash": "2f4a56c770a8c445",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 1,000 literal is a unit conversion factor. The p18 1,000MWh and p219 registered-capital references are unrelated to Black Point NOx; no current co"
+ },
+ "SOC Accounts!98:compile": {
+  "evidence_hash": "57aee3751965538a",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The 1,000 literal is a unit conversion factor. The p18 1,000MWh and p219 registered-capital references are unrelated to Black Point particulate emissi"
+ },
+ "Aus!19:compile": {
+  "evidence_hash": "bd0e5e39acc35694",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 5164.0,
+    "new": 5181.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p42: Energy (Wholesale) prints 5,181 for 2025 and 5,164 for 2024; this is the current counterpart of the embedded prior-year category total. | check: "
+ },
+ "Aus!21:compile": {
+  "evidence_hash": "400432ef4a963e17",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 1424.0,
+    "new": 1572.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p42: Enterprise (Corporate) prints (1,572) for 2025 and (1,424) for 2024; replace the embedded prior-year category total with 1,572. | check: section="
+ },
+ "Aus!30:compile": {
+  "evidence_hash": "ac1e04ee11e176e3",
+  "action": "write",
+  "payload": {
+   "value": -82.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p13: One-off impacts include one-off impairment of HK$82 million in 2025. | check: section=not a statement line; sums=n/a — disclosed one-off operatin"
+ },
+ "Aus!38:compile": {
+  "evidence_hash": "a60de9528719e6e5",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current value 9,544 is printed consistently on p9 and p29, but the comparative is 8,895 rather than the model prior 8,900.00; retain the write wit"
+ },
+ "Aus!42:compile": {
+  "evidence_hash": "2c45061da6fff09a",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 3882.1,
+    "new": 3872.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p17 and p26: perpetual capital securities issued in 2025 are HK$3,872 million; this is the current counterpart of the prior-year PCS amount represente"
+ },
+ "Aus!14:compile": {
+  "evidence_hash": "e9d51003c72c9362",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current p236 omits the prior label Transfer (to) / from Tariff Stabilisation Fund. The p220 investing cash-flow amount of (974) is not sufficient to i"
+ },
+ "Aus!31:compile": {
+  "evidence_hash": "318781a01f3a97ce",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current p9 provides two possible scopes—Other earnings and unallocated items of (942) and Items affecting comparability of (441)—but neither unambiguo"
+ },
+ "Aus!50:compile": {
+  "evidence_hash": "8bfce319e6c9a05d",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The only supplied counterpart is p239 Hazardous waste produced, with current values 1,161/877 and a re-based comparative 818/621; this does not establ"
+ },
+ "Aus!62:compile": {
+  "evidence_hash": "596af91dc98699cb",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p242 prints a Hong Kong number series beginning 940, but the row scope is not identified as Ecogen gas capacity and its comparative does not tie the m"
+ },
+ "Aus!63:compile": {
+  "evidence_hash": "e2e50e4e135c6acd",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p52 prints Wind 587 MW, while the supplied current counterpart at p211 is Joint ventures (430). These have different scopes, so the current wind-proje"
+ },
+ "Aus!73:compile": {
+  "evidence_hash": "6269599ab29a5604",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p241 prints Chinese Mainland number 788, while p240 prints Solar capacity data; neither establishes Generation for Ecogen gas. The p192 revenue line i"
+ },
+ "Aus!77:compile": {
+  "evidence_hash": "87f38fcb6b0fe551",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded 8,760 hours and 1,000 conversion factor are structural utilization-rate constants, not disclosed prior-year category totals. No current c"
+ },
+ "Aus!97:compile": {
+  "evidence_hash": "e7693268ea66d8e5",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 1000.0,
+    "new": 1000.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p18: current report describes the 250MW/1,000MWh BESS; the 1,000 figure is the current counterpart to the embedded prior-year 1,000 constant. The HK$1"
+ },
+ "ROAFNA!19:compile": {
+  "evidence_hash": "f361d772fe7b8eb6",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 4223.0,
+    "new": 4606.0
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p237: current counterpart is Other non-current assets 4,606 (2024 comparative 4,223); the current p17 label is renamed/merged as Others, so the catego"
+ },
+ "ROAFNA!54:compile": {
+  "evidence_hash": "cc705b608a3e8bd7",
+  "action": "write",
+  "payload": {
+   "value": 7971.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p37: CLP Power capital expenditure is 7,971; the table prints 8,010 for 2024 and 7,971 for 2025. | check: section=not a statement line — CAPEX operati"
+ },
+ "ROAFNA!56:compile": {
+  "evidence_hash": "034f92442389d65b",
+  "action": "write",
+  "payload": {
+   "value": 2588.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p37: CAPCO capital expenditure is 2,588; the table prints 2,808 for 2024 and 2,588 for 2025. | check: section=not a statement line — CAPEX operating-d"
+ },
+ "ROAFNA!71:compile": {
+  "evidence_hash": "f2f0dcc2ab3d036c",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p51: the capacity disclosure shows the existing CAPCO capacity and no same-kind coal-fired capacity retirement/addition event for 2025; this event row"
+ },
+ "ROAFNA!72:compile": {
+  "evidence_hash": "b0dda810c240430b",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p51: Black Point C&D capacity is shown unchanged at 3,850/3,850, with no new gas-fired capacity event; this event row rolls to zero. | check: section="
+ },
+ "ROAFNA!78:compile": {
+  "evidence_hash": "ea7c796a4a0bc66c",
+  "action": "write",
+  "payload": {
+   "value": 7455.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p244: Local system demand/capacity is 7,455 MW for 2025; the current counterpart prints 7,455 followed by the 2024 comparative 7,336. | check: section"
+ },
+ "ROAFNA!37:compile": {
+  "evidence_hash": "e60829875243bd3c",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "ROAFNA!58:compile": {
+  "evidence_hash": "366e72b7030448e1",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and fixed-asset disclosures"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "ROAFNA!83:compile": {
+  "evidence_hash": "f7089e12d44adc57",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "ROAFNA!36:compile": {
+  "evidence_hash": "e7d5059e84c42a7b",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current p177 rebases Finance costs to 1,273 versus the model prior 1,579 and its 2024 comparative; the finance-income component formerly represented b"
+ },
+ "SEA!17:compile": {
+  "evidence_hash": "7967d43a5494691b",
+  "action": "write",
+  "payload": {
+   "value": -2.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p29: Income tax expense for the corresponding segment is (2) HK$m; the comparative is (1) HK$m. | check: section=segment profit-and-loss partition; su"
+ },
+ "SEA!21:compile": {
+  "evidence_hash": "056f149d540d0fab",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p30: EGCO is equity-accounted; the consolidated segment matrix carries no statutory EGCO P&L line, so this block remains structurally zero. | check: s"
+ },
+ "SEA!36:compile": {
+  "evidence_hash": "1957df5598e6740a",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Analyst adjustment retained: p51 prints Ho-Ping 1,320 / 264 MW and the filing comparative is 260 MW, while the model prior is 1,320 MW."
+ },
+ "SEA!38:compile": {
+  "evidence_hash": "477d7737e719b696",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p30: EGCO is an equity-accounted investment and has no consolidated-style P&L block; no current statutory EGCO amount is presented. | check: section=e"
+ },
+ "SEA!44:compile": {
+  "evidence_hash": "c3623c769cf67457",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p30: EGCO is an equity-accounted investment and has no consolidated-style P&L block; no current statutory EGCO amount is presented. | check: section=e"
+ },
+ "SEA!53:compile": {
+  "evidence_hash": "adc55ab2ace2397d",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p30: EGCO is an equity-accounted investment and has no consolidated-style P&L block; no current statutory EGCO amount is presented. | check: section=e"
+ },
+ "SEA!59:compile": {
+  "evidence_hash": "dbb54fb8d602d8d9",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p30: EGCO is an equity-accounted investment and has no consolidated-style P&L block; no current statutory EGCO amount is presented. | check: section=e"
+ },
+ "SEA!23:compile": {
+  "evidence_hash": "b71fbd850a2ae3b3",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p23",
+    "notes and segment statement p29-p30",
+    "document-wide report search, including MD&A and five-year summary"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "SEA!20:compile": {
+  "evidence_hash": "8b22f7aa1ff56c4b",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The current p29 segment table contains a candidate (63) for the NED/renewables scope, but its prior is printed as (9), whereas the model prior is +9.0"
+ },
+ "SOC!22:compile": {
+  "evidence_hash": "af8ddd7804677a8d",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p236 prints Provision for asset decommissioning of 90 (2025) / 80 (2024), but that line is already mapped to SOC!11 and this row has no independent pr"
+ },
+ "Driver!127:compile": {
+  "evidence_hash": "9f39af1a86aef279",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded constant 15 has no identified current-period counterpart in the supplied disclosures; do not silently carry it forward."
+ },
+ "Driver!80:compile": {
+  "evidence_hash": "eda714569ed1c0d4",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and operating-data tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!98:compile": {
+  "evidence_hash": "8b3badfb6a060914",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and operating-data tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!99:compile": {
+  "evidence_hash": "e58b997ab4b1e58a",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "MD&A and operating-data tables"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!125:compile": {
+  "evidence_hash": "6576a9f39110cf05",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement",
+    "notes",
+    "five-year summary and MD&A"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Driver!17:compile": {
+  "evidence_hash": "83d9b40d481dde79",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p2 prints an unlabeled 'India 64', while p8 and p19 identify India 221/329 as operating earnings. The available evidence does not establish that 64 is"
+ },
+ "Driver!34:compile": {
+  "evidence_hash": "82a3402665bf84f9",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The available India sightings are operating-earnings disclosures (p8/p19) or an unlabeled p2 figure of 64; none establishes the scope of the model row"
+ },
+ "HK Sales!17:compile": {
+  "evidence_hash": "e184680c049fb88e",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p39: Special Rebate is shown as \u0013\u0013 (zero) for 2025. | check: section=not a statement line; sums=n/a \u0013\u0013 in the tariff schedule = 0.0; prior=ties 0.00 e"
+ },
+ "HK Sales!18:compile": {
+  "evidence_hash": "ef44d65e544828cd",
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p39: Rent and Rates Special Rebate is shown as \u0013\u0013 (zero) for 2025. | check: section=not a statement line; sums=n/a \u0013\u0013 in the tariff schedule = 0.0; pr"
+ },
+ "HK Sales!3:compile": {
+  "evidence_hash": "2dfe08475fc87c75",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded 100.00 is not identifiable from the supplied current disclosure as a category total or other disclosed input. The only supplied prior hit"
+ },
+ "HK Sales!13:compile": {
+  "evidence_hash": "f0de7e5e8f0c3f65",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p39 prints Average Basic Tariff 98.0 for 2025 and 96.6 for 2024, but the model prior is 95.80. This is a scope mismatch, so the average tariff cannot "
+ },
+ "HK Sales!15:compile": {
+  "evidence_hash": "1ba3ac5d6bea8442",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The p39 Special Rebate line is a tariff-rate disclosure, while AI15 is a formula-driven monetary rebate divided by revenue. No current monetary counte"
+ },
+ "HK Sales!16:compile": {
+  "evidence_hash": "8efb3d92341b1c38",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p39 prints Average Fuel Cost Adjustment 46.3 for both 2025 and 2024, but the model prior is 44.30. This is a scope mismatch, so it cannot be accepted "
+ },
+ "HK Sales!23:compile": {
+  "evidence_hash": "3bcf4499d81e431d",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "The embedded 100.00 has no identifiable current disclosed category counterpart in the supplied report. The supplied p39 tariff schedule does not estab"
+ }
+}
