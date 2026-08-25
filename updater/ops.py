@@ -91,6 +91,10 @@ def apply_analyst_rulings(wb, spec_d, target_year, dec_ledger, served,
                                     "note": "analyst ruling"}
             book.record(f"{sheet}!{tcol}{row}", "C", "analyst ruling",
                         note=str(d.get("why", ""))[:180])
+            # IMMUTABLE for the run: no later machinery — surgeon
+            # included — may overwrite the analyst (vCLP3: the surgeon
+            # wrote the number-pair value back over the ruling)
+            writer.lock(sheet, f"{tcol}{row}")
             n += 1
     if n:
         log(f"[ops] analyst rulings applied first: {n} cells "
