@@ -276,9 +276,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                                    targets, writer, book, run_log.append,
                                    ruling=_ruling)
         # -- THE AGENT thinks from here (packetized L0/L1 — REDESIGN.md)
+        from .decisions import DecisionLedger
+        decisions = DecisionLedger(company_dir, spec_d)
+        if decisions.data:
+            run_log.append(f"[run] decision ledger: {len(decisions.data)} "
+                           f"prior judgments loaded (case law)")
         loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, book, client, run_log, budget=loop_budget,
                          restatement=restatement, docs=docs, census=census)
+        loop.decisions = decisions
         from .closer import PacketCloser
         closer = PacketCloser(loop, client, log)
         loop_summary = closer.run()
@@ -368,6 +374,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=120,
                             adjustments=adjustments, police=verdict,
                             loop_summary=loop_summary,
                             reading=reading_report, client=client)
+    if 'decisions' in dir():
+        n_dec = decisions.save(spec_d)
+        run_log.append(f"[run] decision ledger saved: {n_dec} judgments "
+                       f"({decisions.replayed} replayed, "
+                       f"{decisions.recorded} new)")
     spec_d["_last_run"] = {
         "period": period, "served": len(served),
         "flags": len(set(writer.log["flags"])),

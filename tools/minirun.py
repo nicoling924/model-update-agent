@@ -141,6 +141,11 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     loop = AgentLoop(wb, spec_d, target_year, ledger, targets, served,
                      writer, book, client, run_log, budget=40,
                      restatement=None, docs=docs, census=census)
+    from updater.decisions import DecisionLedger
+    loop.decisions = DecisionLedger(company_dir, spec_d)
+    if loop.decisions.data:
+        log(f"[mini] decision ledger: {len(loop.decisions.data)} prior "
+            f"judgments loaded")
     closer = PacketCloser(loop, client, log)
     for sheet in sheets:
         rep = closer.run_compile(sheet)
@@ -164,6 +169,10 @@ def main(company_dir, period, target_year, sheets, expect_path=None):
     except Exception as e:
         log(f"[mini] save failed: {e}")
 
+    nd = loop.decisions.save(spec_d)
+    log(f"[mini] decision ledger saved: {nd} judgments "
+        f"({loop.decisions.replayed} replayed, "
+        f"{loop.decisions.recorded} new)")
     # ---- score ----
     if not expect_path:
         log("[mini] no expectations file — done")

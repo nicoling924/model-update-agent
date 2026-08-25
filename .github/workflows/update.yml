@@ -73,6 +73,15 @@ jobs:
             echo "::error::updater is the agent (AUDIT_2026-08-18_dispatch.md)."
             exit 64
           fi
+      - name: Persist decision ledger (case law survives across runs)
+        if: ${{ always() && (inputs.action == 'updater' || inputs.action == '') }}
+        run: |
+          git config user.name "model-update-agent"
+          git config user.email "agent@users.noreply.github.com"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git add "companies/${{ inputs.company }}/updates/decisions.json" 2>/dev/null || true
+          git commit -m "decisions: ${{ inputs.company }} ${{ inputs.period }} case law" || echo "no new decisions"
+          git push || echo "push skipped"
       - name: Persist learner/discover/digest outputs
         if: ${{ inputs.action == 'learn' || inputs.action == 'discover' || inputs.action == 'digest' }}
         run: |

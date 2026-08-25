@@ -1076,8 +1076,9 @@ class PacketArchitectureLaw(unittest.TestCase):
         pc = PacketCloser(tk, client=client, log=lambda s: None)
         report = pc.run_compile("Model")
         self.assertEqual(ws["U3"].value, 30.0)      # reverted, not corrupted
-        self.assertEqual(len(client.rounds), 2)     # repair round happened
-        self.assertIn("APPLY REPORT", client.rounds[1])
+        self.assertEqual(len(client.rounds), 3)     # opinion + repair
+        self.assertIn("SECOND OPINION", client.rounds[1])
+        self.assertIn("APPLY REPORT", client.rounds[2])
         self.assertIn("1 flagged", report)
 
     def test_l0_invalid_packet_falls_back(self):
@@ -1322,7 +1323,9 @@ class LookElsewhereLaw(unittest.TestCase):
         client = _Client()
         pc = PacketCloser(tk, client=client, log=lambda s: None)
         report = pc.run_compile("Model")
-        self.assertEqual(len(client.rounds), 2)
+        # round 2 = the SECOND OPINION pass (council k=2 law)
+        self.assertEqual(len(client.rounds), 3)
+        self.assertIn("SECOND OPINION", client.rounds[1])
         self.assertIn("1 written", report)
         self.assertEqual(ws["U1"].value, 6200.0)
 
@@ -3210,3 +3213,90 @@ class ConstructedBlockClosure(unittest.TestCase):
         n, _book = self._close(wb)
         self.assertEqual(n, 0)
         self.assertEqual(ws[f"U{self.map[6]}"].value, 35876.0)
+
+
+class DecisionLedgerLaw(unittest.TestCase):
+    """Council ruling 2026-08-25 (owner-approved): judgments are case
+    law. Once decided with the same evidence fingerprint, a later run
+    REPLAYS the decision without asking the engine; conflicting second
+    opinions become red flags naming both candidates, never lucky rolls;
+    changed evidence invalidates the entry."""
+
+    def _setup(self):
+        from updater.loop import AgentLoop
+        wb, ws = _wb()
+        ws["T2"], ws["U2"] = 50.0, 50.0
+        ws["U9"], ws["T9"] = "=U3-30", "=T3-20"
+        ws["T3"], ws["U3"] = 20.0, 30.0
+        spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}}},
+                "check_rows": [{"sheet": "Model", "row": 9}],
+                "key_rows": []}
+        targets = [_mock_target("Model", 2, "beta line", 50.0)]
+        led = _mock_ledger([_mock_item("AR", 7, "beta line", [80.0, 50.0])])
+        tk = AgentLoop(wb, spec, 2025, led, targets, {}, Writer(wb),
+                       EvidenceBook(), client=None)
+        return wb, ws, spec, tk
+
+    def test_replay_without_engine(self):
+        from updater.closer import PacketCloser
+        from updater.decisions import DecisionLedger
+
+        class _Client:
+            def __init__(self):
+                self.n = 0
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.n += 1
+                return {"writes": [{"cell": "Model!U2", "value": 80.0,
+                                    "why": "p7: beta line 80.0"}],
+                        "not_disclosed": [], "flags": [], "skips": []}
+        # run 1: judge and record
+        wb, ws, spec, tk = self._setup()
+        tk.decisions = DecisionLedger()
+        c1 = _Client()
+        PacketCloser(tk, client=c1, log=lambda s: None).run_compile("Model")
+        self.assertEqual(ws["U2"].value, 80.0)
+        self.assertGreaterEqual(tk.decisions.recorded, 1)
+        saved = tk.decisions.data
+        # run 2: fresh workbook, same evidence — replay, engine must not
+        # be needed for the decided cell
+        wb2, ws2, spec2, tk2 = self._setup()
+        tk2.decisions = DecisionLedger()
+        tk2.decisions.data = dict(saved)
+
+        class _Probe:
+            """The engine may still be asked about OTHER rows — but the
+            decided cell must never reappear in a prompt."""
+            def __init__(self):
+                self.prompts = []
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.prompts.append(user)
+                return {"writes": [], "not_disclosed": [], "flags": [],
+                        "skips": []}
+        probe = _Probe()
+        PacketCloser(tk2, client=probe,
+                     log=lambda s: None).run_compile("Model")
+        self.assertEqual(ws2["U2"].value, 80.0)          # replayed
+        self.assertEqual(tk2.decisions.replayed, 1)
+        for p in probe.prompts:
+            self.assertNotIn("Model!U2", p)              # never re-asked
+
+    def test_conflicting_opinions_become_flag(self):
+        from updater.closer import PacketCloser
+
+        class _Client:
+            def __init__(self):
+                self.n = 0
+
+            def json(self, system, user, validate, repair_retries=1):
+                self.n += 1
+                v = 80.0 if self.n == 1 else 95.0     # two different reads
+                return {"writes": [{"cell": "Model!U2", "value": v,
+                                    "why": f"p7: read {v}"}],
+                        "not_disclosed": [], "flags": [], "skips": []}
+        wb, ws, spec, tk = self._setup()
+        pc = PacketCloser(tk, client=_Client(), log=lambda s: None)
+        pc.run_compile("Model")
+        self.assertEqual(ws["U2"].value, 50.0)        # NOT written
+        self.assertIn("Model!U2", tk.writer.log["flags"])
