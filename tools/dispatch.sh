@@ -27,6 +27,8 @@ auth() { curl -s -H "Authorization: Bearer $TOKEN" \
               -H "Accept: application/vnd.github+json" "$@"; }
 
 # 1. the head we think we are flying must BE the pushed head
+# (pull first: cloud runs commit decisions.json case law back to origin)
+git pull --rebase -q origin "$REF" || true
 git fetch -q origin "$REF"
 LOCAL=$(git rev-parse "$REF")
 REMOTE=$(git rev-parse "origin/$REF")
