@@ -37,45 +37,6 @@
  },
  "Raw financials!111:compile": {
   "evidence_hash": "44f4ada9c74fc380",
-  "action": "not_disclosed",
-  "payload": {
-   "looked": [
-    "p45 balance-sheet statement",
-    "non-current-assets notes",
-    "p9/p49 financial statement analysis"
-   ]
-  },
-  "flag": false,
-  "why": ""
- },
- "Raw financials!114:compile": {
-  "evidence_hash": "e2d9ba29483d90bd",
-  "action": "not_disclosed",
-  "payload": {
-   "looked": [
-    "p45 balance-sheet statement",
-    "assets classification notes",
-    "p9/p49 financial statement analysis"
-   ]
-  },
-  "flag": false,
-  "why": ""
- },
- "Raw financials!57:compile": {
-  "evidence_hash": "382091b34b0268a1",
-  "action": "not_disclosed",
-  "payload": {
-   "looked": [
-    "p45 balance-sheet statement",
-    "relevant notes behind the balance sheet",
-    "p49/p9 financial statement analysis"
-   ]
-  },
-  "flag": false,
-  "why": ""
- },
- "Raw financials!65:compile": {
-  "evidence_hash": "83c3088de6b9086e",
   "action": "write",
   "payload": {
    "value": 0,
@@ -83,16 +44,53 @@
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p95: the complete current-asset statement contains no 应收利息 line; no such balance appears in the notes or other supplied statement tables, proving a ze"
+  "why": "p45: no separate 非流动资产差额 line is printed; the complete listed non-current-asset section closes without a residual, so this model balancing line is a p"
+ },
+ "Raw financials!114:compile": {
+  "evidence_hash": "e2d9ba29483d90bd",
+  "action": "write",
+  "payload": {
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p45: no separate 资产差额 line is printed; total assets reconcile from the current asset and non-current asset sections, proving this balancing line is ze"
+ },
+ "Raw financials!57:compile": {
+  "evidence_hash": "382091b34b0268a1",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p45",
+    "notes and balance-sheet detail",
+    "additional balance-sheet tables p187 and p189"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!65:compile": {
+  "evidence_hash": "82cfc8e602cad348",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p45",
+    "notes",
+    "balance-sheet detail p187 and p189"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!74:compile": {
   "evidence_hash": "9471717b98e34b03",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "p45 balance-sheet statement",
-    "assets classification notes",
-    "p9/p49 financial statement analysis"
+    "statement p45",
+    "notes",
+    "balance-sheet detail and held-for-sale disclosures"
    ]
   },
   "flag": false,
@@ -103,9 +101,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "p45 balance-sheet statement",
-    "assets classification notes",
-    "p9/p49 financial statement analysis"
+    "statement p45",
+    "notes",
+    "balance-sheet detail and held-for-sale disclosures"
    ]
   },
   "flag": false,
@@ -116,9 +114,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "p45 balance-sheet statement",
-    "assets classification notes",
-    "p9/p49 financial statement analysis"
+    "statement p45",
+    "notes",
+    "balance-sheet detail and held-for-sale disclosures"
    ]
   },
   "flag": false,
@@ -129,35 +127,39 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "p45 balance-sheet statement",
-    "financial-assets notes",
-    "p49 income statement and p9 analysis"
+    "statement p45",
+    "notes",
+    "financial-instrument detail"
    ]
   },
   "flag": false,
   "why": ""
  },
  "Raw financials!86:compile": {
-  "evidence_hash": "b2a7b0a47bf2a3ca",
-  "action": "write",
+  "evidence_hash": "c0003ca937d8f9ab",
+  "action": "not_disclosed",
   "payload": {
-   "value": 0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "statement p45",
+    "notes",
+    "financial-instrument detail"
+   ]
   },
   "flag": false,
-  "why": "p95: no 可供出售金融资产 or 其他债权投资 sub-line is printed in the current balance sheet; p172 lists 债权投资 separately and the notes contain no current counterpart, "
+  "why": ""
  },
  "Raw financials!98:compile": {
-  "evidence_hash": "4622d416f7c461e5",
-  "action": "write",
+  "evidence_hash": "2a075a0f5fcaf097",
+  "action": "not_disclosed",
   "payload": {
-   "value": 0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "statement p45",
+    "notes",
+    "fixed-asset and construction-material detail p138"
+   ]
   },
   "flag": false,
-  "why": "p95: no 工程物资 line is printed in the current balance sheet; notes and the non-current-asset schedule contain no current balance | check: section=non-cu"
+  "why": ""
  },
  "Raw financials!16:compile": {
   "evidence_hash": "d90f6018af7c5053",
@@ -171,107 +173,119 @@
   "why": "p9: 营业成本同比增长12.45%；this is the reported-period percentage for the model's other-business-cost driver. | check: section=not a statement line; sums=n/a "
  },
  "Raw financials!32:compile": {
-  "evidence_hash": "4918c9ccda87357d",
+  "evidence_hash": "4bd3051156781f73",
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "p183 contains two label-kin disposal amounts, 1,629,398.43 and 437,419.73, but neither is unambiguously the model row 非流动资产处置净损失; sibling scope and cl"
+  "why": "p141 contains two disposal-related candidates, 16,193,146.66 and 16,300,624.59, but the evidence does not identify which is 非流动资产处置净损失 or establish wh"
  },
  "Raw financials!58:compile": {
-  "evidence_hash": "7d8cd925f66ecc8d",
+  "evidence_hash": "52b58fb1dc6e6c4a",
   "action": "write",
   "payload": {
-   "value": 16857.85231271,
+   "value": 15031.26095312,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p95: 应收票据 1,664,057,411.81 plus 应收账款 15,193,794,901.36; combined as the model's 应收票据及应收账款 | check: section=current assets partition; sums=1,664,057,41"
+  "why": "p45: 应收票据 998,157,596.40 plus 应收账款 14,033,103,356.72; mapped to the model's combined 应收票据及应收账款 line. | check: section=流动资产合计; sums=998.15759640+14033."
  },
  "Raw financials!66:compile": {
-  "evidence_hash": "4d171830eec6e3a1",
+  "evidence_hash": "86ac5fc9176305bc",
   "action": "write",
   "payload": {
-   "value": 377.47533497,
+   "value": 510.93927201,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p159: 其他应收款项 377,475,334.97; current value is the line whose comparative 522,982,666.43 ties the model prior | check: section=other-receivables detail"
+  "why": "p111: 其他应收款项 current-period counterpart 510,939,272.01; written in model millions. RED FLAG: the current comparative is re-based to 522,982,666.43 ver"
  },
  "Raw financials!94:compile": {
   "evidence_hash": "2b99a6276dc21afe",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The current statement prints 固定资产 at 5,482,292,975.66 (p45), but that value is already mapped to Raw financials!AT93. The model prior 5,047.33 is an a"
+  "action": "write",
+  "payload": {
+   "value": 5472.68623791,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p45/p132: 固定资产 current-period value 5,482,292,975.66 on the statement and 5,472,686,237.91 in the current counterpart identified for this model row; R"
  },
  "Raw financials!95:compile": {
-  "evidence_hash": "2b55b7d2b7b993c9",
-  "action": "write",
-  "payload": {
-   "value": 0,
-   "swap_constant": null,
-   "pattern_formula": null
-  },
-  "flag": false,
-  "why": "p95: no 固定资产清理 line is printed in the current balance sheet; notes and the current non-current-asset schedule also contain no current balance | check:"
+  "evidence_hash": "022d38288ad66d83",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p4 only prints the reporting period dates, not 固定资产清理. No current-period counterpart or balance for 固定资产清理 is supplied; the p7 operating-statistic inf"
  },
  "Raw financials!118:compile": {
-  "evidence_hash": "9965ea6e87e0f89f",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The p96 current-liability subtotal leaves a closure gap of 141,302,980.52 raw, but the supplied statement does not print the missing line name. Transa"
+  "evidence_hash": "0e93d98e87fae52b",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p46",
+    "notes",
+    "additional balance-sheet tables p187 and p189"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!119:compile": {
-  "evidence_hash": "ee8c5bd4f44578b2",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The same p96 closure gap of 141,302,980.52 raw could theoretically comprise derivative financial liabilities or another omitted liability; no row-leve"
+  "evidence_hash": "c53dfebfdc038275",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "statement p46",
+    "notes",
+    "additional balance-sheet tables p187 and p189"
+   ]
+  },
+  "flag": false,
+  "why": ""
  },
  "Raw financials!130:compile": {
-  "evidence_hash": "d457f1a4328d5b49",
+  "evidence_hash": "c2ed170e362b5742",
   "action": "write",
   "payload": {
-   "value": 0,
+   "value": 1371.19219378,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p96: no 应付股利 line is printed in current liabilities; p2's dividend disclosure concerns the proposed distribution, not a period-end payable, and the no"
+  "why": "p153: 应付股利 1,371,192,193.78; current counterpart of the model's 应付股利 row, in millions | check: section=其他应付款; sums=1371.19219378+1598.19704557 = 2969."
  },
  "Raw financials!172:compile": {
-  "evidence_hash": "c53d9d576ea620c5",
+  "evidence_hash": "7751ff3cd3c422a3",
   "action": "write",
   "payload": {
-   "value": -22.90680403,
+   "value": -15.19747974,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p99: 6．外币财务报表折算差额 -22,906,804.03; converted to model millions. | check: section=将重分类进损益的其他综合收益; sums=-0.04029807-1.34774288-22.90680403 = -24.29484498"
+  "why": "p49: 外币财务报表折算差额 -15,197,479.74, converted to millions | check: section=将重分类进损益的其他综合收益; sums=-0.24780403-1.34774288-15.19747974 = -16.79332665 million;"
  },
  "Raw financials!129:compile": {
-  "evidence_hash": "f72bd7e6741f4f87",
+  "evidence_hash": "2136ce0294d98246",
   "action": "write",
   "payload": {
-   "value": 0,
+   "value": 0.0,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p96: no 应付利息 line is printed; the notes and current P&L/cash-flow schedules contain no payable-interest balance | check: section=current liabilities p"
+  "why": "p46: no 应付利息 line is printed in the current balance sheet; the current liability section closes without it, proving zero | check: section=流动负债合计; sums"
  },
  "Raw financials!134:compile": {
   "evidence_hash": "9630c6a29e4f9922",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p45-p46",
-    "notes/evidence p155 and p187-p189",
-    "MD&A and operating prose p18, p36"
+    "balance-sheet statement p46",
+    "liability notes",
+    "current report's comparative/statements and five-year-summary material"
    ]
   },
   "flag": false,
@@ -282,9 +296,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p45-p46",
-    "notes/evidence p155 and p187-p189",
-    "MD&A and operating prose p18, p36"
+    "balance-sheet statement p45-p46",
+    "balance-sheet notes",
+    "current report's comparative/statements and five-year-summary material"
    ]
   },
   "flag": false,
@@ -292,19 +306,25 @@
  },
  "Raw financials!144:compile": {
   "evidence_hash": "dc63de2c161543d6",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "p15's label-kin 债券 30,000.00 is a note disclosure with multiple adjacent amounts and does not establish 应付债券. The p46 liabilities statement has no 应付债"
- },
- "Raw financials!153:compile": {
-  "evidence_hash": "190eff3d57813af3",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p96",
+    "balance-sheet statement p46",
     "non-current-liability notes",
-    "p25 bond-related tables"
+    "current report's comparative/statements and five-year-summary material"
+   ]
+  },
+  "flag": false,
+  "why": ""
+ },
+ "Raw financials!153:compile": {
+  "evidence_hash": "642bb4fc39b2220d",
+  "action": "not_disclosed",
+  "payload": {
+   "looked": [
+    "balance-sheet statement p46",
+    "non-current-liability notes",
+    "current report's comparative/statements and five-year-summary material"
    ]
   },
   "flag": false,
@@ -315,9 +335,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p46",
-    "notes/evidence p155 and p187-p189",
-    "MD&A and operating prose p18, p36"
+    "balance-sheet statement p46",
+    "non-current-liability notes",
+    "current report's comparative/statements and five-year-summary material"
    ]
   },
   "flag": false,
@@ -328,9 +348,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p45-p46",
-    "notes/evidence p155 and p187-p189",
-    "MD&A and operating prose p18, p36"
+    "balance-sheet statements p45-p46",
+    "liability and equity notes",
+    "current report's comparative/statements and five-year-summary material"
    ]
   },
   "flag": false,
@@ -341,9 +361,9 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p46",
-    "equity statement evidence p54-p55",
-    "notes and MD&A p155, p187-p189, p18"
+    "equity statement p54",
+    "equity notes",
+    "income statement and other-comprehensive-income detail p49"
    ]
   },
   "flag": false,
@@ -354,24 +374,26 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p46",
-    "equity statement evidence p54-p55",
-    "notes and MD&A p155, p187-p189, p18"
+    "equity statement p54",
+    "equity notes",
+    "balance-sheet statement p45-p46"
    ]
   },
   "flag": false,
   "why": ""
  },
  "Raw financials!123:compile": {
-  "evidence_hash": "8768d4076a0fb156",
-  "action": "write",
+  "evidence_hash": "db26bff8fd168834",
+  "action": "not_disclosed",
   "payload": {
-   "value": 0,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "balance-sheet statement p46",
+    "related liability notes",
+    "current report's comparative/statements and five-year-summary material"
+   ]
   },
   "flag": false,
-  "why": "p96: no 预收款项 line is printed among current liabilities; p95 and the supplied notes also contain no current 预收款项 balance, so the legacy line is zero | "
+  "why": ""
  },
  "Raw financials!147:compile": {
   "evidence_hash": "9f36d4bc933fb259",
@@ -386,21 +408,21 @@
  },
  "Raw financials!120:compile": {
   "evidence_hash": "fa1713d5cb22e3fd",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The current statement splits the modeled combined line into 应付票据 16,341,656,436.91 and 应付账款 30,488,928,676.84. Their combined current value is 46,830."
- },
- "Raw financials!166:compile": {
-  "evidence_hash": "04f46ed1ebf34948",
   "action": "write",
   "payload": {
-   "value": 0,
+   "value": 46830.58511375,
    "swap_constant": null,
    "pattern_formula": null
   },
   "flag": false,
-  "why": "p96: 减：库存股 has no current-year number; the single printed 648,882.29 belongs to the prior column, proving current-year zero. | check: section=归属于母公司所有"
+  "why": "p46: 应付票据 16,341,656,436.91 + 应付账款 30,488,928,676.84; combined in the model's millions unit | check: section=流动负债合计; sums=75.10926389+46830.58511375+4"
+ },
+ "Raw financials!166:compile": {
+  "evidence_hash": "1a323c53efb270f4",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "Current inventory shares are proven zero by the p46 equity subtotal, while the comparative 648,882.29 is re-based and does not tie the model prior 105"
  },
  "Raw financials!225:compile": {
   "evidence_hash": "846259cb423fcf03",
@@ -418,22 +440,22 @@
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p45-p46",
-    "equity statement evidence p54-p55",
-    "notes and MD&A p155, p187-p189, p18"
+    "balance-sheet statements p45-p46",
+    "equity notes",
+    "equity statement p54"
    ]
   },
   "flag": false,
   "why": ""
  },
  "Raw financials!265:compile": {
-  "evidence_hash": "1a083e487a058e65",
+  "evidence_hash": "3e8e6b1ffe655d89",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "p101 cash-flow statement",
-    "p215 supplemental cash-flow schedule",
-    "notes and five-year summary"
+    "cash-flow statement p51",
+    "cash-flow supplementary schedule p171",
+    "notes and MD&A cash-flow disclosures"
    ]
   },
   "flag": false,
@@ -441,49 +463,47 @@
  },
  "Raw financials!266:compile": {
   "evidence_hash": "5df2ada4f12af2e3",
-  "action": "not_disclosed",
+  "action": "write",
   "payload": {
-   "looked": [
-    "p49 income statement",
-    "p51 cash-flow statement",
-    "p171 indirect-method cash-flow reconciliation"
-   ]
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
   },
   "flag": false,
-  "why": ""
+  "why": "p51 and p171: direct-method and indirect-method operating cash-flow net amounts both print -556,466,428.94; their difference is zero. | check: section"
  },
  "Raw financials!267:compile": {
   "evidence_hash": "8a80a27d39c966de",
-  "action": "not_disclosed",
+  "action": "write",
   "payload": {
-   "looked": [
-    "p49 income statement",
-    "p51 cash-flow statement",
-    "p171 indirect-method cash-flow reconciliation"
-   ]
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
   },
   "flag": false,
-  "why": ""
+  "why": "p51 and p171: the reported operating cash-flow net amount reconciles exactly between the cash-flow statement and the indirect-method schedule, leaving"
  },
  "Raw financials!269:compile": {
-  "evidence_hash": "924489506cf1ed51",
-  "action": "not_disclosed",
+  "evidence_hash": "c11ab032b121e3b3",
+  "action": "write",
   "payload": {
-   "looked": [
-    "p101 cash-flow statement",
-    "p215 supplemental cash-flow schedule",
-    "notes and five-year summary"
-   ]
+   "value": 0,
+   "swap_constant": null,
+   "pattern_formula": null
   },
   "flag": false,
-  "why": ""
+  "why": "p51 and p171: no debt-to-capital conversion is reported; the supplemental cash-flow schedule contains no same-kind event, so the event row rolls to ze"
  },
  "Raw financials!188:compile": {
-  "evidence_hash": "8499ebbafb5ecce3",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "The current p101 statement prints 回购业务资金净增加额 of -598,665,626.10, but the model row is labelled 经营活动现金流入(金融类) and its prior 1,499.42 does not tie to th"
+  "evidence_hash": "11a024d67640f31e",
+  "action": "write",
+  "payload": {
+   "value": 40.227646,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p51 closure: current operating-cash-inflow gap is 40,227,646.00 raw currency, derived as the missing-row difference | check: section=经营活动现金流入小计; sums="
  },
  "Raw financials!196:compile": {
   "evidence_hash": "8c38f88c3d573c3b",
@@ -509,10 +529,14 @@
  },
  "Raw financials!214:compile": {
   "evidence_hash": "67f06d25bc092618",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "TWO OPINIONS DISAGREE — candidate A: None (p51 closure: 支付其他与投资活动有关的现金 76,947.00 is present only in the) vs candidate B: 0.076947 (p51: 支付其他与投资活动有关的现金"
+  "action": "write",
+  "payload": {
+   "value": 0.0,
+   "swap_constant": null,
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p51 section closure: the single printed 76,947.00 for 支付其他与投资活动有关的现金 belongs to the comparative column, not 2025; the current investment-cash-outflow "
  },
  "Raw financials!254:compile": {
   "evidence_hash": "7d4908c9297ed01a",
@@ -537,7 +561,7 @@
   "action": "flag",
   "payload": null,
   "flag": true,
-  "why": "The cited p9 line is 投资收益, not 应收股利, so it cannot be written into this balance-sheet row. Current-period 应收股利 is not identified by the supplied eviden"
+  "why": "p9 prints 投资收益 (current 141,074,666.85; comparative -39,626,483.54), not 应收股利. The current balance-sheet statement p45 does not present 应收股利 separatel"
  },
  "Raw financials!148:compile": {
   "evidence_hash": "9df3ee6ad6904451",
@@ -551,24 +575,26 @@
   "why": "p46: 专项应付款 is not separately printed; the sole 240,000.00 long-term-payables line is already mapped to sibling Raw financials!AT146, so the prior 0.24"
  },
  "Raw financials!207:compile": {
-  "evidence_hash": "34ce597f55bb274f",
-  "action": "write",
+  "evidence_hash": "7830566c1aa327cd",
+  "action": "not_disclosed",
   "payload": {
-   "value": 19.078348,
-   "swap_constant": null,
-   "pattern_formula": null
+   "looked": [
+    "p51 cash-flow statement",
+    "note 五（六十九） cash-flow details",
+    "cash-flow analysis/MD&A tables"
+   ]
   },
   "flag": false,
-  "why": "p101/p20: 收到其他与投资活动有关的现金 19,078,348.00; current-column single printing, converted to model millions. | check: section=投资活动现金流入小计; sums=25155.70481083+"
+  "why": ""
  },
  "Raw financials!275:compile": {
   "evidence_hash": "bd3e43262e3f5516",
   "action": "not_disclosed",
   "payload": {
    "looked": [
-    "statement p51 cash-flow statement",
-    "notes, including cash and cash equivalents note 五（七十）",
-    "five-year summary / MD&A"
+    "cash-flow statement p51",
+    "cash-flow reconciliation note p171",
+    "income statement and related statements p49"
    ]
   },
   "flag": false,
@@ -769,18 +795,32 @@
   "why": "The current report re-cuts the prior product categories: current p207 has 能源装备制造 and its members, but no defensible bridge reproduces the model's prio"
  },
  "Driver!10:compile": {
-  "evidence_hash": "d391f40e2131b46b",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Embedded constant 16,602.97 million was prior 可再生能源装备 total. That category no longer exists as a current row; combining current 风电 and 水电 fails the br"
+  "evidence_hash": "95007c310481988f",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 8215.03185567,
+    "new": 10424.51500811
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p162: 可再生能源装备 current-period value 10,424,515,008.11; converted from raw currency to the model's millions unit. This is the current counterpart of the"
  },
  "Driver!43:compile": {
-  "evidence_hash": "324d482b36000ef7",
-  "action": "flag",
-  "payload": null,
-  "flag": true,
-  "why": "Embedded constant 15,977.70 million was prior 可再生能源装备 cost. No current counterpart exists, and a wind-plus-hydro reconstruction fails the prior-column"
+  "evidence_hash": "2cd20df2e947d9ca",
+  "action": "write",
+  "payload": {
+   "value": null,
+   "swap_constant": {
+    "old": 7780.15489772,
+    "new": 10424.51500811
+   },
+   "pattern_formula": null
+  },
+  "flag": false,
+  "why": "p162: 可再生能源装备 current-period value 10,424,515,008.11; converted to model millions. The old embedded constant 7,780.15489772 is the prior-period counte"
  },
  "Driver!102:compile": {
   "evidence_hash": "6cf26c1146663486",
@@ -1012,5 +1052,12 @@
   "payload": null,
   "flag": true,
   "why": "Re-based category: current p14 comparative is 3,332.7, not the model prior 1,963.2; current value 14,026.1 is written per counterpart rule."
+ },
+ "Driver!39:compile": {
+  "evidence_hash": "5fde9a0094441a83",
+  "action": "flag",
+  "payload": null,
+  "flag": true,
+  "why": "p231 counterpart is explicitly re-based: do not treat the 7,144.17489971 million value as a historical tie to the model's -11,892.40 prior."
  }
 }
