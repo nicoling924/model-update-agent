@@ -340,9 +340,10 @@ const flat = JSON.stringify(rw.getUsedRange().getValues());
 et("_REPORT is the visible first tab",
   rw.hidden === false && rw.position === 0 &&
   /MODEL UPDATE REPORT/.test(String(rw.getRange("A1").getValues()[0][0])));
-et("report has all four sections",
+et("report has all six sections",
   /1\. RED/.test(flat) && /2\. ORANGE/.test(flat) &&
-  /3\. BIG MOVES/.test(flat) && /4\. YOUR FORECAST/.test(flat));
+  /3\. KEY DRIVERS/.test(flat) && /4\. NOT UPDATED/.test(flat) &&
+  /5\. BIG MOVES/.test(flat) && /6\. YOUR FORECAST/.test(flat));
 et("report speaks the analyst's language",
   /you forecast 5200 · actual 5321 \(\+2\.3%\)/.test(flat) &&
   /moved \+400%/.test(flat) && /next year: 5600/.test(flat));
@@ -380,6 +381,106 @@ const po12 = JSON.parse(main(wb12, JSON.stringify({ mode: "POLICE" })));
 et("no check row = NOT verified, never a silent pass",
   po12.ok === false && po12.checks === 0 &&
   /could NOT be verified/.test(po12.why));
+
+
+// ---- run 12: a REAL model's shape — wired sheets, hardcodes, drivers
+// The owner's Dongfang model: a 'Model' tab of formulas pointing at a
+// 'Raw' history tab that has no column for the new year yet, plus typed
+// analyst numbers and formulas with constants baked in. Everything the
+// practice file could not teach us.
+function fixtureWired() {
+  const wb = new MockWorkbook();
+  const raw = wb.addWorksheet("Raw");
+  raw.getRange("B1").setValue(2022); raw.getRange("C1").setValue(2023);
+  raw.getRange("D1").setValue(2024);          // history stops at 2024
+  raw.getRange("A3").setValue("Revenue");     raw.getRange("D3").setValue(4976.2);
+  raw.getRange("A4").setValue("Cost of sales"); raw.getRange("D4").setValue(-3000.0);
+  raw.getRange("B3").setValue(4000); raw.getRange("C3").setValue(4500);
+  raw.getRange("B4").setValue(-2500); raw.getRange("C4").setValue(-2800);
+  const m = wb.addWorksheet("Model");
+  for (let i = 0; i < 4; i++)
+    m.getRange(["B", "C", "D", "E"][i] + "1").setValue(2022 + i);
+  m.getRange("A3").setValue("Revenue");
+  m.getRange("A4").setValue("Cost of sales");
+  m.getRange("A5").setValue("Adjusted profit");
+  m.getRange("A6").setValue("Analyst overlay");
+  m.getRange("A7").setValue("Balance check");
+  // formula cells carry their last computed value, as a saved file does
+  const wire = (r, f, v) => { m.cell(r, 3).f = f; m.cell(r, 3).v = v; };
+  wire(2, "='Raw'!D3", 4976.2);                 // wired to the raw tab
+  wire(3, "='Raw'!D4", -3000.0);                // wired
+  wire(4, "=D3+36", 5012.2);                    // 36 baked into the formula
+  m.getRange("D6").setValue(250);               // typed analyst overlay
+  wire(6, "=D3-D3", 0);                         // the model's check row
+  return wb;
+}
+const wb13 = fixtureWired();
+const pre13 = JSON.parse(main(wb13, JSON.stringify({ mode: "PREFLIGHT",
+  sheets: ["Model", "Raw"], periodKind: "FY", targetYear: 2025 })));
+et("the wired model tab reads as formulas, the raw tab as typed numbers",
+  pre13.sheets[0].typedShare === 0.2 && pre13.needsExtend[0].hardcodeShare === 1);
+et("missing year column becomes a PROPOSAL, not a failure",
+  pre13.needsExtend.length === 1 && pre13.needsExtend[0].sheet === "Raw" &&
+  pre13.needsExtend[0].newCol === "E" &&
+  pre13.needsExtend[0].newColEmpty === true &&
+  /Ask the analyst/.test(pre13.needsExtend[0].ask));
+const ex1 = JSON.parse(main(wb13, JSON.stringify({ mode: "EXTEND",
+  sheet: "Raw", targetYear: 2025 })));
+et("EXTEND refuses to add a column on its own authority",
+  ex1.ok === false && ex1.needsApproval === true);
+et("nothing was added while unapproved",
+  wb13.getWorksheet("Raw").getRange("E1").getValues()[0][0] === "");
+const ex2 = JSON.parse(main(wb13, JSON.stringify({ mode: "EXTEND",
+  sheet: "Raw", targetYear: 2025, analystApproved: true })));
+et("approved EXTEND adds the column with the right header",
+  ex2.ok === true && ex2.newCol === "E" &&
+  wb13.getWorksheet("Raw").getRange("E1").getValues()[0][0] === 2025);
+et("the new column starts EMPTY (a blank is honest, last year's number lies)",
+  wb13.getWorksheet("Raw").getRange("E3").getValues()[0][0] === "");
+const ex3 = JSON.parse(main(wb13, JSON.stringify({ mode: "EXTEND",
+  sheet: "Raw", targetYear: 2025, analystApproved: true })));
+et("EXTEND will not add the same year twice",
+  ex3.ok === false && /already has a 2025 column/.test(ex3.why));
+main(wb13, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model", "Raw"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wb13, [
+  ["Revenue", 5321.0, 4976.2, "p3", "", "", "Raw"],
+  ["Cost of sales", -3200.0, -3000.0, "p3", "", "", "Raw"],
+  ["Revenue", 5321.0, 4976.2, "p3", "", "", "Model"],
+]);
+const apRaw = JSON.parse(main(wb13, JSON.stringify(
+  { mode: "APPLY", sheet: "Raw", targetYear: 2025 })));
+et("actuals are typed into the input sheet", apRaw.written === 2 &&
+  wb13.getWorksheet("Raw").getRange("E3").getValues()[0][0] === 5321.0);
+const apMod = JSON.parse(main(wb13, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("a wired cell is NEVER typed over — the link is kept",
+  apMod.written === 0 && apMod.keptWired === 1 &&
+  wb13.getWorksheet("Model").cell(2, 4).f === "='Raw'!E3");
+et("the kept link now feeds the new period's actual",
+  wb13.getWorksheet("Model").getRange("E3").getValues()[0][0] === 5321.0);
+et("a formula with a number baked in is surfaced as a key driver",
+  apMod.embeddedHardcodes === 1 &&
+  wb13.getWorksheet("Model").cell(4, 4).fill === "FFC7CE");
+et("last year's typed number is reported, not silently kept as this year's",
+  apMod.carriedOver === 1);
+const rep13 = JSON.parse(main(wb13, JSON.stringify({ mode: "REPORT" })));
+et("report carries the two new sections",
+  rep13.keyDrivers === 1 && rep13.notUpdated === 1);
+const flat13 = JSON.stringify(
+  wb13.getWorksheet("_REPORT").getUsedRange().getValues());
+et("the report names the baked-in formula so the analyst can judge it",
+  /=D3\+36/.test(flat13) && /Analyst overlay/.test(flat13));
+
+// a wired cell whose source disagrees with the disclosure must shout
+stage(wb13, [["Revenue", 9999.0, 4976.2, "p3", "", "", "Model"]]);
+const apConf = JSON.parse(main(wb13, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("wired result vs disclosure mismatch is caught",
+  apConf.conflicts.length === 1 && apConf.conflicts[0].row === 3 &&
+  wb13.getWorksheet("Model").cell(2, 4).fill === "FFC7CE");
+et("and the link is STILL not overwritten",
+  wb13.getWorksheet("Model").cell(2, 4).f === "='Raw'!E3");
 
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);

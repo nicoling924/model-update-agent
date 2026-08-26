@@ -13,6 +13,7 @@
 //   SEED      build the Phase 1 practice model into sheet 'Model'
 //   PREFLIGHT {"mode":"PREFLIGHT","sheets":["Model","BS"],"periodKind":"FY","targetYear":2025}
 //   STAGE     {"mode":"STAGE","rows":[[label,value,prior,page,flag,note,sheet,row],...]}
+//   EXTEND    {"mode":"EXTEND","sheet":"Raw","targetYear":2025,"analystApproved":true}
 //   RESTATE   {"mode":"RESTATE"}                    scan comparatives, may STOP
 //   APPLY     {"mode":"APPLY","sheet":"Model","targetYear":2025}
 //   POLICE    {"mode":"POLICE"}                     all preflighted sheets
@@ -39,7 +40,18 @@ interface Params {
   targetYear?: number;
   rows?: (string | number | null)[][];
   acknowledgeRestatement?: boolean;
+  analystApproved?: boolean;
 }
+
+// What PREFLIGHT hands back when a sheet has no column for the period yet.
+// The kernel only ever PROPOSES this: adding a column is structural, and
+// structure is the analyst's to change (boss mindmap). EXTEND refuses to
+// act until the answer comes back as analystApproved.
+interface ExtendProposal { sheet: string; lastYear: number; lastCol: string;
+  newCol: string; newColEmpty: boolean; hardcodeShare: number; ask: string; }
+
+interface PreflightOutcome { err: string; proposal: ExtendProposal | null;
+  priorCol: string; targetCol: string; rows: number; hardcodeShare: number; }
 
 interface CheckVerdict { sheet: string; row: number; label: string;
   value: number; pass: boolean; }
@@ -97,6 +109,64 @@ function labelOf(grid: CellValue[][], row: number): string {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return "";
+}
+
+// Which cells in a column are typed-in numbers rather than formulas?
+// The share is how the kernel tells an INPUT sheet (raw financials: almost
+// all typed) from a WIRED sheet (the model: almost all formulas) — the same
+// hardcode-density signal the boss mindmap uses to find the year to update.
+function columnFormulas(ws: ExcelScript.Worksheet, col: string,
+                        nRows: number): string[] {
+  const f: string[][] = ws.getRange(col + "1:" + col + nRows).getFormulas();
+  const out: string[] = [];
+  for (let i: number = 0; i < f.length; i++)
+    out.push(String(f[i][0] === undefined ? "" : f[i][0]));
+  return out;
+}
+
+function isFormula(s: string): boolean { return s.charAt(0) === "="; }
+
+function hardcodeShareOf(ws: ExcelScript.Worksheet, grid: CellValue[][],
+                         colIdx: number): number {
+  const f: string[] = columnFormulas(ws, n2col(colIdx), grid.length);
+  let typed: number = 0;
+  let total: number = 0;
+  for (let r: number = 0; r < grid.length; r++) {
+    if (typeof grid[r][colIdx] !== "number") continue;
+    if (!labelOf(grid, r)) continue;        // header rows are not data
+    total++;
+    if (!isFormula(f[r] === undefined ? "" : f[r])) typed++;
+  }
+  return total === 0 ? 0 : Math.round(typed / total * 100) / 100;
+}
+
+function columnIsEmpty(grid: CellValue[][], colIdx: number): boolean {
+  for (let r: number = 0; r < grid.length; r++) {
+    const v: CellValue | undefined = grid[r][colIdx];
+    if (v !== undefined && v !== "") return false;
+  }
+  return true;
+}
+
+// A new period header must keep the neighbour's data TYPE and wording:
+// 2024 -> 2025, "FY2024" -> "FY2025", a date -> the same date a year on.
+function nextHeader(prev: CellValue, lastYear: number,
+                    ty: number): string | number | null {
+  if (typeof prev === "number") {
+    if (Math.abs(prev - Math.round(prev)) < 0.5 && Math.round(prev) === lastYear)
+      return ty;
+    if (prev >= 32874 && prev <= 73415) {         // a date serial
+      const ms: number = (Math.floor(prev) - 25569) * 86400000;
+      const d: Date = new Date(ms);
+      const nd: number = Date.UTC(d.getUTCFullYear() + 1, d.getUTCMonth(),
+        d.getUTCDate());
+      return Math.round(nd / 86400000) + 25569;
+    }
+    return null;
+  }
+  if (typeof prev === "string" && prev.indexOf(String(lastYear)) >= 0)
+    return prev.split(String(lastYear)).join(String(ty));
+  return null;
 }
 
 // _ANATOMY layout: [sheet, row, label, priorValue, priorCol, targetCol].
@@ -269,19 +339,54 @@ function modeSeed(wb: ExcelScript.Workbook): string {
 // Phase 2: takes ONE sheet or MANY ({"sheets":["Model","BS","CF"]}) and
 // APPENDS to _ANATOMY — preflighting the balance sheet must not erase what
 // was learned about the P&L. Only the sheets in this call are rebuilt.
+function blankOutcome(err: string): PreflightOutcome {
+  return { err: err, proposal: null, priorCol: "", targetCol: "", rows: 0,
+    hardcodeShare: 0 };
+}
+
 function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
                         periodKind: string, ty: number,
-                        out: (string | number)[][]): string {
+                        out: (string | number)[][]): PreflightOutcome {
   const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
-  if (!ws) return "no sheet " + sheetName;
+  if (!ws) return blankOutcome("no sheet " + sheetName);
   const grid: CellValue[][] = sheetGrid(ws);
   const axis: AxisMap | null = findYearAxis(grid, periodKind);
-  if (!axis) return "no year axis found on " + sheetName;
+  if (!axis) return blankOutcome("no year axis found on " + sheetName);
   const tCol: number | undefined = axis[String(ty)];
   const pCol: number | undefined = axis[String(ty - 1)];
-  if (tCol === undefined || pCol === undefined)
-    return "axis on " + sheetName + " lacks " + ty + " or prior; axis=" +
-      JSON.stringify(axis);
+  if (tCol === undefined) {
+    // No column for this period yet. Rather than fail, work out whether one
+    // could be added and hand the analyst a proposal (Phase 4).
+    let lastYear: number = -1;
+    for (const k in axis) if (Number(k) > lastYear) lastYear = Number(k);
+    if (lastYear < 0)
+      return blankOutcome("no usable year axis on " + sheetName);
+    const lastIdx: number = axis[String(lastYear)];
+    const newIdx: number = lastIdx + 1;
+    const empty: boolean = columnIsEmpty(grid, newIdx);
+    const share: number = hardcodeShareOf(ws, grid, lastIdx);
+    const gap: boolean = ty !== lastYear + 1;
+    const prop: ExtendProposal = { sheet: sheetName, lastYear: lastYear,
+      lastCol: n2col(lastIdx), newCol: n2col(newIdx), newColEmpty: empty,
+      hardcodeShare: share,
+      ask: gap
+        ? ("'" + sheetName + "' ends at " + lastYear + ", so reaching " + ty +
+           " would skip a year. Ask the analyst what to do — do NOT extend.")
+        : ("'" + sheetName + "' has no " + ty + " column. " + lastYear +
+           " sits in column " + n2col(lastIdx) + " and " + n2col(newIdx) +
+           " is " + (empty ? "empty" : "NOT empty (a column would be " +
+           "inserted, shifting everything right)") +
+           ". Ask the analyst: add a " + ty + " column there?") };
+    const outc: PreflightOutcome = blankOutcome("");
+    outc.proposal = gap ? null : prop;
+    outc.hardcodeShare = share;
+    outc.err = gap ? prop.ask : ("'" + sheetName + "' has no " + ty +
+      " column yet — see the proposal");
+    return outc;
+  }
+  if (pCol === undefined)
+    return blankOutcome("axis on " + sheetName + " has " + ty +
+      " but no prior year to copy from; axis=" + JSON.stringify(axis));
   // locate the axis header row (the row whose target cell marks the year)
   // — APPLY must restore this cell after the bulk column copy, or the
   // prior year's header stamps over the target's (a header is data too).
@@ -298,6 +403,7 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   // the analyst's own forecast for the year we are about to overwrite,
   // and the year after — snapshot NOW or it is lost forever (_REPORT's
   // "what you projected vs what came in" depends on it)
+  let labelled: number = 0;
   for (let r: number = 0; r < grid.length; r++) {
     const lab: string = labelOf(grid, r);
     if (!lab) continue;
@@ -307,8 +413,13 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
     const bn: CellValue = (nCol === undefined) ? "" : grid[r][nCol];
     out.push([sheetName, r + 1, lab, pv, n2col(pCol), n2col(tCol),
       (typeof bt === "number") ? bt : "", (typeof bn === "number") ? bn : ""]);
+    labelled++;
   }
-  return "";
+  const res: PreflightOutcome = blankOutcome("");
+  res.priorCol = n2col(pCol); res.targetCol = n2col(tCol);
+  res.rows = labelled;
+  res.hardcodeShare = hardcodeShareOf(ws, grid, pCol);
+  return res;
 }
 
 function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
@@ -335,14 +446,16 @@ function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
   const fresh: (string | number)[][] = [];
   const problems: { sheet: string; why: string }[] = [];
   const done: { sheet: string; priorCol: string; targetCol: string;
-    rows: number }[] = [];
+    rows: number; typedShare: number }[] = [];
+  const proposals: ExtendProposal[] = [];
   for (let i: number = 0; i < names.length; i++) {
-    const before: number = fresh.length;
-    const err: string = preflightSheet(wb, names[i], kind, ty, fresh);
-    if (err) { problems.push({ sheet: names[i], why: err }); continue; }
-    const meta: (string | number)[] = fresh[before];
-    done.push({ sheet: names[i], priorCol: String(meta[4]),
-      targetCol: String(meta[5]), rows: fresh.length - before - 1 });
+    const outc: PreflightOutcome =
+      preflightSheet(wb, names[i], kind, ty, fresh);
+    if (outc.proposal !== null) proposals.push(outc.proposal);
+    if (outc.err) { problems.push({ sheet: names[i], why: outc.err }); continue; }
+    done.push({ sheet: names[i], priorCol: outc.priorCol,
+      targetCol: outc.targetCol, rows: outc.rows,
+      typedShare: outc.hardcodeShare });
   }
   const rows: (string | number)[][] = keep.concat(fresh);
   const ur: ExcelScript.Range | undefined = an.getUsedRange();
@@ -362,6 +475,12 @@ function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
   }
   if (problems.length > 0) {
     res["why"] = problems[0].why; res["problems"] = problems;
+  }
+  if (proposals.length > 0) {
+    res["needsExtend"] = proposals;
+    res["next"] = "One or more sheets have no column for this period. ASK " +
+      "THE ANALYST first, then call EXTEND with analystApproved:true. " +
+      "Never add a column on your own authority.";
   }
   return JSON.stringify(res);
 }
@@ -521,17 +640,50 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   }
   const led: (string | number)[][] = [];
   const utc: string = new Date().toISOString();
+  // WHAT KIND OF CELL IS THIS? (Phase 4, after the owner's ruling that
+  // hardcodes are the normal case, not the exception.) Every row in the
+  // rolled-forward column is one of three things, and each needs opposite
+  // treatment:
+  //   typed number  -> an INPUT slot: the actual belongs here, type it in
+  //   pure formula  -> WIRING: never type over it; it now points at the new
+  //                    period's source. Check its result instead.
+  //   formula with a number baked inside -> an EMBEDDED HARDCODE: last
+  //                    year's constant has just been copied into this year
+  //                    (=raw!X12+36). Cannot be fixed blind — always surface.
+  const priorF: string[] = columnFormulas(ws, priorCol, nRows);
+  const formulaOf = (row: number): string =>
+    (priorF[row - 1] === undefined) ? "" : priorF[row - 1];
+  // a numeric literal that is NOT part of a cell reference (T12, $B$4) and
+  // not part of a function name — the tell-tale of a baked-in number
+  const LITERAL: RegExp = /(^|[-+*\/(,=\s])([0-9]+(\.[0-9]+)?)/;
+  const stripRefs = (f: string): string =>
+    f.split("$").join("").replace(/\b[A-Z]{1,3}[0-9]{1,5}\b/g, "@");
+  const wired: { row: number; label: string; value: number }[] = [];
+  const embedded: { row: number; label: string; formula: string }[] = [];
+  const writtenRows: { [k: string]: boolean } = {};
   for (let i: number = 0; i < verdict.accepted.length; i++) {
     const e: PlanEntry = verdict.accepted[i];
     const addr: string = targetCol + e.row;
     const cell: ExcelScript.Range = ws.getRange(addr);
     const before: CellValue = cell.getValues()[0][0] as CellValue;
-    if (typeof e.value === "number") cell.setValue(e.value);
+    const f: string = formulaOf(e.row);
+    writtenRows[String(e.row)] = true;
+    if (isFormula(f)) {
+      // WIRED: leave the formula alone. Its own source must produce the
+      // disclosed figure — verified after the recalc below.
+      if (typeof e.value === "number")
+        wired.push({ row: e.row, label: e.label ? e.label : "",
+          value: e.value });
+      led.push([utc, "APPLY", e.sheet, addr, String(before), "(formula kept)",
+        e.flag, "wired cell — actual belongs on its source sheet"]);
+    } else {
+      if (typeof e.value === "number") cell.setValue(e.value);
+      const after: CellValue = cell.getValues()[0][0] as CellValue;
+      led.push([utc, "APPLY", e.sheet, addr, String(before), String(after),
+        e.flag, ""]);
+    }
     if (e.flag === "red") cell.getFormat().getFill().setColor(FLAG_RED);
     if (e.flag === "orange") cell.getFormat().getFill().setColor(FLAG_ORANGE);
-    const after: CellValue = cell.getValues()[0][0] as CellValue;
-    led.push([utc, "APPLY", e.sheet, addr, String(before), String(after),
-      e.flag, ""]);
   }
   for (let i: number = 0; i < verdict.refused.length; i++) {
     const r: Refusal = verdict.refused[i];
@@ -539,6 +691,65 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
     ws.getRange(addr).getFormat().getFill().setColor(FLAG_RED);
     led.push([utc, "APPLY", r.entry.sheet, addr, "", "", "red", r.why]);
   }
+  // sweep the whole rolled-forward column for the two silent diseases
+  const carried: { row: number; label: string; value: number }[] = [];
+  for (let i: number = 0; i < view.rows.length; i++) {
+    const row: number = view.rows[i].row;
+    const f: string = formulaOf(row);
+    if (isFormula(f)) {
+      if (LITERAL.test(stripRefs(f.substring(1))))
+        embedded.push({ row: row, label: view.rows[i].label, formula: f });
+      continue;
+    }
+    if (writtenRows[String(row)]) continue;
+    // a typed number copied from last year, sitting in this year's column
+    // and not disclosed this period. Boss ruling: no cell flag, but it MUST
+    // appear in the report as "not updated this period".
+    carried.push({ row: row, label: view.rows[i].label,
+      value: view.rows[i].prior });
+  }
+  // embedded hardcodes are the boss map's KEY DRIVERS — never silent
+  for (let i: number = 0; i < embedded.length; i++) {
+    const addr: string = targetCol + embedded[i].row;
+    ws.getRange(addr).getFormat().getFill().setColor(FLAG_RED);
+    led.push([utc, "APPLY", sheetName, addr, embedded[i].formula, "", "red",
+      "embedded hardcode carried from last year — check the number inside"]);
+  }
+  // did the wired rows actually produce the disclosed figures?
+  wb.getApplication().calculate(ExcelScript.CalculationType.full);
+  const after: CellValue[][] = sheetGrid(ws);
+  const tIdx: number = ws.getRange(targetCol + "1").getColumnIndex();
+  const conflicts: { row: number; label: string }[] = [];
+  for (let i: number = 0; i < wired.length; i++) {
+    const live: CellValue | null = after[wired[i].row - 1]
+      ? after[wired[i].row - 1][tIdx] : null;
+    if (typeof live !== "number") continue;
+    if (tieOk(live, wired[i].value)) continue;
+    conflicts.push({ row: wired[i].row, label: wired[i].label });
+    ws.getRange(targetCol + wired[i].row).getFormat().getFill()
+      .setColor(FLAG_RED);
+    led.push([utc, "APPLY", sheetName, targetCol + wired[i].row, "", "", "red",
+      "wired cell computes " + live + " but the disclosure says " +
+      wired[i].value + " — the source sheet is not updated, or the mapping " +
+      "is wrong"]);
+  }
+  const extra: (string | number)[][] = [];
+  for (let i: number = 0; i < conflicts.length; i++)
+    extra.push([sheetName, conflicts[i].row, conflicts[i].label, "",
+      "CONFLICT", "this cell is a formula; its result does not match the " +
+      "disclosed figure — check the source sheet", "", "", "red"]);
+  for (let i: number = 0; i < embedded.length; i++)
+    extra.push([sheetName, embedded[i].row, embedded[i].label, "",
+      "EMBEDDED", "formula carries a number baked in from last year: " +
+      embedded[i].formula, "", "", "red"]);
+  for (let i: number = 0; i < carried.length && i < 200; i++)
+    extra.push([sheetName, carried[i].row, carried[i].label,
+      carried[i].value, "CARRIED",
+      "typed number copied from last year — not disclosed this period", "",
+      "", ""]);
+  if (extra.length > 0)
+    plWs.getRangeByIndexes(planRows.length, 0, extra.length, 9)
+      .setValues(extra);
   if (p.acknowledgeRestatement === true)
     led.push([utc, "APPLY", sheetName, "", "", "", "",
       "analyst acknowledged the restatement scan before this write"]);
@@ -553,10 +764,15 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   }
   const shown: { label: string; why: string }[] = unmapped.slice(0, 25);
   return JSON.stringify({
-    ok: true, written: verdict.accepted.length,
+    ok: true, written: verdict.accepted.length - wired.length,
+    keptWired: wired.length,
     refused: verdict.refused.length,
     unmappedCount: unmapped.length, unmapped: shown,
-    mappedVia: via, refusals: refusals
+    mappedVia: via, refusals: refusals,
+    conflicts: conflicts, embeddedHardcodes: embedded.length,
+    carriedOver: carried.length,
+    note: (embedded.length > 0 || carried.length > 0)
+      ? "some cells carry last year's numbers — see _REPORT" : ""
   });
 }
 
@@ -700,6 +916,77 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   });
 }
 
+
+// ---------- EXTEND -------------------------------------------
+// Add the new period's column to a sheet that has none (a raw-financials
+// history sheet usually only carries reported years). Structural, so it
+// is LOCKED: the kernel refuses unless analystApproved comes back true —
+// the agent has to ask a human, and cannot vote for itself.
+// It copies the previous year's FORMATS only, never its values: a blank
+// cell reads as "not filled in yet", last year's number copied forward
+// reads as this year's actual, and that lie is the whole disease.
+function modeExtend(wb: ExcelScript.Workbook, p: Params): string {
+  const sheetName: string = String(p.sheet);
+  const ty: number = Number(p.targetYear);
+  const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
+  if (!ws) return JSON.stringify({ ok: false, why: "no sheet " + sheetName });
+  const grid: CellValue[][] = sheetGrid(ws);
+  const axis: AxisMap | null = findYearAxis(grid, String(p.periodKind || "FY"));
+  if (!axis) return JSON.stringify({ ok: false,
+    why: "no year axis found on " + sheetName });
+  if (axis[String(ty)] !== undefined)
+    return JSON.stringify({ ok: false, why: sheetName + " already has a " +
+      ty + " column (" + n2col(axis[String(ty)]) + ") — nothing to extend" });
+  let lastYear: number = -1;
+  for (const k in axis) if (Number(k) > lastYear) lastYear = Number(k);
+  if (ty !== lastYear + 1)
+    return JSON.stringify({ ok: false, why: sheetName + " ends at " +
+      lastYear + "; adding " + ty + " would skip a year. The analyst must " +
+      "say what belongs in between." });
+  const lastIdx: number = axis[String(lastYear)];
+  const newIdx: number = lastIdx + 1;
+  if (p.analystApproved !== true)
+    return JSON.stringify({ ok: false, needsApproval: true,
+      why: "structural change — not done. Ask the analyst whether to add a " +
+        ty + " column to '" + sheetName + "' (after " + n2col(lastIdx) +
+        "), then call EXTEND again with \"analystApproved\":true." });
+  // find the header row for the last year, so the new header sits with it
+  let axisRow: number = -1;
+  for (let r: number = 0; r < Math.min(grid.length, SCAN_ROWS); r++) {
+    const yt: YearMark = yearOf(grid[r][lastIdx]);
+    if (yt[0] === lastYear) { axisRow = r; break; }
+  }
+  if (axisRow < 0) return JSON.stringify({ ok: false,
+    why: "could not locate the header row for " + lastYear });
+  const header: string | number | null =
+    nextHeader(grid[axisRow][lastIdx], lastYear, ty);
+  if (header === null) return JSON.stringify({ ok: false,
+    why: "cannot write a " + ty + " header safely — " + lastYear +
+      "'s header is in a form I do not recognise. Ask the analyst to add " +
+      "the column header, then re-run PREFLIGHT." });
+  const shifted: boolean = !columnIsEmpty(grid, newIdx);
+  const newCol: string = n2col(newIdx);
+  if (shifted)
+    ws.getRange(newCol + ":" + newCol).insert(
+      ExcelScript.InsertShiftDirection.right);
+  const nRows: number = grid.length;
+  const lastCol: string = n2col(lastIdx);
+  ws.getRange(newCol + "1:" + newCol + nRows).copyFrom(
+    ws.getRange(lastCol + "1:" + lastCol + nRows),
+    ExcelScript.RangeCopyType.formats);
+  const hCell: ExcelScript.Range = ws.getRange(newCol + (axisRow + 1));
+  if (typeof header === "number") hCell.setValue(header);
+  else hCell.setValue(header);
+  ledgerAppend(wb, [[new Date().toISOString(), "EXTEND", sheetName,
+    newCol + (axisRow + 1), "", String(header), "",
+    "analyst-approved new period column" +
+      (shifted ? " (inserted, columns shifted right)" : "")]]);
+  return JSON.stringify({ ok: true, sheet: sheetName, newCol: newCol,
+    header: header, inserted: shifted,
+    note: "column added, formats copied from " + lastCol +
+      ", values left EMPTY. Run PREFLIGHT again to pick it up." });
+}
+
 // ---------- REPORT -------------------------------------------
 // The analyst's page. A VISIBLE first sheet so the workbook opens on it,
 // every listed cell a clickable link sitting next to its LIVE value
@@ -729,6 +1016,8 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   const orange: ReportRow[] = [];
   const core: ReportRow[] = [];
   const moves: ReportRow[] = [];
+  const drivers: ReportRow[] = [];      // embedded hardcodes — key drivers
+  const carried: ReportRow[] = [];      // last year's typed numbers, kept
   const aliasLines: string[] = [];
   const utc: string = new Date().toISOString().substring(0, 10);
   let period: string = "";
@@ -770,6 +1059,21 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
         refused++;
         red.push({ addr: addr, sheet: sheetName, a: "", c: modelLabel,
           d: "REFUSED — not written: " + why, e: asRead, k: 0 });
+        continue;
+      }
+      if (verdict === "CONFLICT") {
+        red.push({ addr: addr, sheet: sheetName, a: "", c: modelLabel,
+          d: why, e: asRead, k: 0 });
+        continue;
+      }
+      if (verdict === "EMBEDDED") {
+        drivers.push({ addr: addr, sheet: sheetName, a: "", c: modelLabel,
+          d: why, e: "", k: 0 });
+        continue;
+      }
+      if (verdict === "CARRIED") {
+        carried.push({ addr: addr, sheet: sheetName, a: "", c: modelLabel,
+          d: why, e: "", k: 0 });
         continue;
       }
       written++;
@@ -827,7 +1131,9 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   const lines: ReportRow[] = [];
   lines.push(head("MODEL UPDATE REPORT — " + names.join(", ")));
   lines.push(head(written + " lines written · " + refused + " refused · " +
-    red.length + " red · " + orange.length + " orange · balance checks: " +
+    red.length + " red · " + orange.length + " orange · " +
+    drivers.length + " embedded hardcodes · " + carried.length +
+    " not updated · balance checks: " +
     (po.checks === 0 ? "NONE FOUND" : (po.ok ? "PASS" : "FAIL"))));
   lines.push(head(""));
   lines.push(head("1. RED — uncertain, needs your ruling (" +
@@ -838,12 +1144,28 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
     orange.length + ")"));
   for (let i: number = 0; i < orange.length; i++) lines.push(orange[i]);
   lines.push(head(""));
-  lines.push(head("3. BIG MOVES >50% year on year — check for mapping errors" +
+  lines.push(head("3. KEY DRIVERS — formulas carrying a number baked in " +
+    "from last year (" + drivers.length + ")"));
+  for (let i: number = 0; i < drivers.length && i < 25; i++)
+    lines.push(drivers[i]);
+  if (drivers.length > 25)
+    lines.push(head("   ... and " + (drivers.length - 25) +
+      " more — see the _PLAN tab"));
+  lines.push(head(""));
+  lines.push(head("4. NOT UPDATED THIS PERIOD — last year's typed numbers " +
+    "still standing (" + carried.length + ")"));
+  for (let i: number = 0; i < carried.length && i < 25; i++)
+    lines.push(carried[i]);
+  if (carried.length > 25)
+    lines.push(head("   ... and " + (carried.length - 25) +
+      " more — see the _PLAN tab"));
+  lines.push(head(""));
+  lines.push(head("5. BIG MOVES >50% year on year — check for mapping errors" +
     (moves.length > movesShown.length
       ? " (showing 15 of " + moves.length + ")" : "")));
   for (let i: number = 0; i < movesShown.length; i++) lines.push(movesShown[i]);
   lines.push(head(""));
-  lines.push(head("4. YOUR FORECAST vs THE ACTUAL" +
+  lines.push(head("6. YOUR FORECAST vs THE ACTUAL" +
     (period ? " — " + period : "") + " (biggest lines first)"));
   for (let i: number = 0; i < coreShown.length; i++) lines.push(coreShown[i]);
   const rpt: ExcelScript.Worksheet = getOrCreate(wb, "_REPORT");
@@ -868,6 +1190,7 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   return JSON.stringify({ ok: true, sheets: names, written: written,
     refused: refused, red: red.length, orange: orange.length,
     bigMoves: moves.length, coreLines: coreShown.length,
+    keyDrivers: drivers.length, notUpdated: carried.length,
     balance: po.checks === 0 ? "NOT VERIFIED" : (po.ok ? "PASS" : "FAIL"),
     specLines: specCount, aliasesLearned: aliasLines.length,
     note: "_REPORT is now the first tab — the analyst reviews there" });
@@ -889,6 +1212,7 @@ function main(workbook: ExcelScript.Workbook, input?: string): string {
     if (p.mode === "SEED") res = modeSeed(workbook);
     else if (p.mode === "PREFLIGHT") res = modePreflight(workbook, p);
     else if (p.mode === "STAGE") res = modeStage(workbook, p);
+    else if (p.mode === "EXTEND") res = modeExtend(workbook, p);
     else if (p.mode === "RESTATE") res = modeRestate(workbook, p);
     else if (p.mode === "APPLY") res = modeApply(workbook, p);
     else if (p.mode === "POLICE") res = modePolice(workbook, p);

@@ -19,6 +19,21 @@ report before deciding the next call.
    List every sheet you will update (P&L, balance sheet, cash flow).
    The reply names the prior actual column and the target column.
 
+   The reply also tells you, per sheet, `typedShare` — how much of the
+   last actual column is typed-in numbers rather than formulas. **High
+   (near 1.0) = an input sheet: actuals belong here. Low = a wired sheet
+   whose cells are formulas pointing somewhere else.** Stage the
+   disclosure into the input sheet.
+
+   If the reply carries `needsExtend`, that sheet has no column for this
+   period yet. **Ask the analyst in chat** — quote the `ask` line, which
+   names the sheet and the exact column. Only when they say yes:
+
+   `{"mode":"EXTEND","sheet":"Raw financials","targetYear":2025,"analystApproved":true}`
+
+   then run PREFLIGHT again. Never add a column on your own authority,
+   and never set `analystApproved` yourself.
+
 2. **Read the disclosure.** Transcribe the statements line by line —
    the label exactly as printed, this period's figure, and the
    prior-period comparative printed in the same row. The comparative is
@@ -48,6 +63,22 @@ report before deciding the next call.
    The reply tells you `written`, `refused`, `unmapped`, and `mappedVia`
    (how each line was matched). Refused rows are never written — the
    cell turns red for the analyst.
+
+   The kernel treats each row according to what kind of cell it is, and
+   reports the counts back to you:
+   - **typed number** → an input slot: your actual is written in.
+   - **formula** → wiring: never typed over. It is left pointing at its
+     source, and its result is checked against your figure. A mismatch
+     comes back in `conflicts` — that means the source sheet has not been
+     updated yet, or the line is mapped to the wrong row.
+   - **formula with a number baked inside** (`=Raw!E12+36`) →
+     `embeddedHardcodes`. Last year's constant has just been carried into
+     this year. The kernel flags it red for the analyst; do not try to
+     rewrite the formula yourself.
+   - **`carriedOver`** — typed numbers copied from last year that this
+     disclosure did not cover. They are listed in the report, not flagged.
+
+   Report all four counts to the analyst at the end.
 
 6. **POLICE** — `{"mode":"POLICE"}` — recalculates and checks the
    model's own balance rows across every sheet. If it answers

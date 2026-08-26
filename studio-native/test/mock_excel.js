@@ -44,6 +44,11 @@ class MockSheet {
   }
   getName() { return this.name; }
   getRange(a1) {
+    const colm = a1.match(/^([A-Z]+):([A-Z]+)$/);  // full-column range "E:E"
+    if (colm) {
+      const c1 = colToIdx(colm[1]), c2 = colToIdx(colm[2]);
+      return new MockRange(this, 0, c1, 200, c2 - c1 + 1);
+    }
     const rowm = a1.match(/^(\d+):(\d+)$/);       // full-row range "2:2"
     if (rowm) {
       const r1 = parseInt(rowm[1], 10) - 1, r2 = parseInt(rowm[2], 10) - 1;
@@ -84,12 +89,36 @@ class MockRange {
       }
   }
   setValue(v) { this.setValues([[v]]); }
+  getFormulas() {                       // formula text, else the value
+    const out = [];
+    for (let i = 0; i < this.nr; i++) {
+      const row = [];
+      for (let j = 0; j < this.nc; j++) {
+        const c = this.ws.cell(this.r + i, this.c + j);
+        row.push(c.f === null ? String(c.v) : c.f);
+      }
+      out.push(row);
+    }
+    return out;
+  }
   setFormula(f) {
     const cell = this.ws.cell(this.r, this.c);
     cell.f = f; cell.v = 0;
   }
   getRowCount() { return this.nr; }
-  insert() {                        // shift rows at r..down by nr
+  insertColumns() {                 // shift columns at c.. right by nc
+    const moved = {};
+    for (const k in this.ws.cells) {
+      const parts = k.split(":").map(Number);
+      if (parts[1] >= this.c) {
+        moved[parts[0] + ":" + (parts[1] + this.nc)] = this.ws.cells[k];
+        delete this.ws.cells[k];
+      }
+    }
+    for (const k in moved) this.ws.cells[k] = moved[k];
+  }
+  insert(dir) {                     // shift rows at r..down by nr
+    if (dir === "right") return this.insertColumns();
     const moved = {};
     for (const k in this.ws.cells) {
       const parts = k.split(":").map(Number);
@@ -108,11 +137,12 @@ class MockRange {
         delete this.ws.cells[k];
       }
   }
-  copyFrom(src) {                     // values + formulas + formats
+  copyFrom(src, copyType) {           // values + formulas + formats
     for (let i = 0; i < src.nr; i++)
       for (let j = 0; j < src.nc; j++) {
         const s = src.ws.cell(src.r + i, src.c + j);
         const d = this.ws.cell(this.r + i, this.c + j);
+        if (copyType === "formats") { d.fill = s.fill; continue; }
         d.v = s.v; d.fill = s.fill;
         // relative formula shift: =XN op YN with column offset applied
         d.f = s.f === null ? null : s.f.replace(/([A-Z]+)(\d+)/g,
@@ -160,7 +190,15 @@ class MockWorkbook {
         for (const k in ws.cells) {
           const cell = ws.cells[k];
           if (cell.f === null) continue;
-          const expr = cell.f.slice(1).replace(/([A-Z]+)(\d+)/g, (m, L, N) => {
+          // cross-sheet refs first: 'Raw'!E3 / Raw!E3
+          let expr = cell.f.slice(1).replace(
+            /'?([A-Za-z_][A-Za-z0-9_ ]*)'?!([A-Z]+)(\d+)/g, (m, S, L, N) => {
+              const other = wb.sheets[S];
+              if (!other) return "0";
+              const v = other.cell(parseInt(N, 10) - 1, colToIdx(L)).v;
+              return String(typeof v === "number" ? v : 0);
+            });
+          expr = expr.replace(/([A-Z]+)(\d+)/g, (m, L, N) => {
             const v = ws.cell(parseInt(N, 10) - 1, colToIdx(L)).v;
             return String(typeof v === "number" ? v : 0);
           });
@@ -174,9 +212,9 @@ class MockWorkbook {
 var ExcelScript = {
   SheetVisibility: { hidden: "hidden", visible: "visible" },
   ClearApplyTo: { all: "all" },
-  RangeCopyType: { all: "all" },
+  RangeCopyType: { all: "all", formats: "formats" },
   CalculationType: { full: "full" },
-  InsertShiftDirection: { down: "down" },
+  InsertShiftDirection: { down: "down", right: "right" },
 };
 
 if (typeof module !== "undefined")

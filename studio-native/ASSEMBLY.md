@@ -160,3 +160,43 @@ row, POLICE now says so instead of returning a quiet pass.
 
 Full run: PREFLIGHT → read → STAGE → RESTATE → APPLY → POLICE →
 **REPORT**.
+
+---
+
+# Phase 4 — real models: wiring, hardcodes, and the missing column
+
+Testing on your actual Dongfang model taught us three things the practice
+file could not.
+
+**8. Some sheets have no column for the new year.** `Raw financials`
+holds reported history only, so there is no 2025 column to write into.
+PREFLIGHT no longer fails on that — it comes back with a **proposal**
+naming the sheet, the last year, and the exact column that would be used.
+The agent must ask you in chat, and `EXTEND` refuses to add anything
+unless the answer comes back as `analystApproved: true`. The new column
+copies the previous year's **formats only** — never its numbers, because
+a blank cell reads as "not filled in yet" while last year's number
+copied forward reads as this year's actual.
+
+**9. A formula is never typed over.** On a wired sheet, rolling the
+column forward makes the 2025 formulas point at the 2025 source
+automatically. The kernel leaves them alone and instead **checks what
+they compute against the disclosure**. If they disagree, the cell turns
+red and the run reports a `conflict` — usually meaning the source sheet
+has not been updated yet.
+
+**10. Hardcodes are the normal case, and there are two kinds.**
+- *Typed numbers* are input slots — the actual is written straight in.
+  Any that this disclosure did not cover are listed in the report as
+  "not updated this period" (your boss's rule: no cell flag, but never
+  silent).
+- *Numbers baked inside formulas* (`=Raw!E12+36`) are the **key
+  drivers** your boss's mindmap asks for. Rolling the column forward
+  carries last year's constant into this year, where it is invisible.
+  Every one of them is flagged red and listed in the report's KEY DRIVERS
+  section with the formula spelled out, so you can judge it. The agent
+  never rewrites a formula's insides on its own.
+
+The `_REPORT` tab now has six sections: red rulings · orange back-outs ·
+key drivers · not updated this period · big moves · your forecast vs the
+actual.
