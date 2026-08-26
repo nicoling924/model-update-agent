@@ -58,7 +58,7 @@ class MockSheet {
     return new MockRange(this, r, c, 1, 1);
   }
   getRangeByIndexes(r, c, nr, nc) { return new MockRange(this, r, c, nr, nc); }
-  setVisibility(v) { this.hidden = true; }
+  setVisibility(v) { this.hidden = v !== "visible"; }
 }
 
 class MockRange {
@@ -166,7 +166,7 @@ class MockWorkbook {
 }
 
 var ExcelScript = {
-  SheetVisibility: { hidden: "hidden" },
+  SheetVisibility: { hidden: "hidden", visible: "visible" },
   ClearApplyTo: { all: "all" },
   RangeCopyType: { all: "all" },
   CalculationType: { full: "full" },

@@ -17,7 +17,13 @@ interface PlanEntry {
   page?: string;
 }
 
-interface Refusal { entry: PlanEntry; why: string; }
+// A refusal speaks twice. `why` is the FULL reason and goes to _PLAN /
+// _LEDGER, where the analyst reads it. `brief` is all the Agent is told —
+// deliberately stripped of the model's own stored figure, because an
+// Agent that is shown the number it failed to match can simply echo that
+// number back and walk straight through the referee (anti-gaming law,
+// 2026-08-26). Never widen `brief` to include model values.
+interface Refusal { entry: PlanEntry; why: string; brief: string; }
 interface PlanVerdict { accepted: PlanEntry[]; refused: Refusal[]; }
 interface SubtotalCheck { keys: string[]; totalKey: string; }
 interface SubtotalFailure { totalKey: string; sum: number; total: number; }
@@ -54,16 +60,22 @@ function validateWritePlan(entries: PlanEntry[],
     const prior: number | undefined = priors[key];
     const flagged: boolean = e.flag === "red" || e.flag === "orange";
     if (typeof e.value !== "number" && !flagged) {
-      refused.push({ entry: e, why: "non-numeric value without a flag" });
+      refused.push({ entry: e, why: "non-numeric value without a flag",
+        brief: "no number and no flag — give a number, or flag it red " +
+               "with a methodology note" });
       continue;
     }
     if (flagged && !(e.note && String(e.note).trim())) {
-      refused.push({ entry: e, why: "flagged cell missing methodology note" });
+      refused.push({ entry: e, why: "flagged cell missing methodology note",
+        brief: "flagged cell has no methodology note — say how the " +
+               "figure was derived" });
       continue;
     }
     if (!flagged) {
       if (typeof prior !== "number" || typeof e.priorDisclosed !== "number") {
-        refused.push({ entry: e, why: "no prior-year tie proof (" + key + ")" });
+        refused.push({ entry: e, why: "no prior-year tie proof (" + key + ")",
+          brief: "no prior-year tie proof — also read this line's " +
+                 "prior-year comparative from the same disclosure row" });
         continue;
       }
       if (!tieOk(prior, e.priorDisclosed)) {
@@ -71,7 +83,11 @@ function validateWritePlan(entries: PlanEntry[],
           entry: e,
           why: "prior mismatch: model holds " + prior +
                ", disclosure comparative reads " + e.priorDisclosed +
-               " — wrong row, restatement, or misread"
+               " — wrong row, restatement, or misread",
+          brief: "prior-year comparative does not tie to the model — you " +
+                 "likely read the wrong row, or this line was restated. " +
+                 "Re-read the disclosure; NEVER change a number to make " +
+                 "this pass"
         });
         continue;
       }

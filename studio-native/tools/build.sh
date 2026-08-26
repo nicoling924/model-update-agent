@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$DIR/dist"
 OUT="$DIR/dist/kernel.paste.ts"
 CORE="${TMPDIR:-/tmp}/core_laws.$$.ts"
-cat "$DIR/core/axis.ts" "$DIR/core/ties.ts" > "$CORE"
+cat "$DIR/core/axis.ts" "$DIR/core/ties.ts" "$DIR/core/mapping.ts" > "$CORE"
 awk -v corefile="$CORE" '
   /__CORE_LAWS__/ { while ((getline line < corefile) > 0) print line; next }
   { print }

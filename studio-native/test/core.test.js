@@ -80,6 +80,63 @@ t("orange backout with note accepted", v.accepted.some(e => e.row === 12));
 t("flag without note refused", v.refused.some(r => r.entry.row === 13));
 t("unflagged without tie proof refused", v.refused.some(r => r.entry.row === 14));
 
+// anti-gaming law: the Agent-facing brief must never quote the model's
+// own stored figure back (an Agent shown the number can echo it and walk
+// straight through the referee).
+const mm = v.refused.filter(r => r.entry.row === 11)[0];
+t("refusal detail names both numbers (for _PLAN)",
+  /4976|380/.test(mm.why) || /model holds/.test(mm.why));
+t("agent-facing brief leaks NO model number",
+  !/380|4976|355/.test(mm.brief) && /do not tie|does not tie/i.test(mm.brief));
+
+// --- the mapping cascade (Phase 2) -------------------------------------
+const anat = [
+  { sheet: "Model", row: 4, label: "    营业总收入", prior: 69695.14 },
+  { sheet: "Model", row: 5, label: "    营业收入", prior: 68592.74 },
+  { sheet: "Model", row: 8, label: "        营业成本", prior: 58876.11 },
+  { sheet: "Model", row: 12, label: "    研发费用", prior: 3009.01 },
+  { sheet: "Model", row: 14, label: "        其中：利息费用", prior: 82.97 },
+  { sheet: "Model", row: 20, label: "    资产减值损失", prior: -1148.01 },
+];
+const mreq = (label, prior, rowHint) =>
+  ({ label: label, prior: prior === undefined ? null : prior,
+     rowHint: rowHint === undefined ? 0 : rowHint });
+const M = mapAll([
+  mreq("    营业总收入", 69695.14),          // exact, indentation levelled
+  mreq("其中：营业收入", 68592.74),          // the Phase 1 killer: prefix
+  mreq("营业成本", 58876.11),                // depth stripped
+  mreq("利息费用", 82.97),                   // model side carries the prefix
+  mreq("研究开发费用", 3009.01),             // NO name match — prior finds it
+  mreq("资产减值损失（损失以“－”号填列）", -1148.01),  // full-width furniture
+], anat);
+t("cascade: exact match", M[0].row === 4 && M[0].via === "exact");
+t("cascade: 其中： prefix stripped", M[1].row === 5 && M[1].via === "norm");
+t("cascade: indentation/depth ignored", M[2].row === 8 && M[2].via === "exact");
+t("cascade: model-side prefix stripped", M[3].row === 14 && M[3].via === "norm");
+t("cascade: unknown name found by prior value",
+  M[4].row === 12 && M[4].via === "prior");
+t("cascade: full-width suffix line still maps", M[5].row === 20);
+
+// guards: never guess, never double-claim
+const dup = [
+  { sheet: "M", row: 2, label: "Revenue", prior: 100 },
+  { sheet: "M", row: 9, label: "revenue", prior: 250 },
+];
+t("ambiguous label resolved by the prior figure",
+  mapAll([mreq("Revenue", 250)], dup)[0].row === 9);
+const G = mapAll([mreq("Revenue", 999)], dup)[0];
+t("ambiguity with no tie is NOT guessed",
+  G.row === -1 && /ambiguous/.test(G.why));
+const C = mapAll([mreq("Revenue", 100), mreq("营业收入", 100, 2)],
+  [{ sheet: "M", row: 2, label: "Revenue", prior: 100 }]);
+t("one row, one claim", C[0].row === 2 && C[1].row === -1 &&
+  /already taken/.test(C[1].why));
+t("zero-ish priors never map by value",
+  mapAll([mreq("mystery line", 0)],
+    [{ sheet: "M", row: 3, label: "other", prior: 0 }])[0].row === -1);
+t("agent row hint is the LAST resort, not the first",
+  mapAll([mreq("其中：营业收入", 68592.74, 99)], anat)[0].row === 5);
+
 const sums = checkSubtotals(
   { a: 100, b: 200, tot: 301, c: 50, d: null, tot2: 60 },
   [{ keys: ["a", "b"], totalKey: "tot" }, { keys: ["c", "d"], totalKey: "tot2" }]);

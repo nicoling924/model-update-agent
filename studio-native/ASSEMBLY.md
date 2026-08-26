@@ -84,3 +84,49 @@ Run twice:
 300-page documents, notes/segments, restatements, roll-forward,
 interim panels, multi-sheet, k=2 double-checking, live-file runs.
 Phase 1 is the referee's proof, not the product.
+
+---
+
+# Phase 2 — what changed (2026-08-26)
+
+Phase 1 passed in your tenant: the sabotage was refused, and the real
+Dongfang P&L run wrote 10 lines with zero bad numbers. But 55 of the 65
+lines you read never found a home, because Phase 1 matched labels
+letter-for-letter. Phase 2 fixes that and adds the two things a real run
+needs. **The paste-in step is the same: replace the script with the new
+`dist/kernel.txt` and save.** Nothing else in your setup changes.
+
+**1. The mapping cascade.** A disclosure line now finds its model row
+four ways, strongest first: the same label · the same label once
+`其中：` / `一、` / `减：` / indentation are stripped · **the prior-year
+figure** (if the model holds 3,009.01 on exactly one row and your
+comparative reads 3,009.01, that is the row — no name needed) · finally
+your own row number, if you gave one. If two rows could match and the
+prior-year figure does not single one out, it maps nothing and tells
+you — it never guesses. One model row can only be claimed once.
+
+**2. The restatement full stop.** New call `{"mode":"RESTATE"}` after
+STAGE. It compares every comparative you read against the model's
+history. Three or more disagreements = the past changed: the run stops,
+a visible **_RESTATE** tab shows the analyst exactly which lines and by
+how much, and APPLY refuses to write anything until a human rules. This
+is your boss's rule, enforced in code rather than in a prompt.
+
+**3. Three statements in one run.** PREFLIGHT now takes
+`"sheets":["Model","BS","CF"]` and remembers each; APPLY runs once per
+sheet; POLICE sweeps them all — and it now checks the balance rows in
+the prior year as well as the new one, so a model that arrived broken
+says so.
+
+**4. Refusals no longer quote the model back at you.** The agent is told
+"this comparative does not tie — re-read the row", never the model's own
+figure. An agent that is shown the number it failed to match can simply
+echo it back and walk through the referee. The full detail still goes to
+`_PLAN` for you.
+
+**Updated Instructions for the agent** are in `prompts/instructions.md`
+— paste the whole file into the agent's Instructions box, replacing what
+is there.
+
+Order of a Phase 2 run: PREFLIGHT → read → STAGE → **RESTATE** → APPLY
+(per sheet) → POLICE → report.

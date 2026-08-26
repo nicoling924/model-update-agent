@@ -11,10 +11,16 @@
 //   _LEDGER   append-only forensic trail
 // Modes (input = JSON string; EMPTY input = SEED):
 //   SEED      build the Phase 1 practice model into sheet 'Model'
-//   PREFLIGHT {"mode":"PREFLIGHT","sheet":"Model","periodKind":"FY","targetYear":2025}
-//   STAGE     {"mode":"STAGE","rows":[[label,value,prior,page,flag,note],...]}
+//   PREFLIGHT {"mode":"PREFLIGHT","sheets":["Model","BS"],"periodKind":"FY","targetYear":2025}
+//   STAGE     {"mode":"STAGE","rows":[[label,value,prior,page,flag,note,sheet,row],...]}
+//   RESTATE   {"mode":"RESTATE"}                    scan comparatives, may STOP
 //   APPLY     {"mode":"APPLY","sheet":"Model","targetYear":2025}
-//   POLICE    {"mode":"POLICE","sheet":"Model"}
+//   POLICE    {"mode":"POLICE"}                     all preflighted sheets
+// Phase 2 (2026-08-26) adds: the mapping cascade (core/mapping.ts) so a
+// line is found by meaning and by its prior-year figure, not by an exact
+// label; several sheets in one run (P&L + BS + CF); the boss-mandated
+// RESTATEMENT FULL STOP; and refusal messages that never quote the
+// model's own numbers back to the Agent.
 // The pure-law section below (axis + ties) is generated from
 // studio-native/core/*.ts — edit THOSE files, run build.sh,
 // never edit the laws inside this file.
@@ -27,13 +33,23 @@
 interface Params {
   mode: string;
   sheet?: string;
+  sheets?: string[];
   periodKind?: string;
   targetYear?: number;
   rows?: (string | number | null)[][];
+  acknowledgeRestatement?: boolean;
 }
 
-interface CheckVerdict { row: number; label: string; value: number;
-  pass: boolean; }
+interface CheckVerdict { sheet: string; row: number; label: string;
+  value: number; pass: boolean; }
+
+// One sheet's slice of _ANATOMY: the labelled rows with the prior values
+// the referee triangulates against, plus that sheet's column recipe.
+interface AnatomyView {
+  rows: AnatomyRow[];
+  priorCol: string; targetCol: string;
+  axisRow: number; axisHeader: string;
+}
 
 const FLAG_RED: string = "FFC7CE";     // uncertain — analyst review
 const FLAG_ORANGE: string = "FFC000";  // backed-out — awaiting true-up
@@ -74,6 +90,58 @@ function labelOf(grid: CellValue[][], row: number): string {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return "";
+}
+
+// _ANATOMY layout: [sheet, row, label, priorValue, priorCol, targetCol].
+// One row per labelled model row, plus ONE meta row per sheet keyed
+// '__meta__:<sheet>' carrying the axis header cell (Phase 2: per sheet,
+// because a run now covers P&L + BS + CF at once).
+function metaKey(sheet: string): string { return "__meta__:" + sheet; }
+
+function readAnatomy(wb: ExcelScript.Workbook,
+                     sheetName: string): AnatomyView | null {
+  const anWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_ANATOMY");
+  if (!anWs) return null;
+  const an: CellValue[][] = sheetGrid(anWs);
+  const view: AnatomyView = { rows: [], priorCol: "", targetCol: "",
+    axisRow: -1, axisHeader: "" };
+  const mk: string = metaKey(sheetName);
+  for (let i: number = 1; i < an.length; i++) {
+    const sh: string = String(an[i][0]);
+    if (sh === mk) {
+      view.axisRow = Number(an[i][1]);
+      view.axisHeader = String(an[i][2]);
+      view.priorCol = String(an[i][4]);
+      view.targetCol = String(an[i][5]);
+      continue;
+    }
+    if (sh !== sheetName) continue;
+    const pv: CellValue = an[i][3];
+    if (typeof pv !== "number") continue;
+    view.rows.push({ sheet: sh, row: Number(an[i][1]),
+      label: String(an[i][2]), prior: pv });
+    if (!view.priorCol) {
+      view.priorCol = String(an[i][4]); view.targetCol = String(an[i][5]);
+    }
+  }
+  return view.priorCol ? view : null;
+}
+
+// Every model sheet the current _ANATOMY covers, in the order preflighted.
+function anatomySheets(wb: ExcelScript.Workbook): string[] {
+  const anWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_ANATOMY");
+  if (!anWs) return [];
+  const an: CellValue[][] = sheetGrid(anWs);
+  const seen: { [k: string]: boolean } = {};
+  const out: string[] = [];
+  for (let i: number = 1; i < an.length; i++) {
+    const sh: string = String(an[i][0]);
+    if (sh.indexOf("__meta__:") !== 0) continue;
+    const name: string = sh.substring(9);
+    if (seen[name]) continue;
+    seen[name] = true; out.push(name);
+  }
+  return out;
 }
 
 // ---------- SEED ---------------------------------------------
@@ -128,21 +196,22 @@ function modeSeed(wb: ExcelScript.Workbook): string {
 // prior actual column and the target column, and write every labelled
 // row's prior value into _ANATOMY. _ANATOMY becomes the oracle the
 // APPLY mode triangulates against.
-function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
-  const sheetName: string = String(p.sheet);
-  const ty: number = Number(p.targetYear);
+// Phase 2: takes ONE sheet or MANY ({"sheets":["Model","BS","CF"]}) and
+// APPENDS to _ANATOMY — preflighting the balance sheet must not erase what
+// was learned about the P&L. Only the sheets in this call are rebuilt.
+function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
+                        periodKind: string, ty: number,
+                        out: (string | number)[][]): string {
   const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
-  if (!ws) return JSON.stringify({ ok: false, why: "no sheet " + sheetName });
+  if (!ws) return "no sheet " + sheetName;
   const grid: CellValue[][] = sheetGrid(ws);
-  const axis: AxisMap | null = findYearAxis(grid, String(p.periodKind || "FY"));
-  if (!axis) return JSON.stringify({ ok: false, why: "no year axis found" });
+  const axis: AxisMap | null = findYearAxis(grid, periodKind);
+  if (!axis) return "no year axis found on " + sheetName;
   const tCol: number | undefined = axis[String(ty)];
   const pCol: number | undefined = axis[String(ty - 1)];
   if (tCol === undefined || pCol === undefined)
-    return JSON.stringify({
-      ok: false,
-      why: "axis lacks " + ty + " or prior; axis=" + JSON.stringify(axis)
-    });
+    return "axis on " + sheetName + " lacks " + ty + " or prior; axis=" +
+      JSON.stringify(axis);
   // locate the axis header row (the row whose target cell marks the year)
   // — APPLY must restore this cell after the bulk column copy, or the
   // prior year's header stamps over the target's (a header is data too).
@@ -153,26 +222,68 @@ function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
   }
   const headerVal: CellValue = (axisRow >= 0 && grid[axisRow])
     ? grid[axisRow][tCol] : "";
-  const rows: (string | number)[][] = [
-    ["__meta__", axisRow, String(headerVal), 0, n2col(pCol), n2col(tCol)]];
+  out.push([metaKey(sheetName), axisRow, String(headerVal), 0,
+    n2col(pCol), n2col(tCol)]);
   for (let r: number = 0; r < grid.length; r++) {
     const lab: string = labelOf(grid, r);
     if (!lab) continue;
     const pv: CellValue = grid[r][pCol];
     if (typeof pv !== "number") continue;
-    rows.push([sheetName, r + 1, lab, pv, n2col(pCol), n2col(tCol)]);
+    out.push([sheetName, r + 1, lab, pv, n2col(pCol), n2col(tCol)]);
   }
+  return "";
+}
+
+function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
+  const names: string[] = (p.sheets && p.sheets.length > 0)
+    ? p.sheets : [String(p.sheet)];
+  const ty: number = Number(p.targetYear);
+  const kind: string = String(p.periodKind || "FY");
   const an: ExcelScript.Worksheet = getOrCreate(wb, "_ANATOMY");
+  // keep what other sheets already taught us; rebuild only these sheets
+  const old: CellValue[][] = sheetGrid(an);
+  const keep: (string | number)[][] = [];
+  for (let i: number = 1; i < old.length; i++) {
+    const sh: string = String(old[i][0]);
+    let inScope: boolean = false;
+    for (let j: number = 0; j < names.length; j++)
+      if (sh === names[j] || sh === metaKey(names[j])) inScope = true;
+    if (inScope) continue;
+    keep.push([sh, Number(old[i][1]), String(old[i][2]),
+      (typeof old[i][3] === "number") ? (old[i][3] as number) : 0,
+      String(old[i][4]), String(old[i][5])]);
+  }
+  const fresh: (string | number)[][] = [];
+  const problems: { sheet: string; why: string }[] = [];
+  const done: { sheet: string; priorCol: string; targetCol: string;
+    rows: number }[] = [];
+  for (let i: number = 0; i < names.length; i++) {
+    const before: number = fresh.length;
+    const err: string = preflightSheet(wb, names[i], kind, ty, fresh);
+    if (err) { problems.push({ sheet: names[i], why: err }); continue; }
+    const meta: (string | number)[] = fresh[before];
+    done.push({ sheet: names[i], priorCol: String(meta[4]),
+      targetCol: String(meta[5]), rows: fresh.length - before - 1 });
+  }
+  const rows: (string | number)[][] = keep.concat(fresh);
   const ur: ExcelScript.Range | undefined = an.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
   an.getRange("A1:F1").setValues([[
     "sheet", "row", "label", "priorValue", "priorCol", "targetCol"]]);
   if (rows.length > 0)
     an.getRangeByIndexes(1, 0, rows.length, 6).setValues(rows);
-  return JSON.stringify({
-    ok: true, axis: axis, priorCol: n2col(pCol), targetCol: n2col(tCol),
-    anatomyRows: rows.length - 1
-  });
+  let labelled: number = 0;
+  for (let i: number = 0; i < done.length; i++) labelled += done[i].rows;
+  const res: { [k: string]: CellValue | object } = {
+    ok: problems.length === 0, sheets: done, anatomyRows: labelled
+  };
+  if (done.length > 0) {                    // single-sheet convenience
+    res["priorCol"] = done[0].priorCol; res["targetCol"] = done[0].targetCol;
+  }
+  if (problems.length > 0) {
+    res["why"] = problems[0].why; res["problems"] = problems;
+  }
+  return JSON.stringify(res);
 }
 
 // ---------- STAGE --------------------------------------------
@@ -184,23 +295,25 @@ function modeStage(wb: ExcelScript.Workbook, p: Params): string {
   const st: ExcelScript.Worksheet = getOrCreate(wb, "_STAGING");
   const ur: ExcelScript.Range | undefined = st.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
-  st.getRange("A1:F1").setValues([[
-    "label", "value", "priorDisclosed", "sourcePage", "flag", "note"]]);
+  st.getRange("A1:H1").setValues([[
+    "label", "value", "priorDisclosed", "sourcePage", "flag", "note",
+    "sheet", "row"]]);
   const rows: (string | number | null)[][] = p.rows ? p.rows : [];
   const norm: (string | number)[][] = [];
+  const txt = (v: string | number | null | undefined): string =>
+    String(v === null || v === undefined ? "" : v);
   for (let i: number = 0; i < rows.length; i++) {
     const r: (string | number | null)[] = rows[i];
-    const val: string | number =
-      (typeof r[1] === "number") ? r[1] : "";
-    const pri: string | number =
-      (typeof r[2] === "number") ? r[2] : "";
-    norm.push([String(r[0] === null || r[0] === undefined ? "" : r[0]),
-      val, pri, String(r[3] === null || r[3] === undefined ? "" : r[3]),
-      String(r[4] === null || r[4] === undefined ? "" : r[4]),
-      String(r[5] === null || r[5] === undefined ? "" : r[5])]);
+    const val: string | number = (typeof r[1] === "number") ? r[1] : "";
+    const pri: string | number = (typeof r[2] === "number") ? r[2] : "";
+    // cols 7-8 are Phase 2 and optional: an explicit sheet, and a row
+    // number when the Agent wants to name the row itself (still refereed)
+    const hintRow: number = (typeof r[7] === "number") ? r[7] : 0;
+    norm.push([txt(r[0]), val, pri, txt(r[3]), txt(r[4]), txt(r[5]),
+      txt(r[6]), hintRow]);
   }
   if (norm.length > 0)
-    st.getRangeByIndexes(1, 0, norm.length, 6).setValues(norm);
+    st.getRangeByIndexes(1, 0, norm.length, 8).setValues(norm);
   return JSON.stringify({ ok: true, staged: norm.length });
 }
 
@@ -214,55 +327,69 @@ function modeStage(wb: ExcelScript.Workbook, p: Params): string {
 // target cell red with the refusal reason in _PLAN.
 function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   const sheetName: string = String(p.sheet);
-  const anWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_ANATOMY");
   const stWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_STAGING");
-  if (!anWs || !stWs)
+  const view: AnatomyView | null = readAnatomy(wb, sheetName);
+  if (!view || !stWs)
     return JSON.stringify({ ok: false, why: "run PREFLIGHT first / no _STAGING" });
-  const an: CellValue[][] = sheetGrid(anWs);
-  const st: CellValue[][] = sheetGrid(stWs);
-  // anatomy: label -> {row, prior}; priors keyed Sheet!row for the referee
-  const byLabel: { [k: string]: { row: number; prior: number } } = {};
-  const priors: { [k: string]: number } = {};
-  let priorCol: string = "";
-  let targetCol: string = "";
-  let axisRow: number = -1;
-  let axisHeader: string = "";
-  for (let i: number = 1; i < an.length; i++) {
-    const sh: CellValue = an[i][0];
-    const row: number = Number(an[i][1]);
-    const lab: string = String(an[i][2]);
-    const pv: CellValue = an[i][3];
-    if (sh === "__meta__") {                 // axis header bookkeeping
-      axisRow = row; axisHeader = lab;
-      priorCol = String(an[i][4]); targetCol = String(an[i][5]);
-      continue;
-    }
-    if (sh !== sheetName) continue;
-    if (typeof pv !== "number") continue;
-    byLabel[lab.toLowerCase()] = { row: row, prior: pv };
-    priors[sheetName + "!" + row] = pv;
-    priorCol = String(an[i][4]); targetCol = String(an[i][5]);
+  // BOSS LAW (restatement = the past changed): once the comparatives scan
+  // says the prior year was restated, NOTHING is written until the analyst
+  // rules. The Agent cannot wave this through on its own — it must come
+  // back with acknowledgeRestatement after a human answers.
+  const rsWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_RESTATE");
+  if (rsWs) {
+    const banner: CellValue = rsWs.getRange("A1").getValues()[0][0] as CellValue;
+    if (/SUSPECT/i.test(String(banner)) && p.acknowledgeRestatement !== true)
+      return JSON.stringify({ ok: false, stop: true,
+        why: "restatement suspected — nothing written. The analyst must " +
+             "rule first (open the _RESTATE tab, and ask them for the " +
+             "prior-year report). Re-run APPLY with " +
+             "\"acknowledgeRestatement\":true only after they answer." });
   }
-  if (!priorCol)
-    return JSON.stringify({ ok: false, why: "_ANATOMY empty for " + sheetName });
-  // staging: label | value | priorDisclosed | sourcePage | flag | note
-  const entries: PlanEntry[] = [];
-  const unmapped: string[] = [];
+  const st: CellValue[][] = sheetGrid(stWs);
+  const priors: { [k: string]: number } = {};
+  for (let i: number = 0; i < view.rows.length; i++)
+    priors[sheetName + "!" + view.rows[i].row] = view.rows[i].prior;
+  const priorCol: string = view.priorCol;
+  const targetCol: string = view.targetCol;
+  const axisRow: number = view.axisRow;
+  const axisHeader: string = view.axisHeader;
+  // staging: label|value|priorDisclosed|page|flag|note|sheet|row
+  // Rows naming another sheet are left for that sheet's APPLY.
+  const reqs: MapReq[] = [];
+  const staged: number[] = [];
   for (let i: number = 1; i < st.length; i++) {
     const lab: string = String(st[i][0] === undefined ? "" : st[i][0]).trim();
     if (!lab) continue;
-    const hit: { row: number; prior: number } | undefined =
-      byLabel[lab.toLowerCase()];
-    if (!hit) { unmapped.push(lab); continue; }
+    const hintSheet: string = String(st[i][6] === undefined ? "" : st[i][6]).trim();
+    if (hintSheet && hintSheet !== sheetName) continue;
+    reqs.push({ label: lab,
+      prior: (typeof st[i][2] === "number") ? (st[i][2] as number) : null,
+      rowHint: (typeof st[i][7] === "number") ? (st[i][7] as number) : 0 });
+    staged.push(i);
+  }
+  // THE CASCADE: exact -> normalised -> prior-value triangulation -> hint
+  const hits: MapHit[] = mapAll(reqs, view.rows);
+  const entries: PlanEntry[] = [];
+  const unmapped: { label: string; why: string }[] = [];
+  const via: { [k: string]: number } = {};
+  const viaByRow: { [k: string]: string } = {};
+  for (let k: number = 0; k < reqs.length; k++) {
+    const i: number = staged[k];
+    if (hits[k].row <= 0) {
+      unmapped.push({ label: reqs[k].label, why: hits[k].why });
+      continue;
+    }
+    via[hits[k].via] = (via[hits[k].via] === undefined ? 0 : via[hits[k].via]) + 1;
+    viaByRow[String(hits[k].row)] = hits[k].via;
     const rawV: CellValue = st[i][1];
     const rawP: CellValue = st[i][2];
     entries.push({
-      sheet: sheetName, row: hit.row,
+      sheet: sheetName, row: hits[k].row,
       value: (typeof rawV === "number") ? rawV : null,
       priorDisclosed: (typeof rawP === "number") ? rawP : null,
       flag: String(st[i][4] === undefined ? "" : st[i][4]),
       note: String(st[i][5] === undefined ? "" : st[i][5]),
-      label: lab,
+      label: reqs[k].label,
       page: String(st[i][3] === undefined ? "" : st[i][3])
     });
   }
@@ -272,21 +399,24 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   const pur: ExcelScript.Range | undefined = plWs.getUsedRange();
   if (pur) pur.clear(ExcelScript.ClearApplyTo.all);
   const planRows: (string | number)[][] = [[
-    "sheet", "row", "label", "value", "verdict", "why", "page"]];
+    "sheet", "row", "label", "value", "verdict", "why", "page", "mappedVia"]];
   for (let i: number = 0; i < verdict.accepted.length; i++) {
     const e: PlanEntry = verdict.accepted[i];
     planRows.push([e.sheet, e.row, e.label ? e.label : "",
       (typeof e.value === "number") ? e.value : "",
-      "ACCEPT", e.flag, e.page ? e.page : ""]);
+      "ACCEPT", e.flag, e.page ? e.page : "", viaByRow[String(e.row)]]);
   }
   for (let i: number = 0; i < verdict.refused.length; i++) {
     const r: Refusal = verdict.refused[i];
+    // _PLAN carries the FULL reason (the analyst reads it here); the
+    // Agent only ever sees the sanitized `brief`.
     planRows.push([r.entry.sheet, r.entry.row,
       r.entry.label ? r.entry.label : "",
       (typeof r.entry.value === "number") ? r.entry.value : "",
-      "REFUSE", r.why, r.entry.page ? r.entry.page : ""]);
+      "REFUSE", r.why, r.entry.page ? r.entry.page : "",
+      viaByRow[String(r.entry.row)]]);
   }
-  plWs.getRangeByIndexes(0, 0, planRows.length, 7).setValues(planRows);
+  plWs.getRangeByIndexes(0, 0, planRows.length, 8).setValues(planRows);
   // ---- mutate the model ----
   const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
   if (!ws) return JSON.stringify({ ok: false, why: "no sheet " + sheetName });
@@ -326,51 +456,152 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
     ws.getRange(addr).getFormat().getFill().setColor(FLAG_RED);
     led.push([utc, "APPLY", r.entry.sheet, addr, "", "", "red", r.why]);
   }
+  if (p.acknowledgeRestatement === true)
+    led.push([utc, "APPLY", sheetName, "", "", "", "",
+      "analyst acknowledged the restatement scan before this write"]);
   if (led.length > 0) ledgerAppend(wb, led);
-  const refusals: { row: number; why: string }[] = [];
-  for (let i: number = 0; i < verdict.refused.length; i++)
-    refusals.push({ row: verdict.refused[i].entry.row,
-      why: verdict.refused[i].why });
+  // What the Agent is told: sanitized. Refusals name the row and the
+  // disclosure label it staged, never the model's stored figure.
+  const refusals: { row: number; label: string; why: string }[] = [];
+  for (let i: number = 0; i < verdict.refused.length; i++) {
+    const r: Refusal = verdict.refused[i];
+    refusals.push({ row: r.entry.row, label: r.entry.label ? r.entry.label : "",
+      why: r.brief });
+  }
+  const shown: { label: string; why: string }[] = unmapped.slice(0, 25);
   return JSON.stringify({
     ok: true, written: verdict.accepted.length,
-    refused: verdict.refused.length, unmappedLabels: unmapped,
-    refusals: refusals
+    refused: verdict.refused.length,
+    unmappedCount: unmapped.length, unmapped: shown,
+    mappedVia: via, refusals: refusals
+  });
+}
+
+// ---------- RESTATE ------------------------------------------
+// BOSS LAW (mindmap section B): when the disclosure's comparatives no
+// longer agree with the model's history, the PAST changed — the agent
+// STOPS COMPLETELY and asks the analyst (for the prior-year report, and
+// for permission to restate, with the warning that restating financials
+// can break reconciliation with unrestated operational data).
+// This mode is the detector. It maps the staged lines with the same
+// cascade APPLY uses, compares every prior-year comparative against what
+// the model holds, and writes the evidence to a VISIBLE _RESTATE tab for
+// the analyst. The Agent is told only WHICH lines differ, never by how
+// much — the numbers are the analyst's to read, and telling the Agent
+// would hand it the answer key.
+function modeRestate(wb: ExcelScript.Workbook, p: Params): string {
+  const names: string[] = p.sheet ? [String(p.sheet)] : anatomySheets(wb);
+  const stWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_STAGING");
+  if (names.length === 0 || !stWs)
+    return JSON.stringify({ ok: false, why: "run PREFLIGHT and STAGE first" });
+  const st: CellValue[][] = sheetGrid(stWs);
+  const detail: (string | number)[][] = [];
+  const labels: string[] = [];
+  let compared: number = 0;
+  let noComparative: number = 0;
+  for (let s: number = 0; s < names.length; s++) {
+    const sheetName: string = names[s];
+    const view: AnatomyView | null = readAnatomy(wb, sheetName);
+    if (!view) continue;
+    const reqs: MapReq[] = [];
+    for (let i: number = 1; i < st.length; i++) {
+      const lab: string = String(st[i][0] === undefined ? "" : st[i][0]).trim();
+      if (!lab) continue;
+      const hintSheet: string =
+        String(st[i][6] === undefined ? "" : st[i][6]).trim();
+      if (hintSheet && hintSheet !== sheetName) continue;
+      reqs.push({ label: lab,
+        prior: (typeof st[i][2] === "number") ? (st[i][2] as number) : null,
+        rowHint: (typeof st[i][7] === "number") ? (st[i][7] as number) : 0 });
+    }
+    const hits: MapHit[] = mapAll(reqs, view.rows);
+    for (let k: number = 0; k < reqs.length; k++) {
+      if (hits[k].row <= 0) continue;
+      const dp: number | string | null = reqs[k].prior;
+      if (typeof dp !== "number") { noComparative++; continue; }
+      let held: number | null = null;
+      for (let j: number = 0; j < view.rows.length; j++)
+        if (view.rows[j].row === hits[k].row) held = view.rows[j].prior;
+      if (held === null) continue;
+      compared++;
+      if (tieOk(held, dp)) continue;
+      labels.push(reqs[k].label);
+      const diff: number = dp - held;
+      detail.push([sheetName, hits[k].row, reqs[k].label, held, dp, diff,
+        held === 0 ? "" : Math.round(diff / Math.abs(held) * 1000) / 10]);
+    }
+  }
+  const many: boolean = detail.length >= 3 ||
+    (compared > 0 && detail.length >= 2 && detail.length / compared >= 0.25);
+  let banner: string = "Comparatives scan: clean — every prior-year " +
+    "comparative ties to the model.";
+  if (detail.length > 0 && !many)
+    banner = "Comparatives scan: isolated mismatches — most likely misreads " +
+      "on those lines, not a restatement. Check the rows below.";
+  if (many)
+    banner = "RESTATEMENT SUSPECTED — analyst ruling required before any " +
+      "write. Ask the analyst for the prior-year report, and whether to " +
+      "restate the model's history. WARNING: restating financials can break " +
+      "reconciliation with operational data that was not restated.";
+  const rs: ExcelScript.Worksheet = getOrCreate(wb, "_RESTATE");
+  rs.setVisibility(ExcelScript.SheetVisibility.visible);   // the analyst reads this
+  const ur: ExcelScript.Range | undefined = rs.getUsedRange();
+  if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
+  rs.getRange("A1").setValue(banner);
+  rs.getRange("A2:G2").setValues([["sheet", "row", "line",
+    "model holds", "disclosure comparative", "difference", "% of model"]]);
+  if (detail.length > 0)
+    rs.getRangeByIndexes(2, 0, detail.length, 7).setValues(detail);
+  return JSON.stringify({
+    ok: true, stop: many, verdict: many ? "RESTATEMENT SUSPECTED"
+      : (detail.length > 0 ? "isolated mismatches" : "clean"),
+    compared: compared, mismatches: detail.length,
+    noComparative: noComparative, lines: labels.slice(0, 15),
+    next: many ? "STOP. Do not APPLY. Tell the analyst what the _RESTATE " +
+      "tab shows and ask them to rule."
+      : "proceed to APPLY"
   });
 }
 
 // ---------- POLICE -------------------------------------------
 // Force a full recalc, then read every model-native check row (rows
-// whose label matches the check pattern) in the target column. Any
-// non-zero check = the model does not balance = the run FAILED.
+// whose label matches the check pattern) — in the target column AND in
+// the prior actual column, across every preflighted sheet. Any non-zero
+// check = the model does not balance = the run FAILED. Checking the prior
+// column too is deliberate: the boss map asks for ALL years balanced, and
+// an inherited break must surface as the analyst's, not as ours.
 function modePolice(wb: ExcelScript.Workbook, p: Params): string {
-  const sheetName: string = String(p.sheet);
   wb.getApplication().calculate(ExcelScript.CalculationType.full);
-  const anWs: ExcelScript.Worksheet | undefined = wb.getWorksheet("_ANATOMY");
-  if (!anWs) return JSON.stringify({ ok: false, why: "run PREFLIGHT first" });
-  const an: CellValue[][] = sheetGrid(anWs);
-  const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
-  if (!ws) return JSON.stringify({ ok: false, why: "no sheet " + sheetName });
-  const grid: CellValue[][] = sheetGrid(ws);
+  const names: string[] = p.sheet ? [String(p.sheet)] : anatomySheets(wb);
+  if (names.length === 0)
+    return JSON.stringify({ ok: false, why: "run PREFLIGHT first" });
   // same pattern as updater/discover.py _CHECK_LABEL — deliberately NOT
   // matching bare 'balance'/'tie' ('liabiliTIEs', 'Balance sheet' rows)
   const CHECK: RegExp = /check|差额|平衡|balance test|检验|校验/i;
   const verdicts: CheckVerdict[] = [];
-  for (let i: number = 1; i < an.length; i++) {
-    if (an[i][0] !== sheetName) continue;
-    const targetCol: string = String(an[i][5]);
-    const lab: string = String(an[i][2]);
-    if (!CHECK.test(lab)) continue;
-    const row: number = Number(an[i][1]);
-    const colIdx: number = ws.getRange(targetCol + "1").getColumnIndex();
-    const v: CellValue | null =
-      grid[row - 1] ? grid[row - 1][colIdx] : null;
-    if (typeof v === "number")
-      verdicts.push({ row: row, label: lab, value: v,
-        pass: Math.abs(v) <= 0.02 });
-  }
   const failed: CheckVerdict[] = [];
-  for (let i: number = 0; i < verdicts.length; i++)
-    if (!verdicts[i].pass) failed.push(verdicts[i]);
+  for (let s: number = 0; s < names.length; s++) {
+    const sheetName: string = names[s];
+    const view: AnatomyView | null = readAnatomy(wb, sheetName);
+    const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
+    if (!view || !ws) continue;
+    const grid: CellValue[][] = sheetGrid(ws);
+    const cols: string[] = [view.targetCol, view.priorCol];
+    for (let i: number = 0; i < view.rows.length; i++) {
+      const lab: string = view.rows[i].label;
+      if (!CHECK.test(lab)) continue;
+      for (let c: number = 0; c < cols.length; c++) {
+        const colIdx: number = ws.getRange(cols[c] + "1").getColumnIndex();
+        const row: number = view.rows[i].row;
+        const v: CellValue | null = grid[row - 1] ? grid[row - 1][colIdx] : null;
+        if (typeof v !== "number") continue;
+        const cv: CheckVerdict = { sheet: sheetName + "!" + cols[c] + row,
+          row: row, label: lab, value: v, pass: Math.abs(v) <= 0.02 };
+        verdicts.push(cv);
+        if (!cv.pass) failed.push(cv);
+      }
+    }
+  }
   return JSON.stringify({
     ok: failed.length === 0, checks: verdicts.length, failed: failed
   });
@@ -392,6 +623,7 @@ function main(workbook: ExcelScript.Workbook, input?: string): string {
     if (p.mode === "SEED") res = modeSeed(workbook);
     else if (p.mode === "PREFLIGHT") res = modePreflight(workbook, p);
     else if (p.mode === "STAGE") res = modeStage(workbook, p);
+    else if (p.mode === "RESTATE") res = modeRestate(workbook, p);
     else if (p.mode === "APPLY") res = modeApply(workbook, p);
     else if (p.mode === "POLICE") res = modePolice(workbook, p);
     else res = JSON.stringify({ ok: false, why: "unknown mode " + p.mode });
