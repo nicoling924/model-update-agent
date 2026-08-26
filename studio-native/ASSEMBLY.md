@@ -47,10 +47,16 @@ Workflows → New workflow → name it `model-update-phase1`.
 | 8 | **Run script** | `{"mode":"POLICE","sheet":"Model"}` |
 | 9 | **If/Else** on step 8: `ok == true` | THEN → post/email "DELIVERED + link to the clone". ELSE → "FAILED BALANCE — check rows: ..." with the `failed` list. **A failing POLICE never announces success.** |
 
-Notes for the two JSON glue steps (5 and 6): use the expression editor's
-`concat()` to wrap the Agent's output into the STAGE input, or add a
-small **Compose** node — the assembly photos in `assembly-photos/`
-(coming with the kit) show the exact clicks.
+The one fiddly step is 5 (wrapping the Agent's output into the STAGE
+input). In the `input` box of step 5's Run script, switch to the
+expression editor (fx) and enter:
+
+    concat('{"mode":"STAGE","rows":', outputs('Agent')?['body/text'], '}')
+
+(pick your Agent step's text output from the dynamic-content list if the
+path autocompletes differently — the goal is simply
+`{"mode":"STAGE","rows": <the Agent's JSON array> }`). If the expression
+fights you, photograph the screen and send it — one look is enough.
 
 ## What to look at after a run
 
