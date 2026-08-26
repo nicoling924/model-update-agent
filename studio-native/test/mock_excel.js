@@ -42,7 +42,13 @@ class MockSheet {
     if (mr < 0) return null;
     return new MockRange(this, 0, 0, mr + 1, mc + 1);
   }
+  getName() { return this.name; }
   getRange(a1) {
+    const rowm = a1.match(/^(\d+):(\d+)$/);       // full-row range "2:2"
+    if (rowm) {
+      const r1 = parseInt(rowm[1], 10) - 1, r2 = parseInt(rowm[2], 10) - 1;
+      return new MockRange(this, r1, 0, r2 - r1 + 1, 8);
+    }
     if (a1.indexOf(":") >= 0) {
       const [a, b] = a1.split(":");
       const [r1, c1] = parseA1(a), [r2, c2] = parseA1(b);
@@ -82,6 +88,17 @@ class MockRange {
     cell.f = f; cell.v = 0;
   }
   getRowCount() { return this.nr; }
+  insert() {                        // shift rows at r..down by nr
+    const moved = {};
+    for (const k in this.ws.cells) {
+      const parts = k.split(":").map(Number);
+      if (parts[0] >= this.r) {
+        moved[(parts[0] + this.nr) + ":" + parts[1]] = this.ws.cells[k];
+        delete this.ws.cells[k];
+      }
+    }
+    for (const k in moved) this.ws.cells[k] = moved[k];
+  }
   getColumnIndex() { return this.c; }
   clear() {
     for (let i = 0; i < this.nr; i++)
@@ -153,6 +170,7 @@ var ExcelScript = {
   ClearApplyTo: { all: "all" },
   RangeCopyType: { all: "all" },
   CalculationType: { full: "full" },
+  InsertShiftDirection: { down: "down" },
 };
 
 if (typeof module !== "undefined")

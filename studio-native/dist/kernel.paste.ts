@@ -345,6 +345,7 @@ function modeSeed(wb: ExcelScript.Workbook): string {
   if (!isPractice) {
     const all: ExcelScript.Worksheet[] = wb.getWorksheets();
     for (let i: number = 0; i < all.length; i++) {
+      if (all[i].getName().charAt(0) === "_") continue;  // kernel's own tabs
       if (all[i].getUsedRange()) {
         return JSON.stringify({ ok: false,
           why: "SEED refused: this workbook is not blank. Open a NEW " +
@@ -632,14 +633,30 @@ function main(workbook: ExcelScript.Workbook, input?: string): string {
       return JSON.stringify({ ok: false, why: "bad input JSON" });
     }
   }
+  let res: string = "";
   try {
-    if (p.mode === "SEED") return modeSeed(workbook);
-    if (p.mode === "PREFLIGHT") return modePreflight(workbook, p);
-    if (p.mode === "STAGE") return modeStage(workbook, p);
-    if (p.mode === "APPLY") return modeApply(workbook, p);
-    if (p.mode === "POLICE") return modePolice(workbook, p);
-    return JSON.stringify({ ok: false, why: "unknown mode " + p.mode });
+    if (p.mode === "SEED") res = modeSeed(workbook);
+    else if (p.mode === "PREFLIGHT") res = modePreflight(workbook, p);
+    else if (p.mode === "STAGE") res = modeStage(workbook, p);
+    else if (p.mode === "APPLY") res = modeApply(workbook, p);
+    else if (p.mode === "POLICE") res = modePolice(workbook, p);
+    else res = JSON.stringify({ ok: false, why: "unknown mode " + p.mode });
   } catch (err) {
-    return JSON.stringify({ ok: false, why: "kernel error: " + String(err) });
+    res = JSON.stringify({ ok: false, why: "kernel error: " + String(err) });
   }
+  // Speak loudly (owner's tenant hides return values): log to the
+  // editor's Output console AND echo into a visible _OUT tab, newest on
+  // top, so the report is always one glance away inside the workbook.
+  console.log(res);
+  try {
+    let outWs: ExcelScript.Worksheet | undefined = workbook.getWorksheet("_OUT");
+    if (!outWs) {
+      outWs = workbook.addWorksheet("_OUT");
+      outWs.getRange("A1").setValue("kernel reports — newest first");
+    }
+    outWs.getRange("2:2").insert(ExcelScript.InsertShiftDirection.down);
+    outWs.getRange("A2").setValue(new Date().toISOString() + "  " +
+      p.mode + "  " + res);
+  } catch (err2) { /* echo must never break the run */ }
+  return res;
 }

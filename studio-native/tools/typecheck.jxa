@@ -13,6 +13,10 @@ function run(argv) {
   eval(readFile(vendor + "/typescript.js"))
   const files = {}
   files["/excelscript.d.ts"] = readFile(vendor + "/excelscript.d.ts")
+  // globals Office Scripts provides beyond the ES lib
+  files["/osglobals.d.ts"] =
+    "declare const console: { log(message: unknown): void };\n"
+
   files["/kernel.ts"] = readFile(target)
   const opts = {
     target: ts.ScriptTarget.ES2017,
@@ -44,7 +48,8 @@ function run(argv) {
       return readFile(vendor + "/tslibs/" + name)
     }
   }
-  const prog = ts.createProgram(["/excelscript.d.ts", "/kernel.ts"], opts, host)
+  const prog = ts.createProgram(
+    ["/excelscript.d.ts", "/osglobals.d.ts", "/kernel.ts"], opts, host)
   const diags = ts.getPreEmitDiagnostics(prog)
   const out = []
   for (let i = 0; i < diags.length; i++) {

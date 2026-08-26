@@ -146,6 +146,19 @@ main(wb6, "");                                   // seed a blank one
 const rs = JSON.parse(main(wb6, ""));            // re-seed the practice file
 et("re-seeding the practice file is allowed", rs.ok === true);
 
+// ---- run 6: the kernel speaks — _OUT echo ---------------------
+const outWs = wb6.getWorksheet("_OUT");
+et("_OUT tab exists and holds the newest report",
+  outWs !== null &&
+  String(outWs.getRange("A2").getValues()[0][0]).indexOf("SEED") >= 0);
+const wb7 = new MockWorkbook();
+main(wb7, JSON.stringify({ mode: "PREFLIGHT", sheet: "Model",
+  periodKind: "FY", targetYear: 2025 }));      // error: nothing seeded
+et("errors echo to _OUT too", String(wb7.getWorksheet("_OUT")
+  .getRange("A2").getValues()[0][0]).indexOf("no sheet Model") >= 0);
+const sd7 = JSON.parse(main(wb7, ""));         // _OUT alone must not block SEED
+et("_OUT does not block seeding a blank book", sd7.ok === true);
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;
