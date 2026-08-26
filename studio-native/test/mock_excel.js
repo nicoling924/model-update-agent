@@ -2,7 +2,7 @@
 // Cells hold {v: value, f: formulaOrNull, fill: colorOrNull}. copyFrom
 // copies value+formula+fill (the recipe contract). calculate() re-derives
 // values for the simple =A1-B1 / =A1+B1 formula shapes used in fixtures.
-function makeCell() { return { v: "", f: null, fill: null }; }
+function makeCell() { return { v: "", f: null, fill: null, link: null }; }
 
 function colToIdx(letters) {
   let n = 0;
@@ -59,6 +59,7 @@ class MockSheet {
   }
   getRangeByIndexes(r, c, nr, nc) { return new MockRange(this, r, c, nr, nc); }
   setVisibility(v) { this.hidden = v !== "visible"; }
+  setPosition(n) { this.position = n; }
 }
 
 class MockRange {
@@ -122,6 +123,11 @@ class MockRange {
             return letters + N;
           });
       }
+  }
+  setHyperlink(h) {
+    const cell = this.ws.cell(this.r, this.c);
+    cell.link = h.documentReference || h.address || "";
+    cell.v = h.textToDisplay || cell.v;
   }
   getFormat() {
     const self = this;

@@ -130,3 +130,33 @@ is there.
 
 Order of a Phase 2 run: PREFLIGHT → read → STAGE → **RESTATE** → APPLY
 (per sheet) → POLICE → report.
+
+---
+
+# Phase 3 — the analyst's page and the model's memory
+
+**5. `_REPORT`.** New call `{"mode":"REPORT"}` at the end. It writes a
+visible **first tab** so the workbook opens on it, with four sections —
+what needs your ruling (red), what was derived (orange), every line that
+moved more than 50% year on year (a mapping-error scan), and **your own
+forecast against the actual**, biggest lines first. Every line is a
+clickable link sitting next to that cell's live value.
+
+The forecast comparison only works because PREFLIGHT now photographs
+your estimate for the target year *and* the year after, before anything
+is overwritten. It also shows how next year moved once the actuals
+flowed through.
+
+**6. `_SPEC` — the model remembers.** A hidden text tab inside the
+workbook. When the agent has to reason out a mapping (the report calls a
+line "Turnover", your model calls it "Revenue"), that decision is saved
+as `ALIAS | Turnover | Model | Revenue`, label to label — never a row
+number, because you insert rows and labels survive that. The next run
+looks there first, so a model gets faster and steadier the more it is
+used. No central database; the memory travels inside the file.
+
+**7. No check row = not verified.** If a model carries no balance-check
+row, POLICE now says so instead of returning a quiet pass.
+
+Full run: PREFLIGHT → read → STAGE → RESTATE → APPLY → POLICE →
+**REPORT**.

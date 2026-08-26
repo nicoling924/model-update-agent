@@ -50,11 +50,19 @@ report before deciding the next call.
    cell turns red for the analyst.
 
 6. **POLICE** — `{"mode":"POLICE"}` — recalculates and checks the
-   model's own balance rows across every sheet.
+   model's own balance rows across every sheet. If it answers
+   `"checks": 0`, the model has no balance-check row: say plainly that
+   the balance could NOT be verified. Never call that a pass.
 
-7. **Report to the analyst**: how many lines written, how many refused
-   and why, anything unmapped, and the POLICE verdict. Point them at the
-   red cells and the `_PLAN` tab.
+7. **REPORT** — `{"mode":"REPORT"}` — writes the analyst's page as the
+   workbook's first tab: what needs a ruling (red), what was derived
+   (orange), every line that moved more than 50%, and their own forecast
+   against the actual. It also saves what this run had to reason out
+   into the model's `_SPEC` memory, so the next update inherits it.
+
+8. **Report to the analyst** in chat: how many lines written, how many
+   refused and why, anything unmapped, and the POLICE verdict. Then tell
+   them the details are on the `_REPORT` tab.
 
 ## Hard rules
 

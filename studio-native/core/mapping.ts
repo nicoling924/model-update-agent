@@ -69,9 +69,19 @@ function normLabel(s: string): string {
 
 // Candidates for one entry at one tier. Uniqueness is judged by the
 // caller; this only proposes.
-function tierCandidates(tier: string, req: MapReq,
-                        rows: AnatomyRow[]): AnatomyRow[] {
+function tierCandidates(tier: string, req: MapReq, rows: AnatomyRow[],
+                        aliases: { [k: string]: string }): AnatomyRow[] {
   const out: AnatomyRow[] = [];
+  if (tier === "alias") {
+    // A mapping a previous run had to reason out, remembered in _SPEC as
+    // disclosure-label -> MODEL-LABEL (never a row number: rows move when
+    // the analyst inserts a line, labels do not).
+    const target: string | undefined = aliases[normLabel(req.label)];
+    if (target === undefined) return out;
+    for (let i: number = 0; i < rows.length; i++)
+      if (normLabel(rows[i].label) === normLabel(target)) out.push(rows[i]);
+    return out;
+  }
   if (tier === "exact") {
     const k: string = rawKey(req.label);
     if (!k) return out;
@@ -104,9 +114,13 @@ function tierCandidates(tier: string, req: MapReq,
   return out;
 }
 
-const TIERS: string[] = ["exact", "norm", "prior", "hint"];
+// 'alias' sits second: an exact label match still wins (the model may
+// have gained the very row the alias was invented to stand in for).
+const TIERS: string[] = ["exact", "alias", "norm", "prior", "hint"];
 
-function mapAll(reqs: MapReq[], rows: AnatomyRow[]): MapHit[] {
+function mapAll(reqs: MapReq[], rows: AnatomyRow[],
+                aliases?: { [k: string]: string }): MapHit[] {
+  const al: { [k: string]: string } = aliases ? aliases : {};
   const out: MapHit[] = [];
   for (let i: number = 0; i < reqs.length; i++)
     out.push({ row: -1, via: "", why: "no model row carries this line" });
@@ -114,7 +128,7 @@ function mapAll(reqs: MapReq[], rows: AnatomyRow[]): MapHit[] {
   for (let t: number = 0; t < TIERS.length; t++) {
     for (let i: number = 0; i < reqs.length; i++) {
       if (out[i].row > 0) continue;
-      const cands: AnatomyRow[] = tierCandidates(TIERS[t], reqs[i], rows);
+      const cands: AnatomyRow[] = tierCandidates(TIERS[t], reqs[i], rows, al);
       if (cands.length === 0) continue;
       const free: AnatomyRow[] = cands.filter(
         (r: AnatomyRow): boolean => claimed[String(r.row)] === undefined);

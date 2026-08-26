@@ -287,6 +287,100 @@ const po11 = JSON.parse(main(wb10, JSON.stringify({ mode: "POLICE" })));
 et("a break on ANY sheet fails the whole run",
   po11.ok === false && po11.failed[0].sheet.indexOf("BS!") === 0);
 
+// ---- run 10: the analyst's page, and the model's memory --------
+// A model that HAS a forecast in the target column: only then can the
+// report say "you forecast X, the actual came in at Y".
+function fixtureForecast() {
+  const wb = new MockWorkbook();
+  const ws = wb.addWorksheet("Model");
+  const cols = ["B", "C", "D", "E", "F"];
+  for (let i = 0; i < 5; i++) ws.getRange(cols[i] + "1").setValue(2022 + i);
+  const line = (r, label, prior, est, next) => {
+    ws.getRange("A" + r).setValue(label);
+    ws.getRange("D" + r).setValue(prior);
+    ws.getRange("E" + r).setValue(est);
+    ws.getRange("F" + r).setValue(next);
+  };
+  line(5, "Revenue", 4976.2, 5200.0, 5600.0);
+  line(6, "Cost of sales", -3000.0, -3100.0, -3300.0);
+  line(7, "Operating profit", 1976.2, 2000.0, 2100.0);
+  line(8, "Other gains", 100.0, 120.0, 130.0);
+  line(9, "Total assets", 8000.0, 8200.0, 8400.0);
+  line(10, "Total liabilities", 3000.0, 3100.0, 3200.0);
+  line(11, "Total equity", 5000.0, 5100.0, 5200.0);
+  line(12, "Balance check", 0, 0, 0);
+  ws.cell(11, 3).f = "=D9-D10-D11";
+  ws.cell(11, 4).f = "=E9-E10-E11";
+  ws.cell(11, 5).f = "=F9-F10-F11";
+  return wb;
+}
+const wb11 = fixtureForecast();
+main(wb11, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wb11, [
+  ["Turnover", 5321.0, 4976.2, "p3", "", ""],          // no such label
+  ["Cost of sales", -3200.0, -3000.0, "p3", "", ""],
+  ["Operating profit", 2121.0, 1990.0, "p3", "", ""],  // sabotage -> red
+  ["Other gains", 500.0, 100.0, "p4", "orange",
+    "backed out: total less mapped items"],            // big move + orange
+  ["Total assets", 8600.0, 8000.0, "p5", "", ""],
+  ["Total liabilities", 3200.0, 3000.0, "p5", "", ""],
+  ["Total equity", 5400.0, 5000.0, "p5", "", ""],
+]);
+const ap11 = JSON.parse(main(wb11, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("unnamed line 'Turnover' found by its prior figure",
+  ap11.written === 6 && ap11.mappedVia.prior === 1);
+const rep = JSON.parse(main(wb11, JSON.stringify({ mode: "REPORT" })));
+et("report written", rep.ok === true && rep.red === 1 && rep.orange === 1);
+et("report counts the big mover", rep.bigMoves === 1);
+et("report compares forecast vs actual", rep.coreLines >= 5);
+const rw = wb11.getWorksheet("_REPORT");
+const flat = JSON.stringify(rw.getUsedRange().getValues());
+et("_REPORT is the visible first tab",
+  rw.hidden === false && rw.position === 0 &&
+  /MODEL UPDATE REPORT/.test(String(rw.getRange("A1").getValues()[0][0])));
+et("report has all four sections",
+  /1\. RED/.test(flat) && /2\. ORANGE/.test(flat) &&
+  /3\. BIG MOVES/.test(flat) && /4\. YOUR FORECAST/.test(flat));
+et("report speaks the analyst's language",
+  /you forecast 5200 · actual 5321 \(\+2\.3%\)/.test(flat) &&
+  /moved \+400%/.test(flat) && /next year: 5600/.test(flat));
+et("every listed cell is a link next to its live value", (() => {
+  for (const k in rw.cells) {
+    const c = rw.cells[k];
+    if (c.link === "Model!E7") {
+      const row = Number(k.split(":")[0]);
+      return rw.cell(row, 1).f === "=Model!E7";
+    }
+  }
+  return false;
+})());
+et("refused row is on the page as REFUSED, not as a number",
+  /REFUSED — not written/.test(flat));
+// the model remembers what it had to reason out
+const spec = JSON.stringify(wb11.getWorksheet("_SPEC").getUsedRange().getValues());
+et("_SPEC learned the alias, as label -> label (rows move, labels do not)",
+  /ALIAS \| Turnover \| Model \| Revenue/.test(spec) && spec.indexOf("!E5") === -1);
+stage(wb11, [["Turnover", 5400.0, 4976.2, "p3", "", ""]]);
+const ap12 = JSON.parse(main(wb11, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("a warm run inherits the alias instead of re-deriving it",
+  ap12.written === 1 && ap12.mappedVia.alias === 1);
+
+// ---- run 11: a model with no check row cannot be called balanced
+const wb12 = new MockWorkbook();
+const nc = wb12.addWorksheet("Model");
+nc.getRange("B1").setValue(2023); nc.getRange("C1").setValue(2024);
+nc.getRange("D1").setValue(2025);
+nc.getRange("A3").setValue("Revenue"); nc.getRange("C3").setValue(100);
+main(wb12, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+const po12 = JSON.parse(main(wb12, JSON.stringify({ mode: "POLICE" })));
+et("no check row = NOT verified, never a silent pass",
+  po12.ok === false && po12.checks === 0 &&
+  /could NOT be verified/.test(po12.why));
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;
