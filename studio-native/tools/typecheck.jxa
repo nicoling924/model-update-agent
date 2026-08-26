@@ -1,0 +1,59 @@
+// Editor-equivalent type-check of the paste artifact: real TS compiler,
+// real lib files, official ExcelScript declarations, noImplicitAny (the
+// exact lint class the owner's tenant raised, 123x, 2026-08-26).
+// Usage: osascript -l JavaScript typecheck.jxa <vendorDir> <file.ts>
+ObjC.import('Foundation')
+function readFile(p) {
+  const s = $.NSString.stringWithContentsOfFileEncodingError(
+    p, $.NSUTF8StringEncoding, null)
+  return s.isNil() ? undefined : ObjC.unwrap(s)
+}
+function run(argv) {
+  const vendor = argv[0], target = argv[1]
+  eval(readFile(vendor + "/typescript.js"))
+  const files = {}
+  files["/excelscript.d.ts"] = readFile(vendor + "/excelscript.d.ts")
+  files["/kernel.ts"] = readFile(target)
+  const opts = {
+    target: ts.ScriptTarget.ES2017,
+    lib: ["lib.es2017.d.ts"],
+    noImplicitAny: true,
+    noEmit: true,
+    types: []
+  }
+  const host = {
+    getSourceFile: function (name, lang) {
+      let text = files[name]
+      if (text === undefined) text = readFile(vendor + "/tslibs/" + name)
+      if (text === undefined) return undefined
+      return ts.createSourceFile(name, text, lang, true)
+    },
+    getDefaultLibFileName: function () { return "lib.es2017.d.ts" },
+    writeFile: function () {},
+    getCurrentDirectory: function () { return "/" },
+    getDirectories: function () { return [] },
+    getCanonicalFileName: function (f) { return f },
+    useCaseSensitiveFileNames: function () { return true },
+    getNewLine: function () { return "\n" },
+    fileExists: function (name) {
+      if (files[name] !== undefined) return true
+      return readFile(vendor + "/tslibs/" + name) !== undefined
+    },
+    readFile: function (name) {
+      if (files[name] !== undefined) return files[name]
+      return readFile(vendor + "/tslibs/" + name)
+    }
+  }
+  const prog = ts.createProgram(["/excelscript.d.ts", "/kernel.ts"], opts, host)
+  const diags = ts.getPreEmitDiagnostics(prog)
+  const out = []
+  for (let i = 0; i < diags.length; i++) {
+    const d = diags[i]
+    if (!d.file || d.file.fileName !== "/kernel.ts") continue
+    const pos = d.file.getLineAndCharacterOfPosition(d.start)
+    out.push("line " + (pos.line + 1) + ":" + (pos.character + 1) + " TS" +
+      d.code + " " + ts.flattenDiagnosticMessageText(d.messageText, " "))
+  }
+  return out.length === 0 ? "TYPECHECK CLEAN"
+    : "TYPECHECK: " + out.length + " errors\n" + out.join("\n")
+}

@@ -2,45 +2,57 @@
 // A mapped figure is accepted because it RECONCILES, not because a label
 // looked right. Ported from the acceptance laws in prompts/compile.md and
 // updater/loop.py; this is the layer that catches OCR misreads and
-// wrong-row mappings before they touch the model.
+// wrong-row mappings before they touch the model. Fully typed for the
+// Office Scripts checker.
+
+interface PlanEntry {
+  sheet: string;
+  row: number;
+  value: number | string | null;    // what to write (numeric unless flagged)
+  priorDisclosed: number | string | null;  // prior-year figure the Agent
+                                    // read in the SAME disclosure row
+  flag: string;                     // '', 'red', 'orange'
+  note: string;                     // methodology, required when flagged
+  label?: string;
+  page?: string;
+}
+
+interface Refusal { entry: PlanEntry; why: string; }
+interface PlanVerdict { accepted: PlanEntry[]; refused: Refusal[]; }
+interface SubtotalCheck { keys: string[]; totalKey: string; }
+interface SubtotalFailure { totalKey: string; sum: number; total: number; }
 
 // Tolerance law: a tie must survive disclosure ROUNDING (a model holding
 // full precision vs a disclosure printed to 1dp/whole units differs by up
 // to ~0.5) but must NOT absorb real drift — 0.1%+ of a large figure is a
 // restatement or a misread, never rounding.
-var ABS_TOL = 0.5;
-var REL_TOL = 1e-4;
+const ABS_TOL: number = 0.5;
+const REL_TOL: number = 1e-4;
 
-function tol(v) {
-  var a = Math.abs(typeof v === "number" ? v : 0);
+function tol(v: number): number {
+  const a: number = Math.abs(typeof v === "number" ? v : 0);
   return Math.max(ABS_TOL, a * REL_TOL);
 }
 
-function tieOk(a, b) {
+function tieOk(a: number | string | null | undefined,
+               b: number | string | null | undefined): boolean {
   if (typeof a !== "number" || typeof b !== "number") return false;
   return Math.abs(a - b) <= Math.max(tol(a), tol(b));
 }
 
-// One write-plan entry, as produced by the mapping Agent node:
-// { sheet, row, value,                  -- what to write where
-//   priorDisclosed,                     -- prior-year figure the Agent read
-//                                          in the SAME disclosure row
-//   flag,                               -- '', 'red', 'orange'
-//   note }                             -- methodology, required when flagged
-// priors: { "Sheet!row": priorModelValue } from the snapshot script.
-//
 // LAW (triangulation acceptance): an unflagged entry is accepted only when
 // the disclosure's own prior-year figure ties to what the model already
 // holds for that row — proof the Agent read the RIGHT ROW. No tie -> the
 // write is refused and downgraded to a red flag, never silently written.
-function validateWritePlan(entries, priors) {
-  var accepted = [];
-  var refused = [];
-  for (var i = 0; i < entries.length; i++) {
-    var e = entries[i];
-    var key = e.sheet + "!" + e.row;
-    var prior = priors[key];
-    var flagged = e.flag === "red" || e.flag === "orange";
+function validateWritePlan(entries: PlanEntry[],
+                           priors: { [k: string]: number }): PlanVerdict {
+  const accepted: PlanEntry[] = [];
+  const refused: Refusal[] = [];
+  for (let i: number = 0; i < entries.length; i++) {
+    const e: PlanEntry = entries[i];
+    const key: string = e.sheet + "!" + e.row;
+    const prior: number | undefined = priors[key];
+    const flagged: boolean = e.flag === "red" || e.flag === "orange";
     if (typeof e.value !== "number" && !flagged) {
       refused.push({ entry: e, why: "non-numeric value without a flag" });
       continue;
@@ -70,25 +82,23 @@ function validateWritePlan(entries, priors) {
 }
 
 // Subtotal law: group of entries whose values must sum to a disclosed
-// total (segment sums, member rows). checks: [{keys:[...], totalKey}].
-function checkSubtotals(valueByKey, checks) {
-  var failures = [];
-  for (var i = 0; i < checks.length; i++) {
-    var ch = checks[i];
-    var s = 0, ok = true;
-    for (var j = 0; j < ch.keys.length; j++) {
-      var v = valueByKey[ch.keys[j]];
+// total (segment sums, member rows). Incomplete cones give no verdict.
+function checkSubtotals(valueByKey: { [k: string]: number | null },
+                        checks: SubtotalCheck[]): SubtotalFailure[] {
+  const failures: SubtotalFailure[] = [];
+  for (let i: number = 0; i < checks.length; i++) {
+    const ch: SubtotalCheck = checks[i];
+    let s: number = 0;
+    let ok: boolean = true;
+    for (let j: number = 0; j < ch.keys.length; j++) {
+      const v: number | null = valueByKey[ch.keys[j]];
       if (typeof v !== "number") { ok = false; break; }
       s += v;
     }
-    var t = valueByKey[ch.totalKey];
-    if (!ok || typeof t !== "number") continue;   // incomplete cone: no verdict
+    const t: number | null = valueByKey[ch.totalKey];
+    if (!ok || typeof t !== "number") continue;
     if (!tieOk(s, t))
       failures.push({ totalKey: ch.totalKey, sum: s, total: t });
   }
   return failures;
 }
-
-/* @node-only */
-if (typeof module !== "undefined")
-  module.exports = { tol: tol, tieOk: tieOk, validateWritePlan: validateWritePlan, checkSubtotals: checkSubtotals };
