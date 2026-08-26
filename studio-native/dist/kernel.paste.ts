@@ -1,0 +1,516 @@
+// ============================================================
+// MODEL UPDATE AGENT — Studio-native kernel (Phase 1)
+// ONE Office Script, mode-driven (council ruling 2026-08-26:
+// one kernel beats six scripts — a law fixed once is fixed
+// everywhere). The flow calls Run script repeatedly with a small
+// JSON control message; ALL state lives in hidden sheets inside
+// the workbook (the workbook is the bus):
+//   _ANATOMY  what the model expects (rows, labels, prior values)
+//   _STAGING  what the Agent read from the disclosure
+//   _PLAN     validated write plan (refused rows carry the reason)
+//   _LEDGER   append-only forensic trail
+// Modes:
+//   PREFLIGHT {sheet, periodKind, targetYear}
+//   APPLY     {sheet, targetYear}
+//   POLICE    {sheet}
+// Input/output: JSON strings (Power Automate friendly).
+// The pure-law section below (axis + ties) is generated from
+// studio-native/core/*.js — edit THOSE files, run build.sh,
+// never edit the laws inside this file.
+// ============================================================
+
+// CORE LAW: year-axis discovery — faithful port of updater/discover.py
+// (_year_of + find_year_axis). Pure functions, no Excel API: the adapter
+// feeds getValues() grids in, gets {year: columnIndex} out.
+//
+// ExcelScript difference vs openpyxl, handled here: dates arrive as Excel
+// SERIAL NUMBERS (2025-06-30 ≈ 45838), not date objects. Serials in the
+// plausible window are decoded to (year, month) before the annual/interim
+// ruling. Everything else mirrors the Python law line-for-line, including
+// the 1H-panel trap: an FY update must NEVER bind an interim column.
+
+var YEAR_MIN = 1990;
+var YEAR_MAX = 2100;
+var SCAN_ROWS = 12;
+var MIN_RUN = 3;
+var INTERIM_TEXT = /[1-4]Q|Q[1-4]|[12]H|H[12]|半年|中期|interim/i;
+
+// Excel serial -> {y, m} (1900 date system, the Excel Online default).
+function serialToYM(n) {
+  var days = Math.floor(n) - 25569; // serial 25569 = 1970-01-01
+  var d = new Date(days * 86400000);
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1 };
+}
+
+// (year, tag) for a cell's year mark; [null, null] when not a year mark.
+// tag: null = annual column, '1H'/'2H'/'1Q'..'4Q' = interim column.
+function yearOf(v) {
+  if (typeof v === "boolean") return [null, null];
+  if (typeof v === "number") {
+    var y = Math.round(v);
+    if (y >= YEAR_MIN && y <= YEAR_MAX && Math.abs(v - y) < 0.5)
+      return [y, null];
+    // date serial window 1990-01-01 (32874) .. 2100 (73415)
+    if (v >= 32874 && v <= 73415) {
+      var ym = serialToYM(v);
+      if (ym.y >= YEAR_MIN && ym.y <= YEAR_MAX)
+        return [ym.y, (ym.m === 6 || ym.m === 9) ? "1H" : null];
+    }
+    return [null, null];
+  }
+  if (typeof v === "string") {
+    var t = v.trim().toUpperCase();
+    var m = t.match(/^H([12])(\d{2})E?$/);              // H125, H225E
+    if (m) return [2000 + parseInt(m[2], 10), m[1] + "H"];
+    m = t.match(/^Q([1-4])(\d{2})E?$/);                 // Q106
+    if (m) return [2000 + parseInt(m[2], 10), m[1] + "Q"];
+    m = t.match(/^([12])H(19\d{2}|20\d{2})$/);          // 1H2025
+    if (m) return [parseInt(m[2], 10), m[1] + "H"];
+    m = t.match(/^(19\d{2}|20\d{2})H([12])$/);          // 2025H1
+    if (m) return [parseInt(m[1], 10), m[2] + "H"];
+    m = t.match(/^([1-4])Q(19\d{2}|20\d{2})$/);         // 3Q2025
+    if (m) return [parseInt(m[2], 10), m[1] + "Q"];
+    m = t.match(/^(19\d{2}|20\d{2})Q([1-4])$/);         // 2025Q3
+    if (m) return [parseInt(m[1], 10), m[2] + "Q"];
+    m = t.match(/(19\d{2}|20\d{2})/);                   // '2025A', 'FY2025'
+    if (m) {
+      var interim = INTERIM_TEXT.test(v) ||
+        /[-\/](?:06|6)[-\/]30|[-\/](?:09|9)[-\/]30/.test(v);
+      return [parseInt(m[1], 10), interim ? "1H" : null];
+    }
+  }
+  return [null, null];
+}
+
+// grid: rows of raw cell values (row 1 first). periodKind: 'FY','1H','3Q'...
+// Returns {year(string): zero-based column index} for the winning panel,
+// or null. Scoring mirrors Python: kind-match first, then run length,
+// then topmost row.
+function findYearAxis(grid, periodKind) {
+  var pk = (periodKind || "FY").toUpperCase();
+  var wantTag = pk === "FY" ? null : pk;
+  if (wantTag === "H1" || wantTag === "H2") wantTag = wantTag[1] + "H";
+  if (wantTag === "Q1" || wantTag === "Q2" || wantTag === "Q3" ||
+      wantTag === "Q4") wantTag = wantTag[1] + "Q";
+  var wantInterim = wantTag !== null;
+  var minRun = wantInterim ? 2 : MIN_RUN;
+  var cands = [];
+  var nRows = Math.min(grid.length, SCAN_ROWS);
+  for (var r = 0; r < nRows; r++) {
+    var marks = [];
+    for (var c = 0; c < grid[r].length; c++) {
+      var yt = yearOf(grid[r][c]);
+      if (yt[0] === null) continue;
+      if (wantInterim) {
+        if (yt[1] !== wantTag) continue;     // H1 runs see H1 columns only
+        marks.push([c, yt[0], true]);
+      } else {
+        if (yt[1] !== null) continue;        // FY runs never see interim cols
+        marks.push([c, yt[0], false]);
+      }
+    }
+    if (marks.length < minRun) continue;
+    var run = [marks[0]];
+    var runs = [];
+    for (var i = 1; i < marks.length; i++) {
+      var prev = marks[i - 1], cur = marks[i];
+      if (cur[1] === prev[1] + 1 && cur[0] > prev[0]) run.push(cur);
+      else {
+        if (run.length >= minRun) runs.push(run);
+        run = [cur];
+      }
+    }
+    if (run.length >= minRun) runs.push(run);
+    for (var j = 0; j < runs.length; j++) {
+      var rn = runs[j];
+      var interimFrac = 0;
+      for (var k = 0; k < rn.length; k++) if (rn[k][2]) interimFrac++;
+      var kindMatch = (interimFrac / rn.length >= 0.5) === wantInterim;
+      cands.push([kindMatch ? 1 : 0, rn.length, -r, rn]);
+    }
+  }
+  if (!cands.length) return null;
+  cands.sort(function (a, b) {
+    return b[0] - a[0] || b[1] - a[1] || b[2] - a[2];
+  });
+  var best = cands[0][3];
+  var out = {};
+  for (var b = 0; b < best.length; b++) out[String(best[b][1])] = best[b][0];
+  return out;
+}
+
+// zero-based column index -> Excel letters (0 -> A, 26 -> AA).
+function n2col(n) {
+  var s = "";
+  n = n + 1;
+  while (n > 0) {
+    var rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+
+// CORE LAW: tie acceptance — the referee that makes GPT-read numbers safe.
+// A mapped figure is accepted because it RECONCILES, not because a label
+// looked right. Ported from the acceptance laws in prompts/compile.md and
+// updater/loop.py; this is the layer that catches OCR misreads and
+// wrong-row mappings before they touch the model.
+
+// Tolerance law: a tie must survive disclosure ROUNDING (a model holding
+// full precision vs a disclosure printed to 1dp/whole units differs by up
+// to ~0.5) but must NOT absorb real drift — 0.1%+ of a large figure is a
+// restatement or a misread, never rounding.
+var ABS_TOL = 0.5;
+var REL_TOL = 1e-4;
+
+function tol(v) {
+  var a = Math.abs(typeof v === "number" ? v : 0);
+  return Math.max(ABS_TOL, a * REL_TOL);
+}
+
+function tieOk(a, b) {
+  if (typeof a !== "number" || typeof b !== "number") return false;
+  return Math.abs(a - b) <= Math.max(tol(a), tol(b));
+}
+
+// One write-plan entry, as produced by the mapping Agent node:
+// { sheet, row, value,                  -- what to write where
+//   priorDisclosed,                     -- prior-year figure the Agent read
+//                                          in the SAME disclosure row
+//   flag,                               -- '', 'red', 'orange'
+//   note }                             -- methodology, required when flagged
+// priors: { "Sheet!row": priorModelValue } from the snapshot script.
+//
+// LAW (triangulation acceptance): an unflagged entry is accepted only when
+// the disclosure's own prior-year figure ties to what the model already
+// holds for that row — proof the Agent read the RIGHT ROW. No tie -> the
+// write is refused and downgraded to a red flag, never silently written.
+function validateWritePlan(entries, priors) {
+  var accepted = [];
+  var refused = [];
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    var key = e.sheet + "!" + e.row;
+    var prior = priors[key];
+    var flagged = e.flag === "red" || e.flag === "orange";
+    if (typeof e.value !== "number" && !flagged) {
+      refused.push({ entry: e, why: "non-numeric value without a flag" });
+      continue;
+    }
+    if (flagged && !(e.note && String(e.note).trim())) {
+      refused.push({ entry: e, why: "flagged cell missing methodology note" });
+      continue;
+    }
+    if (!flagged) {
+      if (typeof prior !== "number" || typeof e.priorDisclosed !== "number") {
+        refused.push({ entry: e, why: "no prior-year tie proof (" + key + ")" });
+        continue;
+      }
+      if (!tieOk(prior, e.priorDisclosed)) {
+        refused.push({
+          entry: e,
+          why: "prior mismatch: model holds " + prior +
+               ", disclosure comparative reads " + e.priorDisclosed +
+               " — wrong row, restatement, or misread"
+        });
+        continue;
+      }
+    }
+    accepted.push(e);
+  }
+  return { accepted: accepted, refused: refused };
+}
+
+// Subtotal law: group of entries whose values must sum to a disclosed
+// total (segment sums, member rows). checks: [{keys:[...], totalKey}].
+function checkSubtotals(valueByKey, checks) {
+  var failures = [];
+  for (var i = 0; i < checks.length; i++) {
+    var ch = checks[i];
+    var s = 0, ok = true;
+    for (var j = 0; j < ch.keys.length; j++) {
+      var v = valueByKey[ch.keys[j]];
+      if (typeof v !== "number") { ok = false; break; }
+      s += v;
+    }
+    var t = valueByKey[ch.totalKey];
+    if (!ok || typeof t !== "number") continue;   // incomplete cone: no verdict
+    if (!tieOk(s, t))
+      failures.push({ totalKey: ch.totalKey, sum: s, total: t });
+  }
+  return failures;
+}
+
+
+
+// ---------- shared helpers (ExcelScript side) ----------------
+
+const FLAG_RED = "FFC7CE";     // uncertain — analyst review
+const FLAG_ORANGE = "FFC000";  // backed-out — awaiting true-up
+
+function getOrCreate(wb, name) {
+  let ws = wb.getWorksheet(name);
+  if (!ws) {
+    ws = wb.addWorksheet(name);
+    ws.setVisibility(ExcelScript.SheetVisibility.hidden);
+  }
+  return ws;
+}
+
+function sheetGrid(ws) {
+  const ur = ws.getUsedRange();
+  return ur ? ur.getValues() : [];
+}
+
+function ledgerAppend(wb, rows) {
+  const ws = getOrCreate(wb, "_LEDGER");
+  const ur = ws.getUsedRange();
+  const start = ur ? ur.getRowCount() : 0;
+  if (start === 0)
+    ws.getRange("A1:H1").setValues([[
+      "utc", "mode", "sheet", "address", "before", "after", "flag", "why"]]);
+  const r0 = Math.max(start, 1);
+  ws.getRangeByIndexes(r0, 0, rows.length, 8).setValues(rows);
+}
+
+// label column: first column holding text in most target rows
+function labelOf(grid, row) {
+  for (let c = 0; c < Math.min(4, (grid[row] || []).length); c++) {
+    const v = grid[row][c];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+// ---------- PREFLIGHT ----------------------------------------
+// Discover the sheet's year axis (the 1H-trap law applies), find the
+// prior actual column and the target column, and write every labelled
+// row's prior value into _ANATOMY. _ANATOMY becomes the oracle the
+// APPLY mode triangulates against.
+function modePreflight(wb, p) {
+  const ws = wb.getWorksheet(p.sheet);
+  if (!ws) return JSON.stringify({ ok: false, why: "no sheet " + p.sheet });
+  const grid = sheetGrid(ws);
+  const axis = findYearAxis(grid, p.periodKind);
+  if (!axis) return JSON.stringify({ ok: false, why: "no year axis found" });
+  const tCol = axis[String(p.targetYear)];
+  const pCol = axis[String(p.targetYear - 1)];
+  if (tCol === undefined || pCol === undefined)
+    return JSON.stringify({
+      ok: false,
+      why: "axis lacks " + p.targetYear + " or prior; axis=" + JSON.stringify(axis)
+    });
+  // locate the axis header row (the row whose target cell marks the year)
+  // — APPLY must restore this cell after the bulk column copy, or the
+  // prior year's header stamps over the target's (a header is data too).
+  let axisRow = -1;
+  for (let r = 0; r < Math.min(grid.length, SCAN_ROWS); r++) {
+    const yt = yearOf(grid[r][tCol]);
+    if (yt[0] === p.targetYear) { axisRow = r; break; }
+  }
+  const rows = [["__meta__", axisRow, String(grid[axisRow] ? grid[axisRow][tCol] : ""), 0, n2col(pCol), n2col(tCol)]];
+  for (let r = 0; r < grid.length; r++) {
+    const lab = labelOf(grid, r);
+    if (!lab) continue;
+    const pv = grid[r][pCol];
+    if (typeof pv !== "number") continue;
+    rows.push([p.sheet, r + 1, lab, pv, n2col(pCol), n2col(tCol)]);
+  }
+  const an = getOrCreate(wb, "_ANATOMY");
+  const ur = an.getUsedRange();
+  if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
+  an.getRange("A1:F1").setValues([[
+    "sheet", "row", "label", "priorValue", "priorCol", "targetCol"]]);
+  if (rows.length)
+    an.getRangeByIndexes(1, 0, rows.length, 6).setValues(rows);
+  return JSON.stringify({
+    ok: true, axis: axis, priorCol: n2col(pCol), targetCol: n2col(tCol),
+    anatomyRows: rows.length
+  });
+}
+
+// ---------- STAGE --------------------------------------------
+// Land the Agent's extraction in _STAGING. rows: array of
+// [label, value, priorDisclosed, sourcePage, flag, note] arrays, exactly
+// as the extraction prompt instructs the Agent to emit them. Extraction
+// is FACTS ONLY — mapping/judgment happens in APPLY where code referees.
+function modeStage(wb, p) {
+  const st = getOrCreate(wb, "_STAGING");
+  const ur = st.getUsedRange();
+  if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
+  st.getRange("A1:F1").setValues([[
+    "label", "value", "priorDisclosed", "sourcePage", "flag", "note"]]);
+  const rows = p.rows || [];
+  const norm = [];
+  for (const r of rows)
+    norm.push([String(r[0] || ""), r[1], r[2], String(r[3] || ""),
+      String(r[4] || ""), String(r[5] || "")]);
+  if (norm.length)
+    st.getRangeByIndexes(1, 0, norm.length, 6).setValues(norm);
+  return JSON.stringify({ ok: true, staged: norm.length });
+}
+
+// ---------- APPLY --------------------------------------------
+// Transactional: read _STAGING (the Agent's extraction), triangulate
+// every entry against _ANATOMY (validateWritePlan — the referee),
+// write _PLAN with accept/refuse verdicts, and only then mutate the
+// model: copy the prior actual column (values+formats+formulas, the
+// mark-to-actual recipe), overwrite accepted inputs, flag colors,
+// ledger every touch. Refused rows are NEVER written — they turn the
+// target cell red with the refusal reason in _PLAN.
+function modeApply(wb, p) {
+  const anWs = wb.getWorksheet("_ANATOMY");
+  const stWs = wb.getWorksheet("_STAGING");
+  if (!anWs || !stWs)
+    return JSON.stringify({ ok: false, why: "run PREFLIGHT first / no _STAGING" });
+  const an = sheetGrid(anWs);
+  const st = sheetGrid(stWs);
+  // anatomy: label -> {row, prior}; priors keyed Sheet!row for the referee
+  const byLabel = {};
+  const priors = {};
+  let priorCol = "", targetCol = "";
+  let axisRow = -1, axisHeader = "";
+  for (let i = 1; i < an.length; i++) {
+    const sh = an[i][0], row = an[i][1], lab = an[i][2], pv = an[i][3];
+    const pc = an[i][4], tc = an[i][5];
+    if (sh === "__meta__") {                 // axis header bookkeeping
+      axisRow = row; axisHeader = lab;
+      priorCol = String(pc); targetCol = String(tc);
+      continue;
+    }
+    if (sh !== p.sheet) continue;
+    byLabel[String(lab).toLowerCase()] = { row: row, prior: pv };
+    priors[p.sheet + "!" + row] = pv;
+    priorCol = String(pc); targetCol = String(tc);
+  }
+  if (!priorCol)
+    return JSON.stringify({ ok: false, why: "_ANATOMY empty for " + p.sheet });
+  // staging: label | value | priorDisclosed | sourcePage | flag | note
+  const entries = [];
+  const unmapped = [];
+  for (let i = 1; i < st.length; i++) {
+    const lab = String(st[i][0] || "").trim();
+    if (!lab) continue;
+    const hit = byLabel[lab.toLowerCase()];
+    if (!hit) { unmapped.push(lab); continue; }
+    entries.push({
+      sheet: p.sheet, row: hit.row,
+      value: st[i][1],
+      priorDisclosed: st[i][2],
+      flag: String(st[i][4] || ""), note: String(st[i][5] || ""),
+      label: lab, page: String(st[i][3] || "")
+    });
+  }
+  const verdict = validateWritePlan(entries, priors);
+  // ---- write _PLAN (the transactional boundary: plan ≠ apply) ----
+  const plWs = getOrCreate(wb, "_PLAN");
+  const pur = plWs.getUsedRange();
+  if (pur) pur.clear(ExcelScript.ClearApplyTo.all);
+  const planRows = [[
+    "sheet", "row", "label", "value", "verdict", "why", "page"]];
+  for (const e of verdict.accepted)
+    planRows.push([e.sheet, e.row, e.label || "",
+      e.value, "ACCEPT", e.flag || "", e.page || ""]);
+  for (const r of verdict.refused)
+    planRows.push([r.entry.sheet, r.entry.row,
+      r.entry.label || "", r.entry.value ?? "",
+      "REFUSE", r.why, r.entry.page || ""]);
+  plWs.getRangeByIndexes(0, 0, planRows.length, 7).setValues(planRows);
+  // ---- mutate the model ----
+  const ws = wb.getWorksheet(p.sheet);
+  const grid = sheetGrid(ws);
+  const nRows = grid.length;
+  // mark-to-actual recipe: bulk copy prior column (values+formulas+formats)
+  const src = ws.getRange(priorCol + "1:" + priorCol + nRows);
+  const dst = ws.getRange(targetCol + "1:" + targetCol + nRows);
+  dst.copyFrom(src, ExcelScript.RangeCopyType.all);
+  // restore the target year header the bulk copy just stamped over —
+  // never change a header's data type: numeric stays numeric
+  if (axisRow >= 0) {
+    const hNum = Number(axisHeader);
+    ws.getRange(targetCol + (axisRow + 1)).setValue(
+      axisHeader !== "" && !isNaN(hNum) ? hNum : axisHeader);
+  }
+  const led = [];
+  const utc = new Date().toISOString();
+  for (const e of verdict.accepted) {
+    const addr = targetCol + e.row;
+    const cell = ws.getRange(addr);
+    const before = cell.getValues()[0][0];
+    cell.setValue(e.value);
+    if (e.flag === "red") cell.getFormat().getFill().setColor(FLAG_RED);
+    if (e.flag === "orange") cell.getFormat().getFill().setColor(FLAG_ORANGE);
+    const after = cell.getValues()[0][0];   // verify by read-back
+    led.push([utc, "APPLY", e.sheet, addr, String(before), String(after),
+      e.flag || "", ""]);
+  }
+  for (const r of verdict.refused) {
+    const addr = targetCol + r.entry.row;
+    ws.getRange(addr).getFormat().getFill().setColor(FLAG_RED);
+    led.push([utc, "APPLY", r.entry.sheet, addr, "", "", "red", r.why]);
+  }
+  if (led.length) ledgerAppend(wb, led);
+  return JSON.stringify({
+    ok: true, written: verdict.accepted.length,
+    refused: verdict.refused.length, unmappedLabels: unmapped,
+    refusals: verdict.refused.map(r => ({
+      row: r.entry.row, why: r.why
+    }))
+  });
+}
+
+// ---------- POLICE -------------------------------------------
+// Force a full recalc, then read every model-native check row (rows
+// whose label matches the check pattern) in the target column. Any
+// non-zero check = the model does not balance = the run FAILED.
+function modePolice(wb, p) {
+  wb.getApplication().calculate(ExcelScript.CalculationType.full);
+  const anWs = wb.getWorksheet("_ANATOMY");
+  if (!anWs) return JSON.stringify({ ok: false, why: "run PREFLIGHT first" });
+  const an = sheetGrid(anWs);
+  const ws = wb.getWorksheet(p.sheet);
+  const grid = sheetGrid(ws);
+  // same pattern as updater/discover.py _CHECK_LABEL — deliberately NOT
+  // matching bare 'balance'/'tie' ('liabiliTIEs', 'Balance sheet' rows)
+  const CHECK = /check|差额|平衡|balance test|检验|校验/i;
+  const verdicts = [];
+  let targetCol = "";
+  for (let i = 1; i < an.length; i++) {
+    if (an[i][0] !== p.sheet) continue;
+    targetCol = String(an[i][5]);
+    const lab = String(an[i][2]);
+    if (!CHECK.test(lab)) continue;
+    const row = an[i][1];
+    const v = grid[row - 1] ?
+      grid[row - 1][ws.getRange(targetCol + "1").getColumnIndex()] : null;
+    if (typeof v === "number")
+      verdicts.push({ row: row, label: lab, value: v, pass: Math.abs(v) <= 0.02 });
+  }
+  const failed = verdicts.filter(v => !v.pass);
+  return JSON.stringify({
+    ok: failed.length === 0, checks: verdicts.length,
+    failed: failed
+  });
+}
+
+// ---------- entry --------------------------------------------
+function main(workbook: ExcelScript.Workbook, input: string): string {
+  let p;
+  try { p = JSON.parse(input); }
+  catch { return JSON.stringify({ ok: false, why: "bad input JSON" }); }
+  try {
+    if (p.mode === "PREFLIGHT")
+      return modePreflight(workbook, p );
+    if (p.mode === "STAGE")
+      return modeStage(workbook, p);
+    if (p.mode === "APPLY")
+      return modeApply(workbook, p );
+    if (p.mode === "POLICE")
+      return modePolice(workbook, p );
+    return JSON.stringify({ ok: false, why: "unknown mode " + p.mode });
+  } catch (e) {
+    return JSON.stringify({ ok: false, why: "kernel error: " + String(e) });
+  }
+}
