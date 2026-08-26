@@ -77,6 +77,10 @@ class MockRange {
       }
   }
   setValue(v) { this.setValues([[v]]); }
+  setFormula(f) {
+    const cell = this.ws.cell(this.r, this.c);
+    cell.f = f; cell.v = 0;
+  }
   getRowCount() { return this.nr; }
   getColumnIndex() { return this.c; }
   clear() {

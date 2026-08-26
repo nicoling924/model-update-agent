@@ -60,6 +60,32 @@ function labelOf(grid, row) {
   return "";
 }
 
+// ---------- SEED ---------------------------------------------
+// Build the Phase 1 practice model from data baked into the script —
+// company walls allow code text in but not files, so the workbook
+// travels AS the code. Run the kernel with empty input (or
+// {"mode":"SEED"}) on a blank workbook and the practice sheet appears:
+// DFE's real FY22-24 actuals, announcement-exact Chinese labels, and
+// the model's own balance-check row.
+var SEED_ROWS = [["报告期","FY2022","FY2023","FY2024","FY2025"],["","","","",""],["P&L (Rmb m)","","","",""],["    营业总收入",55353.14,60676.61,69695.14,""],["    营业收入",54179.06,59566.53,68592.74,""],["        其他类金融业务收入",1174.08,1110.09,1102.4,""],["营业总成本",52452.27,57338.36,66679.76,""],["        营业成本",45244.94,49253.17,58876.11,""],["    税金及附加",325.82,303.47,378.53,""],["    销售费用",1483.43,1587.51,822.36,""],["    管理费用",3116.97,3403.9,3523.05,""],["    研发费用",2274.63,2749.53,3009.01,""],["    财务费用",-97.81,7.45,44.55,""],["        其中：利息费用",79.42,64.44,82.97,""],["                    减：利息收入",42.43,120.75,132.71,""],["        其他业务成本(金融类)",104.28,33.33,26.15,""],["    加：其他收益",150.75,438.8,769.92,""],["    投资净收益",480.56,748.15,1577.06,""],["        其中：对联营企业和合营企业的投资收益",301.77,320.69,186.94,""],["    公允价值变动净收益",-61.54,85.06,-204.16,""],["    资产减值损失",-480.48,-495.92,-1148.01,""],["    信用减值损失",277.44,-175.68,-146.04,""],["    资产处置收益",50.19,9.77,16.45,""],["    汇兑净收益",3.07,28.24,6.84,""],["营业利润",3320.87,3976.68,3887.45,""],["","","","",""],["Balance sheet","","","",""],["资产总计",115265.06,121108.37,142009.28,""],["    负债合计",76640.19,79888.5,98867.04,""],["    所有者权益合计",38624.87,41219.87,43142.25,""],["Check 平衡校验","=B28-B29-B30","=C28-C29-C30","=D28-D29-D30","=E28-E29-E30"]];
+
+function modeSeed(wb) {
+  let ws = wb.getWorksheet("Model");
+  if (!ws) ws = wb.addWorksheet("Model");
+  const ur = ws.getUsedRange();
+  if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
+  for (let r = 0; r < SEED_ROWS.length; r++)
+    for (let c = 0; c < SEED_ROWS[r].length; c++) {
+      const v = SEED_ROWS[r][c];
+      if (v === "") continue;
+      const cell = ws.getRangeByIndexes(r, c, 1, 1);
+      if (typeof v === "string" && v.charAt(0) === "=") cell.setFormula(v);
+      else cell.setValue(v);
+    }
+  return JSON.stringify({ ok: true, seeded: SEED_ROWS.length,
+    note: "practice model built — sheet 'Model'" });
+}
+
 // ---------- PREFLIGHT ----------------------------------------
 // Discover the sheet's year axis (the 1H-trap law applies), find the
 // prior actual column and the target column, and write every labelled
@@ -274,9 +300,15 @@ function modePolice(wb, p) {
 // ---------- entry --------------------------------------------
 function main(workbook, input) {
   let p;
-  try { p = JSON.parse(input); }
-  catch { return JSON.stringify({ ok: false, why: "bad input JSON" }); }
+  if (input === undefined || input === null || String(input).trim() === "")
+    p = { mode: "SEED" };            // bare manual Run = build the practice model
+  else {
+    try { p = JSON.parse(input); }
+    catch { return JSON.stringify({ ok: false, why: "bad input JSON" }); }
+  }
   try {
+    if (p.mode === "SEED")
+      return modeSeed(workbook);
     if (p.mode === "PREFLIGHT")
       return modePreflight(workbook, p );
     if (p.mode === "STAGE")

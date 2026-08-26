@@ -111,6 +111,26 @@ et("orange backout accepted + written", ap3.written === 1);
 et("orange fill applied", wb3.getWorksheet("Model").cell(4, 4).fill === "FFC000");
 et("red flag without note refused", ap3.refused === 1);
 
+// ---- run 4: SEED — the practice model travels as code ---------
+const wb4 = new MockWorkbook();
+const sd = JSON.parse(main(wb4, ""));            // bare run = seed
+et("bare run seeds the practice model", sd.ok === true && sd.seeded >= 30);
+const pre4 = JSON.parse(main(wb4, JSON.stringify(
+  { mode: "PREFLIGHT", sheet: "Model", periodKind: "FY", targetYear: 2025 })));
+et("seeded model binds FY axis", pre4.ok === true && pre4.targetCol === "E");
+et("seeded anatomy is rich", pre4.anatomyRows >= 25);
+stage(wb4, [
+  ["营业总收入", 75000.0, 69695.14, "p3", "", ""],
+  ["营业成本", 62000.0, 58999.99, "p3", "", ""],   // sabotage: wrong prior
+]);
+const ap4 = JSON.parse(main(wb4, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("seeded honest row accepted", ap4.written === 1);
+et("seeded sabotage refused", ap4.refused === 1);
+const po4 = JSON.parse(main(wb4, JSON.stringify(
+  { mode: "POLICE", sheet: "Model" })));
+et("seeded model passes police", po4.ok === true && po4.checks === 1);
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;
