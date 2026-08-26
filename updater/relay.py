@@ -15,11 +15,16 @@ falls back to text-only channels; each question waits up to
 RELAY_TIMEOUT seconds for Studio's flow to answer.
 """
 import json
+import os
 import time
 import uuid
 from pathlib import Path
 
-RELAY_DIR = Path(__file__).resolve().parent.parent / "runs" / "relay"
+# Overridable so the queue can live inside a synced SharePoint folder,
+# where a Studio flow (not a local process) works the questions.
+RELAY_DIR = Path(os.environ.get(
+    "RELAY_DIR",
+    str(Path(__file__).resolve().parent.parent / "runs" / "relay")))
 RELAY_TIMEOUT = 1800          # seconds per question
 POLL = 3
 
@@ -54,7 +59,12 @@ class RelayClient:
         t0 = time.time()
         while time.time() - t0 < self.timeout:
             if ap.exists():
-                raw = json.loads(ap.read_text()).get("answer", "")
+                try:
+                    raw = json.loads(
+                        ap.read_text(encoding="utf-8")).get("answer", "")
+                except Exception:
+                    time.sleep(POLL)   # file still syncing down — retry
+                    continue
                 qp.unlink(missing_ok=True)
                 ap.unlink(missing_ok=True)
                 return raw

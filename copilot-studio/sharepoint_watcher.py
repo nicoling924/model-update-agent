@@ -14,6 +14,12 @@ Folder layout (created automatically):
 Run on the engine machine:   python3 copilot-studio/sharepoint_watcher.py
 Environment: WATCH_DIR (the synced folder), plus the usual engine vars.
 One run at a time; a STATUS-*.txt in outbox/ narrates progress.
+
+Brain selection (PC edition):
+  LLM_MODE=api    -> direct LLM API (needs LLM_BASE_URL/LLM_API_KEY/LLM_MODEL)
+  LLM_MODE=relay  -> Copilot Studio's built-in GPT answers via the queue in
+                     WATCH_DIR/relay/ (a Studio Workflow works the folder);
+                     no API key leaves the machine.
 """
 import os
 import re
@@ -25,7 +31,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from updater.cli import _load_env  # noqa: E402
+_load_env()
+
 WATCH = Path(os.environ.get("WATCH_DIR", str(ROOT / "sharepoint"))).expanduser()
+
+if os.environ.get("LLM_MODE", "").lower() == "relay":
+    # queue lives INSIDE the synced folder so the Studio flow can see it,
+    # and the RelayClient replaces the API client before first import.
+    os.environ.setdefault("RELAY_DIR", str(WATCH / "relay"))
+    for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        os.environ.setdefault(k, "relay")   # satisfy cli's live-run gate
+    from updater import llm as _llm
+    from updater.relay import RelayClient
+    _llm.Client = lambda *a, **k: RelayClient()
 REQ_RE = re.compile(r"^RUN[ _-]+([A-Za-z0-9]+)[ _-]+([A-Za-z0-9]+)",
                     re.I)
 POLL = 15
