@@ -6,6 +6,12 @@
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 sh "$DIR/tools/build.sh" || exit 1
 JS="${TMPDIR:-/tmp}/kernel.transpiled.$$.js"
+# Office Scripts house lints the compiler does not enforce:
+# array-method callbacks must be ARROW functions (tenant-measured law).
+if grep -nE '\.(sort|map|filter|forEach|reduce|some|every|find|findIndex)\(\s*function' "$DIR/dist/kernel.paste.ts"; then
+  echo "LINT FAIL: function-expression callback (Office Scripts requires arrows)"
+  exit 1
+fi
 TC=$(osascript -l JavaScript "$DIR/tools/typecheck.jxa" \
   "$DIR/tools/vendor" "$DIR/dist/kernel.paste.ts" 2>&1)
 echo "$TC"

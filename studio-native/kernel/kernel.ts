@@ -32,6 +32,9 @@ interface Params {
   rows?: (string | number | null)[][];
 }
 
+interface CheckVerdict { row: number; label: string; value: number;
+  pass: boolean; }
+
 const FLAG_RED: string = "FFC7CE";     // uncertain — analyst review
 const FLAG_ORANGE: string = "FFC000";  // backed-out — awaiting true-up
 
@@ -329,8 +332,6 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   // same pattern as updater/discover.py _CHECK_LABEL — deliberately NOT
   // matching bare 'balance'/'tie' ('liabiliTIEs', 'Balance sheet' rows)
   const CHECK: RegExp = /check|差额|平衡|balance test|检验|校验/i;
-  interface CheckVerdict { row: number; label: string; value: number;
-    pass: boolean; }
   const verdicts: CheckVerdict[] = [];
   for (let i: number = 1; i < an.length; i++) {
     if (an[i][0] !== sheetName) continue;

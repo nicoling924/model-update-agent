@@ -118,10 +118,11 @@ function findYearAxis(grid: CellValue[][], periodKind: string): AxisMap | null {
     }
   }
   if (cands.length === 0) return null;
-  cands.sort(function (a: [number, number, number, Mark[]],
-                       b: [number, number, number, Mark[]]): number {
-    return b[0] - a[0] || b[1] - a[1] || b[2] - a[2];
-  });
+  // Office Scripts law (owner's tenant, 2026-08-26): array-method
+  // callbacks MUST be arrow functions — function expressions are refused.
+  cands.sort((a: [number, number, number, Mark[]],
+              b: [number, number, number, Mark[]]): number =>
+    b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
   const best: Mark[] = cands[0][3];
   const out: AxisMap = {};
   for (let b: number = 0; b < best.length; b++)
