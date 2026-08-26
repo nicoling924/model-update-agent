@@ -123,6 +123,11 @@ class MockWorkbook {
     return this.sheets[name];
   }
   getWorksheet(name) { return this.sheets[name] || null; }
+  getWorksheets() {
+    const out = [];
+    for (const k in this.sheets) out.push(this.sheets[k]);
+    return out;
+  }
   getApplication() {
     const wb = this;
     return { calculate() {

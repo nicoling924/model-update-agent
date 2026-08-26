@@ -131,6 +131,21 @@ const po4 = JSON.parse(main(wb4, JSON.stringify(
   { mode: "POLICE", sheet: "Model" })));
 et("seeded model passes police", po4.ok === true && po4.checks === 1);
 
+// ---- run 5: SEED guard — a real model can never be hit --------
+const wb5 = new MockWorkbook();
+const real = wb5.addWorksheet("Model");
+real.getRange("A1").setValue("Rmb m");          // looks like a real model
+real.getRange("B4").setValue(55353);
+const sd5 = JSON.parse(main(wb5, ""));
+et("SEED refused on non-blank workbook", sd5.ok === false &&
+  /refused/.test(sd5.why));
+et("real content untouched", wb5.getWorksheet("Model")
+  .getRange("B4").getValues()[0][0] === 55353);
+const wb6 = new MockWorkbook();
+main(wb6, "");                                   // seed a blank one
+const rs = JSON.parse(main(wb6, ""));            // re-seed the practice file
+et("re-seeding the practice file is allowed", rs.ok === true);
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;

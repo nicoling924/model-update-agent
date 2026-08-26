@@ -331,7 +331,28 @@ function labelOf(grid: CellValue[][], row: number): string {
 const SEED_ROWS: (string | number)[][] = [["报告期","FY2022","FY2023","FY2024","FY2025"],["","","","",""],["P&L (Rmb m)","","","",""],["    营业总收入",55353.14,60676.61,69695.14,""],["    营业收入",54179.06,59566.53,68592.74,""],["        其他类金融业务收入",1174.08,1110.09,1102.4,""],["营业总成本",52452.27,57338.36,66679.76,""],["        营业成本",45244.94,49253.17,58876.11,""],["    税金及附加",325.82,303.47,378.53,""],["    销售费用",1483.43,1587.51,822.36,""],["    管理费用",3116.97,3403.9,3523.05,""],["    研发费用",2274.63,2749.53,3009.01,""],["    财务费用",-97.81,7.45,44.55,""],["        其中：利息费用",79.42,64.44,82.97,""],["                    减：利息收入",42.43,120.75,132.71,""],["        其他业务成本(金融类)",104.28,33.33,26.15,""],["    加：其他收益",150.75,438.8,769.92,""],["    投资净收益",480.56,748.15,1577.06,""],["        其中：对联营企业和合营企业的投资收益",301.77,320.69,186.94,""],["    公允价值变动净收益",-61.54,85.06,-204.16,""],["    资产减值损失",-480.48,-495.92,-1148.01,""],["    信用减值损失",277.44,-175.68,-146.04,""],["    资产处置收益",50.19,9.77,16.45,""],["    汇兑净收益",3.07,28.24,6.84,""],["营业利润",3320.87,3976.68,3887.45,""],["","","","",""],["Balance sheet","","","",""],["资产总计",115265.06,121108.37,142009.28,""],["    负债合计",76640.19,79888.5,98867.04,""],["    所有者权益合计",38624.87,41219.87,43142.25,""],["Check 平衡校验","=B28-B29-B30","=C28-C29-C30","=D28-D29-D30","=E28-E29-E30"]];
 
 function modeSeed(wb: ExcelScript.Workbook): string {
-  let ws: ExcelScript.Worksheet | undefined = wb.getWorksheet("Model");
+  // GUARD (added after the owner nearly ran SEED inside the real
+  // Dongfang model, 2026-08-26): seeding may only touch a BLANK
+  // workbook or re-seed a workbook that is already the practice file
+  // (recognised by its marker cell). A real model can never be hit.
+  const existing: ExcelScript.Worksheet | undefined = wb.getWorksheet("Model");
+  let isPractice: boolean = false;
+  if (existing) {
+    const a1: CellValue =
+      existing.getRange("A1").getValues()[0][0] as CellValue;
+    isPractice = String(a1) === "报告期";
+  }
+  if (!isPractice) {
+    const all: ExcelScript.Worksheet[] = wb.getWorksheets();
+    for (let i: number = 0; i < all.length; i++) {
+      if (all[i].getUsedRange()) {
+        return JSON.stringify({ ok: false,
+          why: "SEED refused: this workbook is not blank. Open a NEW " +
+               "blank workbook for practice — never a real model." });
+      }
+    }
+  }
+  let ws: ExcelScript.Worksheet | undefined = existing;
   if (!ws) ws = wb.addWorksheet("Model");
   const ur: ExcelScript.Range | undefined = ws.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
