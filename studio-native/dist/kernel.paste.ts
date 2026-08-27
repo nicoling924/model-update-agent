@@ -477,6 +477,7 @@ interface Params {
   rows?: (string | number | null)[][];
   acknowledgeRestatement?: boolean;
   analystApproved?: boolean;
+  recalc?: boolean;
 }
 
 // What PREFLIGHT hands back when a sheet has no column for the period yet.
@@ -527,10 +528,25 @@ function getOrCreate(wb: ExcelScript.Workbook,
   return ws;
 }
 
+// A real model's "used range" is often far larger than its data — stray
+// formatting pushes it thousands of rows down and hundreds of columns
+// across, and reading that whole grid blew the 60-second tool budget on
+// the owner's model (2026-08-27). Reads are bounded; a model needing more
+// than this is not a model, it is a database.
+const MAX_ROWS: number = 2000;
+const MAX_COLS: number = 160;
+
 function sheetGrid(ws: ExcelScript.Worksheet): CellValue[][] {
   const ur: ExcelScript.Range | undefined = ws.getUsedRange();
   if (!ur) return [];
-  return ur.getValues() as CellValue[][];
+  const nr: number = ur.getRowCount();
+  const nc: number = ur.getColumnCount();
+  if (nr <= MAX_ROWS && nc <= MAX_COLS)
+    return ur.getValues() as CellValue[][];
+  const r0: number = ur.getRowIndex();
+  const c0: number = ur.getColumnIndex();
+  return ws.getRangeByIndexes(r0, c0, Math.min(nr, MAX_ROWS),
+    Math.min(nc, MAX_COLS)).getValues() as CellValue[][];
 }
 
 function ledgerAppend(wb: ExcelScript.Workbook,
@@ -1292,9 +1308,12 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
     led.push([utc, "APPLY", sheetName, addr, embedded[i].formula, "", "red",
       "embedded hardcode carried from last year — check the number inside"]);
   }
-  // did the wired rows actually produce the disclosed figures?
-  wb.getApplication().calculate(ExcelScript.CalculationType.full);
-  const after: CellValue[][] = sheetGrid(ws);
+  // did the wired rows actually produce the disclosed figures? A full
+  // recalc of a linked model is expensive — only pay for it when there
+  // are wired rows whose results we must check.
+  if (wired.length > 0)
+    wb.getApplication().calculate(ExcelScript.CalculationType.full);
+  const after: CellValue[][] = wired.length > 0 ? sheetGrid(ws) : grid;
   const tIdx: number = ws.getRange(targetCol + "1").getColumnIndex();
   const conflicts: { row: number; label: string }[] = [];
   for (let i: number = 0; i < wired.length; i++) {
@@ -1455,7 +1474,11 @@ function modeRestate(wb: ExcelScript.Workbook, p: Params): string {
 // column too is deliberate: the boss map asks for ALL years balanced, and
 // an inherited break must surface as the analyst's, not as ours.
 function modePolice(wb: ExcelScript.Workbook, p: Params): string {
-  wb.getApplication().calculate(ExcelScript.CalculationType.full);
+  // {"recalc":false} for models so heavy that a full recalc alone exceeds
+  // the host's time budget — the verdict then reads whatever Excel last
+  // computed, and says so.
+  if (p.recalc !== false)
+    wb.getApplication().calculate(ExcelScript.CalculationType.full);
   const names: string[] = p.sheet ? [String(p.sheet)] : anatomySheets(wb);
   if (names.length === 0)
     return JSON.stringify({ ok: false, why: "run PREFLIGHT first" });
@@ -1552,6 +1575,7 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   return JSON.stringify({
     ok: failed.length === 0, checks: verdicts.length, failed: failed,
     inheritedFailures: inherited, externalLinks: links,
+    recalculated: p.recalc !== false,
     preExistingErrors: errorsPre, newErrors: [],
     note: inherited > 0 ? "some checks were already failing in the prior " +
       "year column — those are pre-existing model errors, not this run's" : ""

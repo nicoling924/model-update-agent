@@ -110,6 +110,8 @@ class MockRange {
     cell.f = f; cell.v = 0;
   }
   getRowCount() { return this.nr; }
+  getColumnCount() { return this.nc; }
+  getRowIndex() { return this.r; }
   insertColumns() {                 // shift columns at c.. right by nc
     const moved = {};
     for (const k in this.ws.cells) {
