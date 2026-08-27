@@ -1522,7 +1522,8 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   // #REF!/#VALUE!. Errors that were already there when we opened the file
   // are the model's; errors that appear after are OURS and must fail the
   // run loudly (CLAUDE.md integrity checklist).
-  const newErrors: { sheet: string; cells: string[] }[] = [];
+  const newErrors: { sheet: string; cells: string[];
+    formulas: { cell: string; formula: string }[] }[] = [];
   let errorsNow: number = 0;
   let errorsPre: number = 0;
   let links: number = 0;
@@ -1549,9 +1550,19 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
     errorsPre += vw.errorsBefore;
     links += vw.externalLinks;
     const grew: boolean = outside.length > vw.errorsBefore;
-    if (grew || fresh.length > 0)
-      newErrors.push({ sheet: names[s2],
-        cells: (grew ? outside : []).concat(fresh) });
+    if (grew || fresh.length > 0) {
+      const cells: string[] = (grew ? outside : []).concat(fresh);
+      // Say WHY. An error usually arrives with its own explanation — the
+      // formula. A ratio dividing by a cell we deliberately left blank
+      // ("=U42/U41" where U41 awaits a figure) is a different problem
+      // from something the run broke, and the analyst can see which at a
+      // glance instead of hunting.
+      const shown: { cell: string; formula: string }[] = [];
+      for (let i: number = 0; i < cells.length && i < 10; i++)
+        shown.push({ cell: cells[i],
+          formula: ws2.getRange(cells[i]).getFormula() });
+      newErrors.push({ sheet: names[s2], cells: cells, formulas: shown });
+    }
   }
 
   // GENERICITY GUARD: not every analyst's model carries a labelled check
@@ -1560,9 +1571,11 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   if (newErrors.length > 0)
     return JSON.stringify({ ok: false, checks: verdicts.length,
       failed: failed, newErrors: newErrors, externalLinks: links,
-      why: "cells that were fine before this run now show Excel errors " +
-        "(#REF!/#VALUE!). Something the run touched — or a broken link to " +
-        "an outside workbook — is the cause. Do NOT deliver this model." });
+      why: "cells that were fine before this run now show Excel errors. " +
+        "Read the formulas below: if one divides by or adds a cell in the " +
+        "new column that is still BLANK, the cause is a figure this " +
+        "disclosure did not cover, not a broken model. Either way, do NOT " +
+        "deliver it in this state." });
   if (verdicts.length === 0)
     return JSON.stringify({ ok: false, checks: 0, failed: [],
       externalLinks: links, preExistingErrors: errorsPre,

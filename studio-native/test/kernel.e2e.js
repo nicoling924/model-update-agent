@@ -527,7 +527,10 @@ const poX2 = JSON.parse(main(wbX, JSON.stringify({ mode: "POLICE" })));
 et("a link that breaks during the run FAILS the delivery",
   poX2.ok === false && poX2.newErrors.length === 1 &&
   poX2.newErrors[0].cells.indexOf("E13") >= 0 &&
-  /Do NOT deliver/.test(poX2.why));
+  /do NOT\s+deliver/i.test(poX2.why));
+et("and the error arrives with its own explanation — the formula",
+  poX2.newErrors[0].formulas[0].cell === "E13" &&
+  poX2.newErrors[0].formulas[0].formula.length > 0);
 // an error the model arrived with is the analyst's, not ours
 const wbY = fixtureWorkbook();
 wbY.getWorksheet("Model").getRange("A13").setValue("Already broken");

@@ -91,6 +91,10 @@ class MockRange {
       }
   }
   setValue(v) { this.setValues([[v]]); }
+  getFormula() {
+    const c = this.ws.cell(this.r, this.c);
+    return c.f === null ? String(c.v) : c.f;
+  }
   getNumberFormat() { return this.ws.cell(this.r, this.c).fmt; }
   setNumberFormat(f) { this.ws.cell(this.r, this.c).fmt = f; }
   getFormulas() {                       // formula text, else the value
