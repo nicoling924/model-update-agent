@@ -1364,9 +1364,12 @@ function modeExtend(wb: ExcelScript.Workbook, p: Params): string {
   const axis: AxisMap | null = findYearAxis(grid, String(p.periodKind || "FY"));
   if (!axis) return JSON.stringify({ ok: false,
     why: "no year axis found on " + sheetName });
+  // Already there? That is success, not an error — a second run on the same
+  // workbook must sail through this step rather than stall the agent.
   if (axis[String(ty)] !== undefined)
-    return JSON.stringify({ ok: false, why: sheetName + " already has a " +
-      ty + " column (" + n2col(axis[String(ty)]) + ") — nothing to extend" });
+    return JSON.stringify({ ok: true, alreadyPresent: true,
+      sheet: sheetName, newCol: n2col(axis[String(ty)]),
+      note: sheetName + " already has a " + ty + " column — nothing to do" });
   let lastYear: number = -1;
   for (const k in axis) if (Number(k) > lastYear) lastYear = Number(k);
   if (ty !== lastYear + 1)

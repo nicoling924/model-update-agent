@@ -450,8 +450,9 @@ et("the new column starts EMPTY (a blank is honest, last year's number lies)",
   wb13.getWorksheet("Raw").getRange("E3").getValues()[0][0] === "");
 const ex3 = JSON.parse(main(wb13, JSON.stringify({ mode: "EXTEND",
   sheet: "Raw", targetYear: 2025, analystApproved: true })));
-et("EXTEND will not add the same year twice",
-  ex3.ok === false && /already has a 2025 column/.test(ex3.why));
+et("a repeat run sails through EXTEND instead of stalling",
+  ex3.ok === true && ex3.alreadyPresent === true &&
+  wb13.getWorksheet("Raw").getRange("F1").getValues()[0][0] === "");
 main(wb13, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model", "Raw"],
   periodKind: "FY", targetYear: 2025 }));
 stage(wb13, [
