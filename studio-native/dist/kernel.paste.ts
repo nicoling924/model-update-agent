@@ -1464,6 +1464,7 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   const CHECK: RegExp = /check|差额|平衡|balance test|检验|校验/i;
   const verdicts: CheckVerdict[] = [];
   const failed: CheckVerdict[] = [];
+  const gridOf: { [k: string]: CellValue[][] } = {};   // one read per sheet
   for (let s: number = 0; s < names.length; s++) {
     const sheetName: string = names[s];
     const view: AnatomyView | null = readAnatomy(wb, sheetName);
@@ -1501,7 +1502,6 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   let errorsNow: number = 0;
   let errorsPre: number = 0;
   let links: number = 0;
-  const gridOf: { [k: string]: CellValue[][] } = {};
   for (let s2: number = 0; s2 < names.length; s2++) {
     const vw: AnatomyView | null = readAnatomy(wb, names[s2]);
     const ws2: ExcelScript.Worksheet | undefined = wb.getWorksheet(names[s2]);
