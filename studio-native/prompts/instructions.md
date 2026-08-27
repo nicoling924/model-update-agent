@@ -45,7 +45,11 @@ report before deciding the next call.
    the run covers more than one sheet), and a row number if you are
    certain which model row it is (leave 0 otherwise).
 
-4. **RESTATE** — `{"mode":"RESTATE"}`
+4. **RESTATE** — `{"mode":"RESTATE"}` — **mandatory, and it covers the
+   whole batch.** Stage everything you read first, then scan once. APPLY
+   refuses to write a batch that has not been scanned, so you can never
+   half-update a model and discover a restatement afterwards. Re-staging
+   creates a new batch, which needs its own scan.
    This compares every comparative you read against the model's history.
    - `"stop": true` → **STOP THE RUN.** Do not APPLY. Tell the analyst
      that the prior year appears to have been restated, ask them for the
@@ -77,6 +81,11 @@ report before deciding the next call.
      rewrite the formula yourself.
    - **`carriedOver`** — typed numbers copied from last year that this
      disclosure did not cover. They are listed in the report, not flagged.
+   - **`awaitingFigures`** — on a column that was blank before this run
+     (a period column just added), rows this disclosure did not cover are
+     left **empty** rather than filled with last year's number. Say how
+     many are still blank: **the update is not finished while they are.**
+     Never describe such a run as complete.
 
    Report all four counts to the analyst at the end.
 

@@ -2,7 +2,9 @@
 // Cells hold {v: value, f: formulaOrNull, fill: colorOrNull}. copyFrom
 // copies value+formula+fill (the recipe contract). calculate() re-derives
 // values for the simple =A1-B1 / =A1+B1 formula shapes used in fixtures.
-function makeCell() { return { v: "", f: null, fill: null, link: null }; }
+function makeCell() {
+  return { v: "", f: null, fill: null, link: null, fmt: "" };
+}
 
 function colToIdx(letters) {
   let n = 0;
@@ -89,6 +91,8 @@ class MockRange {
       }
   }
   setValue(v) { this.setValues([[v]]); }
+  getNumberFormat() { return this.ws.cell(this.r, this.c).fmt; }
+  setNumberFormat(f) { this.ws.cell(this.r, this.c).fmt = f; }
   getFormulas() {                       // formula text, else the value
     const out = [];
     for (let i = 0; i < this.nr; i++) {
@@ -134,7 +138,9 @@ class MockRange {
     for (let i = 0; i < this.nr; i++)
       for (let j = 0; j < this.nc; j++) {
         const k = this.ws.key(this.r + i, this.c + j);
-        delete this.ws.cells[k];
+        const c = this.ws.cells[k];
+        if (c === undefined) continue;
+        c.v = ""; c.f = null; c.link = null;      // contents, format kept
       }
   }
   copyFrom(src, copyType) {           // values + formulas + formats
@@ -142,8 +148,8 @@ class MockRange {
       for (let j = 0; j < src.nc; j++) {
         const s = src.ws.cell(src.r + i, src.c + j);
         const d = this.ws.cell(this.r + i, this.c + j);
-        if (copyType === "formats") { d.fill = s.fill; continue; }
-        d.v = s.v; d.fill = s.fill;
+        if (copyType === "formats") { d.fill = s.fill; d.fmt = s.fmt; continue; }
+        d.v = s.v; d.fill = s.fill; d.fmt = s.fmt;
         // relative formula shift: =XN op YN with column offset applied
         d.f = s.f === null ? null : s.f.replace(/([A-Z]+)(\d+)/g,
           (m, L, N) => {
@@ -211,7 +217,7 @@ class MockWorkbook {
 
 var ExcelScript = {
   SheetVisibility: { hidden: "hidden", visible: "visible" },
-  ClearApplyTo: { all: "all" },
+  ClearApplyTo: { all: "all", contents: "contents" },
   RangeCopyType: { all: "all", formats: "formats" },
   CalculationType: { full: "full" },
   InsertShiftDirection: { down: "down", right: "right" },

@@ -30,10 +30,13 @@ function fixtureWorkbook() {
   return wb;
 }
 
+// the real sequence: STAGE then the comparatives scan. APPLY refuses to
+// write a batch nobody has scanned, so the helper mirrors that.
 function stage(wb, rows) {              // through the kernel's own door
   const r = JSON.parse(main(wb, JSON.stringify(
     { mode: "STAGE", rows: rows })));
   et("stage ok (" + r.staged + " rows)", r.ok === true && r.staged === rows.length);
+  main(wb, JSON.stringify({ mode: "RESTATE" }));
 }
 
 // ---- run 1: the happy-and-hostile path ------------------------
@@ -73,8 +76,11 @@ et("unmapped label surfaced with a reason",
 
 const ws1 = wb1.getWorksheet("Model");
 et("accepted value written (E5)", ws1.getRange("E5").getValues()[0][0] === 5321.0);
-et("REFUSED row NOT written (E7 keeps prior)",
-  ws1.getRange("E7").getValues()[0][0] === 1976.2);
+// The 2025 column was blank before this run, so a refused row is left
+// BLANK and red — not carrying last year's figure, which would read as
+// this year's actual.
+et("REFUSED row left blank, not showing last year's number",
+  ws1.getRange("E7").getValues()[0][0] === "");
 et("refused row turned red", ws1.cell(6, 4).fill === "FFC7CE");
 et("check formula copied+shifted (E12 = =E9-E10-E11)",
   ws1.cell(11, 4).f === "=E9-E10-E11");
@@ -293,6 +299,7 @@ et("police sweeps every sheet it preflighted",
   po10.ok === true && po10.checks === 4);
 main(wb10, JSON.stringify({ mode: "STAGE", rows: [
   ["Total equity", 999.0, 300.0, "p9", "", "", "BS"]] }));
+main(wb10, JSON.stringify({ mode: "RESTATE" }));
 main(wb10, JSON.stringify({ mode: "APPLY", sheet: "BS", targetYear: 2025 }));
 const po11 = JSON.parse(main(wb10, JSON.stringify({ mode: "POLICE" })));
 et("a break on ANY sheet fails the whole run",
@@ -474,15 +481,17 @@ et("the kept link now feeds the new period's actual",
 et("a formula with a number baked in is surfaced as a key driver",
   apMod.embeddedHardcodes === 1 &&
   wb13.getWorksheet("Model").cell(4, 4).fill === "FFC7CE");
-et("last year's typed number is reported, not silently kept as this year's",
-  apMod.carriedOver === 1);
+et("an undisclosed input row is left blank and counted, not carried",
+  apMod.newColumn === true && apMod.awaitingFigures === 1 &&
+  apMod.carriedOver === 0 &&
+  wb13.getWorksheet("Model").getRange("E6").getValues()[0][0] === "");
 const rep13 = JSON.parse(main(wb13, JSON.stringify({ mode: "REPORT" })));
-et("report carries the two new sections",
-  rep13.keyDrivers === 1 && rep13.notUpdated === 1);
+et("report carries the key-driver section",
+  rep13.keyDrivers === 1 && rep13.notUpdated === 0);
 const flat13 = JSON.stringify(
   wb13.getWorksheet("_REPORT").getUsedRange().getValues());
 et("the report names the baked-in formula so the analyst can judge it",
-  /=D3\+36/.test(flat13) && /Analyst overlay/.test(flat13));
+  /=D3\+36/.test(flat13) && /Adjusted profit/.test(flat13));
 
 // a wired cell whose source disagrees with the disclosure must shout
 stage(wb13, [["Revenue", 9999.0, 4976.2, "p3", "", "", "Model"]]);
@@ -530,6 +539,97 @@ main(wbY, JSON.stringify({ mode: "APPLY", sheet: "Model", targetYear: 2025 }));
 const poY = JSON.parse(main(wbY, JSON.stringify({ mode: "POLICE" })));
 et("errors the model arrived with do not fail the run",
   poY.ok === true && poY.preExistingErrors === 1);
+
+
+// ---- run 14: a NEW column must never be a copy of last year ----
+// The disease the owner caught on the real model: EXTEND adds the 2025
+// column, APPLY copies 2024 across, only the disclosed lines get
+// overwritten — and every other row now shows last year's figure sitting
+// under a 2025 header, indistinguishable from an actual.
+function fixtureRawOnly() {
+  const wb = new MockWorkbook();
+  const raw = wb.addWorksheet("Raw");
+  raw.getRange("B1").setValue(2022); raw.getRange("C1").setValue(2023);
+  raw.getRange("D1").setValue(2024);        // history stops at 2024
+  const put = (r, label, v) => {
+    raw.getRange("A" + r).setValue(label);
+    raw.getRange("B" + r).setValue(v - 200);
+    raw.getRange("C" + r).setValue(v - 100);
+    raw.getRange("D" + r).setValue(v);
+  };
+  put(3, "Revenue", 4976.2);
+  put(4, "Cost of sales", -3000.0);
+  put(5, "Inventories", 21685.3);       // balance-sheet line, NOT disclosed
+  put(6, "Other receivables", 546.28);  // also not disclosed this time
+  raw.getRange("A7").setValue("Balance check");
+  raw.getRange("D7").setValue(0); raw.cell(6, 3).f = "=D3-D3";
+  return wb;
+}
+const wbN = fixtureRawOnly();
+main(wbN, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Raw"],
+  periodKind: "FY", targetYear: 2025 }));
+main(wbN, JSON.stringify({ mode: "EXTEND", sheet: "Raw", targetYear: 2025,
+  analystApproved: true }));
+main(wbN, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Raw"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wbN, [
+  ["Revenue", 5321.0, 4976.2, "p3", "", "", "Raw"],
+  ["Cost of sales", -3200.0, -3000.0, "p3", "", "", "Raw"],
+]);
+const apN = JSON.parse(main(wbN, JSON.stringify(
+  { mode: "APPLY", sheet: "Raw", targetYear: 2025 })));
+const rawN = wbN.getWorksheet("Raw");
+et("disclosed lines land in the new column",
+  apN.written === 2 && rawN.getRange("E3").getValues()[0][0] === 5321.0);
+et("UNDISCLOSED lines stay BLANK — last year is never copied in as this " +
+  "year's actual",
+  rawN.getRange("E5").getValues()[0][0] === "" &&
+  rawN.getRange("E6").getValues()[0][0] === "");
+et("the run says how many rows are still awaiting figures",
+  apN.newColumn === true && apN.awaitingFigures === 2 &&
+  apN.carriedOver === 0 && /still BLANK/.test(apN.note));
+et("wiring and the year header survive the blanking",
+  rawN.cell(6, 4).f === "=E3-E3" &&
+  rawN.getRange("E1").getValues()[0][0] === 2025);
+// an EXISTING column (the analyst's own forecast) keeps the house recipe
+const wbE = fixtureWorkbook();
+main(wbE, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+wbE.getWorksheet("Model").getRange("E5").setValue(5000);   // a forecast sits there
+main(wbE, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wbE, [["Revenue", 5321.0, 4976.2, "p3", "", ""]]);
+const apE = JSON.parse(main(wbE, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("a column that already held the analyst's forecast keeps the " +
+  "mark-to-actual recipe", apE.newColumn === false && apE.carriedOver > 0);
+
+
+// ---- run 15: writes cannot outrun the comparatives scan --------
+// On the real model the agent applied 33 cash-flow lines and only then
+// ran the scan that found a restatement — a partial write nobody asked
+// for. A staged batch that has not been scanned is now unwritable.
+const wbS = fixtureWorkbook();
+main(wbS, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+main(wbS, JSON.stringify({ mode: "STAGE", rows: [
+  ["Revenue", 5321.0, 4976.2, "p3", "", ""]] }));       // no RESTATE
+const apS = JSON.parse(main(wbS, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("APPLY refuses a staging batch nobody has scanned",
+  apS.ok === false && /RESTATE has not scanned/.test(apS.why) &&
+  wbS.getWorksheet("Model").getRange("E5").getValues()[0][0] === "");
+main(wbS, JSON.stringify({ mode: "RESTATE" }));
+const apS2 = JSON.parse(main(wbS, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("once scanned, the same batch writes normally", apS2.written === 1);
+// and a NEW batch must be scanned again before it can be written
+main(wbS, JSON.stringify({ mode: "STAGE", rows: [
+  ["Cost of sales", -3200.0, -3000.0, "p3", "", ""]] }));
+const apS3 = JSON.parse(main(wbS, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("a fresh batch needs its own scan — the old one does not count",
+  apS3.ok === false && /RESTATE has not scanned/.test(apS3.why));
 
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);

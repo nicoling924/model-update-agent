@@ -483,6 +483,12 @@ interface AnatomyView {
   priorCol: string; targetCol: string;
   axisRow: number; axisHeader: string; nextCol: string;
   errorsBefore: number; externalLinks: number;
+  // was the target column BLANK when we first looked? If so this is a
+  // brand-new period column, and copying last year's typed numbers into
+  // it would not be "leaving a cell stale" — it would be inventing an
+  // actual that nobody disclosed. The owner caught exactly this on the
+  // real model: a 2025 column that was a pixel-perfect copy of 2024.
+  targetWasEmpty: boolean;
   // the model's OWN forecast for the period we are about to overwrite,
   // and for the year after it — captured at PREFLIGHT because after
   // APPLY it no longer exists anywhere. This is what makes the _REPORT's
@@ -606,8 +612,13 @@ function externalLinkCount(ws: ExcelScript.Worksheet,
   return n;
 }
 
-function columnIsEmpty(grid: CellValue[][], colIdx: number): boolean {
-  for (let r: number = 0; r < grid.length; r++) {
+// fromRow lets the caller ignore the header rows: a freshly added period
+// column already carries its year header, and that must not make it look
+// occupied when we ask "did this column hold any data before?"
+function columnIsEmpty(grid: CellValue[][], colIdx: number,
+                       fromRow?: number): boolean {
+  const start: number = (fromRow === undefined) ? 0 : fromRow;
+  for (let r: number = start; r < grid.length; r++) {
     const v: CellValue | undefined = grid[r][colIdx];
     if (v !== undefined && v !== "") return false;
   }
@@ -648,7 +659,7 @@ function readAnatomy(wb: ExcelScript.Workbook,
   const an: CellValue[][] = sheetGrid(anWs);
   const view: AnatomyView = { rows: [], priorCol: "", targetCol: "",
     axisRow: -1, axisHeader: "", nextCol: "", errorsBefore: 0,
-    externalLinks: 0, beforeT: {}, beforeN: {} };
+    externalLinks: 0, targetWasEmpty: false, beforeT: {}, beforeN: {} };
   const mk: string = metaKey(sheetName);
   for (let i: number = 1; i < an.length; i++) {
     const sh: string = String(an[i][0]);
@@ -658,6 +669,7 @@ function readAnatomy(wb: ExcelScript.Workbook,
       view.priorCol = String(an[i][4]);
       view.targetCol = String(an[i][5]);
       view.nextCol = String(an[i][6] === undefined ? "" : an[i][6]);
+      view.targetWasEmpty = String(an[i][7]) === "EMPTY";
       view.errorsBefore = (typeof an[i][8] === "number")
         ? (an[i][8] as number) : 0;
       view.externalLinks = (typeof an[i][9] === "number")
@@ -875,8 +887,8 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   const errsBefore: number = errorCells(grid, 500, tCol).length;
   const links: number = externalLinkCount(ws, grid);
   out.push([metaKey(sheetName), axisRow, String(headerVal), 0,
-    n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol), "",
-    errsBefore, links]);
+    n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol),
+    columnIsEmpty(grid, tCol, axisRow + 1) ? "EMPTY" : "", errsBefore, links]);
   // the analyst's own forecast for the year we are about to overwrite,
   // and the year after — snapshot NOW or it is lost forever (_REPORT's
   // "what you projected vs what came in" depends on it)
@@ -997,7 +1009,15 @@ function modeStage(wb: ExcelScript.Workbook, p: Params): string {
   }
   if (norm.length > 0)
     st.getRangeByIndexes(1, 0, norm.length, 8).setValues(norm);
-  return JSON.stringify({ ok: true, staged: norm.length });
+  // stamp the batch. APPLY will refuse to write until RESTATE has scanned
+  // THIS batch — on the real model the agent wrote 33 cash-flow lines and
+  // only then discovered the balance sheet had been restated.
+  const stamp: string = new Date().toISOString() + "-" + norm.length + "-" +
+    String(Math.floor(Math.random() * 1000000));   // unique per batch
+  st.getRange("J1").setValue(stamp);
+  return JSON.stringify({ ok: true, staged: norm.length,
+    next: "run RESTATE next — nothing can be written until the " +
+      "comparatives have been checked" });
 }
 
 // ---------- APPLY --------------------------------------------
@@ -1028,6 +1048,14 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
              "prior-year report). Re-run APPLY with " +
              "\"acknowledgeRestatement\":true only after they answer." });
   }
+  const stamp: CellValue = stWs.getRange("J1").getValues()[0][0] as CellValue;
+  const scanned: CellValue = rsWs
+    ? (rsWs.getRange("I1").getValues()[0][0] as CellValue) : "";
+  if (String(stamp) !== "" && String(scanned) !== String(stamp))
+    return JSON.stringify({ ok: false,
+      why: "RESTATE has not scanned this staging batch. Nothing is " +
+        "written until the prior-year comparatives have been checked — " +
+        "call {\"mode\":\"RESTATE\"} first, then APPLY." });
   const st: CellValue[][] = sheetGrid(stWs);
   const priors: { [k: string]: number } = {};
   for (let i: number = 0; i < view.rows.length; i++)
@@ -1142,6 +1170,19 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   const LITERAL: RegExp = /(^|[-+*\/(,=\s])([0-9]+(\.[0-9]+)?)/;
   const stripRefs = (f: string): string =>
     f.split("$").join("").replace(/\b[A-Z]{1,3}[0-9]{1,5}\b/g, "@");
+  // A BRAND-NEW column keeps the wiring and the formats, but starts with
+  // NO typed numbers: a blank says "nobody disclosed this yet", while
+  // last year's figure sitting in this year's column is a lie that reads
+  // as an actual. (An EXISTING column keeps the house mark-to-actual
+  // recipe — there we are replacing the analyst's own forecast, and the
+  // boss ruling says leave what this period did not disclose.)
+  if (view.targetWasEmpty) {
+    for (let r: number = 1; r <= nRows; r++) {
+      if (r === axisRow + 1) continue;               // never the header
+      if (isFormula(formulaOf(r))) continue;         // wiring stays
+      ws.getRange(targetCol + r).clear(ExcelScript.ClearApplyTo.contents);
+    }
+  }
   const wired: { row: number; label: string; value: number }[] = [];
   const embedded: { row: number; label: string; formula: string }[] = [];
   const writtenRows: { [k: string]: boolean } = {};
@@ -1177,6 +1218,7 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   }
   // sweep the whole rolled-forward column for the two silent diseases
   const carried: { row: number; label: string; value: number }[] = [];
+  let blanks: number = 0;
   for (let i: number = 0; i < view.rows.length; i++) {
     const row: number = view.rows[i].row;
     const f: string = formulaOf(row);
@@ -1186,6 +1228,7 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
       continue;
     }
     if (writtenRows[String(row)]) continue;
+    if (view.targetWasEmpty) { blanks++; continue; }  // left honestly blank
     // a typed number copied from last year, sitting in this year's column
     // and not disclosed this period. Boss ruling: no cell flag, but it MUST
     // appear in the report as "not updated this period".
@@ -1254,9 +1297,14 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
     unmappedCount: unmapped.length, unmapped: shown,
     mappedVia: via, refusals: refusals,
     conflicts: conflicts, embeddedHardcodes: embedded.length,
-    carriedOver: carried.length,
-    note: (embedded.length > 0 || carried.length > 0)
-      ? "some cells carry last year's numbers — see _REPORT" : ""
+    carriedOver: carried.length, awaitingFigures: blanks,
+    newColumn: view.targetWasEmpty,
+    note: view.targetWasEmpty
+      ? (blanks + " input rows on this sheet are still BLANK — this " +
+         "disclosure did not cover them. The update is not complete until " +
+         "they are filled or the analyst accepts them empty.")
+      : ((embedded.length > 0 || carried.length > 0)
+        ? "some cells carry last year's numbers — see _REPORT" : "")
   });
 }
 
@@ -1332,6 +1380,8 @@ function modeRestate(wb: ExcelScript.Workbook, p: Params): string {
   const ur: ExcelScript.Range | undefined = rs.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
   rs.getRange("A1").setValue(banner);
+  const stStamp: CellValue = stWs.getRange("J1").getValues()[0][0] as CellValue;
+  rs.getRange("I1").setValue(String(stStamp));
   rs.getRange("A2:G2").setValues([["sheet", "row", "line",
     "model holds", "disclosure comparative", "difference", "% of model"]]);
   if (detail.length > 0)
@@ -1517,8 +1567,11 @@ function modeExtend(wb: ExcelScript.Workbook, p: Params): string {
     ws.getRange(lastCol + "1:" + lastCol + nRows),
     ExcelScript.RangeCopyType.formats);
   const hCell: ExcelScript.Range = ws.getRange(newCol + (axisRow + 1));
-  if (typeof header === "number") hCell.setValue(header);
-  else hCell.setValue(header);
+  // carry the neighbour's number format across, or a date header lands as
+  // a raw serial (the owner saw 46022 where 2025-12-31 belonged)
+  const hFmt: string = ws.getRange(lastCol + (axisRow + 1)).getNumberFormat();
+  hCell.setValue(header);
+  if (hFmt) hCell.setNumberFormat(hFmt);
   ledgerAppend(wb, [[new Date().toISOString(), "EXTEND", sheetName,
     newCol + (axisRow + 1), "", String(header), "",
     "analyst-approved new period column" +
