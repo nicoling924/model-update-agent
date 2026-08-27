@@ -473,7 +473,7 @@ interface PreflightOutcome { err: string; proposal: ExtendProposal | null;
   priorCol: string; targetCol: string; rows: number; hardcodeShare: number; }
 
 interface CheckVerdict { sheet: string; row: number; label: string;
-  value: number; pass: boolean; }
+  value: number; pass: boolean; when: string; }
 
 // One sheet's slice of _ANATOMY: the labelled rows with the prior values
 // the referee triangulates against, plus that sheet's column recipe.
@@ -1314,8 +1314,13 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
         const row: number = view.rows[i].row;
         const v: CellValue | null = grid[row - 1] ? grid[row - 1][colIdx] : null;
         if (typeof v !== "number") continue;
+        // Say WHICH year broke. A break in the prior actual column was
+        // already in the model when we opened it — the analyst needs to
+        // know that is theirs, not ours.
         const cv: CheckVerdict = { sheet: sheetName + "!" + cols[c] + row,
-          row: row, label: lab, value: v, pass: Math.abs(v) <= 0.02 };
+          row: row, label: lab, value: v, pass: Math.abs(v) <= 0.02,
+          when: (c === 0) ? "this period"
+            : "prior period — ALREADY broken before this run" };
         verdicts.push(cv);
         if (!cv.pass) failed.push(cv);
       }
@@ -1330,8 +1335,14 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
            " — this model does not carry one, so the balance could NOT be " +
            "verified. Tell the analyst: check the balance sheet by hand, " +
            "or add a check row to the model." });
+  let inherited: number = 0;
+  for (let i: number = 0; i < failed.length; i++)
+    if (failed[i].when !== "this period") inherited++;
   return JSON.stringify({
-    ok: failed.length === 0, checks: verdicts.length, failed: failed
+    ok: failed.length === 0, checks: verdicts.length, failed: failed,
+    inheritedFailures: inherited,
+    note: inherited > 0 ? "some checks were already failing in the prior " +
+      "year column — those are pre-existing model errors, not this run's" : ""
   });
 }
 

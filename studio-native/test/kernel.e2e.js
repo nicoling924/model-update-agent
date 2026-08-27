@@ -108,6 +108,17 @@ const po2 = JSON.parse(main(wb2, JSON.stringify(
   { mode: "POLICE", sheet: "Model" })));
 et("police FAILS the unbalanced model", po2.ok === false);
 et("police names the check row", po2.failed.length === 1 && po2.failed[0].row === 12);
+et("police says WHICH year broke (this run's, not inherited)",
+  po2.failed[0].when === "this period" && po2.inheritedFailures === 0);
+// an error the analyst's model arrived with must be named as pre-existing
+const wbInh = fixtureWorkbook();
+wbInh.getWorksheet("Model").getRange("D11").setValue(4990);   // 2024 is 10 out
+main(wbInh, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+const poInh = JSON.parse(main(wbInh, JSON.stringify({ mode: "POLICE" })));
+et("a break inherited from the prior year is labelled as pre-existing",
+  poInh.ok === false && poInh.inheritedFailures === 1 &&
+  /ALREADY broken/.test(poInh.failed[0].when));
 
 // ---- run 3: flags -------------------------------------------
 const wb3 = fixtureWorkbook();
