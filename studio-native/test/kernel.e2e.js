@@ -631,6 +631,28 @@ const apS3 = JSON.parse(main(wbS, JSON.stringify(
 et("a fresh batch needs its own scan — the old one does not count",
   apS3.ok === false && /RESTATE has not scanned/.test(apS3.why));
 
+
+// a real sheet stacks header rows — dates on row 1, "FY2025" text on row 2.
+// That second label must not make a cleared column look populated (it did
+// on the owner's model: 54 rows came back carrying 2024's numbers).
+const wbH = fixtureRawOnly();
+const rawH = wbH.getWorksheet("Raw");
+rawH.getRange("E1").setValue(2025);          // the axis row
+rawH.getRange("E2").setValue("FY2025");      // a text label, not data
+rawH.getRange("B2").setValue("FY2022"); rawH.getRange("C2").setValue("FY2023");
+rawH.getRange("D2").setValue("FY2024");
+main(wbH, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Raw"],
+  periodKind: "FY", targetYear: 2025 }));
+et("a text header below the axis row does not make a blank column look full",
+  JSON.stringify(wbH.getWorksheet("_ANATOMY").getUsedRange().getValues())
+    .indexOf("EMPTY") >= 0);
+stage(wbH, [["Revenue", 5321.0, 4976.2, "p3", "", "", "Raw"]]);
+const apH = JSON.parse(main(wbH, JSON.stringify(
+  { mode: "APPLY", sheet: "Raw", targetYear: 2025 })));
+et("so the undisclosed rows stay blank instead of carrying last year",
+  apH.newColumn === true && apH.carriedOver === 0 &&
+  rawH.getRange("E5").getValues()[0][0] === "");
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;

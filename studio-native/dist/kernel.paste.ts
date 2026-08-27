@@ -615,6 +615,21 @@ function externalLinkCount(ws: ExcelScript.Worksheet,
 // fromRow lets the caller ignore the header rows: a freshly added period
 // column already carries its year header, and that must not make it look
 // occupied when we ask "did this column hold any data before?"
+// "Did this column ever hold DATA?" — numbers or formulas only. Text does
+// not count: a real model stacks header rows (a date row AND an 'FY2025'
+// row), and the owner's cleared 2025 column still carried its text label,
+// which made a freshly emptied column look occupied and brought last
+// year's numbers straight back.
+function columnHasData(ws: ExcelScript.Worksheet, grid: CellValue[][],
+                       colIdx: number, fromRow: number): boolean {
+  const f: string[] = columnFormulas(ws, n2col(colIdx), grid.length);
+  for (let r: number = fromRow; r < grid.length; r++) {
+    if (typeof grid[r][colIdx] === "number") return true;
+    if (isFormula(f[r] === undefined ? "" : f[r])) return true;
+  }
+  return false;
+}
+
 function columnIsEmpty(grid: CellValue[][], colIdx: number,
                        fromRow?: number): boolean {
   const start: number = (fromRow === undefined) ? 0 : fromRow;
@@ -888,7 +903,8 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   const links: number = externalLinkCount(ws, grid);
   out.push([metaKey(sheetName), axisRow, String(headerVal), 0,
     n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol),
-    columnIsEmpty(grid, tCol, axisRow + 1) ? "EMPTY" : "", errsBefore, links]);
+    columnHasData(ws, grid, tCol, axisRow + 1) ? "" : "EMPTY",
+    errsBefore, links]);
   // the analyst's own forecast for the year we are about to overwrite,
   // and the year after — snapshot NOW or it is lost forever (_REPORT's
   // "what you projected vs what came in" depends on it)
