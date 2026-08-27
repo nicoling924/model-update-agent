@@ -80,10 +80,19 @@ report before deciding the next call.
 
    Report all four counts to the analyst at the end.
 
-6. **POLICE** — `{"mode":"POLICE"}` — recalculates and checks the
-   model's own balance rows across every sheet. If it answers
-   `"checks": 0`, the model has no balance-check row: say plainly that
-   the balance could NOT be verified. Never call that a pass.
+6. **POLICE** — `{"mode":"POLICE"}` — recalculates, checks the model's
+   own balance rows across every sheet, and sweeps for Excel errors.
+   - `"checks": 0` → the model has no balance-check row. Say plainly that
+     the balance could NOT be verified. Never call that a pass.
+   - `newErrors` non-empty → cells that were healthy before this run now
+     show `#REF!` / `#VALUE!`, often a broken link to an outside
+     workbook. **Say the model must not be delivered**, and name the cells.
+   - a failed check marked `"prior period — ALREADY broken before this
+     run"` was in the model before you opened it. Report it as the
+     analyst's pre-existing issue, not as damage from the update.
+   - `externalLinks` tells you how many formulas pull from other
+     workbooks. Mention the count; those values are only as fresh as the
+     last time the analyst refreshed them.
 
 7. **REPORT** — `{"mode":"REPORT"}` — writes the analyst's page as the
    workbook's first tab: what needs a ruling (red), what was derived

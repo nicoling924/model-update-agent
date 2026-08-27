@@ -200,3 +200,33 @@ has not been updated yet.
 The `_REPORT` tab now has six sections: red rulings · orange back-outs ·
 key drivers · not updated this period · big moves · your forecast vs the
 actual.
+
+---
+
+# Phase 5 — external links, and errors that were not ours
+
+Your real model pulls from other workbooks ("Trust workbook links?").
+Nobody can promise Microsoft will resolve every one of those after a
+copy — so the kernel now proves it instead.
+
+**11. A health baseline, taken before anything is touched.** PREFLIGHT
+counts, per sheet, how many formulas reach outside the workbook and how
+many cells are already showing `#REF!` / `#VALUE!`. Both numbers come
+back in the reply.
+
+**12. A sweep at the end.** POLICE re-scans and compares:
+- an error that was already there → reported as pre-existing, does not
+  fail the run
+- an error copied forward into the new column from a row that was
+  already broken → also pre-existing
+- an error in a cell that was **healthy before** → **the run FAILS**,
+  names the cells, and says the model must not be delivered
+
+So a broken link cannot slip through quietly, and a link that was already
+broken never gets blamed on the agent.
+
+**Practical note on copies:** copy the model *inside* OneDrive
+(right-click → Copy). Links are stored as absolute addresses, so a copy
+made that way still points at the same source workbooks. Uploading a file
+from a laptop is the risky path — that is when links break. Either way,
+the run now tells you.

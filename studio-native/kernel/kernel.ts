@@ -51,7 +51,8 @@ interface ExtendProposal { sheet: string; lastYear: number; lastCol: string;
   newCol: string; newColEmpty: boolean; hardcodeShare: number; ask: string; }
 
 interface PreflightOutcome { err: string; proposal: ExtendProposal | null;
-  priorCol: string; targetCol: string; rows: number; hardcodeShare: number; }
+  priorCol: string; targetCol: string; rows: number; hardcodeShare: number;
+  externalLinks: number; errorsBefore: number; }
 
 interface CheckVerdict { sheet: string; row: number; label: string;
   value: number; pass: boolean; when: string; }
@@ -62,6 +63,7 @@ interface AnatomyView {
   rows: AnatomyRow[];
   priorCol: string; targetCol: string;
   axisRow: number; axisHeader: string; nextCol: string;
+  errorsBefore: number; externalLinks: number;
   // the model's OWN forecast for the period we are about to overwrite,
   // and for the year after it — captured at PREFLIGHT because after
   // APPLY it no longer exists anywhere. This is what makes the _REPORT's
@@ -140,6 +142,51 @@ function hardcodeShareOf(ws: ExcelScript.Worksheet, grid: CellValue[][],
   return total === 0 ? 0 : Math.round(typed / total * 100) / 100;
 }
 
+// Excel's error values. CLAUDE.md's integrity checklist: no #REF!/#VALUE!/
+// #DIV0! anywhere in the workbook. A broken external link surfaces here.
+const ERR: RegExp = /^#(REF|VALUE|DIV\/0|N\/A|NAME\?|NUM|NULL)!?$/i;
+
+function isErrCell(v: CellValue | undefined): boolean {
+  return typeof v === "string" && ERR.test(v.trim());
+}
+
+// skipCol lets the caller exclude the column being rewritten, so a
+// before/after count compares like with like.
+function errorCells(grid: CellValue[][], cap: number,
+                    skipCol?: number): string[] {
+  const skip: number = (skipCol === undefined) ? -1 : skipCol;
+  const out: string[] = [];
+  for (let r: number = 0; r < grid.length; r++)
+    for (let c: number = 0; c < grid[r].length; c++) {
+      if (c === skip) continue;
+      const v: CellValue = grid[r][c];
+      if (isErrCell(v)) {
+        if (out.length < cap) out.push(n2col(c) + (r + 1));
+        else return out;
+      }
+    }
+  return out;
+}
+
+// Formulas that reach OUTSIDE this workbook: [Book.xlsx]Sheet!A1 or a
+// SharePoint/OneDrive URL. Counted so the analyst knows how much of the
+// model depends on files we are not touching.
+function externalLinkCount(ws: ExcelScript.Worksheet,
+                           grid: CellValue[][]): number {
+  const ur: ExcelScript.Range | undefined = ws.getUsedRange();
+  if (!ur) return 0;
+  const f: string[][] = ur.getFormulas();
+  let n: number = 0;
+  for (let r: number = 0; r < f.length; r++)
+    for (let c: number = 0; c < f[r].length; c++) {
+      const t: string = String(f[r][c] === undefined ? "" : f[r][c]);
+      if (t.charAt(0) !== "=") continue;
+      if (t.indexOf("[") >= 0 || t.indexOf("https://") >= 0 ||
+          t.indexOf("http://") >= 0) n++;
+    }
+  return n;
+}
+
 function columnIsEmpty(grid: CellValue[][], colIdx: number): boolean {
   for (let r: number = 0; r < grid.length; r++) {
     const v: CellValue | undefined = grid[r][colIdx];
@@ -181,7 +228,8 @@ function readAnatomy(wb: ExcelScript.Workbook,
   if (!anWs) return null;
   const an: CellValue[][] = sheetGrid(anWs);
   const view: AnatomyView = { rows: [], priorCol: "", targetCol: "",
-    axisRow: -1, axisHeader: "", nextCol: "", beforeT: {}, beforeN: {} };
+    axisRow: -1, axisHeader: "", nextCol: "", errorsBefore: 0,
+    externalLinks: 0, beforeT: {}, beforeN: {} };
   const mk: string = metaKey(sheetName);
   for (let i: number = 1; i < an.length; i++) {
     const sh: string = String(an[i][0]);
@@ -191,6 +239,10 @@ function readAnatomy(wb: ExcelScript.Workbook,
       view.priorCol = String(an[i][4]);
       view.targetCol = String(an[i][5]);
       view.nextCol = String(an[i][6] === undefined ? "" : an[i][6]);
+      view.errorsBefore = (typeof an[i][8] === "number")
+        ? (an[i][8] as number) : 0;
+      view.externalLinks = (typeof an[i][9] === "number")
+        ? (an[i][9] as number) : 0;
       continue;
     }
     if (sh !== sheetName) continue;
@@ -341,7 +393,7 @@ function modeSeed(wb: ExcelScript.Workbook): string {
 // was learned about the P&L. Only the sheets in this call are rebuilt.
 function blankOutcome(err: string): PreflightOutcome {
   return { err: err, proposal: null, priorCol: "", targetCol: "", rows: 0,
-    hardcodeShare: 0 };
+    hardcodeShare: 0, externalLinks: 0, errorsBefore: 0 };
 }
 
 function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
@@ -398,8 +450,14 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   const headerVal: CellValue = (axisRow >= 0 && grid[axisRow])
     ? grid[axisRow][tCol] : "";
   const nCol: number | undefined = axis[String(ty + 1)];
+  // baseline the sheet's health BEFORE we touch it: errors that are
+  // already here are the model's, and external links tell us how much of
+  // it depends on workbooks we cannot see.
+  const errsBefore: number = errorCells(grid, 500, tCol).length;
+  const links: number = externalLinkCount(ws, grid);
   out.push([metaKey(sheetName), axisRow, String(headerVal), 0,
-    n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol), ""]);
+    n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol), "",
+    errsBefore, links]);
   // the analyst's own forecast for the year we are about to overwrite,
   // and the year after — snapshot NOW or it is lost forever (_REPORT's
   // "what you projected vs what came in" depends on it)
@@ -412,13 +470,16 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
     const bt: CellValue = grid[r][tCol];
     const bn: CellValue = (nCol === undefined) ? "" : grid[r][nCol];
     out.push([sheetName, r + 1, lab, pv, n2col(pCol), n2col(tCol),
-      (typeof bt === "number") ? bt : "", (typeof bn === "number") ? bn : ""]);
+      (typeof bt === "number") ? bt : "", (typeof bn === "number") ? bn : "",
+      "", ""]);
     labelled++;
   }
   const res: PreflightOutcome = blankOutcome("");
   res.priorCol = n2col(pCol); res.targetCol = n2col(tCol);
   res.rows = labelled;
   res.hardcodeShare = hardcodeShareOf(ws, grid, pCol);
+  res.errorsBefore = errsBefore;
+  res.externalLinks = links;
   return res;
 }
 
@@ -441,12 +502,15 @@ function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
       (typeof old[i][3] === "number") ? (old[i][3] as number) : 0,
       String(old[i][4]), String(old[i][5]),
       (typeof old[i][6] === "number") ? (old[i][6] as number) : "",
-      (typeof old[i][7] === "number") ? (old[i][7] as number) : ""]);
+      (typeof old[i][7] === "number") ? (old[i][7] as number) : "",
+      (typeof old[i][8] === "number") ? (old[i][8] as number) : "",
+      (typeof old[i][9] === "number") ? (old[i][9] as number) : ""]);
   }
   const fresh: (string | number)[][] = [];
   const problems: { sheet: string; why: string }[] = [];
   const done: { sheet: string; priorCol: string; targetCol: string;
-    rows: number; typedShare: number }[] = [];
+    rows: number; typedShare: number; externalLinks: number;
+    errorsBefore: number }[] = [];
   const proposals: ExtendProposal[] = [];
   for (let i: number = 0; i < names.length; i++) {
     const outc: PreflightOutcome =
@@ -455,16 +519,17 @@ function modePreflight(wb: ExcelScript.Workbook, p: Params): string {
     if (outc.err) { problems.push({ sheet: names[i], why: outc.err }); continue; }
     done.push({ sheet: names[i], priorCol: outc.priorCol,
       targetCol: outc.targetCol, rows: outc.rows,
-      typedShare: outc.hardcodeShare });
+      typedShare: outc.hardcodeShare, externalLinks: outc.externalLinks,
+      errorsBefore: outc.errorsBefore });
   }
   const rows: (string | number)[][] = keep.concat(fresh);
   const ur: ExcelScript.Range | undefined = an.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
-  an.getRange("A1:H1").setValues([[
+  an.getRange("A1:J1").setValues([[
     "sheet", "row", "label", "priorValue", "priorCol", "targetCol",
-    "targetBefore", "nextBefore"]]);
+    "targetBefore", "nextBefore", "errorsBefore", "externalLinks"]]);
   if (rows.length > 0)
-    an.getRangeByIndexes(1, 0, rows.length, 8).setValues(rows);
+    an.getRangeByIndexes(1, 0, rows.length, 10).setValues(rows);
   let labelled: number = 0;
   for (let i: number = 0; i < done.length; i++) labelled += done[i].rows;
   const res: { [k: string]: CellValue | object } = {
@@ -907,11 +972,54 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
       }
     }
   }
+  // EXTERNAL-LINK / ERROR SWEEP. The model links to workbooks we never
+  // see; if a copy, a recalc or our own write breaks one, the cell turns
+  // #REF!/#VALUE!. Errors that were already there when we opened the file
+  // are the model's; errors that appear after are OURS and must fail the
+  // run loudly (CLAUDE.md integrity checklist).
+  const newErrors: { sheet: string; cells: string[] }[] = [];
+  let errorsNow: number = 0;
+  let errorsPre: number = 0;
+  let links: number = 0;
+  for (let s2: number = 0; s2 < names.length; s2++) {
+    const vw: AnatomyView | null = readAnatomy(wb, names[s2]);
+    const ws2: ExcelScript.Worksheet | undefined = wb.getWorksheet(names[s2]);
+    if (!vw || !ws2) continue;
+    const g2: CellValue[][] = sheetGrid(ws2);
+    const tIdx2: number = ws2.getRange(vw.targetCol + "1").getColumnIndex();
+    const pIdx2: number = ws2.getRange(vw.priorCol + "1").getColumnIndex();
+    // outside the rewritten column: compare like with like
+    const outside: string[] = errorCells(g2, 20, tIdx2);
+    const fresh: string[] = [];
+    // inside it: an error is only OURS if the same row was healthy in the
+    // prior column. An error copied forward from a row that was already
+    // broken is the model's, not the run's.
+    for (let r: number = 0; r < g2.length; r++) {
+      if (!isErrCell(g2[r] ? g2[r][tIdx2] : undefined)) continue;
+      if (isErrCell(g2[r] ? g2[r][pIdx2] : undefined)) continue;
+      if (fresh.length < 20) fresh.push(vw.targetCol + (r + 1));
+    }
+    errorsNow += outside.length + fresh.length;
+    errorsPre += vw.errorsBefore;
+    links += vw.externalLinks;
+    const grew: boolean = outside.length > vw.errorsBefore;
+    if (grew || fresh.length > 0)
+      newErrors.push({ sheet: names[s2],
+        cells: (grew ? outside : []).concat(fresh) });
+  }
+
   // GENERICITY GUARD: not every analyst's model carries a labelled check
   // row. Zero checks is NOT a pass — it means we verified nothing, and
   // silence would read as "balanced" to the agent and the analyst alike.
+  if (newErrors.length > 0)
+    return JSON.stringify({ ok: false, checks: verdicts.length,
+      failed: failed, newErrors: newErrors, externalLinks: links,
+      why: "cells that were fine before this run now show Excel errors " +
+        "(#REF!/#VALUE!). Something the run touched — or a broken link to " +
+        "an outside workbook — is the cause. Do NOT deliver this model." });
   if (verdicts.length === 0)
     return JSON.stringify({ ok: false, checks: 0, failed: [],
+      externalLinks: links, preExistingErrors: errorsPre,
       why: "no balance-check row found on " + names.join(", ") +
            " — this model does not carry one, so the balance could NOT be " +
            "verified. Tell the analyst: check the balance sheet by hand, " +
@@ -921,7 +1029,8 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
     if (failed[i].when !== "this period") inherited++;
   return JSON.stringify({
     ok: failed.length === 0, checks: verdicts.length, failed: failed,
-    inheritedFailures: inherited,
+    inheritedFailures: inherited, externalLinks: links,
+    preExistingErrors: errorsPre, newErrors: [],
     note: inherited > 0 ? "some checks were already failing in the prior " +
       "year column — those are pre-existing model errors, not this run's" : ""
   });

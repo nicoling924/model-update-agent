@@ -494,6 +494,43 @@ et("wired result vs disclosure mismatch is caught",
 et("and the link is STILL not overwritten",
   wb13.getWorksheet("Model").cell(2, 4).f === "='Raw'!E3");
 
+
+// ---- run 13: external links and Excel errors -------------------
+// The owner's real model links to outside workbooks. We cannot control
+// how Microsoft resolves them — but a link that breaks must never pass
+// as a delivered model.
+const wbX = fixtureWorkbook();
+const wsX = wbX.getWorksheet("Model");
+wsX.getRange("A13").setValue("From the group file");
+wsX.cell(12, 3).f = "='[Group.xlsx]Sheet1'!B4"; wsX.cell(12, 3).v = 42;
+const preX = JSON.parse(main(wbX, JSON.stringify({ mode: "PREFLIGHT",
+  sheets: ["Model"], periodKind: "FY", targetYear: 2025 })));
+et("preflight counts what the model pulls from outside workbooks",
+  preX.sheets[0].externalLinks === 1 && preX.sheets[0].errorsBefore === 0);
+stage(wbX, [["Revenue", 5321.0, 4976.2, "p3", "", ""]]);
+main(wbX, JSON.stringify({ mode: "APPLY", sheet: "Model", targetYear: 2025 }));
+const poX = JSON.parse(main(wbX, JSON.stringify({ mode: "POLICE" })));
+et("a healthy externally-linked model still passes",
+  poX.ok === true && poX.externalLinks >= 1 && poX.newErrors.length === 0);
+// now break the link the way a bad copy would
+wsX.cell(12, 4).v = "#REF!";
+const poX2 = JSON.parse(main(wbX, JSON.stringify({ mode: "POLICE" })));
+et("a link that breaks during the run FAILS the delivery",
+  poX2.ok === false && poX2.newErrors.length === 1 &&
+  poX2.newErrors[0].cells.indexOf("E13") >= 0 &&
+  /Do NOT deliver/.test(poX2.why));
+// an error the model arrived with is the analyst's, not ours
+const wbY = fixtureWorkbook();
+wbY.getWorksheet("Model").getRange("A13").setValue("Already broken");
+wbY.getWorksheet("Model").getRange("D13").setValue("#REF!");
+main(wbY, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wbY, [["Revenue", 5321.0, 4976.2, "p3", "", ""]]);
+main(wbY, JSON.stringify({ mode: "APPLY", sheet: "Model", targetYear: 2025 }));
+const poY = JSON.parse(main(wbY, JSON.stringify({ mode: "POLICE" })));
+et("errors the model arrived with do not fail the run",
+  poY.ok === true && poY.preExistingErrors === 1);
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;
