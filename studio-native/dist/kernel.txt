@@ -89,6 +89,14 @@ function yearOf(v: CellValue | null | undefined): YearMark {
     if (m) return [parseInt(m[2], 10), m[1] + "Q"];
     m = t.match(/^(19\d{2}|20\d{2})Q([1-4])$/);         // 2025Q3
     if (m) return [parseInt(m[1], 10), m[2] + "Q"];
+    // two-digit fiscal-year conventions: FY22, FY24E, F25. Only with the
+    // FY/F prefix — a bare '24' in a header is far too likely to be a
+    // quantity. 00-79 reads as 2000s, 80-99 as 1900s.
+    m = t.match(/^FY?([0-9]{2})[AEF]?$/);
+    if (m) {
+      const yy: number = parseInt(m[1], 10);
+      return [yy <= 79 ? 2000 + yy : 1900 + yy, null];
+    }
     m = t.match(/(19\d{2}|20\d{2})/);                   // '2025A', 'FY2025'
     if (m) {
       const interim: boolean = INTERIM_TEXT.test(v) ||
@@ -127,15 +135,24 @@ function findYearAxis(grid: CellValue[][], periodKind: string): AxisMap | null {
       }
     }
     if (marks.length < minRun) continue;
+    // A panel is a run of consecutive years across neighbouring columns —
+    // in EITHER direction. Most models put the newest year on the right,
+    // but newest-first models exist and were invisible to this law until
+    // 2026-08-27. A run must keep one direction throughout: 2022,2023,2024
+    // or 2024,2023,2022, never a mixture.
     let run: Mark[] = [marks[0]];
+    let dir: number = 0;
     const runs: Mark[][] = [];
     for (let i: number = 1; i < marks.length; i++) {
       const prev: Mark = marks[i - 1];
       const cur: Mark = marks[i];
-      if (cur[1] === prev[1] + 1 && cur[0] > prev[0]) run.push(cur);
+      const step: number = cur[1] - prev[1];
+      const ok: boolean = cur[0] > prev[0] &&
+        (step === 1 || step === -1) && (dir === 0 || step === dir);
+      if (ok) { run.push(cur); dir = step; }
       else {
         if (run.length >= minRun) runs.push(run);
-        run = [cur];
+        run = [cur]; dir = 0;
       }
     }
     if (run.length >= minRun) runs.push(run);
@@ -596,8 +613,11 @@ function errorCells(grid: CellValue[][], cap: number,
 // Formulas that reach OUTSIDE this workbook: [Book.xlsx]Sheet!A1 or a
 // SharePoint/OneDrive URL. Counted so the analyst knows how much of the
 // model depends on files we are not touching.
+const SWEEP_ROWS: number = 5000;         // keep huge sheets from stalling
+
 function externalLinkCount(ws: ExcelScript.Worksheet,
                            grid: CellValue[][]): number {
+  if (grid.length > SWEEP_ROWS) return -1;   // -1 = not counted
   const ur: ExcelScript.Range | undefined = ws.getUsedRange();
   if (!ur) return 0;
   const f: string[][] = ur.getFormulas();
@@ -656,8 +676,16 @@ function nextHeader(prev: CellValue, lastYear: number,
     }
     return null;
   }
-  if (typeof prev === "string" && prev.indexOf(String(lastYear)) >= 0)
-    return prev.split(String(lastYear)).join(String(ty));
+  if (typeof prev === "string") {
+    if (prev.indexOf(String(lastYear)) >= 0)
+      return prev.split(String(lastYear)).join(String(ty));
+    // two-digit conventions ('FY24', 'H124', '24E') — only when the pair
+    // appears exactly once, so nothing else in the label is mangled
+    const two: string = String(lastYear % 100);
+    const parts: string[] = prev.split(two);
+    if (parts.length === 2)
+      return parts.join(String(ty % 100 < 10 ? "0" : "") + String(ty % 100));
+  }
   return null;
 }
 
@@ -860,8 +888,10 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
     if (lastYear < 0)
       return blankOutcome("no usable year axis on " + sheetName);
     const lastIdx: number = axis[String(lastYear)];
-    const newIdx: number = lastIdx + 1;
-    const empty: boolean = columnIsEmpty(grid, newIdx);
+    const prevIdx: number | undefined = axis[String(lastYear - 1)];
+    const desc: boolean = (prevIdx !== undefined) && (prevIdx > lastIdx);
+    const newIdx: number = desc ? lastIdx : lastIdx + 1;
+    const empty: boolean = !desc && columnIsEmpty(grid, newIdx);
     const share: number = hardcodeShareOf(ws, grid, lastIdx);
     const gap: boolean = ty !== lastYear + 1;
     const prop: ExtendProposal = { sheet: sheetName, lastYear: lastYear,
@@ -1179,6 +1209,7 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   //                    year's constant has just been copied into this year
   //                    (=raw!X12+36). Cannot be fixed blind — always surface.
   const priorF: string[] = columnFormulas(ws, priorCol, nRows);
+  const pIdxPre: number = ws.getRange(priorCol + "1").getColumnIndex();
   const formulaOf = (row: number): string =>
     (priorF[row - 1] === undefined) ? "" : priorF[row - 1];
   // a numeric literal that is NOT part of a cell reference (T12, $B$4) and
@@ -1193,10 +1224,22 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   // recipe — there we are replacing the analyst's own forecast, and the
   // boss ruling says leave what this period did not disclose.)
   if (view.targetWasEmpty) {
+    const tIdxPre: number = ws.getRange(targetCol + "1").getColumnIndex();
     for (let r: number = 1; r <= nRows; r++) {
       if (r === axisRow + 1) continue;               // never the header
       if (isFormula(formulaOf(r))) continue;         // wiring stays
-      ws.getRange(targetCol + r).clear(ExcelScript.ClearApplyTo.contents);
+      // ONLY undo cells the copy filled with last year's typed number.
+      // Where the prior column held text (a unit, a section label, an
+      // analyst note) the copy brought text, not a fake actual — and
+      // whatever the target held before is restored rather than wiped,
+      // so no model ever loses content it came in with.
+      if (typeof (grid[r - 1] ? grid[r - 1][pIdxPre] : "") !== "number")
+        continue;
+      const was: CellValue = (grid[r - 1] && grid[r - 1][tIdxPre] !== undefined)
+        ? grid[r - 1][tIdxPre] : "";
+      if (was === "" || was === undefined)
+        ws.getRange(targetCol + r).clear(ExcelScript.ClearApplyTo.contents);
+      else ws.getRange(targetCol + r).setValue(was);
     }
   }
   const wired: { row: number; label: string; value: number }[] = [];
@@ -1552,7 +1595,12 @@ function modeExtend(wb: ExcelScript.Workbook, p: Params): string {
       lastYear + "; adding " + ty + " would skip a year. The analyst must " +
       "say what belongs in between." });
   const lastIdx: number = axis[String(lastYear)];
-  const newIdx: number = lastIdx + 1;
+  // Which way does time run on this sheet? Most models put the newest year
+  // on the right, but plenty run newest-first. Read the direction from the
+  // axis itself instead of assuming.
+  const prevIdx: number | undefined = axis[String(lastYear - 1)];
+  const descending: boolean = (prevIdx !== undefined) && (prevIdx > lastIdx);
+  const newIdx: number = descending ? lastIdx : lastIdx + 1;
   if (p.analystApproved !== true)
     return JSON.stringify({ ok: false, needsApproval: true,
       why: "structural change — not done. Ask the analyst whether to add a " +
@@ -1572,15 +1620,18 @@ function modeExtend(wb: ExcelScript.Workbook, p: Params): string {
     why: "cannot write a " + ty + " header safely — " + lastYear +
       "'s header is in a form I do not recognise. Ask the analyst to add " +
       "the column header, then re-run PREFLIGHT." });
-  const shifted: boolean = !columnIsEmpty(grid, newIdx);
+  // newest-first sheets always need the insert: the new period goes where
+  // the current newest sits, pushing the history right.
+  const shifted: boolean = descending || !columnIsEmpty(grid, newIdx);
   const newCol: string = n2col(newIdx);
   if (shifted)
     ws.getRange(newCol + ":" + newCol).insert(
       ExcelScript.InsertShiftDirection.right);
   const nRows: number = grid.length;
   const lastCol: string = n2col(lastIdx);
+  const srcCol: string = descending ? n2col(lastIdx + 1) : lastCol;
   ws.getRange(newCol + "1:" + newCol + nRows).copyFrom(
-    ws.getRange(lastCol + "1:" + lastCol + nRows),
+    ws.getRange(srcCol + "1:" + srcCol + nRows),
     ExcelScript.RangeCopyType.formats);
   const hCell: ExcelScript.Range = ws.getRange(newCol + (axisRow + 1));
   // carry the neighbour's number format across, or a date header lands as

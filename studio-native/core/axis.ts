@@ -59,6 +59,14 @@ function yearOf(v: CellValue | null | undefined): YearMark {
     if (m) return [parseInt(m[2], 10), m[1] + "Q"];
     m = t.match(/^(19\d{2}|20\d{2})Q([1-4])$/);         // 2025Q3
     if (m) return [parseInt(m[1], 10), m[2] + "Q"];
+    // two-digit fiscal-year conventions: FY22, FY24E, F25. Only with the
+    // FY/F prefix — a bare '24' in a header is far too likely to be a
+    // quantity. 00-79 reads as 2000s, 80-99 as 1900s.
+    m = t.match(/^FY?([0-9]{2})[AEF]?$/);
+    if (m) {
+      const yy: number = parseInt(m[1], 10);
+      return [yy <= 79 ? 2000 + yy : 1900 + yy, null];
+    }
     m = t.match(/(19\d{2}|20\d{2})/);                   // '2025A', 'FY2025'
     if (m) {
       const interim: boolean = INTERIM_TEXT.test(v) ||
@@ -97,15 +105,24 @@ function findYearAxis(grid: CellValue[][], periodKind: string): AxisMap | null {
       }
     }
     if (marks.length < minRun) continue;
+    // A panel is a run of consecutive years across neighbouring columns —
+    // in EITHER direction. Most models put the newest year on the right,
+    // but newest-first models exist and were invisible to this law until
+    // 2026-08-27. A run must keep one direction throughout: 2022,2023,2024
+    // or 2024,2023,2022, never a mixture.
     let run: Mark[] = [marks[0]];
+    let dir: number = 0;
     const runs: Mark[][] = [];
     for (let i: number = 1; i < marks.length; i++) {
       const prev: Mark = marks[i - 1];
       const cur: Mark = marks[i];
-      if (cur[1] === prev[1] + 1 && cur[0] > prev[0]) run.push(cur);
+      const step: number = cur[1] - prev[1];
+      const ok: boolean = cur[0] > prev[0] &&
+        (step === 1 || step === -1) && (dir === 0 || step === dir);
+      if (ok) { run.push(cur); dir = step; }
       else {
         if (run.length >= minRun) runs.push(run);
-        run = [cur];
+        run = [cur]; dir = 0;
       }
     }
     if (run.length >= minRun) runs.push(run);

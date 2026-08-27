@@ -653,6 +653,72 @@ et("so the undisclosed rows stay blank instead of carrying last year",
   apH.newColumn === true && apH.carriedOver === 0 &&
   rawH.getRange("E5").getValues()[0][0] === "");
 
+
+// ---- run 16: other people's models look nothing like this one --
+// Everything below is a structure the Dongfang model does NOT have.
+
+// (a) newest year on the LEFT — the new period belongs on the left too
+function fixtureDescending() {
+  const wb = new MockWorkbook();
+  const ws = wb.addWorksheet("Model");
+  ws.getRange("B1").setValue(2024); ws.getRange("C1").setValue(2023);
+  ws.getRange("D1").setValue(2022);
+  ws.getRange("A3").setValue("Revenue");
+  ws.getRange("B3").setValue(4976.2); ws.getRange("C3").setValue(4500);
+  ws.getRange("D3").setValue(4000);
+  return wb;
+}
+const wbD = fixtureDescending();
+const preD = JSON.parse(main(wbD, JSON.stringify({ mode: "PREFLIGHT",
+  sheets: ["Model"], periodKind: "FY", targetYear: 2025 })));
+et("newest-first model: the new column is proposed on the LEFT",
+  preD.needsExtend[0].newCol === "B");
+main(wbD, JSON.stringify({ mode: "EXTEND", sheet: "Model", targetYear: 2025,
+  analystApproved: true }));
+const wsD = wbD.getWorksheet("Model");
+et("newest-first model: history shifted right, 2025 sits leftmost",
+  wsD.getRange("B1").getValues()[0][0] === 2025 &&
+  wsD.getRange("C1").getValues()[0][0] === 2024 &&
+  wsD.getRange("C3").getValues()[0][0] === 4976.2);
+main(wbD, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wbD, [["Revenue", 5321.0, 4976.2, "p3", "", ""]]);
+const apD = JSON.parse(main(wbD, JSON.stringify(
+  { mode: "APPLY", sheet: "Model", targetYear: 2025 })));
+et("newest-first model still writes the actual in the right place",
+  apD.written === 1 && wsD.getRange("B3").getValues()[0][0] === 5321.0);
+
+// (b) two-digit period headers (FY24 / H124), common outside the mainland
+const wbT = new MockWorkbook();
+const wsT = wbT.addWorksheet("Model");
+wsT.getRange("B1").setValue("FY22"); wsT.getRange("C1").setValue("FY23");
+wsT.getRange("D1").setValue("FY24");
+wsT.getRange("A3").setValue("Turnover"); wsT.getRange("D3").setValue(900);
+main(wbT, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+const exT = JSON.parse(main(wbT, JSON.stringify({ mode: "EXTEND",
+  sheet: "Model", targetYear: 2025, analystApproved: true })));
+et("a two-digit header convention is continued, not refused",
+  exT.ok === true && wsT.getRange("E1").getValues()[0][0] === "FY25");
+
+// (c) text sitting in the period column is content, not a stale number
+const wbTx = fixtureRawOnly();
+const rawTx = wbTx.getWorksheet("Raw");
+rawTx.getRange("E1").setValue(2025);
+rawTx.getRange("E4").setValue("n.a.");        // the analyst's own note
+rawTx.getRange("A8").setValue("Rmb m");       // a unit label row
+rawTx.getRange("D8").setValue("Rmb m");
+main(wbTx, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Raw"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wbTx, [["Revenue", 5321.0, 4976.2, "p3", "", "", "Raw"]]);
+main(wbTx, JSON.stringify({ mode: "APPLY", sheet: "Raw", targetYear: 2025 }));
+et("an analyst's own text in the new column survives the run",
+  rawTx.getRange("E4").getValues()[0][0] === "n.a.");
+et("a text label row is copied across, not blanked",
+  rawTx.getRange("E8").getValues()[0][0] === "Rmb m");
+et("but a typed number from last year is still not left behind",
+  rawTx.getRange("E5").getValues()[0][0] === "");
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;

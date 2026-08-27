@@ -43,6 +43,22 @@ const h1 = findYearAxis(trapGrid, "1H");
 t("1H binds interim panel (min-run 2)", h1 && h1["2025"] === 7);
 t("1H run: 2024 col is H124", h1 && h1["2024"] === 5);
 
+// two-digit fiscal years — the common convention outside the mainland
+t("'FY24' -> 2024", String(yearOf("FY24")) === "2024,");
+t("'FY25E' -> 2025", String(yearOf("FY25E")) === "2025,");
+t("'F99' -> 1999", String(yearOf("F99")) === "1999,");
+t("a bare '24' is NOT a year", yearOf("24")[0] === null);
+t("two-digit panel binds",
+  (() => { const a = findYearAxis([["", "FY22", "FY23", "FY24"]], "FY");
+    return a && a["2024"] === 3; })());
+
+// newest-first panels: plenty of analysts write time right-to-left
+const descGrid = [["", 2025, 2024, 2023, 2022]];
+const dsc = findYearAxis(descGrid, "FY");
+t("newest-first panel binds", dsc && dsc["2025"] === 1 && dsc["2022"] === 4);
+t("a mixed-direction row is not a panel",
+  findYearAxis([["", 2022, 2024, 2023]], "FY") === null);
+
 // FY with year-marks as text headers
 const txtGrid = [["x", "FY2023", "FY2024", "FY2025"]];
 const fy2 = findYearAxis(txtGrid, "FY");
