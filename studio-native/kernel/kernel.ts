@@ -848,6 +848,7 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
   }
   // sweep the whole rolled-forward column for the two silent diseases
   const carried: { row: number; label: string; value: number }[] = [];
+  const awaiting: { row: number; label: string }[] = [];
   let blanks: number = 0;
   for (let i: number = 0; i < view.rows.length; i++) {
     const row: number = view.rows[i].row;
@@ -858,7 +859,11 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
       continue;
     }
     if (writtenRows[String(row)]) continue;
-    if (view.targetWasEmpty) { blanks++; continue; }  // left honestly blank
+    if (view.targetWasEmpty) {            // left honestly blank
+      blanks++;
+      awaiting.push({ row: row, label: view.rows[i].label });
+      continue;
+    }
     // a typed number copied from last year, sitting in this year's column
     // and not disclosed this period. Boss ruling: no cell flag, but it MUST
     // appear in the report as "not updated this period".
@@ -902,6 +907,11 @@ function modeApply(wb: ExcelScript.Workbook, p: Params): string {
     extra.push([sheetName, embedded[i].row, embedded[i].label, "",
       "EMBEDDED", "formula carries a number baked in from last year: " +
       embedded[i].formula, "", "", "red"]);
+  for (let i: number = 0; i < awaiting.length && i < 200; i++)
+    extra.push([sheetName, awaiting[i].row, awaiting[i].label, "",
+      "AWAITING", "no figure for this line in the disclosure — the cell " +
+      "is empty and the update is incomplete until it is filled", "",
+      "", ""]);
   for (let i: number = 0; i < carried.length && i < 200; i++)
     extra.push([sheetName, carried[i].row, carried[i].label,
       carried[i].value, "CARRIED",
@@ -1276,6 +1286,7 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   const moves: ReportRow[] = [];
   const drivers: ReportRow[] = [];      // embedded hardcodes — key drivers
   const carried: ReportRow[] = [];      // last year's typed numbers, kept
+  const awaitingRows: ReportRow[] = []; // blank, waiting for a figure
   const aliasLines: string[] = [];
   const utc: string = new Date().toISOString().substring(0, 10);
   let period: string = "";
@@ -1327,6 +1338,11 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
       if (verdict === "EMBEDDED") {
         drivers.push({ addr: addr, sheet: sheetName, a: "", c: modelLabel,
           d: why, e: "", k: 0 });
+        continue;
+      }
+      if (verdict === "AWAITING") {
+        awaitingRows.push({ addr: addr, sheet: sheetName, a: "",
+          c: modelLabel, d: why, e: "", k: 0 });
         continue;
       }
       if (verdict === "CARRIED") {
@@ -1390,8 +1406,8 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   lines.push(head("MODEL UPDATE REPORT — " + names.join(", ")));
   lines.push(head(written + " lines written · " + refused + " refused · " +
     red.length + " red · " + orange.length + " orange · " +
-    drivers.length + " embedded hardcodes · " + carried.length +
-    " not updated · balance checks: " +
+    drivers.length + " embedded hardcodes · " + awaitingRows.length +
+    " still blank · " + carried.length + " not updated · balance checks: " +
     (po.checks === 0 ? "NONE FOUND" : (po.ok ? "PASS" : "FAIL"))));
   lines.push(head(""));
   lines.push(head("1. RED — uncertain, needs your ruling (" +
@@ -1410,7 +1426,16 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
     lines.push(head("   ... and " + (drivers.length - 25) +
       " more — see the _PLAN tab"));
   lines.push(head(""));
-  lines.push(head("4. NOT UPDATED THIS PERIOD — last year's typed numbers " +
+  lines.push(head("4a. STILL BLANK — no figure found for these lines (" +
+    awaitingRows.length + "). The update is NOT finished while these " +
+    "are empty."));
+  for (let i: number = 0; i < awaitingRows.length && i < 40; i++)
+    lines.push(awaitingRows[i]);
+  if (awaitingRows.length > 40)
+    lines.push(head("   ... and " + (awaitingRows.length - 40) +
+      " more — see the _PLAN tab"));
+  lines.push(head(""));
+  lines.push(head("4b. NOT UPDATED THIS PERIOD — last year's typed numbers " +
     "still standing (" + carried.length + ")"));
   for (let i: number = 0; i < carried.length && i < 25; i++)
     lines.push(carried[i]);
@@ -1449,6 +1474,7 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
     refused: refused, red: red.length, orange: orange.length,
     bigMoves: moves.length, coreLines: coreShown.length,
     keyDrivers: drivers.length, notUpdated: carried.length,
+    stillBlank: awaitingRows.length,
     balance: po.checks === 0 ? "NOT VERIFIED" : (po.ok ? "PASS" : "FAIL"),
     specLines: specCount, aliasesLearned: aliasLines.length,
     note: "_REPORT is now the first tab — the analyst reviews there" });

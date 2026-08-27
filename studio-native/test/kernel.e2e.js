@@ -358,10 +358,11 @@ const flat = JSON.stringify(rw.getUsedRange().getValues());
 et("_REPORT is the visible first tab",
   rw.hidden === false && rw.position === 0 &&
   /MODEL UPDATE REPORT/.test(String(rw.getRange("A1").getValues()[0][0])));
-et("report has all six sections",
+et("report has every section",
   /1\. RED/.test(flat) && /2\. ORANGE/.test(flat) &&
-  /3\. KEY DRIVERS/.test(flat) && /4\. NOT UPDATED/.test(flat) &&
-  /5\. BIG MOVES/.test(flat) && /6\. YOUR FORECAST/.test(flat));
+  /3\. KEY DRIVERS/.test(flat) && /4a\. STILL BLANK/.test(flat) &&
+  /4b\. NOT UPDATED/.test(flat) && /5\. BIG MOVES/.test(flat) &&
+  /6\. YOUR FORECAST/.test(flat));
 et("report speaks the analyst's language",
   /you forecast 5200 · actual 5321 \(\+2\.3%\)/.test(flat) &&
   /moved \+400%/.test(flat) && /next year: 5600/.test(flat));
@@ -588,6 +589,11 @@ et("UNDISCLOSED lines stay BLANK — last year is never copied in as this " +
   "year's actual",
   rawN.getRange("E5").getValues()[0][0] === "" &&
   rawN.getRange("E6").getValues()[0][0] === "");
+const rptN = JSON.parse(main(wbN, JSON.stringify({ mode: "REPORT" })));
+et("the analyst gets the LIST of blank lines, not just a count",
+  rptN.stillBlank === 2 &&
+  /4a\. STILL BLANK/.test(JSON.stringify(
+    wbN.getWorksheet("_REPORT").getUsedRange().getValues())));
 et("the run says how many rows are still awaiting figures",
   apN.newColumn === true && apN.awaitingFigures === 2 &&
   apN.carriedOver === 0 && /still BLANK/.test(apN.note));
