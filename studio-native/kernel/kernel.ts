@@ -134,9 +134,8 @@ function columnFormulas(ws: ExcelScript.Worksheet, col: string,
 
 function isFormula(s: string): boolean { return s.charAt(0) === "="; }
 
-function hardcodeShareOf(ws: ExcelScript.Worksheet, grid: CellValue[][],
+function hardcodeShareOf(f: string[], grid: CellValue[][],
                          colIdx: number): number {
-  const f: string[] = columnFormulas(ws, n2col(colIdx), grid.length);
   let typed: number = 0;
   let total: number = 0;
   for (let r: number = 0; r < grid.length; r++) {
@@ -177,18 +176,16 @@ function errorCells(grid: CellValue[][], cap: number,
 // Formulas that reach OUTSIDE this workbook: [Book.xlsx]Sheet!A1 or a
 // SharePoint/OneDrive URL. Counted so the analyst knows how much of the
 // model depends on files we are not touching.
-const SWEEP_ROWS: number = 5000;         // keep huge sheets from stalling
-
-function externalLinkCount(ws: ExcelScript.Worksheet,
-                           grid: CellValue[][]): number {
-  if (grid.length > SWEEP_ROWS) return -1;   // -1 = not counted
-  const ur: ExcelScript.Range | undefined = ws.getUsedRange();
-  if (!ur) return 0;
-  const f: string[][] = ur.getFormulas();
+// Formulas that reach OUTSIDE this workbook: [Book.xlsx]Sheet!A1 or a
+// SharePoint/OneDrive URL. Counted ONLY in the columns this run touches —
+// reading a whole real model's formulas blew the 60-second tool budget on
+// the owner's tenant (2026-08-27), and the columns we write are the only
+// ones whose links we can affect.
+function externalLinksIn(cols: string[][]): number {
   let n: number = 0;
-  for (let r: number = 0; r < f.length; r++)
-    for (let c: number = 0; c < f[r].length; c++) {
-      const t: string = String(f[r][c] === undefined ? "" : f[r][c]);
+  for (let c: number = 0; c < cols.length; c++)
+    for (let r: number = 0; r < cols[c].length; r++) {
+      const t: string = cols[c][r];
       if (t.charAt(0) !== "=") continue;
       if (t.indexOf("[") >= 0 || t.indexOf("https://") >= 0 ||
           t.indexOf("http://") >= 0) n++;
@@ -196,17 +193,8 @@ function externalLinkCount(ws: ExcelScript.Worksheet,
   return n;
 }
 
-// fromRow lets the caller ignore the header rows: a freshly added period
-// column already carries its year header, and that must not make it look
-// occupied when we ask "did this column hold any data before?"
-// "Did this column ever hold DATA?" — numbers or formulas only. Text does
-// not count: a real model stacks header rows (a date row AND an 'FY2025'
-// row), and the owner's cleared 2025 column still carried its text label,
-// which made a freshly emptied column look occupied and brought last
-// year's numbers straight back.
-function columnHasData(ws: ExcelScript.Worksheet, grid: CellValue[][],
+function columnHasData(f: string[], grid: CellValue[][],
                        colIdx: number, fromRow: number): boolean {
-  const f: string[] = columnFormulas(ws, n2col(colIdx), grid.length);
   for (let r: number = fromRow; r < grid.length; r++) {
     if (typeof grid[r][colIdx] === "number") return true;
     if (isFormula(f[r] === undefined ? "" : f[r])) return true;
@@ -456,7 +444,8 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
     const desc: boolean = (prevIdx !== undefined) && (prevIdx > lastIdx);
     const newIdx: number = desc ? lastIdx : lastIdx + 1;
     const empty: boolean = !desc && columnIsEmpty(grid, newIdx);
-    const share: number = hardcodeShareOf(ws, grid, lastIdx);
+    const share: number = hardcodeShareOf(
+      columnFormulas(ws, n2col(lastIdx), grid.length), grid, lastIdx);
     const gap: boolean = ty !== lastYear + 1;
     const prop: ExtendProposal = { sheet: sheetName, lastYear: lastYear,
       lastCol: n2col(lastIdx), newCol: n2col(newIdx), newColEmpty: empty,
@@ -494,10 +483,12 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   // already here are the model's, and external links tell us how much of
   // it depends on workbooks we cannot see.
   const errsBefore: number = errorCells(grid, 500, tCol).length;
-  const links: number = externalLinkCount(ws, grid);
+  const priorF: string[] = columnFormulas(ws, n2col(pCol), grid.length);
+  const targetF: string[] = columnFormulas(ws, n2col(tCol), grid.length);
+  const links: number = externalLinksIn([priorF, targetF]);
   out.push([metaKey(sheetName), axisRow, String(headerVal), 0,
     n2col(pCol), n2col(tCol), (nCol === undefined) ? "" : n2col(nCol),
-    columnHasData(ws, grid, tCol, axisRow + 1) ? "" : "EMPTY",
+    columnHasData(targetF, grid, tCol, axisRow + 1) ? "" : "EMPTY",
     errsBefore, links]);
   // the analyst's own forecast for the year we are about to overwrite,
   // and the year after — snapshot NOW or it is lost forever (_REPORT's
@@ -518,7 +509,7 @@ function preflightSheet(wb: ExcelScript.Workbook, sheetName: string,
   const res: PreflightOutcome = blankOutcome("");
   res.priorCol = n2col(pCol); res.targetCol = n2col(tCol);
   res.rows = labelled;
-  res.hardcodeShare = hardcodeShareOf(ws, grid, pCol);
+  res.hardcodeShare = hardcodeShareOf(priorF, grid, pCol);
   res.errorsBefore = errsBefore;
   res.externalLinks = links;
   return res;
@@ -1042,7 +1033,8 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
     const view: AnatomyView | null = readAnatomy(wb, sheetName);
     const ws: ExcelScript.Worksheet | undefined = wb.getWorksheet(sheetName);
     if (!view || !ws) continue;
-    const grid: CellValue[][] = sheetGrid(ws);
+    const grid: CellValue[][] = gridOf[sheetName]
+      ? gridOf[sheetName] : sheetGrid(ws);
     const cols: string[] = [view.targetCol, view.priorCol];
     for (let i: number = 0; i < view.rows.length; i++) {
       const lab: string = view.rows[i].label;
@@ -1073,11 +1065,13 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   let errorsNow: number = 0;
   let errorsPre: number = 0;
   let links: number = 0;
+  const gridOf: { [k: string]: CellValue[][] } = {};
   for (let s2: number = 0; s2 < names.length; s2++) {
     const vw: AnatomyView | null = readAnatomy(wb, names[s2]);
     const ws2: ExcelScript.Worksheet | undefined = wb.getWorksheet(names[s2]);
     if (!vw || !ws2) continue;
     const g2: CellValue[][] = sheetGrid(ws2);
+    gridOf[names[s2]] = g2;
     const tIdx2: number = ws2.getRange(vw.targetCol + "1").getColumnIndex();
     const pIdx2: number = ws2.getRange(vw.priorCol + "1").getColumnIndex();
     // outside the rewritten column: compare like with like
