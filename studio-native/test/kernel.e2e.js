@@ -719,6 +719,34 @@ et("a text label row is copied across, not blanked",
 et("but a typed number from last year is still not left behind",
   rawTx.getRange("E5").getValues()[0][0] === "");
 
+
+// ---- run 17: the model's calculation mode ----------------------
+// Every call on the owner's real model hit the 60s host limit although
+// its sheets are small — Excel was recalculating a linked workbook on
+// each value read. The kernel holds calculation still while it reads and
+// puts the model's own mode back before handing it over (house rule).
+const wbC = fixtureWorkbook();
+main(wbC, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+et("the model's calculation mode is restored after the call",
+  wbC.calcMode === "automatic" && wbC.calcModeSets >= 2);
+const wbM = fixtureWorkbook();
+wbM.calcMode = "manual";                       // a deliberately manual model
+wbM.calcModeSets = 0;
+main(wbM, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+et("a model that is already manual is left exactly as it was",
+  wbM.calcMode === "manual" && wbM.calcModeSets === 0);
+stage(wbC, [["Revenue", 5321.0, 4976.2, "p3", "", ""]]);
+main(wbC, JSON.stringify({ mode: "APPLY", sheet: "Model", targetYear: 2025 }));
+const poC = JSON.parse(main(wbC, JSON.stringify({ mode: "POLICE" })));
+et("police still recalculates before judging, and says so",
+  poC.recalculated === true && wbC.calcMode === "automatic");
+const poC2 = JSON.parse(main(wbC, JSON.stringify(
+  { mode: "POLICE", recalc: false })));
+et("a model too heavy to recalculate can skip it — and admits it",
+  poC2.recalculated === false);
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;

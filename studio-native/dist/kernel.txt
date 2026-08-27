@@ -1479,6 +1479,7 @@ function modePolice(wb: ExcelScript.Workbook, p: Params): string {
   // computed, and says so.
   if (p.recalc !== false)
     wb.getApplication().calculate(ExcelScript.CalculationType.full);
+  // (values below are read AFTER this recalc, so the verdict is current)
   const names: string[] = p.sheet ? [String(p.sheet)] : anatomySheets(wb);
   if (names.length === 0)
     return JSON.stringify({ ok: false, why: "run PREFLIGHT first" });
@@ -1887,6 +1888,20 @@ function main(workbook: ExcelScript.Workbook, input?: string): string {
       return JSON.stringify({ ok: false, why: "bad input JSON" });
     }
   }
+  // CALC MODE (house rule: respect the model's, and restore it). On the
+  // owner's real model every call died at the 60s host limit even though
+  // the sheets are small (157x160, 293x143) — the cost was Excel
+  // recalculating a linked workbook on every value read. Hold calculation
+  // still while we read; the modes that need fresh numbers ask for a
+  // recalc explicitly, and the model's own mode is put back before we
+  // hand it over.
+  let priorMode: ExcelScript.CalculationMode | null = null;
+  try {
+    const app: ExcelScript.Application = workbook.getApplication();
+    priorMode = app.getCalculationMode();
+    if (priorMode !== ExcelScript.CalculationMode.manual)
+      app.setCalculationMode(ExcelScript.CalculationMode.manual);
+  } catch (errCalc) { priorMode = null; }
   let res: string = "";
   try {
     if (p.mode === "SEED") res = modeSeed(workbook);
@@ -1900,6 +1915,13 @@ function main(workbook: ExcelScript.Workbook, input?: string): string {
     else res = JSON.stringify({ ok: false, why: "unknown mode " + p.mode });
   } catch (err) {
     res = JSON.stringify({ ok: false, why: "kernel error: " + String(err) });
+  }
+  if (priorMode !== null) {
+    try {
+      const app2: ExcelScript.Application = workbook.getApplication();
+      if (app2.getCalculationMode() !== priorMode)
+        app2.setCalculationMode(priorMode);
+    } catch (errCalc2) { /* never fail a run over the calc mode */ }
   }
   // Speak loudly (owner's tenant hides return values): log to the
   // editor's Output console AND echo into a visible _OUT tab, newest on

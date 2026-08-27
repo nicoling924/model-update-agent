@@ -191,7 +191,10 @@ class MockWorkbook {
   }
   getApplication() {
     const wb = this;
-    return { calculate() {
+    return {
+      getCalculationMode() { return wb.calcMode || "automatic"; },
+      setCalculationMode(m) { wb.calcMode = m; wb.calcModeSets = (wb.calcModeSets || 0) + 1; },
+      calculate() {
       // fixture formulas: =A9-B9 style refs within the same sheet
       for (const sn in wb.sheets) {
         const ws = wb.sheets[sn];
@@ -222,6 +225,8 @@ var ExcelScript = {
   ClearApplyTo: { all: "all", contents: "contents" },
   RangeCopyType: { all: "all", formats: "formats" },
   CalculationType: { full: "full" },
+  CalculationMode: { automatic: "automatic", manual: "manual",
+    automaticExceptTables: "automaticExceptTables" },
   InsertShiftDirection: { down: "down", right: "right" },
 };
 
