@@ -104,3 +104,16 @@ judges which BS/CF moves matter for THIS company this period.
   **threshold ~20%** — e.g. current assets flat → no bridge; operating
   cash flow down 80% → the analyst must know what drove it. Skipped
   lines are named so the omission reads as deliberate.
+
+## v3 rulings (owner, 2026-08-28)
+
+- **Executive formatting**: a management presentation readable in 1
+  minute — generous spacing, soft colour tones, nothing clustered.
+- **Bridge lines are FORMULAS**, referencing the model/raw rows they
+  came from, so the analyst can trace every walk line back into the
+  model. Each bridge's residual line is a self-balancing formula
+  (= anchor − SUM(lines)), so the walk always ties AND shows itself
+  as the remainder.
+- Confirmed: current DFE page is a Fable-built prototype; Luna
+  generates it only after the layout is signed off and the generator
+  is ported into the agent.
