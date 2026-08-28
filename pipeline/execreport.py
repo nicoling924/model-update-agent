@@ -177,7 +177,9 @@ def referee(summary, wb):
         for ln in lines:
             lab = str(ln.get("label", "")).strip().lower()
             f = str(ln.get("formula", ""))
-            if re.match(r"^(other|residual)", lab):
+            # only a BARE residual label is banned — "Other payables"
+            # and friends are real disclosure lines
+            if re.match(r"^(others?|residuals?|other\s*/\s*residual)$", lab):
                 why.append("line '%s': never write your own Other/Residual "
                            "line — the renderer adds it" % ln.get("label"))
                 continue
@@ -585,7 +587,7 @@ def _selftest():
          "lines": [{"label": "tautology",
                     "formula": "=Model!U7-Model!T7", "value": 10.0}]},
         {"title": "Own residual", "sheet": "Model", "row": 7, "total": 10.0,
-         "lines": [{"label": "Residual x",
+         "lines": [{"label": "Residual",
                     "formula": "='Raw financials'!U6-'Raw financials'!T6",
                     "value": 10.0}]},
         {"title": "Volume-margin ok", "sheet": "Model", "row": 7,

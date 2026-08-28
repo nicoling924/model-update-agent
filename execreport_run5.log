@@ -1,0 +1,11 @@
+/Users/lingling/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+DELIVERED: /Users/lingling/Project M/companies/Dongfang Electric/model/Dongfang Electric FY25 (Luna REPORT).xlsx
+bridges kept: 5 refused: 6
+  refused: {'bridge': 'Reported net profit change', 'why': ["line 'Impairment losses': formula evaluates to 602.7 but claims -602.8", "line 'Other income and non-operating items': never write your own Other/Residual line — the renderer adds it", "line 'Tax and minorities': formula evaluates to 8.3 but claims 453.2"]}
+  refused: {'bridge': 'Current assets change', 'why': ["line 'Receivables and contract assets': formula evaluates to 5988.1 but claims 3988.2", "line 'Prepayments and other current assets': formula evaluates to 1471.7 but claims 1431.7"]}
+  refused: {'bridge': 'Non-current assets change', 'why': ["line 'Other non-current asset base': never write your own Other/Residual line — the renderer adds it"]}
+  refused: {'bridge': 'Current liabilities change', 'why': ["line 'Other financial liabilities': never write your own Other/Residual line — the renderer adds it", "line 'Other payables': never write your own Other/Residual line — the renderer adds it"]}
+  refused: {'bridge': 'Non-current liabilities change', 'why': ["line 'Other long-term liabilities': never write your own Other/Residual line — the renderer adds it"]}
+  refused: {'bridge': 'Financing cash flow change', 'why': ["bridge 'Financing cash flow change': your lines sum to 4012.9 against a change of -4012.9 — the unexplained residual (-8025.8) is most of the story. Check your SIGNS (a value is the effect ON the total: a cost that rose contributes NEGATIVE, formula =-(U-T)) and name the real drivers"]}
+engine: openai/gpt-5.6-luna calls: 6
