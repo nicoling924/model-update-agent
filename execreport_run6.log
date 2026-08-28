@@ -1,0 +1,11 @@
+/Users/lingling/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+DELIVERED: /Users/lingling/Project M/companies/Dongfang Electric/model/Dongfang Electric FY25 (Luna REPORT).xlsx
+bridges kept: 2 refused: 6
+  refused: {'bridge': 'Reported net profit', 'why': ["line 'Tax and minorities': formula evaluates to -453.2 but claims 8.3"]}
+  refused: {'bridge': 'Total non-current assets', 'why': ["line 'Operating asset movements': circular — a plus/minus line may not reference the bridge's own total row; derive the driver from the underlying rows instead"]}
+  refused: {'bridge': 'Total non-current liabilities', 'why': ["line 'Other non-current liabilities': circular — a plus/minus line may not reference the bridge's own total row; derive the driver from the underlying rows instead"]}
+  refused: {'bridge': 'Operating cash flow', 'why': ["bridge 'Operating cash flow': your lines sum to -8045.2 against a change of 8045.2 — the unexplained residual (16090.4) is most of the story. Check your SIGNS (a value is the effect ON the total: a cost that rose contributes NEGATIVE, formula =-(U-T)) and name the real drivers"]}
+  refused: {'bridge': 'Investing cash flow', 'why': ["line 'Investment inflows higher': formula evaluates to -10569.1 but claims 10569.1", "line 'Investment outflows higher': formula evaluates to 2755.5 but claims -2755.5"]}
+  refused: {'bridge': 'Financing cash flow', 'why': ["line 'Borrowing proceeds lower': formula evaluates to 3057.9 but claims -3057.9", "line 'Share issuance lower': formula evaluates to 5126.2 but claims -5126.2", "line 'Bond issuance higher': formula evaluates to -593.5 but claims 593.5", "line 'Debt repayment lower': formula evaluates to -769.5 but claims 769.5", "line 'Dividends and interest lower': formula evaluates to -192.4 but claims 192.4", "line 'Other financing outflows lower': formula evaluates to -2615.7 but claims 2492.4"]}
+engine: openai/gpt-5.6-luna calls: 8

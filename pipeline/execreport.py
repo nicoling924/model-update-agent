@@ -165,8 +165,16 @@ def _is_circular(bridge, formula):
 
 
 def referee(summary, wb):
-    """Refuse what does not tie. Returns (kept_bridges, refusals)."""
-    kept, refusals = [], []
+    """Refuse what does not tie. Returns (kept, refusals, corrections).
+
+    The FORMULA is the authoritative content — it is what renders, live,
+    and it is verified against the workbook's typed cells. The claimed
+    "value" is only the composer's arithmetic; where the formula
+    evaluates, the evaluation REPLACES the claim (a sign slip in the
+    bookkeeping is corrected, not fatal). Refusals are for what cannot
+    tie: unverifiable claims, circular lines, walks that leave most of
+    the story unexplained."""
+    kept, refusals, corrections = [], [], []
     for b in summary.get("bridges", []):
         why = []
         total = b.get("total")
@@ -194,16 +202,32 @@ def referee(summary, wb):
                            "instead" % ln.get("label"))
                 continue
             val = ln.get("value")
+            got, ok = _eval_formula(wb, str(ln.get("formula", "")))
+            if ok:
+                if isinstance(val, (int, float)) and abs(got - val) > max(
+                        0.5, abs(val) * 0.01):
+                    corrections.append(
+                        "%s / '%s': claimed %.1f, formula gives %.1f — "
+                        "formula wins" % (b.get("title"), ln.get("label"),
+                                          val, got))
+                ln["value"] = round(got, 1)
+                ssum += got
+                continue
             if not isinstance(val, (int, float)):
-                why.append("line '%s': no value" % ln.get("label"))
+                why.append("line '%s': no value and the formula is not "
+                           "verifiable" % ln.get("label"))
                 continue
             ssum += val
-            got, ok = _eval_formula(wb, str(ln.get("formula", "")))
-            if ok and abs(got - val) > max(0.5, abs(val) * 0.01):
-                why.append(
-                    "line '%s': formula evaluates to %.1f but claims %.1f"
-                    % (ln.get("label"), got, val))
         if isinstance(total, (int, float)):
+            # a sign-flipped TOTAL claim with a sound walk: the walk wins
+            if (abs(ssum + total) <= max(1.0, abs(total) * 0.02)
+                    and abs(ssum - total) > max(1.0, abs(total) * 0.02)):
+                corrections.append(
+                    "%s: claimed total %.1f has the wrong sign — the "
+                    "verified walk sums to %.1f" % (b.get("title"), total,
+                                                    ssum))
+                total = -total
+                b["total"] = total
             # the named drivers must carry MOST of the story; the
             # auto-residual absorbs a modest remainder, never the bulk
             residual = total - ssum
@@ -219,7 +243,7 @@ def referee(summary, wb):
             refusals.append({"bridge": b.get("title"), "why": why})
         else:
             kept.append(b)
-    return kept, refusals
+    return kept, refusals, corrections
 
 # ------------------------------------------------------------- renderer
 
@@ -522,13 +546,13 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
               if pre_path else None)
     facts = gather_facts(wb, pre_wb)
     summary = compose(client, facts)
-    kept, refusals = referee(summary, wb)
+    kept, refusals, corrections = referee(summary, wb)
     tries = 0
     while refusals and tries < 3:      # the referee teaches; Luna retries
         tries += 1
         summary = compose(client, facts,
                           feedback=json.dumps(refusals, ensure_ascii=False))
-        kept, refusals = referee(summary, wb)
+        kept, refusals, corrections = referee(summary, wb)
     summary["bridges"] = kept
     if refusals:                       # surviving refusals: honest note
         summary["skipped_note"] = (
@@ -539,7 +563,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)
     return {"ok": True, "out": str(out), "bridges": len(kept),
-            "refused": len(refusals),
+            "refused": len(refusals), "corrections": corrections,
             "refusals": refusals, "summary": summary}
 
 # ------------------------------------------------------------ selftest
@@ -598,12 +622,13 @@ def _selftest():
              {"label": "Margin",
               "formula": "=Model!U4*(Model!U7/Model!U4-Model!T7/Model!T4)",
               "value": 6.0}]}]
-    kept, refusals = referee(good, wb)
-    assert len(kept) == 2, refusals
-    assert {k["title"] for k in kept} == {"Revenue", "Volume-margin ok"}
-    assert len(refusals) == 4
-    assert any("sum to" in w for r in refusals for w in r["why"])
-    assert any("evaluates to" in w for r in refusals for w in r["why"])
+    kept, refusals, corrections = referee(good, wb)
+    assert len(kept) == 3, refusals
+    assert any("formula wins" in c for c in corrections), corrections
+    assert {k["title"] for k in kept} == {"Revenue", "Volume-margin ok",
+                                          "Bad line"}
+    assert len(refusals) == 3
+    assert any("lines sum to" in w for r in refusals for w in r["why"])
     assert any("circular" in w for r in refusals for w in r["why"])
     assert any("Other/Residual" in w for r in refusals for w in r["why"])
     kept[1]["lines"][0]["formula"] = kept[1]["lines"][0]["formula"][1:]
@@ -644,6 +669,8 @@ def main(argv=None):
                       kv.get("--out"))
     print("DELIVERED:", res["out"])
     print("bridges kept:", res["bridges"], "refused:", res["refused"])
+    for c in res.get("corrections", []):
+        print("  corrected:", c)
     for rr in res["refusals"]:
         print("  refused:", rr)
     u = getattr(client, "usage", None)
