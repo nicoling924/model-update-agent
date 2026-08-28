@@ -117,3 +117,6 @@ judges which BS/CF moves matter for THIS company this period.
 - Confirmed: current DFE page is a Fable-built prototype; Luna
   generates it only after the layout is signed off and the generator
   is ported into the agent.
+- v3 addendum (owner): NO detail tab — nobody reads it. The _REPORT
+  page is the only report; everything else stays as colour-marked
+  cells in the model itself.
