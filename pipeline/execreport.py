@@ -420,6 +420,16 @@ THE PAGE (owner's locked design):
    -'Raw financials'!T10) so it evaluates to the signed effect. The
    formula and the value must agree exactly — the referee evaluates
    every formula.
+   WORKED SIGNS EXAMPLE (a profit bridge): operating expenses rose from
+   7,000 to 7,500, so their effect on profit is -500:
+     {"label": "Opex up", "formula": "=-('Raw financials'!U10-'Raw
+      financials'!T10)", "value": -500.0}
+   An income line that FELL also contributes negative — its formula is
+   the plain delta (=U18-T18) which is already negative. Check every
+   line: does the formula's sign equal the value's sign?
+   CASH-FLOW TOTALS: the change is actual minus prior even when both
+   are negative: -10,000 - (-3,000) = -7,000 — the change is NEGATIVE
+   (the outflow grew). Never flip it positive.
    Also give the bridge's "total" = the key number's actual change.
    Lines must sum close to total; a residual line is added for you —
    NEVER add your own "Other"/"Residual" line (it will be refused).
@@ -511,8 +521,11 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
     facts = gather_facts(wb, pre_wb)
     summary = compose(client, facts)
     kept, refusals = referee(summary, wb)
-    if refusals:
-        summary = compose(client, facts, feedback=json.dumps(refusals))
+    tries = 0
+    while refusals and tries < 3:      # the referee teaches; Luna retries
+        tries += 1
+        summary = compose(client, facts,
+                          feedback=json.dumps(refusals, ensure_ascii=False))
         kept, refusals = referee(summary, wb)
     summary["bridges"] = kept
     if refusals:                       # surviving refusals: honest note

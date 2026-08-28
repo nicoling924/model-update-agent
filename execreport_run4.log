@@ -1,0 +1,8 @@
+/Users/lingling/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+DELIVERED: /Users/lingling/Project M/companies/Dongfang Electric/model/Dongfang Electric FY25 (Luna REPORT).xlsx
+bridges kept: 5 refused: 3
+  refused: {'bridge': 'Net profit change', 'why': ["bridge 'Net profit change': your lines sum to 71.9 against a change of 909.2 — the unexplained residual (837.3) is most of the story. Check your SIGNS (a value is the effect ON the total: a cost that rose contributes NEGATIVE, formula =-(U-T)) and name the real drivers"]}
+  refused: {'bridge': 'Operating cash flow change', 'why': ["line 'Inventory working capital': formula evaluates to -886.3 but claims 886.3"]}
+  refused: {'bridge': 'Investing cash flow change', 'why': ["line 'Investment purchases': formula evaluates to 4194.2 but claims -4194.2", "bridge 'Investing cash flow change': your lines sum to -16078.6 against a change of 7813.6 — the unexplained residual (23892.2) is most of the story. Check your SIGNS (a value is the effect ON the total: a cost that rose contributes NEGATIVE, formula =-(U-T)) and name the real drivers"]}
+engine: openai/gpt-5.6-luna calls: 2
