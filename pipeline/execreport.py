@@ -323,6 +323,8 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
         band(r, fill, 20)
         r += 1
         for it in items:
+            if not isinstance(it, dict):
+                continue
             sheet, addr = str(it.get("sheet", "")), str(it.get("cell", ""))
             if sheet not in wb.sheetnames or not re.match(
                     r"^[A-Z]{1,3}[0-9]{1,4}$", addr):
@@ -425,6 +427,15 @@ def _validate(d):
             return "bridge without an integer row"
         if not b.get("lines"):
             return "bridge '%s' has no lines" % b.get("title")
+    att = d["attention"]
+    if not isinstance(att, dict):
+        return "attention must be an object with plugs/red/orange lists"
+    for k in ("plugs", "red", "orange"):
+        for it in att.get(k, []):
+            if not isinstance(it, dict) or not it.get("sheet") \
+                    or not it.get("cell"):
+                return ("attention.%s items must be objects "
+                        '{"sheet","cell","note"}' % k)
     return None
 
 
