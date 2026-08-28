@@ -202,18 +202,24 @@ actually happened this period.
 
 `{"mode":"REPORT","summary":{...}}` with three parts you build:
 
-- `snapshot` — the 5–8 key numbers this model's team watches (revenue,
-  margins, profits, EPS, dividend, the balance-sheet totals, operating
-  cash flow — judge from the model itself which they are):
+- `snapshot` — the KEY NUMBERS, which are fixed by the objective:
+  sales (and its segmental breakdown where the model carries one),
+  gross profit, net profit, cash, current and non-current assets and
+  liabilities, equity, and operating / investing / financing cash flow.
+  Find each one's row in THIS model:
   `[{"sheet":"Model","row":4,"label":"Revenue"}, ...]`
   The script fills in prior, actual, YoY, the analyst's estimate, and
   their next-year forecast before/after — from its own snapshots.
-- `bridges` — WHY each key number moved. Not only profit: judge whether
-  the balance sheet or cash flow moved in a way the analyst must
-  understand, and bridge those too. Each bridge names the total's cell
-  and the walk lines you reasoned out — the few drivers that explain
-  the change, smallest lumped into "Other" so the lines SUM EXACTLY to
-  the model's actual change. **The script checks the sum and refuses a
+- `bridges` — WHY each key number moved. **P&L key numbers get a
+  bridge every time. Balance-sheet and cash-flow key numbers get one
+  only when the move is significant — around 20% or more** (current
+  assets flat = no bridge; operating cash flow down 80% = the analyst
+  must know what drove it). **Composing the walk is your reasoning and
+  judgment, never a word search**: think about what actually drove the
+  change — read the disclosure's own statements, compare the lines
+  year on year, and name the few drivers that explain it, smallest
+  lumped into "Other" so the lines SUM EXACTLY to the model's actual
+  change. **The script checks the sum and refuses a
   bridge that does not add up** — that is the referee, not an obstacle:
   `{"title":"Net profit","sheet":"Model","row":30,
     "lines":[["Gross profit",1510],["Impairments",-1148],["Other",-86]],

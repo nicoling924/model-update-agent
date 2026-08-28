@@ -88,3 +88,19 @@ other line). Split of work:
 "Why it moved" covers more than profit: also the balance sheet
 (what moved assets/liabilities) and the cash flow statement. The agent
 judges which BS/CF moves matter for THIS company this period.
+
+## Snapshot & bridge scope rulings (owner, 2026-08-28, second pass)
+
+- Top section renamed **"Key number snapshot"** — the key numbers are
+  EXACTLY the mindmap objective list (BOSS_MINDMAP.md): sales (+
+  segmental breakdown), gross profit (+breakdown), net profit, cash,
+  current & non-current assets and liabilities, equity, operating /
+  investing / financing cash flow.
+- **"Why it moved" selection is the agent's REASONING AND JUDGMENT —
+  never a mechanical word search.** The agent thinks about what
+  actually drove the change and names those drivers.
+- Bridge scope: **P&L key numbers get a bridge EVERY time.** Non-P&L
+  key numbers (BS & CF) get one only when the move is significant —
+  **threshold ~20%** — e.g. current assets flat → no bridge; operating
+  cash flow down 80% → the analyst must know what drove it. Skipped
+  lines are named so the omission reads as deliberate.
