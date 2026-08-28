@@ -148,6 +148,22 @@ def _eval_formula(wb, formula):
         return None, False
 
 
+
+def _is_circular(bridge, formula):
+    """A pure +/- walk line that references the bridge's own anchor row."""
+    if "*" in formula or "/" in formula:
+        return False
+    bs = str(bridge.get("sheet", "Model")).strip().lower()
+    try:
+        brow = int(bridge.get("row", 0))
+    except (TypeError, ValueError):
+        return False
+    for m in _REF.finditer(formula):
+        if m.group(1).strip().lower() == bs and int(m.group(3)) == brow:
+            return True
+    return False
+
+
 def referee(summary, wb):
     """Refuse what does not tie. Returns (kept_bridges, refusals)."""
     kept, refusals = [], []
@@ -159,6 +175,22 @@ def referee(summary, wb):
         lines = b.get("lines", [])
         ssum = 0.0
         for ln in lines:
+            lab = str(ln.get("label", "")).strip().lower()
+            f = str(ln.get("formula", ""))
+            if re.match(r"^(other|residual)", lab):
+                why.append("line '%s': never write your own Other/Residual "
+                           "line — the renderer adds it" % ln.get("label"))
+                continue
+            # circular: a pure +/- line that references the very row it is
+            # supposed to explain is a tautology (total minus the other
+            # lines), not a driver. Multiplicative forms are exempt — the
+            # sanctioned volume/margin split references its own row.
+            if _is_circular(b, f):
+                why.append("line '%s': circular — a plus/minus line may "
+                           "not reference the bridge's own total row; "
+                           "derive the driver from the underlying rows "
+                           "instead" % ln.get("label"))
+                continue
             val = ln.get("value")
             if not isinstance(val, (int, float)):
                 why.append("line '%s': no value" % ln.get("label"))
@@ -295,8 +327,11 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
         r += 1
         first = r
         for ln in b.get("lines", []):
+            f = str(ln.get("formula", "")).strip()
+            if f and not f.startswith("="):
+                f = "=" + f          # Luna often omits it; text is useless
             cell(r, 1, "      " + str(ln.get("label", ""))[:60], SMALL)
-            cell(r, 2, str(ln.get("formula", "")), SMALL, None, SGN)
+            cell(r, 2, f, SMALL, None, SGN)
             r += 1
         cell(r, 1, "      Other / residual", GREYI)
         cell(r, 2, "=B%d-SUM(B%d:B%d)" % (trow, first, r - 1),
@@ -375,7 +410,14 @@ THE PAGE (owner's locked design):
    - "value": the number the formula evaluates to (RMB mn, 1dp).
    Also give the bridge's "total" = the key number's actual change.
    Lines must sum close to total; a residual line is added for you —
-   do NOT add your own "Other" line.
+   NEVER add your own "Other"/"Residual" line (it will be refused).
+   A bridge explains WHAT DROVE the change, not the statement's own
+   structure: for net profit, name the operating drivers (gross profit,
+   investment income, impairments, operating expenses, tax, minorities)
+   — "pre-tax profit + tax" explains nothing. A plus/minus line that
+   references the bridge's own total row is circular and will be
+   refused. Prefer typed 'Raw financials' rows, which the referee can
+   verify; a working-capital or funding story usually lives there.
    For gross profit use the volume/margin split:
      volume = (Model!U<rev>-Model!T<rev>)*Model!T<gp>/Model!T<rev>
      margin = Model!U<rev>*(Model!U<gp>/Model!U<rev>-Model!T<gp>/Model!T<rev>)
@@ -513,11 +555,31 @@ def _selftest():
                 {"sheet": "Model", "cell": "U7", "note": "why?"}],
                 "orange": []},
             "skipped_note": "s", "company_note": "n", "other_note": "o"}
+    good["bridges"] += [
+        {"title": "Circular", "sheet": "Model", "row": 7, "total": 10.0,
+         "lines": [{"label": "tautology",
+                    "formula": "=Model!U7-Model!T7", "value": 10.0}]},
+        {"title": "Own residual", "sheet": "Model", "row": 7, "total": 10.0,
+         "lines": [{"label": "Residual x",
+                    "formula": "='Raw financials'!U6-'Raw financials'!T6",
+                    "value": 10.0}]},
+        {"title": "Volume-margin ok", "sheet": "Model", "row": 7,
+         "total": 10.0, "lines": [
+             {"label": "Volume",
+              "formula": "=(Model!U4-Model!T4)*Model!T7/Model!T4",
+              "value": 4.0},
+             {"label": "Margin",
+              "formula": "=Model!U4*(Model!U7/Model!U4-Model!T7/Model!T4)",
+              "value": 6.0}]}]
     kept, refusals = referee(good, wb)
-    assert len(kept) == 1 and kept[0]["title"] == "Revenue", refusals
-    assert len(refusals) == 2
+    assert len(kept) == 2, refusals
+    assert {k["title"] for k in kept} == {"Revenue", "Volume-margin ok"}
+    assert len(refusals) == 4
     assert any("sum to" in w for r in refusals for w in r["why"])
     assert any("evaluates to" in w for r in refusals for w in r["why"])
+    assert any("circular" in w for r in refusals for w in r["why"])
+    assert any("Other/Residual" in w for r in refusals for w in r["why"])
+    kept[1]["lines"][0]["formula"] = kept[1]["lines"][0]["formula"][1:]
     good["bridges"] = kept
     rows = render(wb, good)
     assert wb.sheetnames[0] == "_REPORT" and rows > 15
@@ -527,6 +589,7 @@ def _selftest():
     assert "Key number snapshot" in flat and "Why it moved" in flat
     assert "residual" in flat and "Needs your attention" in flat
     assert "=HYPERLINK" in flat and "'Raw financials'!U5" in flat
+    assert "=(Model!U4-Model!T4)*Model!T7/Model!T4" in flat  # '=' restored
     assert _validate(good) is None
     assert _validate({"banner": "x"}) is not None
     print("execreport selftest: ALL PASS")
