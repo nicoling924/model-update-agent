@@ -756,6 +756,78 @@ const poC2 = JSON.parse(main(wbC, JSON.stringify(
 et("a model too heavy to recalculate can skip it — and admits it",
   poC2.recalculated === false);
 
+
+// ---- run 18: the analyst page the OWNER designed (2026-08-28) --
+// The AGENT composes the summary (snapshot picks, bridges, attention);
+// the kernel renders the format and REFEREES: a bridge whose lines do
+// not sum to the model's own change is refused, never rendered.
+const sum18 = { mode: "REPORT", summary: {
+  snapshot: [ { sheet: "Model", row: 5, label: "Revenue" },
+              { sheet: "Model", row: 9 } ],
+  bridges: [
+    { title: "Total equity", sheet: "Model", row: 11,
+      lines: [["Assets", 600], ["Liabilities", -200]],
+      company: "retained profit and the placement (AR p.12)" },
+    { title: "Revenue", sheet: "Model", row: 5,
+      lines: [["New contracts", 999]] },   // does NOT sum -> refused
+  ],
+  attention: {
+    plugs: [["Model", "E8", "to tie other gains"]],
+    red: [["Model", "E7", "sabotaged comparative — which is right?"],
+          ["NoSheet", "Z9", "bad ref"]],
+    orange: [["Model", "E8", "= total less mapped"]],
+  } } };
+const wb18 = fixtureForecast();
+main(wb18, JSON.stringify({ mode: "PREFLIGHT", sheets: ["Model"],
+  periodKind: "FY", targetYear: 2025 }));
+stage(wb18, [
+  ["Turnover", 5321.0, 4976.2, "p3", "", ""],
+  ["Cost of sales", -3200.0, -3000.0, "p3", "", ""],
+  ["Other gains", 500.0, 100.0, "p4", "orange",
+    "backed out: total less mapped items"],
+  ["Total assets", 8600.0, 8000.0, "p5", "", ""],
+  ["Total liabilities", 3200.0, 3000.0, "p5", "", ""],
+  ["Total equity", 5400.0, 5000.0, "p5", "", ""],
+]);
+main(wb18, JSON.stringify({ mode: "APPLY", sheet: "Model",
+  targetYear: 2025 }));
+const rep18 = JSON.parse(main(wb18, JSON.stringify(sum18)));
+const rw18 = wb18.getWorksheet("_REPORT");
+const flat18 = JSON.stringify(rw18.getUsedRange().getValues());
+et("summary page: banner verdict with coverage, colored",
+  /DELIVERED — model balances/.test(
+    String(rw18.getRange("A1").getValues()[0][0])) &&
+  rw18.cell(0, 0).fill === "C6EFCE" && /plugs/.test(flat18));
+et("snapshot row: label, prior, YoY, A vs E all present",
+  /"Revenue",4976.2,/.test(flat18) && /\+6\.9%/.test(flat18) &&
+  /\+2\.3%/.test(flat18) && rep18.summary.snapshot === 2);
+et("snapshot actual is a LIVE formula, not a paste", (() => {
+  for (const k in rw18.cells) {
+    const c = rw18.cells[k];
+    if (c.link === "Model!E5") {
+      const row = Number(k.split(":")[0]);
+      return rw18.cell(row, 2).f === "=Model!E5";
+    }
+  }
+  return false; })());
+et("a bridge that sums is rendered with its walk lines",
+  rep18.summary.bridges === 1 && /Total equity/.test(flat18) &&
+  /\+600/.test(flat18) && /Company: retained profit/.test(flat18));
+et("a bridge that does NOT sum is REFUSED, never rendered",
+  rep18.summary.bridgesRefused.length === 1 &&
+  /sum to 999/.test(rep18.summary.bridgesRefused[0]) &&
+  !/New contracts/.test(flat18) && /REFUSED 1 bridge/.test(rep18.note));
+et("attention tiers in the owner's order: plugs, red, orange",
+  flat18.indexOf("PLUGS") >= 0 && flat18.indexOf("RED — unsure") >= 0 &&
+  flat18.indexOf("ORANGE — derived") >= 0 &&
+  flat18.indexOf("PLUGS") < flat18.indexOf("RED — unsure") &&
+  flat18.indexOf("RED — unsure") < flat18.indexOf("ORANGE — derived"));
+et("a bad sheet reference is reported, not rendered",
+  rep18.summary.badRefs.length === 1 && !/bad ref/.test(flat18));
+et("the detail block still sits below the executive screen",
+  /DETAIL/.test(flat18) && /1\. RED/.test(flat18) &&
+  flat18.indexOf("NEEDS YOUR ATTENTION") < flat18.indexOf("1. RED"));
+
 console.log(`\nkernel e2e: ${ePass} pass, ${eFail} fail`);
 if (typeof process !== "undefined") process.exit(eFail ? 1 : 0);
 `E2E ${ePass} pass ${eFail} fail`;

@@ -17,7 +17,9 @@
 //   RESTATE   {"mode":"RESTATE"}                    scan comparatives, may STOP
 //   APPLY     {"mode":"APPLY","sheet":"Model","targetYear":2025}
 //   POLICE    {"mode":"POLICE"}                     all preflighted sheets
-//   REPORT    {"mode":"REPORT"}   analyst page (first tab) + _SPEC memory
+//   REPORT    {"mode":"REPORT","summary":{...}}  analyst page (first
+//             tab) — the AGENT composes the summary, the kernel renders
+//             it and referees the bridges — + _SPEC memory
 // Phase 2 (2026-08-26) adds: the mapping cascade (core/mapping.ts) so a
 // line is found by meaning and by its prior-year figure, not by an exact
 // label; several sheets in one run (P&L + BS + CF); the boss-mandated
@@ -42,6 +44,7 @@ interface Params {
   acknowledgeRestatement?: boolean;
   analystApproved?: boolean;
   recalc?: boolean;
+  summary?: ReportSummary;
 }
 
 // What PREFLIGHT hands back when a sheet has no column for the period yet.
@@ -1274,6 +1277,35 @@ function pct(from: number, to: number): string {
   return (p >= 0 ? "+" : "") + String(Math.round(p * 10) / 10) + "%";
 }
 
+// ---- the analyst page (owner's 2026-08-28 layout) ------------------
+// The AGENT composes the summary content — which lines are the key
+// numbers for THIS team's model, what actually drove the change (the
+// bridges, P&L / BS / CF), and how each attention item is phrased.
+// That is deliberate: reasoning adapts to different models and teams
+// where a hardcoded recipe would not. The kernel draws the format and
+// REFEREES the content: a bridge whose lines do not sum to the model's
+// own recorded change is refused, never rendered. Teaching over code;
+// the referee keeps it honest.
+interface SnapIn { sheet: string; row: number; label?: string; }
+interface BridgeIn { title: string; sheet: string; row: number;
+  lines: (string | number)[][]; company?: string; }
+interface AttentionIn { plugs?: (string | number)[][];
+  red?: (string | number)[][]; orange?: (string | number)[][]; }
+interface ReportSummary { snapshot?: SnapIn[]; bridges?: BridgeIn[];
+  attention?: AttentionIn; }
+interface PageLine { cells: (string | number)[]; linkSheet: string;
+  linkAddr: string; live: number; fill: string; }
+
+function r1(x: number): number { return Math.round(x * 10) / 10; }
+function fmtA(x: number): string {
+  return (x >= 0 ? "+" : "") + String(r1(x));
+}
+// notes stay SHORT (owner's rule: many cells, the analyst cannot read
+// paragraphs — the cell link is there for anyone who wants detail)
+function shortNote(s: string): string {
+  return s.length > 90 ? s.substring(0, 87) + "..." : s;
+}
+
 function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   const names: string[] = p.sheet ? [String(p.sheet)] : anatomySheets(wb);
   if (names.length === 0)
@@ -1292,6 +1324,12 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   let period: string = "";
   let written: number = 0;
   let refused: number = 0;
+  let totalRows: number = 0;
+  // stashed for the executive block below — read each sheet ONCE
+  const views: { [k: string]: AnatomyView } = {};
+  const grids: { [k: string]: CellValue[][] } = {};
+  const tIdxOf: { [k: string]: number } = {};
+  const nIdxOf: { [k: string]: number } = {};
   for (let s: number = 0; s < names.length; s++) {
     const sheetName: string = names[s];
     const view: AnatomyView | null = readAnatomy(wb, sheetName);
@@ -1302,6 +1340,9 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
     const tIdx: number = ws.getRange(view.targetCol + "1").getColumnIndex();
     const nIdx: number = view.nextCol
       ? ws.getRange(view.nextCol + "1").getColumnIndex() : -1;
+    views[sheetName] = view; grids[sheetName] = grid;
+    tIdxOf[sheetName] = tIdx; nIdxOf[sheetName] = nIdx;
+    totalRows += view.rows.length;
     const labelByRow: { [k: string]: string } = {};
     for (let i: number = 0; i < view.rows.length; i++)
       labelByRow[String(view.rows[i].row)] = view.rows[i].label;
@@ -1310,7 +1351,7 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
         ? grid[row - 1][col] : null;
       return (typeof v === "number") ? v : null;
     };
-    // sections 1, 2 and 4 read the verdicts this run recorded
+    // detail sections read the verdicts this run recorded
     for (let i: number = 1; i < pl.length; i++) {
       if (String(pl[i][0]) !== sheetName) continue;
       const row: number = Number(pl[i][1]);
@@ -1376,7 +1417,7 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
             : "", k: Math.abs(act) });
       }
     }
-    // section 3: QC scan — a >50% swing is often a mapping error
+    // QC scan — a >50% swing is often a mapping error
     for (let i: number = 0; i < view.rows.length; i++) {
       const prior: number = view.rows[i].prior;
       const now: number | null = liveAt(view.rows[i].row, tIdx);
@@ -1391,83 +1432,236 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
   }
   moves.sort((x: ReportRow, y: ReportRow): number => y.k - x.k);
   const movesShown: ReportRow[] = moves.slice(0, 15);
-  // headline lines = the biggest lines. Ranking by size surfaces revenue,
-  // profit and the balance-sheet totals without knowing their names — the
-  // same instinct as the cascade: judge by magnitude, not by label.
   core.sort((x: ReportRow, y: ReportRow): number => y.k - x.k);
   const coreShown: ReportRow[] = core.slice(0, 8);
-  // ---- lay the page out ----
   const po: { ok: boolean; checks: number } =
     JSON.parse(modePolice(wb, { mode: "POLICE" })) as
       { ok: boolean; checks: number };
-  const head = (t: string): ReportRow =>
-    ({ addr: "", sheet: "", a: t, c: "", d: "", e: "", k: 0 });
-  const lines: ReportRow[] = [];
-  lines.push(head("MODEL UPDATE REPORT — " + names.join(", ")));
-  lines.push(head(written + " lines written · " + refused + " refused · " +
+  // ---- lay the page out ----
+  const page: PageLine[] = [];
+  const put = (cells: (string | number)[], linkSheet: string,
+               linkAddr: string, live: number, fill: string): void => {
+    page.push({ cells: cells, linkSheet: linkSheet, linkAddr: linkAddr,
+      live: live, fill: fill });
+  };
+  const putT = (text: string): void => put([text], "", "", -1, "");
+  const putRow = (r: ReportRow): void =>
+    put([r.a, "", r.c, r.d, r.e], r.sheet, r.addr,
+      r.addr ? 1 : -1, "");
+  const S: ReportSummary | null =
+    (p.summary === undefined || p.summary === null) ? null : p.summary;
+  const bridgesRefused: string[] = [];
+  const badRefs: string[] = [];
+  let bridgesOk: number = 0;
+  let snapN: number = 0;
+  let plugsN: number = 0;
+  let redAskN: number = 0;
+  let orangeAskN: number = 0;
+  if (S !== null) {
+    // -- banner: verdict + coverage, at a glance --
+    plugsN = (S.attention && S.attention.plugs) ? S.attention.plugs.length : 0;
+    redAskN = (S.attention && S.attention.red) ? S.attention.red.length : 0;
+    orangeAskN = (S.attention && S.attention.orange)
+      ? S.attention.orange.length : 0;
+    const banner: string = (po.checks === 0)
+      ? "DELIVERED — balance NOT VERIFIED (model carries no check rows)"
+      : (po.ok ? "DELIVERED — model balances"
+               : "DELIVERED WITH EXCEPTIONS — a balance check is failing");
+    put([banner, "", written + "/" + totalRows + " lines updated · " +
+      plugsN + " plugs · " + redAskN + " rulings needed"], "", "", -1,
+      (po.checks > 0 && po.ok) ? "C6EFCE" : "FFEB9C");
+    putT("");
+    // -- 1 · earnings snapshot: the numbers this team watches --
+    if (S.snapshot && S.snapshot.length > 0) {
+      putT("1 · EARNINGS SNAPSHOT");
+      put(["line", "prior", "actual", "YoY", "your estimate", "A vs E",
+        "next yr before", "next yr after"], "", "", -1, "");
+      for (let i: number = 0; i < S.snapshot.length; i++) {
+        const sn: SnapIn = S.snapshot[i];
+        const v: AnatomyView | undefined = views[sn.sheet];
+        if (!v) { badRefs.push(sn.sheet + " r" + sn.row); continue; }
+        let prior: number | null = null;
+        let label: string = sn.label ? sn.label : "";
+        for (let j: number = 0; j < v.rows.length; j++)
+          if (v.rows[j].row === sn.row) {
+            prior = v.rows[j].prior;
+            if (!label) label = v.rows[j].label;
+            break;
+          }
+        const g: CellValue[][] = grids[sn.sheet];
+        const t: number = tIdxOf[sn.sheet];
+        const n: number = nIdxOf[sn.sheet];
+        const act: number | null = (g[sn.row - 1] &&
+          typeof g[sn.row - 1][t] === "number")
+          ? g[sn.row - 1][t] as number : null;
+        const est: number | undefined = v.beforeT[String(sn.row)];
+        const nb: number | undefined = v.beforeN[String(sn.row)];
+        const na: number | null = (n >= 0 && g[sn.row - 1] &&
+          typeof g[sn.row - 1][n] === "number")
+          ? g[sn.row - 1][n] as number : null;
+        snapN++;
+        put([label ? label : (sn.sheet + " r" + sn.row),
+          prior === null ? "" : r1(prior),
+          act === null ? "" : r1(act),
+          (prior !== null && act !== null) ? pct(prior, act) : "",
+          est === undefined ? "" : r1(est),
+          (est !== undefined && act !== null) ? pct(est, act) : "",
+          nb === undefined ? "" : r1(nb),
+          na === null ? "" : r1(na)],
+          sn.sheet, v.targetCol + sn.row, 2, "");
+      }
+      putT("");
+    }
+    // -- 2 · why it moved: agent-composed bridges, kernel-refereed --
+    if (S.bridges && S.bridges.length > 0) {
+      putT("2 · WHY IT MOVED");
+      for (let i: number = 0; i < S.bridges.length; i++) {
+        const b: BridgeIn = S.bridges[i];
+        const v: AnatomyView | undefined = views[b.sheet];
+        let prior: number | null = null;
+        if (v)
+          for (let j: number = 0; j < v.rows.length; j++)
+            if (v.rows[j].row === b.row) { prior = v.rows[j].prior; break; }
+        const g: CellValue[][] | undefined = grids[b.sheet];
+        const act: number | null = (v && g && g[b.row - 1] &&
+          typeof g[b.row - 1][tIdxOf[b.sheet]] === "number")
+          ? g[b.row - 1][tIdxOf[b.sheet]] as number : null;
+        if (!v || prior === null || act === null) {
+          bridgesRefused.push(b.title +
+            ": anchor row not found in the model — give the sheet and " +
+            "row of the total this bridge explains");
+          continue;
+        }
+        const delta: number = act - prior;
+        let sum: number = 0;
+        for (let j: number = 0; j < b.lines.length; j++)
+          sum += Number(b.lines[j][1]);
+        // THE REFEREE: a bridge must sum to the model's own change.
+        // Refused content is never rendered — a wrong story printed
+        // confidently is worse than no story.
+        const tol: number = Math.max(1, Math.abs(delta) * 0.01);
+        if (Math.abs(sum - delta) > tol) {
+          bridgesRefused.push(b.title + ": your lines sum to " + r1(sum) +
+            " but the model's actual change is " + r1(delta) +
+            " — rebuild the bridge (it must add up exactly; use an " +
+            "'Other' line for the remainder)");
+          continue;
+        }
+        bridgesOk++;
+        put([b.title, fmtA(delta)], b.sheet, v.targetCol + b.row, -1, "");
+        for (let j: number = 0; j < b.lines.length; j++)
+          put(["    " + String(b.lines[j][0]),
+            fmtA(Number(b.lines[j][1]))], "", "", -1, "");
+        if (b.company)
+          putT("    Company: " + shortNote(String(b.company)));
+      }
+      putT("");
+    }
+    // -- 3 · needs your attention: plugs first, then red, then orange --
+    putT("3 · NEEDS YOUR ATTENTION");
+    const putAttn = (items: (string | number)[][] | undefined,
+                     header: string): void => {
+      if (!items || items.length === 0) return;
+      putT(header);
+      for (let i: number = 0; i < items.length; i++) {
+        const sh: string = String(items[i][0]);
+        const cell: string = String(items[i][1]);
+        const note: string = shortNote(String(
+          items[i][2] === undefined ? "" : items[i][2]));
+        if (!wb.getWorksheet(sh)) { badRefs.push(sh + "!" + cell); continue; }
+        put(["", "", note], sh, cell, 1, "");
+      }
+    };
+    if (S.attention) {
+      putAttn(S.attention.plugs,
+        "PLUGS — made to balance the model; resolve properly");
+      putAttn(S.attention.red, "RED — unsure, your ruling");
+      putAttn(S.attention.orange, "ORANGE — derived, not read");
+      if (plugsN + redAskN + orangeAskN === 0)
+        putT("(nothing needs a ruling)");
+    } else putT("(agent gave no attention list)");
+    putT("");
+    putT("OTHER — " + drivers.length + " key drivers · " +
+      awaitingRows.length + " rows not covered · " + carried.length +
+      " not updated · " + moves.length + " big moves → detail below");
+    putT("");
+    putT("──────── DETAIL ────────");
+    putT("");
+  }
+  // ---- detail sections (kernel-generated, always present) ----
+  putT("MODEL UPDATE REPORT — " + names.join(", "));
+  putT(written + " lines written · " + refused + " refused · " +
     red.length + " red · " + orange.length + " orange · " +
     drivers.length + " embedded hardcodes · " + awaitingRows.length +
     " still blank · " + carried.length + " not updated · balance checks: " +
-    (po.checks === 0 ? "NONE FOUND" : (po.ok ? "PASS" : "FAIL"))));
-  lines.push(head(""));
-  lines.push(head("1. RED — uncertain, needs your ruling (" +
-    red.length + ")"));
-  for (let i: number = 0; i < red.length; i++) lines.push(red[i]);
-  lines.push(head(""));
-  lines.push(head("2. ORANGE — derived, awaiting true-up (" +
-    orange.length + ")"));
-  for (let i: number = 0; i < orange.length; i++) lines.push(orange[i]);
-  lines.push(head(""));
-  lines.push(head("3. KEY DRIVERS — formulas carrying a number baked in " +
-    "from last year (" + drivers.length + ")"));
+    (po.checks === 0 ? "NONE FOUND" : (po.ok ? "PASS" : "FAIL")));
+  putT("");
+  putT("1. RED — uncertain, needs your ruling (" + red.length + ")");
+  for (let i: number = 0; i < red.length; i++) putRow(red[i]);
+  putT("");
+  putT("2. ORANGE — derived, awaiting true-up (" + orange.length + ")");
+  for (let i: number = 0; i < orange.length; i++) putRow(orange[i]);
+  putT("");
+  putT("3. KEY DRIVERS — formulas carrying a number baked in " +
+    "from last year (" + drivers.length + ")");
   for (let i: number = 0; i < drivers.length && i < 25; i++)
-    lines.push(drivers[i]);
+    putRow(drivers[i]);
   if (drivers.length > 25)
-    lines.push(head("   ... and " + (drivers.length - 25) +
-      " more — see the _PLAN tab"));
-  lines.push(head(""));
-  lines.push(head("4a. STILL BLANK — no figure found for these lines (" +
+    putT("   ... and " + (drivers.length - 25) + " more — see the _PLAN tab");
+  putT("");
+  putT("4a. STILL BLANK — no figure found for these lines (" +
     awaitingRows.length + "). The update is NOT finished while these " +
-    "are empty."));
+    "are empty.");
   for (let i: number = 0; i < awaitingRows.length && i < 40; i++)
-    lines.push(awaitingRows[i]);
+    putRow(awaitingRows[i]);
   if (awaitingRows.length > 40)
-    lines.push(head("   ... and " + (awaitingRows.length - 40) +
-      " more — see the _PLAN tab"));
-  lines.push(head(""));
-  lines.push(head("4b. NOT UPDATED THIS PERIOD — last year's typed numbers " +
-    "still standing (" + carried.length + ")"));
+    putT("   ... and " + (awaitingRows.length - 40) +
+      " more — see the _PLAN tab");
+  putT("");
+  putT("4b. NOT UPDATED THIS PERIOD — last year's typed numbers " +
+    "still standing (" + carried.length + ")");
   for (let i: number = 0; i < carried.length && i < 25; i++)
-    lines.push(carried[i]);
+    putRow(carried[i]);
   if (carried.length > 25)
-    lines.push(head("   ... and " + (carried.length - 25) +
-      " more — see the _PLAN tab"));
-  lines.push(head(""));
-  lines.push(head("5. BIG MOVES >50% year on year — check for mapping errors" +
+    putT("   ... and " + (carried.length - 25) + " more — see the _PLAN tab");
+  putT("");
+  putT("5. BIG MOVES >50% year on year — check for mapping errors" +
     (moves.length > movesShown.length
-      ? " (showing 15 of " + moves.length + ")" : "")));
-  for (let i: number = 0; i < movesShown.length; i++) lines.push(movesShown[i]);
-  lines.push(head(""));
-  lines.push(head("6. YOUR FORECAST vs THE ACTUAL" +
-    (period ? " — " + period : "") + " (biggest lines first)"));
-  for (let i: number = 0; i < coreShown.length; i++) lines.push(coreShown[i]);
+      ? " (showing 15 of " + moves.length + ")" : ""));
+  for (let i: number = 0; i < movesShown.length; i++) putRow(movesShown[i]);
+  putT("");
+  putT("6. YOUR FORECAST vs THE ACTUAL" +
+    (period ? " — " + period : "") + " (biggest lines first)");
+  for (let i: number = 0; i < coreShown.length; i++) putRow(coreShown[i]);
+  // ---- write the page ----
   const rpt: ExcelScript.Worksheet = getOrCreate(wb, "_REPORT");
   rpt.setVisibility(ExcelScript.SheetVisibility.visible);
   rpt.setPosition(0);                      // the workbook opens on it
   const ur: ExcelScript.Range | undefined = rpt.getUsedRange();
   if (ur) ur.clear(ExcelScript.ClearApplyTo.all);
+  const W: number = 8;
   const vals: (string | number)[][] = [];
-  for (let i: number = 0; i < lines.length; i++)
-    vals.push([lines[i].a, "", lines[i].c, lines[i].d, lines[i].e]);
+  for (let i: number = 0; i < page.length; i++) {
+    const row: (string | number)[] = [];
+    for (let j: number = 0; j < W; j++)
+      row.push(page[i].cells[j] === undefined ? "" : page[i].cells[j]);
+    vals.push(row);
+  }
   if (vals.length > 0)
-    rpt.getRangeByIndexes(0, 0, vals.length, 5).setValues(vals);
-  for (let i: number = 0; i < lines.length; i++) {
-    if (!lines[i].addr) continue;
-    const ref: string = quoteSheet(lines[i].sheet) + "!" + lines[i].addr;
+    rpt.getRangeByIndexes(0, 0, vals.length, W).setValues(vals);
+  for (let i: number = 0; i < page.length; i++) {
+    const l: PageLine = page[i];
+    if (l.fill)
+      rpt.getRangeByIndexes(i, 0, 1, W).getFormat().getFill()
+        .setColor(l.fill);
+    if (!l.linkSheet || !l.linkAddr) continue;
+    const ref: string = quoteSheet(l.linkSheet) + "!" + l.linkAddr;
     rpt.getRangeByIndexes(i, 0, 1, 1).setHyperlink({
       documentReference: ref,
-      textToDisplay: lines[i].sheet + "!" + lines[i].addr });
-    rpt.getRangeByIndexes(i, 1, 1, 1).setFormula("=" + ref);
+      textToDisplay: String(vals[i][0] !== "" ? vals[i][0]
+        : l.linkSheet + "!" + l.linkAddr) });
+    if (l.live >= 0)
+      rpt.getRangeByIndexes(i, l.live, 1, 1).setFormula("=" + ref);
   }
   const specCount: number = writeSpec(wb, aliasLines);
   return JSON.stringify({ ok: true, sheets: names, written: written,
@@ -1477,7 +1671,16 @@ function modeReport(wb: ExcelScript.Workbook, p: Params): string {
     stillBlank: awaitingRows.length,
     balance: po.checks === 0 ? "NOT VERIFIED" : (po.ok ? "PASS" : "FAIL"),
     specLines: specCount, aliasesLearned: aliasLines.length,
-    note: "_REPORT is now the first tab — the analyst reviews there" });
+    summary: S === null ? null : { snapshot: snapN, bridges: bridgesOk,
+      bridgesRefused: bridgesRefused, plugs: plugsN, redItems: redAskN,
+      orangeItems: orangeAskN, badRefs: badRefs },
+    note: S === null
+      ? "_REPORT written WITHOUT your summary — call REPORT again with " +
+        "the summary you composed (snapshot, bridges, attention)"
+      : (bridgesRefused.length > 0
+        ? "REFUSED " + bridgesRefused.length + " bridge(s) — fix and " +
+          "call REPORT again"
+        : "_REPORT is now the first tab — the analyst reviews there") });
 }
 
 // ---------- entry --------------------------------------------

@@ -195,9 +195,43 @@ Read what comes back and act on it:
   a missing figure rather than breakage. Either way the model must not be
   delivered in that state — go back and work the cause.
 
-**REPORT** — `{"mode":"REPORT"}` — writes the analyst's page as the first
-tab: red rulings, orange derivations, key drivers, still-blank lines,
-lines that moved more than 50%, and their forecast against the actual.
+**REPORT** — the analyst's page, as the first tab. **You COMPOSE it;
+the script only draws it.** This is analyst work, not mechanics — what
+belongs on this page depends on the company, the model, and what
+actually happened this period.
+
+`{"mode":"REPORT","summary":{...}}` with three parts you build:
+
+- `snapshot` — the 5–8 key numbers this model's team watches (revenue,
+  margins, profits, EPS, dividend, the balance-sheet totals, operating
+  cash flow — judge from the model itself which they are):
+  `[{"sheet":"Model","row":4,"label":"Revenue"}, ...]`
+  The script fills in prior, actual, YoY, the analyst's estimate, and
+  their next-year forecast before/after — from its own snapshots.
+- `bridges` — WHY each key number moved. Not only profit: judge whether
+  the balance sheet or cash flow moved in a way the analyst must
+  understand, and bridge those too. Each bridge names the total's cell
+  and the walk lines you reasoned out — the few drivers that explain
+  the change, smallest lumped into "Other" so the lines SUM EXACTLY to
+  the model's actual change. **The script checks the sum and refuses a
+  bridge that does not add up** — that is the referee, not an obstacle:
+  `{"title":"Net profit","sheet":"Model","row":30,
+    "lines":[["Gross profit",1510],["Impairments",-1148],["Other",-86]],
+    "company":"wind and hydro offset coal margin pressure (AR p.12)"}`
+  The `company` line is the company's OWN stated reason, from the
+  disclosure, with the page — never your invention. No stated reason =
+  omit the line.
+- `attention` — what the analyst must rule on, most important first:
+  `plugs` (numbers you inserted to make the model balance — every one,
+  with what it ties), then `red` (key numbers you are unsure of,
+  phrased as the question they must answer), then `orange` (key numbers
+  you derived). Each item `["sheet","cell","note"]`. Key numbers only —
+  minor lines live in the detail block the script appends below.
+  **Notes of a few words** — the analyst reads dozens of these; the
+  cell link carries the detail.
+
+The reply lists any refused bridges and bad references — fix them and
+call REPORT again; it rewrites the page in place.
 
 **Then tell the analyst**, in plain language: what you updated, what you
 could not, what you are unsure about, what the Police found, and what you
