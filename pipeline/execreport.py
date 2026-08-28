@@ -202,11 +202,17 @@ def referee(summary, wb):
                     "line '%s': formula evaluates to %.1f but claims %.1f"
                     % (ln.get("label"), got, val))
         if isinstance(total, (int, float)):
-            if abs(ssum - total) > max(1.0, abs(total) * 0.02):
+            # the named drivers must carry MOST of the story; the
+            # auto-residual absorbs a modest remainder, never the bulk
+            residual = total - ssum
+            if abs(residual) > max(50.0, abs(total) * 0.40):
                 why.append(
-                    "bridge '%s': lines sum to %.1f but claims a change of "
-                    "%.1f — the walk must add up (use the residual for the "
-                    "remainder)" % (b.get("title"), ssum, total))
+                    "bridge '%s': your lines sum to %.1f against a change "
+                    "of %.1f — the unexplained residual (%.1f) is most of "
+                    "the story. Check your SIGNS (a value is the effect ON "
+                    "the total: a cost that rose contributes NEGATIVE, "
+                    "formula =-(U-T)) and name the real drivers"
+                    % (b.get("title"), ssum, total, residual))
         if why:
             refusals.append({"bridge": b.get("title"), "why": why})
         else:
@@ -408,6 +414,12 @@ THE PAGE (owner's locked design):
      Model!U7-Model!T7 (U = actual year, T = prior year; +,-,*,/ and
      parentheses allowed),
    - "value": the number the formula evaluates to (RMB mn, 1dp).
+   SIGN LAW: a line's value is its EFFECT ON the total — positive pushes
+   the total up. A cost/expense/outflow that INCREASED is a NEGATIVE
+   effect on profit or cash: write the formula as =-('Raw financials'!U10
+   -'Raw financials'!T10) so it evaluates to the signed effect. The
+   formula and the value must agree exactly — the referee evaluates
+   every formula.
    Also give the bridge's "total" = the key number's actual change.
    Lines must sum close to total; a residual line is added for you —
    NEVER add your own "Other"/"Residual" line (it will be refused).
@@ -542,7 +554,7 @@ def _selftest():
                       "formula": "='Raw financials'!U6-'Raw financials'!T6",
                       "value": 2.0}]},
                 {"title": "Bad sum", "sheet": "Model", "row": 7,
-                 "total": 10.0, "lines": [
+                 "total": 1000.0, "lines": [
                      {"label": "x",
                       "formula": "='Raw financials'!U6-'Raw financials'!T6",
                       "value": 2.0}]},
