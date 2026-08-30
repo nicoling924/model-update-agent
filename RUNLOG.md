@@ -493,3 +493,15 @@ by its own dry-run audits (20 -> 5 -> 3 zeros, final 3 all verified
 correct); reclass sweep live (Driver segments at total growth, designed
 plugs honored); embedded hardcodes flagged as key drivers; flag budget
 counts RED only. All museum-pinned.
+
+**08-30 — RUN 15: DELIVERED.** First gate-passing delivery of the
+pipeline era. Balance check 0.0; total assets and equity EXACT to the
+disclosed decimal; treasury zero served by the dash-nil law; segments
+backed out per the owner's reclassification recipe with the analyst's
+own plug rows; 124 assumptions frozen; every law in force. Run 14→15
+ruling: the flag budget measures NEGLECT — adjudicated reds (where-
+looked documented) are findings. Loop budget 90; 130 calls. Remaining
+honest state: 26 unexamined reds spread under the per-sheet bar, net
+profit 3,831.1 vs 3,831.3 (0.2 component rounding), forecast-year
+checks (analyst re-forecast items) reported not gated. The trajectory:
+52,197 → 12,124 → 59 → 1 → 0.
