@@ -151,3 +151,11 @@ Every `set_input` passes a deterministic gate:
    They are shown for context only. Spending even one action tracing
    them is a wasted action — run 13 spent 55 of 60 there and delivered
    nothing.
+
+## Adjudicate every red (run-14 ruling)
+
+Delivery is blocked only by UNEXAMINED reds. For each red cell: serve
+it under the evidence law, or `flag_cell` it with WHERE you looked and
+WHY the figure is not disclosed — that converts it into a delivered
+finding for the analyst. Working the whole red queue to adjudicated is
+what finishes the run.

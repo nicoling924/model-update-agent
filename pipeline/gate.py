@@ -137,11 +137,21 @@ def flag_budget(wb, spec, target_year, flags):
         if sh not in wb.sheetnames or not coord:
             continue
         try:
-            rgb = wb[sh][coord].fill.start_color.rgb
+            cell = wb[sh][coord]
+            rgb = cell.fill.start_color.rgb
         except Exception:
-            rgb = ""
+            continue
         if not (isinstance(rgb, str) and rgb.upper().endswith("FFC7CE")):
             continue                      # orange or unpainted: no cost
+        # the budget measures NEGLECT, not disclosure coverage (run-14
+        # ruling, the owner's walk-away doctrine): a red the agent
+        # INVESTIGATED and documented — where it looked, why the figure
+        # is not disclosed — is a delivered finding. Only an UNEXAMINED
+        # red (the stale sweep's marker, or no explanation at all)
+        # spends budget.
+        note = str(cell.comment.text) if cell.comment else ""
+        if note and "STALE INPUT" not in note:
+            continue                      # adjudicated: a finding
         per_sheet[sh] = per_sheet.get(sh, 0) + 1
     for sheet, nflags in per_sheet.items():
         tcol = year_columns(spec, sheet).get(str(target_year))
@@ -152,9 +162,11 @@ def flag_budget(wb, spec, target_year, flags):
                      if ws[f"{tcol}{r}"].value is not None)
         if filled and nflags / filled > FLAG_BUDGET:
             fails.append(f"FLAG BUDGET {sheet}: {nflags}/{filled} "
-                         f"({nflags / filled:.0%}) of filled cells RED-"
-                         f"flagged — the run failed this sheet, flags are "
-                         f"not a waiver")
+                         f"({nflags / filled:.0%}) of filled cells hold "
+                         f"UNEXAMINED red staleness — investigate each "
+                         f"(serve it, or record where you looked and why "
+                         f"it is not disclosed); an unexamined red is "
+                         f"neglect, not a finding")
     return fails
 
 

@@ -757,6 +757,21 @@ def test_gate_flag_budget():
         wb["S"][f"U{r}"].fill = ORG             # same cells, now ORANGE
     assert not flag_budget(wb, spec, "2025", flags), \
         "orange recipe-resolved cells must not spend the budget"
+    # run-14 ruling: an ADJUDICATED red (agent looked, documented why the
+    # figure is not disclosed) is a finding, not neglect
+    from openpyxl.comments import Comment
+    for r in (1, 2, 3):
+        wb["S"][f"U{r}"].fill = RED
+        wb["S"][f"U{r}"].comment = Comment(
+            "not disclosed this period: checked BS face p6, note 21, "
+            "five-year summary — analyst input required", "agent")
+    assert not flag_budget(wb, spec, "2025", flags), \
+        "an investigated, documented red is a finding, not neglect"
+    wb["S"]["U1"].comment = Comment("STALE INPUT: rolled from prior",
+                                    "agent")
+    wb["S"]["U2"].comment = None
+    wb["S"]["U3"].comment = None                # unexplained reds count
+    assert flag_budget(wb, spec, "2025", flags)
 
 
 def test_checks_scorecard_and_completion():
