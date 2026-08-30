@@ -137,3 +137,17 @@ Every `set_input` passes a deterministic gate:
   and NEVER to make a check move. If a check fails, the error is in a
   component you have not proven yet — investigate there.
 - A write that makes any failing check WORSE is reverted automatically.
+
+## The priority ladder (run-13 lesson — never bends)
+
+1. **Target-year check rows.** Yours. Fix causes, under the evidence
+   law.
+2. **RED cells.** Once your checks pass, EVERY remaining action goes to
+   clearing red stale/unproven cells: find_line the printed row, serve
+   it with its comparative, or conclude honestly that the disclosure
+   does not carry it (then it stays red for the analyst — that is a
+   finding, not a failure).
+3. Forecast-year check failures are the ANALYST'S re-forecast items.
+   They are shown for context only. Spending even one action tracing
+   them is a wasted action — run 13 spent 55 of 60 there and delivered
+   nothing.

@@ -132,11 +132,37 @@ def summarize(card, target_year, flags=None, spec=None, wb=None):
     errs = [c for c in card["checks"] if c["status"] == "EVAL_ERROR"]
     ty = str(target_year)
     ty_fails = [c for c in fails if c["year"] == ty]
-    lines.append(f"BALANCE/CHECK ROWS: {len(fails)} FAIL "
-                 f"({len(ty_fails)} in {ty}), {len(errs)} eval-error")
-    for c in fails[:12]:
+    fc_fails = [c for c in fails if c["year"] != ty]
+    lines.append(f"BALANCE/CHECK ROWS: {len(ty_fails)} FAIL in {ty} "
+                 f"(YOURS), {len(fc_fails)} in forecast years "
+                 f"(the ANALYST'S re-forecast items — never spend actions "
+                 f"on them), {len(errs)} eval-error")
+    for c in ty_fails[:12]:
         lines.append(f"  FAIL {c['name']}: {c['got']:,.2f} vs {c['expect']:,.2f}"
                      if isinstance(c["got"], (int, float)) else f"  FAIL {c['name']}")
+    for c in fc_fails[:4]:
+        lines.append(f"  (analyst) {c['name']}: "
+                     + (f"{c['got']:,.0f} vs {c['expect']:,.0f}"
+                        if isinstance(c["got"], (int, float)) else "n/a"))
+    if not ty_fails and flags:
+        reds = []
+        if wb is not None:
+            for ref in flags:
+                sh, _, coord = str(ref).partition("!")
+                try:
+                    rgb = wb[sh][coord].fill.start_color.rgb
+                except Exception:
+                    rgb = ""
+                if isinstance(rgb, str) and rgb.upper().endswith("FFC7CE"):
+                    reds.append(ref)
+        if reds:
+            lines.append(
+                f"YOUR CHECKS ALL PASS. THE WORK QUEUE IS NOW THE "
+                f"{len(reds)} RED (stale/unproven) CELLS — clear them with "
+                f"find_line + set_input under the evidence law, most "
+                f"material first:")
+            for ref in reds[:15]:
+                lines.append(f"  RED {ref}")
     for k in card["keys"]:
         state = ("PROVEN" if k["proven"] else
                  "flagged" if k["flagged"] else
