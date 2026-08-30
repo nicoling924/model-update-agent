@@ -120,3 +120,21 @@ judges which BS/CF moves matter for THIS company this period.
 - v3 addendum (owner): NO detail tab — nobody reads it. The _REPORT
   page is the only report; everything else stays as colour-marked
   cells in the model itself.
+
+## Boss feedback round 1 (owner, 2026-08-30) — mini-P&L old vs new
+
+After the boss review of the page:
+- New **section 2 · Mini P&L** (snapshot stays section 1; bridges move
+  to section 3): a fixed Core-8 item list — revenue, gross profit,
+  GPM%, operating profit, net profit, NPM%, EPS, DPS — spanning FY-1
+  to FY+3 **in the model's own forecast grain** (halves/quarters when
+  that is what the model forecasts).
+- Shown twice, side by side: **OLD** (the archived pre-update model,
+  static values) vs **NEW** (live formulas into the updated model),
+  with a **WHAT'S CHANGED** table next to them: % change for values,
+  pp change for margins, absolute for per-share; big moves tinted.
+  Purpose: the boss reviews the whole forecast path — an update that
+  quietly bent the out-years shows up immediately.
+- Next planned stage (owner): the agent READS the Δ table and
+  sense-checks its own update — investigates any change it cannot
+  justify. The Δ table is built machine-readable for exactly this.
