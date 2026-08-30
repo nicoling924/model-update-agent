@@ -561,7 +561,7 @@ class ObjectiveLoop:
         blob = json.dumps(args, ensure_ascii=False)
         for sheet in (self.spec.get("year_axis") or {}):
             for col in self._forecast_cols(sheet):
-                if re.search(rf"[!\s"']{col}\$?\d", blob):
+                if re.search("[!\\s\"']" + col + "\\$?\\d", blob):
                     return True
         return False
 
