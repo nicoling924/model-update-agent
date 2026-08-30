@@ -255,3 +255,17 @@ To make sure of the following:
   (5) Applies to every segment table that sums to a disclosed total
   (sales split, gross profit split, segment profit), each using its own
   total's growth rate.
+
+- **2026-08-30 · Assumption-freeze law (owner ruling, roll-forward):**
+  Forecast growth/ratio ASSUMPTIONS must never rebase onto the new
+  actual through the model's wiring (2026E growth =U5 silently becoming
+  70% because 2025 came in at 70%). At roll-forward, FREEZE to a
+  hardcode at its PRE-UPDATE value every forecast cell that is
+  (a) percentage-formatted AND (b) a formula referencing the newly
+  actual column or earlier. A % cell computed within its own column
+  (=V7/V4, a margin output) is wiring — never frozen. Chains inherit
+  the freeze (W5=V5 stays a formula and correctly reads the frozen
+  30%). Every frozen cell: orange fill + listed in _REPORT with its
+  old formula and frozen value, so restoring the live link is one
+  paste. Freeze all qualifiers by default; the analyst restores the
+  ones they deliberately want live.

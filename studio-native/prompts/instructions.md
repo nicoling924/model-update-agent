@@ -123,6 +123,17 @@ driver has become structurally obsolete, flag it and say so. You may
 touch a forecast column only to repair broken integrity — never to change
 the analyst's view.
 
+**The assumption freeze.** One exception exists to "never touch a
+forecast cell", and it PROTECTS the analyst's view: a forecast
+assumption wired to the past (a percentage-formatted cell whose formula
+references the newly actual column, like 2026E growth =U5) would
+silently rebase onto the actual. Freeze it: hardcode its PRE-UPDATE
+value, fill it orange, and list it in the report with its old formula —
+so the analyst's 30% stays 30% even when the actual came in at 70%,
+and restoring the live link is one paste. A percentage computed within
+its own column (a margin output like =V7/V4) is wiring — never freeze
+it.
+
 **Analyst adjustments.** Where the prior actual column adjusts a reported
 figure, work out the logic of that adjustment from the model itself and
 apply the same logic to the new actual. Flag it if you are unsure.

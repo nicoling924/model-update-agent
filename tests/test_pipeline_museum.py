@@ -836,6 +836,45 @@ def test_reclass_ugly_plug_goes_red_but_still_ties():
     assert abs(sum(r["value"] for r in plan["rows"]) - 310.0) < 0.05
 
 
+
+
+def test_assumption_freeze_law():
+    """Owner ruling 2026-08-30: a %-formatted forecast cell wired to the
+    past freezes at its PRE-UPDATE value as an orange hardcode; a margin
+    computed in its own column and a level cell are never touched."""
+    import openpyxl
+    from pipeline.freeze import apply_freezes, plan_freezes
+    wb, pre = openpyxl.Workbook(), openpyxl.Workbook()
+    ws, pw = wb.active, pre.active
+    ws.title = pw.title = "Model"
+    # U=21 target (2025A); V=22 first forecast
+    ws["V5"] = "=U5"                     # growth chained to the past
+    ws["V5"].number_format = "0.0%"
+    pw["V5"] = 0.30                      # the analyst's 30%
+    ws["W5"] = "=V5"                     # chain: inherits the freeze
+    ws["W5"].number_format = "0.0%"
+    pw["W5"] = 0.30
+    ws["V7"] = "=V6/V4"                  # margin OUTPUT: own column
+    ws["V7"].number_format = "0.0%"
+    pw["V7"] = 0.17
+    ws["V4"] = "=U4*(1+V5)"              # level: flows, not frozen
+    ws["V4"].number_format = "#,##0.0"
+    pw["V4"] = 105.0
+    ws["V9"] = "='Driver'!U9"            # cross-sheet: another axis, skip
+    ws["V9"].number_format = "0.0%"
+    pw["V9"] = 0.10
+    plans = plan_freezes(wb, pre, ["Model"], target_col=21)
+    coords = {p["coord"] for p in plans}
+    assert coords == {"V5"}, coords
+    lines = apply_freezes(wb, plans)
+    assert ws["V5"].value == 0.30                    # hardcode, not =U5
+    assert ws["V5"].fill.start_color.rgb.endswith("FFC000")
+    assert ws["W5"].value == "=V5"                   # chain untouched
+    assert ws["V7"].value == "=V6/V4"                # wiring untouched
+    assert ws["V4"].value == "=U4*(1+V5)"            # level untouched
+    assert "was =U5" in lines[0]
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
