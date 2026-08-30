@@ -70,15 +70,19 @@ def ties_prior(item, scale, prior):
 
 
 def _claim_key(item, value):
-    return (_meta(item, "doc"), _meta(item, "page"), round(abs(value), 1))
+    return (_meta(item, "doc"), round(abs(value), 1))
 
 
 def claimed_keys(served):
-    """(doc, page, value) triples already bound by deterministic serves."""
+    """The ONE-HOME register: (doc, |value|) pairs already bound by
+    deterministic serves. Document-wide, not per-page — a section total
+    printed on page 96 must not find a second home from page 12.
+    Enforced for material figures only (small values repeat
+    legitimately); the materiality bar lives in the judges."""
     out = set()
     for e in served.values():
         if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
-            out.add((e.get("doc"), e.get("page"), round(abs(e["value"]), 1)))
+            out.add((e.get("doc"), round(abs(e["value"]), 1)))
     return out
 
 
@@ -92,8 +96,9 @@ def judge_write(value, prior, was_served, evidence, claimed):
                 "row first; if it is not printed, flag_cell an estimate "
                 "instead of writing one", None)
     tied = [(it, s) for it, s in evidence if ties_prior(it, s, prior)]
+    material = abs(value) >= 50
     tied_free = [(it, s) for it, s in tied
-                 if _claim_key(it, value) not in claimed]
+                 if not material or _claim_key(it, value) not in claimed]
     if tied_free:
         return ("ALLOW", "proven — the evidence row ties the prior", None)
     if tied:
@@ -107,7 +112,7 @@ def judge_write(value, prior, was_served, evidence, claimed):
                 "is never changed to move a check. Investigate the check's "
                 "OTHER components instead", None)
     free = [(it, s) for it, s in evidence
-            if _claim_key(it, value) not in claimed]
+            if not material or _claim_key(it, value) not in claimed]
     if not free:
         return ("REFUSE",
                 "every ledger row carrying this value already serves "

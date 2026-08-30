@@ -910,7 +910,7 @@ def test_evidence_law_run7_exhibits():
     prepay = {"doc": "12053065.PDF", "page": 95,
               "nums": [6892713423.33, 5876898026.02]}
     ev = find_evidence([prepay], 6892.7)
-    claimed = {("12053065.PDF", 95, 6892.7)}
+    claimed = {("12053065.PDF", 6892.7)}
     verdict, why, flag = judge_write(6892.7, 0.0, False, ev, claimed)
     assert verdict == "REFUSE" and "one row, one claim" in why
 
@@ -937,6 +937,7 @@ def test_one_home_law_run8_exhibit():
     from pipeline.writegate import claimed_values, no_prior_duplicate
     served = {("Raw financials", 156): {
         "value": 12182.46645655, "doc": "12053065.PDF", "page": 96}}
+    # the register is DOCUMENT-wide: page is irrelevant to a claim
     reg = claimed_values(served)
     assert no_prior_duplicate(12182.5, "12053065.PDF", reg)
     assert not no_prior_duplicate(12182.5, "OTHER.PDF", reg)
