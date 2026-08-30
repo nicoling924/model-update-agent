@@ -138,3 +138,20 @@ After the boss review of the page:
 - Next planned stage (owner): the agent READS the Δ table and
   sense-checks its own update — investigates any change it cannot
   justify. The Δ table is built machine-readable for exactly this.
+
+## Boss feedback round 2 (owner, 2026-08-30) — mini-P&L refinements
+
+- Block order: **WHAT'S CHANGED leftmost → NEW → OLD**, one spacer
+  column between the three tables.
+- A **roll-over sanity flag** per line, next to the Δ block, comparing
+  the updated period's Δ against the NEXT forecast period's Δ:
+  (a) **sign flip** (2025A up vs old E but 2026E down vs old E =
+  suspected bad roll-over), (b) **big gap** between the two Δs
+  (>30pp for values). Live formulas so they keep watching.
+- **Header roll-forward**: after marking a period to actual, the
+  period header must roll like the rest of the column — prior actual
+  column's header FORMAT copied across, stale duplicated header text
+  (e.g. Raw financials!U1 still `2024-12-31`) advanced. NOTE: a
+  literal `2025E` header on an actual-vs-estimate comparison panel
+  (Model!AC2, where AC holds the frozen estimate) is CORRECT and must
+  not be renamed.

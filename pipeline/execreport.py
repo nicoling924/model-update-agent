@@ -110,6 +110,50 @@ def gather_facts(wb, pre_wb, target_col=21, prior_col=20,
                          "red" if code in RED_FILLS else "orange", note])
     return facts
 
+
+def rollforward_headers(wb, target_col=21, prior_col=20):
+    """After mark-to-actual, the period header rolls like the rest of the
+    column: the prior actual header's FORMAT copies across, and header
+    text that is a stale DUPLICATE of the prior column's (e.g.
+    '2024-12-31' still sitting over the updated period) advances its
+    year. A header that legitimately names an estimate — a comparison
+    panel's '2025E' over a frozen-estimate column — is never touched:
+    only exact duplicates count as stale."""
+    import copy as _copy
+    fixed = []
+    for sn in wb.sheetnames:
+        if sn.startswith("_"):
+            continue
+        ws = wb[sn]
+        for hr in (1, 2):
+            pc = ws.cell(row=hr, column=prior_col)
+            tc = ws.cell(row=hr, column=target_col)
+            if pc.value in (None, ""):
+                continue
+            tc.font = _copy.copy(pc.font)
+            tc.fill = _copy.copy(pc.fill)
+            tc.border = _copy.copy(pc.border)
+            tc.number_format = pc.number_format
+            stale = False
+            if (isinstance(tc.value, str) and isinstance(pc.value, str)
+                    and tc.value.strip() == pc.value.strip()):
+                m = re.search(r"(19|20)\d{2}", tc.value)
+                if m:
+                    y = int(m.group(0))
+                    old = tc.value
+                    tc.value = tc.value.replace(str(y), str(y + 1), 1)
+                    stale = True
+            elif (isinstance(tc.value, (int, float))
+                    and tc.value == pc.value and 1990 < pc.value < 2100):
+                old = tc.value
+                tc.value = int(pc.value) + 1
+                stale = True
+            if stale:
+                fixed.append("%s!%s: %r -> %r"
+                             % (sn, tc.coordinate, old, tc.value))
+    return fixed
+
+
 # ------------------------------------------------------------- referee
 
 _REF = re.compile(r"'?([A-Za-z_][A-Za-z0-9_ ]*?)'?!([A-Z]{1,3})([0-9]{1,4})")
@@ -273,8 +317,11 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
     ws = wb.create_sheet("_REPORT", 0)
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 34
-    for col in "BCDEFGHIJKLMNOPQ":
+    for col in "BCDEFGIJKLMOPQRS":
         ws.column_dimensions[col].width = 11
+    ws.column_dimensions["G"].width = 16      # the check column
+    for col in "HN":                          # spacers between blocks
+        ws.column_dimensions[col].width = 3
     r = 1
 
     def cell(row, col, val, font=None, fill=None, fmt=None, border=None):
@@ -289,7 +336,7 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
         return c
 
     def band(row, fill, h=None):
-        for c in range(1, 17):
+        for c in range(1, 20):
             ws.cell(row=row, column=c).fill = fill
         if h:
             ws.row_dimensions[row].height = h
@@ -362,13 +409,17 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
                     row=2, column=column_index_from_string(cl)).value
             labels.append(str(int(v)) if isinstance(v, (int, float))
                           else ["FY-1", "FY0", "FY+1", "FY+2", "FY+3"][i])
-        cell(r, 2, "OLD — before the update", GREY)
-        cell(r, 7, "NEW — after the update", GREY)
-        cell(r, 12, "WHAT'S CHANGED — new vs old", GREY)
+        # boss round 2: Δ leftmost, then NEW, then OLD, one spacer
+        # between blocks; a roll-over sanity flag beside the Δ block.
+        D0, FLAG, NEW0, OLD0 = 2, 7, 9, 15    # B..F | G | I..M | O..S
+        cell(r, D0, "WHAT'S CHANGED — new vs old", GREY)
+        cell(r, NEW0, "NEW — after the update", GREY)
+        cell(r, OLD0, "OLD — before the update", GREY)
         r += 1
-        for blk in (2, 7, 12):
+        for blk in (D0, NEW0, OLD0):
             for i, plab in enumerate(labels):
                 cell(r, blk + i, plab, GREY, None, None, THIN)
+        cell(r, FLAG, "check", GREY, None, None, THIN)
         r += 1
         for it in mini:
             mr = int(it["row"])
@@ -384,23 +435,37 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
                 if pre_wb is not None and "Model" in pre_wb.sheetnames:
                     ov = pre_wb["Model"].cell(
                         row=mr, column=column_index_from_string(cl)).value
-                cell(r, 2 + i,
+                cell(r, OLD0 + i,
                      round(ov, 4) if isinstance(ov, (int, float)) else "",
                      SMALL, None, vfmt)
-                cell(r, 7 + i, "=Model!%s%d" % (cl, mr), SMALL, None, vfmt)
-                oc, nc = get_column_letter(2 + i), get_column_letter(7 + i)
+                cell(r, NEW0 + i, "=Model!%s%d" % (cl, mr),
+                     SMALL, None, vfmt)
+                oc = get_column_letter(OLD0 + i)
+                nc = get_column_letter(NEW0 + i)
                 if kind == "value":
                     f = ('=IFERROR(IF(%s%d=0,"",(%s%d-%s%d)/ABS(%s%d)),"")'
                          % (oc, r, nc, r, oc, r, oc, r))
                 else:
                     f = ('=IFERROR(IF(%s%d="","",%s%d-%s%d),"")'
                          % (oc, r, nc, r, oc, r))
-                cell(r, 12 + i, f, SMALL, None, dfmt)
+                cell(r, D0 + i, f, SMALL, None, dfmt)
+            # the roll-over sanity flag: updated period's change vs the
+            # next forecast period's change — a sign flip or a wide gap
+            # is the boss's "suspicious roll-over" signal
+            c0 = get_column_letter(D0 + 1)      # updated period Δ
+            c1 = get_column_letter(D0 + 2)      # next forecast Δ
+            gapthr = "0.3" if kind == "value" else "0.02"
+            cell(r, FLAG,
+                 '=IF(COUNT(%s%d,%s%d)<2,"",IF(%s%d*%s%d<0,'
+                 '"⚠ sign flip vs next yr",IF(ABS(%s%d-%s%d)>%s,'
+                 '"⚠ big gap vs next yr","")))'
+                 % (c0, r, c1, r, c0, r, c1, r, c1, r, c0, r, gapthr),
+                 Font(color="9C5700", size=10))
             r += 1
         # tint material forecast-path changes so they cannot hide
         from openpyxl.formatting.rule import CellIsRule
         top, bot = r - len(mini), r - 1
-        rng = "L%d:P%d" % (top, bot)
+        rng = "B%d:F%d" % (top, bot)
         for op, v in (("greaterThan", "0.2"), ("lessThan", "-0.2")):
             ws.conditional_formatting.add(rng, CellIsRule(
                 operator=op, formula=[v], fill=PatternFill(
@@ -625,6 +690,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
     wb = openpyxl.load_workbook(model_path)
     pre_wb = (openpyxl.load_workbook(pre_path, data_only=True)
               if pre_path else None)
+    headers_fixed = rollforward_headers(wb)
     facts = gather_facts(wb, pre_wb)
     summary = compose(client, facts)
     kept, refusals, corrections = referee(summary, wb)
@@ -644,6 +710,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)
     return {"ok": True, "out": str(out), "bridges": len(kept),
+            "headersFixed": headers_fixed,
             "refused": len(refusals), "corrections": corrections,
             "refusals": refusals, "summary": summary}
 
@@ -740,6 +807,18 @@ def _selftest():
     assert "residual" in flat and "Needs your attention" in flat
     assert "=HYPERLINK" in flat and "'Raw financials'!U5" in flat
     assert "=(Model!U4-Model!T4)*Model!T7/Model!T4" in flat  # '=' restored
+    hb = openpyxl.Workbook()
+    hw = hb.active; hw.title = "Model"
+    hw.cell(row=1, column=20, value="2024-12-31")
+    hw.cell(row=1, column=21, value="2024-12-31")   # stale duplicate
+    hw.cell(row=2, column=20, value=2024)
+    hw.cell(row=2, column=21, value=2025)           # already right
+    hw.cell(row=2, column=29, value="2025E")        # estimate panel: keep
+    hfx = rollforward_headers(hb)
+    assert hw.cell(row=1, column=21).value == "2025-12-31", hfx
+    assert hw.cell(row=2, column=21).value == 2025
+    assert hw.cell(row=2, column=29).value == "2025E"
+    assert len(hfx) == 1, hfx
     assert _validate(good) is None
     bad = dict(good); bad["mini_pl"] = {"rows": []}
     assert _validate(bad) is not None
