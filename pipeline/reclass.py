@@ -79,6 +79,21 @@ def reclass_sweep(wb, sheets, year_cols, prior_cols, writer, log,
         ws = wb[sheet]
         for block in find_blocks(ws, pcol, tcol):
             trow = block["total_row"]
+            # THE EXOGENOUS-TOTAL LAW (CLP-2: Aus total = SUM of its own
+            # block; growth/plug formulas referencing it created a
+            # CYCLE). The recipe needs a total anchored OUTSIDE the
+            # block; an endogenous total cannot price its own
+            # components — rows stay honestly stale-red instead.
+            tv = ws[f"{tcol}{trow}"].value
+            if isinstance(tv, str) and tv.startswith("=") and "!" not in tv:
+                inrefs = [int(m.group(1)) for m in
+                          re.finditer(r"\$?[A-Z]{1,3}\$?([0-9]{1,5})", tv)
+                          if int(m.group(1)) in block["rows"]]
+                if inrefs:
+                    log(f"[run] reclass sweep SKIPPED {sheet} block r{trow}:"
+                        " endogenous total (sums its own components) — no"
+                        " exogenous anchor; rows stay red for the analyst")
+                    continue
             stale = [r for r in block["rows"]
                      if f"{sheet}!{tcol}{r}" in writer.log["flags"]
                      and isinstance(ws[f"{tcol}{r}"].value, (int, float))]

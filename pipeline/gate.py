@@ -286,6 +286,15 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
                 col = year_columns(spec, sh).get(yr)
                 if col and sh in pre_values_wb.sheetnames:
                     pv = pre_values_wb[sh][f"{col}{row}"].value
+                    if not isinstance(pv, (int, float)):
+                        # a workbook WE previously wrote caches nothing —
+                        # evaluate the archived formulas instead (CLP-2)
+                        try:
+                            from .evaluator import Evaluator
+                            pv = Evaluator(pre_values_wb).cell(
+                                sh, f"{col}{row}")
+                        except Exception:
+                            pv = None
                     if isinstance(pv, (int, float)) and abs(pv) > 1 \
                             and isinstance(c["got"], (int, float)) \
                             and abs(c["got"]) <= abs(pv) + 1:

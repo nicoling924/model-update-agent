@@ -196,6 +196,27 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # read overwrote still holds LAST year's number — flag every one red.
     # (Volume is honesty: if too many stay stale, the flag budget refuses
     # delivery, which is the correct verdict for that sheet.)
+    # AXIS CELLS are structure, not data — and the test is the CELL,
+    # not the row number (CLP-2: a blanket rows<=3 ban starved SOC!AI2,
+    # a DATA row the analyst's own formulas consume, -215,773). A row is
+    # axis iff its PRIOR cell is a year mark.
+    def _is_year_mark(v, yr):
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return abs(v - yr) < 0.5
+        if hasattr(v, "year"):
+            return abs(v.year - yr) <= 1
+        return isinstance(v, str) and str(yr) in v and len(v) <= 12
+    _py = int(target_year) - 1
+    _axed = {}
+    for sheet, rows in hardcode_census.items():
+        _pc = prior_column(spec_d, sheet, target_year)
+        _axed[sheet] = [
+            r for r in rows
+            if not (_pc and (_is_year_mark(wb[sheet][f"{_pc}{r}"].value,
+                                           _py)
+                            or _is_year_mark(wb[sheet][f"{_pc}{r}"].value,
+                                             _py + 1)))]
+    hardcode_census = _axed
     n_stale = 0
     for sheet, rows in hardcode_census.items():
         tcol = year_columns(spec_d, sheet).get(str(target_year))
@@ -262,6 +283,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # ties is PROVEN zero this period (cancelled treasury shares).
     from .stage2_join import ratify_page_scales
     from .writegate import nil_current_zero
+    banned_docs = set(ledger.prior_period_docs()) \
+        if hasattr(ledger, "prior_period_docs") else set()
     # the face register = pages stage-2 RATIFIED as statement faces (the
     # served-pages shortcut was too narrow: with a rich AR present, an
     # announcement face's rows all serve from AR pages and the page
@@ -287,7 +310,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             import re as _re
             if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
                 continue                # a subtotal is never nil-proven
-            it = (nil_current_zero(ledger.items, pv, face_pages)
+            it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs)
                   if isinstance(pv, (int, float)) else None)
             if it is not None and writer.write(
                     sheet, f"{tcol}{r}", 0.0, prior_coord=f"{pcol}{r}",
