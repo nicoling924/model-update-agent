@@ -719,10 +719,13 @@ growth). If you cannot explain a change from the data, that is
 "SUSPICIOUS" — honesty beats confidence."""
 
 
-def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3):
-    """The what's-changed table as data, with the boss's flags — computed
-    from cached values (full runs always have them; cells without a
-    cached value are skipped, never guessed)."""
+def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3,
+                        value_of=None):
+    """The what's-changed table as data, with the boss's flags. New-side
+    values come from `value_of(sheet, coord)` when given (the run's own
+    Evaluator — a freshly written workbook caches nothing), else from
+    cached cell values. A value neither computable nor cached is
+    skipped, never guessed."""
     from openpyxl.utils import get_column_letter
     out = []
     if pre_wb is None or "Model" not in pre_wb.sheetnames:
@@ -735,6 +738,12 @@ def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3):
             col = target_col + i
             ov = pw.cell(row=row, column=col).value
             nv = ws.cell(row=row, column=col).value
+            if value_of is not None and not isinstance(nv, (int, float)):
+                try:
+                    nv = value_of("Model",
+                                  get_column_letter(col) + str(row))
+                except Exception:
+                    nv = None
             if not (isinstance(ov, (int, float))
                     and isinstance(nv, (int, float))):
                 continue
@@ -803,7 +812,14 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         kept, refusals, corrections = referee(summary, wb)
     summary["bridges"] = kept
     mini_rows = summary.get("mini_pl", {}).get("rows", [])
-    dflags = collect_delta_flags(wb, pre_wb, mini_rows)
+    value_of = None
+    try:
+        from .evaluator import Evaluator
+        ev = Evaluator(wb)
+        value_of = (lambda sheet, coord: ev.cell(sheet, coord))
+    except Exception:
+        pass                        # cached values remain the fallback
+    dflags = collect_delta_flags(wb, pre_wb, mini_rows, value_of=value_of)
     if dflags:
         try:
             summary["sense"] = sense_check(client, dflags, facts)

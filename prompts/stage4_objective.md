@@ -123,3 +123,17 @@ with both readings, never a silent choice.
 
 Reply with ONE action as JSON only:
 {"action": "...", "args": {...}, "why": "one line"}
+
+## The evidence law (never bends)
+
+Every `set_input` passes a deterministic gate:
+- The value must exist in the extraction ledger. Not printed = not
+  writable — `flag_cell` an estimate instead.
+- **Proven** means the same printed row also carries this cell's
+  prior-year value. Proven writes land clean; a value without that tie
+  lands RED-flagged automatically.
+- One printed row serves ONE cell — never re-use another cell's row.
+- A cell that stage 2 proved is never overwritten by weaker evidence,
+  and NEVER to make a check move. If a check fails, the error is in a
+  component you have not proven yet — investigate there.
+- A write that makes any failing check WORSE is reverted automatically.

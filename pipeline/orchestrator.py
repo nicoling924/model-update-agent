@@ -447,22 +447,47 @@ class ObjectiveLoop:
             ref = f"{sheet}!{col}{row}"
             held = self.wb[sheet][f"{col}{row}"].value
         pcol = prior_column(self.spec, sheet, self.ty)
+        # THE EVIDENCE LAW (run-7 autopsy): no write without a ledger row;
+        # proven cells are protected; unproven values land red, never clean.
+        from .writegate import claimed_keys, find_evidence, judge_write
+        pv_cell = (self.wb[sheet][f"{pcol}{row}"].value if pcol else None)
+        evidence = find_evidence(self.ledger.items, value)
+        verdict, law_reason, forced_flag = judge_write(
+            value, pv_cell if isinstance(pv_cell, (int, float)) else None,
+            (sheet, row) in self.served, evidence,
+            claimed_keys(self.served))
+        if verdict == "REFUSE":
+            return "REFUSED by the evidence law: " + law_reason
+        flag = "red" if (forced_flag == "red" or args.get("flag")) else None
+        if forced_flag == "red":
+            why = "UNPROVEN (no prior tie) — " + why
         before_card = self._card()
         before_fails = {c["name"] for c in before_card["checks"]
                         if c["status"] == "FAIL"}
+        before_gaps = {c["name"]: abs(c["value"])
+                       for c in before_card["checks"]
+                       if c["status"] == "FAIL"
+                       and isinstance(c.get("value"), (int, float))}
         ok = self.writer.write(sheet, f"{col}{row}", value,
                                prior_coord=f"{pcol}{row}" if pcol else None,
                                note=f"objective loop: {why[:300]}",
-                               flag="red" if args.get("flag") else None)
+                               flag=flag)
         if not ok:
             reason = (self.writer.log["band_refused"][-1]
                       if self.writer.log["band_refused"] else
                       self.writer.log["lock_refused"][-1]
                       if self.writer.log["lock_refused"] else "guard refusal")
             return f"REFUSED by write guard: {reason}"
-        after_fails = {c["name"] for c in self._card()["checks"]
+        after_card = self._card()
+        after_fails = {c["name"] for c in after_card["checks"]
                        if c["status"] == "FAIL"}
-        broke = sorted(after_fails - before_fails)
+        worsened = sorted(
+            c["name"] for c in after_card["checks"]
+            if c["status"] == "FAIL"
+            and isinstance(c.get("value"), (int, float))
+            and c["name"] in before_gaps
+            and abs(c["value"]) > before_gaps[c["name"]] + 1.0)
+        broke = sorted(after_fails - before_fails) + worsened
         if broke:
             self.writer.write(sheet, f"{col}{row}", held,
                               prior_coord=f"{pcol}{row}" if pcol else None,

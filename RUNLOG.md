@@ -442,3 +442,22 @@ Validation: pinned extraction snapshots + adversarial museum (112-116 as CI
 negative tests) + canary contract — vision never in the local pre-flight
 path. Day 0 (DONE): WRITE FIREWALL — allocation, closing loop, reviewer
 auto-apply behind config flags, default OFF.
+
+**08-30 — RUN 7 (pipeline, full DFE FY25) AND THE EVIDENCE LAW.** First
+full run with freeze + executive report: freeze held 124 assumptions,
+exec report composed 10 bridges (0 refused, 13 corrected). GATE REFUSED
+— balance off 52,197, traced to the decimal: stage-4's set_input
+OVERWROTE a proven serve (Raw!U60 15,193.8 -> note-gross 53,546.5,
+UNFLAGGED, trying to move a failing check) and wrote the prepayments
+note figure onto held-for-sale (Raw!U72, counted twice by an inherited
+model double-count). 38,352.7 + 2x6,892.7 = 52,138. Root cause: the
+write firewall had closed every heuristic writer EXCEPT the objective
+loop's own set_input — a raw write channel with only a prose citation.
+FUNDAMENTAL FIX (pipeline/writegate.py, generic all models): the
+evidence law — no write without a ledger row; proven = the row also
+ties the cell's prior; one row one claim; proven serves protected;
+unproven values land RED, never clean; a write that worsens a failing
+check reverts. Run-7's two writes pinned as museum exhibits (refused).
+Sense check wired to the Evaluator (0 verdicts last run — needed
+computed values, not caches). All suites green. Awaiting owner's
+go for run 8.

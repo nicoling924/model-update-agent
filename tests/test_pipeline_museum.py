@@ -664,7 +664,7 @@ def test_write_lock_refused():
 
 # ── Stage 4: the objective loop's guardrails (no LLM needed) ─────────────
 
-def _loop(wb, spec, served=None):
+def _loop(wb, spec, served=None, evidence=None):
     from pipeline.orchestrator import ObjectiveLoop
     from pipeline.writer import Writer
 
@@ -672,6 +672,12 @@ def _loop(wb, spec, served=None):
         def json(self, *a, **k):
             raise AssertionError("loop must not call the LLM in these tests")
     led = Ledger()
+    # the evidence law refuses any write not in the ledger; loop-write
+    # exhibits declare the printed rows their scenario assumes
+    for nums in (evidence or []):
+        led.add(Item(doc="T.PDF", page=1, table_id=0,
+                     row_ord=len(led.items), label="row", nums=list(nums),
+                     source_line="row"))
     return ObjectiveLoop(wb, spec, "2025", led, [], served or {},
                          Writer(wb), NoClient())
 
@@ -688,7 +694,8 @@ def test_39_transactional_write_reverts():
     wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
               "U2": 110.0, "U3": 60.0, "U4": 170.0,
               "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
-    lp = _loop(wb, _spec_tiny())
+    lp = _loop(wb, _spec_tiny(), evidence=[
+        [999.0, 100.0], [171.0, 150.0], [111.0, 100.0]])
     r = lp.t_set_input({"cell": "S!U2", "value": 999.0, "why": "p12: test"})
     assert r.startswith("REVERTED"), r
     assert wb["S"]["U2"].value == 110.0, "revert did not restore the cell"
@@ -873,6 +880,52 @@ def test_assumption_freeze_law():
     assert ws["V7"].value == "=V6/V4"                # wiring untouched
     assert ws["V4"].value == "=U4*(1+V5)"            # level untouched
     assert "was =U5" in lines[0]
+
+
+
+
+def test_evidence_law_run7_exhibits():
+    """Run-7 autopsy pins (2026-08-30): the objective loop's set_input is
+    gated by the evidence law. Both balance-killing writes replayed here
+    must be REFUSED; honest paths stay open."""
+    from pipeline.writegate import find_evidence, judge_write
+
+    # exhibit 1 — Raw!U60: the loop overwrote a PROVEN 15,193.8 with a
+    # note-page 53,546.5 whose row does not tie the prior (12,545.3)
+    note_row = {"doc": "12053065.PDF", "page": 154,
+                "nums": [53546486141.57, 4275000000.0, 49271486141.57]}
+    ev = find_evidence([note_row], 53546.5)
+    assert ev, "the gross figure IS printed — evidence must be found"
+    verdict, why, flag = judge_write(53546.5, 12545.3, True, ev, set())
+    assert verdict == "REFUSE" and "proven" in why.lower()
+
+    # exhibit 2 — a value printed nowhere is never writable
+    verdict, why, flag = judge_write(56432.1, 12545.3, False,
+                                     find_evidence([note_row], 56432.1),
+                                     set())
+    assert verdict == "REFUSE" and "NOWHERE" in why
+
+    # exhibit 3 — Raw!U72: the prepayments row already serves U62;
+    # one row, one claim
+    prepay = {"doc": "12053065.PDF", "page": 95,
+              "nums": [6892713423.33, 5876898026.02]}
+    ev = find_evidence([prepay], 6892.7)
+    claimed = {("12053065.PDF", 95, 6892.7)}
+    verdict, why, flag = judge_write(6892.7, 0.0, False, ev, claimed)
+    assert verdict == "REFUSE" and "one row, one claim" in why
+
+    # exhibit 4 — the same value on an unclaimed row, prior untied:
+    # deliverable, but RED — never silent
+    verdict, why, flag = judge_write(6892.7, 0.0, False, ev, set())
+    assert verdict == "ALLOW_FLAGGED" and flag == "red"
+
+    # exhibit 5 — a proven write (row carries the prior) lands clean,
+    # and 万元-scale evidence is recognised
+    face = {"doc": "AR.PDF", "page": 5,
+            "nums": [1519379.49, 1254530.0]}      # 万元
+    ev = find_evidence([face], 15193.8)
+    verdict, why, flag = judge_write(15193.8, 12545.3, True, ev, set())
+    assert verdict == "ALLOW" and flag is None
 
 
 if __name__ == "__main__":
