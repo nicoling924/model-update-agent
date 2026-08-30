@@ -145,7 +145,9 @@ def summarize(card, target_year, flags=None, spec=None, wb=None):
     for c in fc_fails[:6]:
         lines.append(f"  FAIL {c['name']}: "
                      + (f"{c['got']:,.0f} vs {c['expect']:,.0f}"
-                        if isinstance(c["got"], (int, float)) else "n/a"))
+                        if isinstance(c["got"], (int, float)) else "n/a")
+                     + "  (auto-plug closes this at delivery — attribute "
+                       "what you can inside the window, then LEAVE it)")
     if not ty_fails and flags:
         reds = []
         if wb is not None:

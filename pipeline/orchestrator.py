@@ -54,6 +54,8 @@ class ObjectiveLoop:
         self.client = client
         self.log = log if log is not None else []
         self.budget = budget
+        self.budget0 = budget
+        self._fc_spend = 0            # actions spent on forecast work
         self.history = []
         self.notes = []
         self.todos = []
@@ -550,6 +552,25 @@ class ObjectiveLoop:
         from .checks import forecast_columns
         return forecast_columns(self.spec, sheet, self.ty)
 
+    def _is_forecast_action(self, name, args):
+        if name in ("forecast_audit", "place_flow"):
+            return True
+        if name not in ("trace_cell", "diagnose_balance", "plug_residual",
+                        "set_input", "statement_diff"):
+            return False
+        blob = json.dumps(args, ensure_ascii=False)
+        for sheet in (self.spec.get("year_axis") or {}):
+            for col in self._forecast_cols(sheet):
+                if re.search(rf"[!\s"']{col}\$?\d", blob):
+                    return True
+        return False
+
+    def _fc_window_closed(self):
+        # THE WALK-AWAY RULE, MECHANIZED (runs 17-18: the engine burned
+        # 80-90% of its budget re-tracing a forecast gap the end-of-run
+        # plug was always going to close, and never reached the reds).
+        return self._fc_spend >= max(10, self.budget0 // 4)
+
     def _bs_rows(self, sheet):
         ws = self.wb[sheet]
         rows, inside = [], False
@@ -705,9 +726,19 @@ class ObjectiveLoop:
                 result = ("REPEAT: you already ran exactly this action — the "
                           "result has not changed. Take a DIFFERENT action "
                           "(your history shows what you learned).")
+            elif self._is_forecast_action(name, args) \
+                    and self._fc_window_closed():
+                result = ("ATTRIBUTION WINDOW CLOSED (a quarter of your "
+                          "budget went to forecast work — the walk-away "
+                          "rule). Any remaining forecast residue is the "
+                          "end-of-run plug's job and is HANDLED. Every "
+                          "remaining action belongs to the RED cells: "
+                          "list_flags, then serve or adjudicate each.")
             else:
                 self._done = getattr(self, "_done", set())
                 self._done.add(fingerprint)
+                if self._is_forecast_action(name, args):
+                    self._fc_spend += 1
                 try:
                     result = self.TOOLS[name](self, args)
                 except Exception as e:

@@ -1230,6 +1230,24 @@ def test_place_flow_run16_pins():
                                for m in msgs), msgs
 
 
+
+
+def test_attribution_window_run18_pin():
+    """Runs 17-18: the engine burned its budget re-tracing forecast gaps
+    the plug was always going to close. The walk-away rule is mechanics:
+    after a quarter of the budget, forecast actions refuse."""
+    wb = _wb({"T2": 100.0, "U2": 110.0})
+    lp = _loop(wb, _spec_tiny())
+    lp.spec["year_axis"]["S"]["columns"]["2026"] = "V"
+    assert lp._is_forecast_action("forecast_audit", {})
+    assert lp._is_forecast_action("trace_cell", {"cell": "S!V9"})
+    assert not lp._is_forecast_action("trace_cell", {"cell": "S!U9"})
+    assert not lp._is_forecast_action("flag_cell", {"cell": "S!V9"})
+    assert not lp._fc_window_closed()
+    lp._fc_spend = max(10, lp.budget0 // 4)
+    assert lp._fc_window_closed()
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
