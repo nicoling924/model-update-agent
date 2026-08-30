@@ -1184,6 +1184,52 @@ def test_forecast_balance_ladder():
     assert not plugged4 and any("left failing" in m for m in msgs)
 
 
+
+
+def test_place_flow_run16_pins():
+    """Run-16 pins: the movement of CASH (the CF's own output) can never
+    be placed back into the CF; a placement that worsens the gap or
+    opens a cycle is REVERTED; an absurd plug is withheld."""
+    import openpyxl
+    from pipeline.evaluator import Evaluator
+    from pipeline.forecast_balance import last_resort_plug, place_flow
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active; ws.title = "Model"
+    ws["A2"] = "Balance Sheet"
+    ws["A3"] = "Cash";        ws["V3"] = "=V12"      # wired to CF ending
+    ws["A4"] = "Receivables"; ws["U4"], ws["V4"] = 100.0, 130.0
+    ws["A6"] = "Check";       ws["V6"] = "=(V3+V4)-260"
+    ws["A8"] = "Cash flow statement"
+    ws["A9"] = "Others";      ws["U9"], ws["V9"] = 0.0, 0.0
+    ws["A12"] = "Ending cash"; ws["V12"] = "=130+V9"
+    w = Writer(wb)
+    # the cash row itself: refused by the source law (wired through CF)
+    f, err = place_flow(wb, w, "Model", 3, 9, "V", "U")
+    assert f is None and "RESULT of the CF" in err, err
+    # a CF-block row as source: refused
+    f, err = place_flow(wb, w, "Model", 12, 9, "V", "U")
+    assert f is None and "inside the cash-flow block" in err
+    # a real BS line: placed
+    f, err = place_flow(wb, w, "Model", 4, 9, "V", "U")
+    assert err is None and f == "=-(V4-U4)"
+    # plug WITHHELD when the gap exceeds half the asset base
+    wb2 = openpyxl.Workbook()
+    w2s = wb2.active; w2s.title = "Model"
+    w2s["A2"] = "Balance Sheet"
+    w2s["A3"] = "Assets"; w2s["U3"], w2s["V3"] = 100.0, 100.0
+    w2s["A6"] = "Check";  w2s["V6"] = "=V3-V9-20"    # gap 80 > 50% of 100
+    w2s["A8"] = "Cash flow statement"
+    w2s["A9"] = "Others"; w2s["V9"] = 0.0
+    msgs = []
+    plugged = last_resort_plug(
+        wb2, Writer(wb2),
+        (lambda: (lambda s, c: Evaluator(wb2).cell(s, c))),
+        "Model", 6, ["V"], 3, msgs.append)
+    assert not plugged and any("WITHHELD" in m and "half" in m
+                               for m in msgs), msgs
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

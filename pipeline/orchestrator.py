@@ -618,20 +618,49 @@ class ObjectiveLoop:
                                     get_column_letter)
         chain = [self._tcol(sheet)] + fcols
         prior = chain[chain.index(col) - 1]
+        checks = [c for c in (self.spec.get("check_rows") or [])
+                  if c.get("sheet") == sheet]
+        held = self.wb[sheet][f"{col}{cf_row}"].value
+        g0 = None
+        if checks:
+            try:
+                g0 = Evaluator(self.wb).cell(sheet,
+                                             f"{col}{checks[0]['row']}")
+            except Exception:
+                g0 = None
         f, err = place_flow(self.wb, self.writer, sheet, bs_row, cf_row,
                             col, prior)
         if err:
             return err
-        checks = [c for c in (self.spec.get("check_rows") or [])
-                  if c.get("sheet") == sheet]
-        gap = ""
+        # the placement laws of set_input apply here too (run-16 pin):
+        # a placement that opens a CYCLE or makes the year's gap WORSE
+        # is reverted on the spot
+        ev2 = Evaluator(self.wb)
+        g1 = None
         if checks:
             try:
-                g = Evaluator(self.wb).cell(sheet,
-                                            f"{col}{checks[0]['row']}")
-                gap = f" — {col} check now {g:+,.1f}"
+                g1 = ev2.cell(sheet, f"{col}{checks[0]['row']}")
             except Exception:
-                pass
+                g1 = None
+        why = None
+        if ev2.cycles:
+            why = ("it created a CIRCULAR REFERENCE — that row resolves "
+                   "through the cash chain; attribute the underlying "
+                   "balance-sheet lines instead")
+        elif (isinstance(g0, (int, float)) and isinstance(g1, (int, float))
+                and abs(g1) > abs(g0) + 1.0):
+            why = (f"it made the {col} gap WORSE ({g0:+,.1f} -> "
+                   f"{g1:+,.1f}) — wrong sign or wrong row")
+        elif g1 is None and g0 is not None:
+            why = "the check no longer evaluates"
+        if why:
+            self.wb[sheet][f"{col}{cf_row}"] = held
+            self.writer.log["flags"] = [
+                x for x in self.writer.log["flags"]
+                if x != f"{sheet}!{col}{cf_row}"]
+            return f"REVERTED: {why}"
+        gap = (f" — {col} check now {g1:+,.1f}"
+               if isinstance(g1, (int, float)) else "")
         return f"PLACED {f} into {sheet}!{col}{cf_row} (orange){gap}"
 
     TOOLS = {"rescore": t_rescore, "trace_cell": t_trace_cell,

@@ -69,10 +69,16 @@ def audit(wb, evaluate, sheet, check_row, bs_rows, year_cols):
             continue
         if not isinstance(gap, (int, float)) or abs(gap) <= 1:
             continue
+        start = cf_start_row(ws)
         moves = []
         for r, lab in bs_rows:
             if prev is None:
                 continue
+            fsrc = ws.cell(row=r, column=column_index_from_string(col)).value
+            if isinstance(fsrc, str) and start is not None and any(
+                    int(m.group(1)) >= start for m in
+                    re.finditer(r"\$?[A-Z]{1,3}\$?([0-9]{1,5})", fsrc)):
+                lab = lab + "  [RESULT of the CF — never place this]"
             try:
                 d = (evaluate(sheet, f"{col}{r}")
                      - evaluate(sheet, f"{prev}{r}"))
@@ -85,11 +91,39 @@ def audit(wb, evaluate, sheet, check_row, bs_rows, year_cols):
     return report
 
 
+def cf_start_row(ws, max_row=250):
+    for r in range(1, max_row + 1):
+        if _CF_START.search(_label(ws, r) or ""):
+            return r
+    return None
+
+
 def place_flow(wb, writer, sheet, bs_row, cf_row, target_col, prior_col):
     """The loop's attribution write: the movement of ONE BS row lands in
     ONE designed CF input row as a traceable formula. Verifies the
-    target is a typed input inside the CF block."""
+    target is a typed input inside the CF block, and that the SOURCE is
+    a real balance-sheet line — run-16 pin: the loop placed the movement
+    of CASH itself (=V133, the CF's own output) back into the CF,
+    creating a circular reference. Cash and anything wired through the
+    CF block is the RESULT of the statement, never an input to it."""
     ws = wb[sheet]
+    start = cf_start_row(ws)
+    if start is not None:
+        if bs_row >= start:
+            return None, ("REFUSED: r%d is inside the cash-flow block — "
+                          "only a BALANCE-SHEET line's movement can be "
+                          "placed" % bs_row)
+        f_src = ws.cell(row=bs_row,
+                        column=column_index_from_string(target_col)).value
+        if isinstance(f_src, str) and f_src.startswith("="):
+            for m in re.finditer(r"\$?[A-Z]{1,3}\$?([0-9]{1,5})", f_src):
+                if int(m.group(1)) >= start:
+                    return None, (
+                        "REFUSED: r%d resolves THROUGH the cash-flow "
+                        "block (its formula references r%s) — it is the "
+                        "RESULT of the CF, not a movement to place. "
+                        "Attribute the underlying balance-sheet lines "
+                        "instead" % (bs_row, m.group(1)))
     tc = ws.cell(row=cf_row,
                  column=column_index_from_string(target_col)).value
     if not isinstance(tc, (int, float)) or isinstance(tc, bool):
@@ -121,6 +155,7 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
     ws = wb[sheet]
     plugged = []
     targets = None
+    from .checks import scorecard  # noqa: F401  (cycle probe below)
     for col in year_cols:
         evaluate = make_eval()
         if year_cols and col == year_cols[0]:
@@ -150,6 +185,18 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
             log(f"[run] forecast plug: no designed catch-all input row "
                 f"in the CF block — {col} left failing for the analyst")
             continue
+        # a plug bigger than half the asset base is not a plug, it is
+        # a structural break — leave the year failing for the analyst
+        if assets_row:
+            try:
+                ta = abs(evaluate(sheet, f"{col}{assets_row}")) or 1.0
+                if abs(gap) > 0.5 * ta:
+                    log(f"[run] forecast plug WITHHELD on {col}: gap "
+                        f"{gap:+,.1f} exceeds half the asset base — "
+                        "structural break, analyst ruling needed")
+                    continue
+            except Exception:
+                pass
         row = others[0]
         held = ws.cell(row=row,
                        column=column_index_from_string(col)).value

@@ -505,3 +505,17 @@ honest state: 26 unexamined reds spread under the per-sheet bar, net
 profit 3,831.1 vs 3,831.3 (0.2 component rounding), forecast-year
 checks (analyst re-forecast items) reported not gated. The trajectory:
 52,197 → 12,124 → 59 → 1 → 0.
+
+**08-31 — RUN 16 AND THE CASH-CONE LAW.** All-years gate live. The loop
+used forecast_audit correctly but placed the movement of CASH ITSELF
+(=V133, the CF's own output) back into the CF — a circular reference;
+place_flow's legality check had only validated the TARGET. The cycle
+poisoned the evaluator and the last-resort plug wrote a garbage
+-47,554 (red). Gate refused (cycle + budget) — correctly. FIXES, all
+museum-pinned: (1) the cash-cone source law — only true BS lines place;
+anything wired through the CF block is the RESULT, refused with
+teaching; the audit labels such rows "[RESULT of the CF — never place
+this]"; (2) place_flow inherits set_input's laws: cycle -> REVERTED,
+worse gap -> REVERTED; (3) plugs withheld on gaps > half the asset
+base (structural break, analyst ruling) and on a broken actual base.
+Driver unexamined reds 27% -> 18% (adjudication working; bar 15%).
