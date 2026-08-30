@@ -70,19 +70,22 @@ def ties_prior(item, scale, prior):
 
 
 def _claim_key(item, value):
-    return (_meta(item, "doc"), round(abs(value), 1))
+    return round(abs(value), 1)
 
 
 def claimed_keys(served):
-    """The ONE-HOME register: (doc, |value|) pairs already bound by
-    deterministic serves. Document-wide, not per-page — a section total
-    printed on page 96 must not find a second home from page 12.
-    Enforced for material figures only (small values repeat
-    legitimately); the materiality bar lives in the judges."""
+    """The ONE-HOME register: |values| already bound by deterministic
+    serves. Document-AGNOSTIC (run-9 pin: OCI -57.9 served from one
+    document found a second home as FX-translation from another,
+    counting the negative twice in equity) — the MODEL has one home per
+    figure, whichever page printed it. Enforced for material figures
+    only (small values repeat legitimately); the bar lives in the
+    judges. A refused duplicate becomes a loud flagged hole — always
+    safer than a silent double-count."""
     out = set()
     for e in served.values():
         if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
-            out.add((e.get("doc"), round(abs(e["value"]), 1)))
+            out.add(round(abs(e["value"]), 1))
     return out
 
 
@@ -133,9 +136,11 @@ def claimed_values(served):
 
 
 def no_prior_duplicate(value, doc, claimed_vals):
-    """Run-8 law: a NO-PRIOR read may not give a second home to a figure
-    the same document already served into another row (Raw!U153 took the
-    section total that row 156 had already proven — doubling the
-    section). Material figures only; small numbers repeat legitimately."""
+    """Runs 8+9 law: a NO-PRIOR read may never give a second home to a
+    figure already served into another row — the section total (run 8)
+    and the OCI-as-FX double count (run 9, across documents). Material
+    figures only; small numbers repeat legitimately. `doc` is kept in
+    the signature for the museum's history but no longer narrows the
+    law."""
     return (isinstance(value, (int, float)) and abs(value) >= 50
-            and (doc, round(abs(value), 1)) in claimed_vals)
+            and round(abs(value), 1) in claimed_vals)

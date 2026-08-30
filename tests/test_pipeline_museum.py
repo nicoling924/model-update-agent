@@ -910,7 +910,7 @@ def test_evidence_law_run7_exhibits():
     prepay = {"doc": "12053065.PDF", "page": 95,
               "nums": [6892713423.33, 5876898026.02]}
     ev = find_evidence([prepay], 6892.7)
-    claimed = {("12053065.PDF", 6892.7)}
+    claimed = {6892.7}
     verdict, why, flag = judge_write(6892.7, 0.0, False, ev, claimed)
     assert verdict == "REFUSE" and "one row, one claim" in why
 
@@ -940,7 +940,12 @@ def test_one_home_law_run8_exhibit():
     # the register is DOCUMENT-wide: page is irrelevant to a claim
     reg = claimed_values(served)
     assert no_prior_duplicate(12182.5, "12053065.PDF", reg)
-    assert not no_prior_duplicate(12182.5, "OTHER.PDF", reg)
+    # run-9 pin: the law is document-AGNOSTIC — OCI -57.9 served from
+    # one document must block the same figure landing as FX-translation
+    # from another
+    assert no_prior_duplicate(12182.5, "OTHER.PDF", reg)
+    assert no_prior_duplicate(57.9, "AR.PDF", claimed_values(
+        {("Raw financials", 167): {"value": -57.9, "doc": "ANN.PDF"}}))
     assert not no_prior_duplicate(0.2, "12053065.PDF",
                                   claimed_values({("S", 1): {
                                       "value": 0.2, "doc": "12053065.PDF"}}))
