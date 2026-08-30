@@ -237,3 +237,21 @@ To make sure of the following:
   owner's objective, communicates it to the agent (Luna), then decides what
   TOOLS to give the agent to support its work. Objectives first, tools
   second.
+
+- **2026-08-30 · Reclassification back-out recipe (owner ruling, final):**
+  Reclassification = the TOTAL is unchanged but the item classification
+  changed. (1) Map a segment ONLY if both its name (trivia-normalized:
+  spacing/full-width/furniture ignored, any word change fails) AND its
+  prior-year comparative match the model — i.e. only segments the
+  reclassification did not touch. (2) Everything else is backed out:
+  non-plug segments = prior year × the disclosed TOTAL's growth rate
+  (formula, orange); the SMALLEST backed-out segment is the plug
+  = total − all other segments (formula, orange) so the table always
+  sums to the disclosed actual total. (3) A plug that turns negative or
+  swings wildly vs its prior year is still delivered (the total must
+  tie) but escalated RED with the question — a weird plug usually means
+  a mapped segment is wrong. (4) The company's re-cut category figures
+  are IGNORED except their total — the model is never re-based. 
+  (5) Applies to every segment table that sums to a disclosed total
+  (sales split, gross profit split, segment profit), each using its own
+  total's growth rate.

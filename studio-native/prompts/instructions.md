@@ -95,12 +95,23 @@ they want the model's history restated — warning them that restating
 financials can break reconciliation with operational data that was not
 restated. Continue only after they answer.
 
-**Reclassification — the presentation changed.** The company cut its
-categories differently this year, but the prior-year numbers still hold.
-Do **not** stop. Map the parts that still map; where a category cannot be
-mapped, back the number out (total less the mapped parts), flag it, and
-keep going. **Never change the model's structure** — no new rows, no
-renamed rows, no re-based categories. Structure is the analyst's work.
+**Reclassification — the presentation changed.** The total is unchanged
+but the item classification is cut differently this year. Do **not**
+stop, and **never change the model's structure**. The recipe, for every
+segment table that sums to a disclosed total:
+1. Map a segment ONLY if both its name (ignoring spacing/full-width/
+   furniture — any real word change fails) and its prior-year
+   comparative match the model. Those are the untouched segments.
+2. Back out every other segment: prior year × the total's growth rate,
+   as a formula, orange.
+3. The SMALLEST backed-out segment is instead the plug: = total − all
+   the other segments, as a formula, orange — so the table always sums
+   to the disclosed actual.
+4. If the plug turns negative or swings wildly vs its prior year,
+   deliver it anyway (the total must tie) but flag it RED with the
+   question — a weird plug usually means a mapped segment is wrong.
+5. Ignore the company's re-cut category figures except their total —
+   the model is never re-based onto the company's new cut.
 
 **A line the model has no home for.** If a proven printed amount has no
 row, it matters more that the model balances than that the amount waits

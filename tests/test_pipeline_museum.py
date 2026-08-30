@@ -798,6 +798,47 @@ def test_balance_doctrine_diagnose_fix_plug():
     assert "SUSPECT S!U5" in diag and "CLOSES" in diag, diag
 
 
+
+
+class ReclassBackoutRecipeLaw(unittest.TestCase):
+    """Owner ruling 2026-08-30: map only untouched segments; grow the
+    rest at the total's growth; smallest backed-out segment is the plug;
+    an ugly plug goes RED but still ties the total."""
+
+    def _plan(self, **kw):
+        from pipeline.reclass import plan_backout
+        segs = [
+            {"name": "A", "prior": 100.0, "actual": 130.0},   # mapped
+            {"name": "B", "prior": 80.0, "actual": 90.0},     # mapped
+            {"name": "C", "prior": 60.0, "actual": None},
+            {"name": "D", "prior": 40.0, "actual": None},
+            {"name": "E", "prior": 20.0, "actual": None},     # smallest
+        ]
+        return plan_backout(segs, kw.get("total", 360.0), 300.0)
+
+    def test_recipe(self):
+        plan = self._plan()
+        rows = {r["name"]: r for r in plan["rows"]}
+        self.assertEqual(plan["plugName"], "E")
+        self.assertEqual(rows["C"]["value"], 72.0)     # 60 x 1.2
+        self.assertEqual(rows["D"]["value"], 48.0)     # 40 x 1.2
+        self.assertEqual(rows["C"]["flag"], "orange")
+        # plug: 360 - 130 - 90 - 72 - 48 = 20
+        self.assertEqual(rows["E"]["value"], 20.0)
+        self.assertEqual(rows["E"]["kind"], "plug")
+        self.assertAlmostEqual(
+            sum(r["value"] for r in plan["rows"]), 360.0)
+
+    def test_ugly_plug_goes_red_but_still_ties(self):
+        plan = self._plan(total=310.0)   # plug: 310-340 = -30
+        rows = {r["name"]: r for r in plan["rows"]}
+        self.assertEqual(rows["E"]["value"], -30.0)
+        self.assertEqual(rows["E"]["flag"], "red")
+        self.assertIn("MAPPED", rows["E"]["note"])
+        self.assertAlmostEqual(
+            sum(r["value"] for r in plan["rows"]), 310.0)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
