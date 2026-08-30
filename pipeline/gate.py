@@ -265,9 +265,12 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     failures += [f"CLOBBER {s}!{k}: {a!r} -> {b!r}" for s, k, a, b in bad[:20]]
     card = scorecard(wb, spec, target_year, served=served,
                      flags=writer_log.get("flags", ()))
-    ty = str(target_year)
+    # THE OWNER'S LAW (re-instated 2026-08-30 after the run-15 mistake:
+    # scoping checks to the target year redefined success instead of
+    # achieving it): balance is required for ALL years, actual and
+    # forecast alike.
     for c in card["checks"]:
-        if c["status"] == "FAIL" and c["year"] == ty:
+        if c["status"] == "FAIL":
             failures.append(f"CHECK {c['name']}: {c['got']} vs {c['expect']}")
     if card["cycles"]:
         failures.append(f"CYCLES: {len(card['cycles'])} circular references "

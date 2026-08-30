@@ -133,15 +133,17 @@ def summarize(card, target_year, flags=None, spec=None, wb=None):
     ty = str(target_year)
     ty_fails = [c for c in fails if c["year"] == ty]
     fc_fails = [c for c in fails if c["year"] != ty]
-    lines.append(f"BALANCE/CHECK ROWS: {len(ty_fails)} FAIL in {ty} "
-                 f"(YOURS), {len(fc_fails)} in forecast years "
-                 f"(the ANALYST'S re-forecast items — never spend actions "
-                 f"on them), {len(errs)} eval-error")
+    lines.append(f"BALANCE/CHECK ROWS: {len(ty_fails)} FAIL in {ty}, "
+                 f"{len(fc_fails)} in forecast years — ALL are yours "
+                 f"(balance is required for EVERY year). Forecast gaps: "
+                 f"attribute each BS movement to a designed CF input row "
+                 f"with place_flow; the plug is a LAST resort. "
+                 f"{len(errs)} eval-error")
     for c in ty_fails[:12]:
         lines.append(f"  FAIL {c['name']}: {c['got']:,.2f} vs {c['expect']:,.2f}"
                      if isinstance(c["got"], (int, float)) else f"  FAIL {c['name']}")
-    for c in fc_fails[:4]:
-        lines.append(f"  (analyst) {c['name']}: "
+    for c in fc_fails[:6]:
+        lines.append(f"  FAIL {c['name']}: "
                      + (f"{c['got']:,.0f} vs {c['expect']:,.0f}"
                         if isinstance(c["got"], (int, float)) else "n/a"))
     if not ty_fails and flags:
