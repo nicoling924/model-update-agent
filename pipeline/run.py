@@ -260,9 +260,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # -- THE DASH-NIL SWEEP (run-11 pin): a stale row whose disclosure
     # line prints a nil mark in the current slot next to a prior that
     # ties is PROVEN zero this period (cancelled treasury shares).
+    from .stage2_join import ratify_page_scales
     from .writegate import nil_current_zero
-    face_pages = {(e.get("doc"), e.get("page")) for e in served.values()
-                  if isinstance(e, dict) and e.get("doc")}
+    # the face register = pages stage-2 RATIFIED as statement faces (the
+    # served-pages shortcut was too narrow: with a rich AR present, an
+    # announcement face's rows all serve from AR pages and the page
+    # never enters the register, blocking its own true nil — run 12)
+    face_pages = set(ratify_page_scales(
+        ledger.items, [t.prior_value for t in targets
+                       if isinstance(t.prior_value, (int, float))]))
+    face_pages |= {(e.get("doc"), e.get("page")) for e in served.values()
+                   if isinstance(e, dict) and e.get("doc")}
     n_nil = 0
     for sheet, rows in hardcode_census.items():
         tcol = year_columns(spec_d, sheet).get(str(target_year))
