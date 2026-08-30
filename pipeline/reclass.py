@@ -145,9 +145,18 @@ def flag_embedded_hardcodes(wb, sheets, year_cols, writer, log):
                 continue
             bare = re.sub(r"'[^']*'!|[A-Za-z_][A-Za-z0-9_]*!|"
                           r"\$?[A-Z]{1,3}\$?[0-9]{1,5}", "", f)
+            # a smuggled prior is a PRECISE figure (16602.97), not a
+            # convention constant (365 days, 12 months, 100, powers of
+            # ten for unit conversion)
+            def _smuggled(x):
+                v = float(x)
+                if "." in x and v >= 1.0:
+                    return True
+                return (v >= 500 and v not in (1000.0, 10000.0, 100000.0,
+                                               1000000.0, 8760.0))
             consts = [float(x) for x in
                       re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)", bare)
-                      if float(x) >= 1.0]
+                      if _smuggled(x)]
             ref = f"{sheet}!{tcol}{r}"
             if consts and ref not in writer.log["flags"]:
                 cell = ws[f"{tcol}{r}"]

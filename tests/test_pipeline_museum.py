@@ -1032,11 +1032,13 @@ def test_reclassification_recipe():
         "a plug that halved must escalate to red"
 
     # C: a formula smuggling a prior-period constant is a KEY DRIVER
-    wb3 = _wb({"U5": "=16602.97-U6", "U6": 2955.4, "U7": "=U5/U6"})
+    wb3 = _wb({"U5": "=16602.97-U6", "U6": 2955.4, "U7": "=U5/U6",
+               "U8": "=365/(U5/U6)", "U9": "=U5*12/100"})
     w3 = Writer(wb3)
     n3 = flag_embedded_hardcodes(wb3, ["S"], {"S": "U"}, w3,
                                  lambda m: None)
-    assert n3 == 1 and "S!U5" in w3.log["flags"]
+    assert n3 == 1 and "S!U5" in w3.log["flags"], \
+        "365/12/100 are conventions, not smuggled priors"
     assert wb3["S"]["U7"].fill.start_color.rgb in ("00000000", None) or \
         not str(wb3["S"]["U7"].fill.start_color.rgb).endswith("FFC7CE")
 
