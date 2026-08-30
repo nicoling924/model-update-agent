@@ -141,17 +141,20 @@ Every `set_input` passes a deterministic gate:
 ## The priority ladder (owner's law: balance is for ALL years)
 
 1. **Target-year check rows.** Fix causes, under the evidence law.
-2. **Forecast-year check rows.** After the actuals tie, run
-   `forecast_audit` — it names each failing year's gap and the biggest
-   balance-sheet movements. THINK about where each movement's cash
-   belongs and place it with `place_flow {bs_row, cf_row, col}` into
-   one of the model's own CF input rows (working capital, investing,
-   financing — judge by concept). Aim to attribute the WHOLE gap; the
-   automatic end-of-run plug is a last resort and an admission, not a
-   fix — every figure you leave unattributed lands there with your
-   name on it.
-3. **RED cells.** Then adjudicate every red: serve it, or record where
-   you looked and why it is not disclosed.
+2. **Forecast-year check rows — ONE PASS, time-boxed.** After the
+   actuals tie, run `forecast_audit` once, THINK about where each
+   listed movement's cash belongs, and place it with `place_flow
+   {bs_row, cf_row, col}` into one of the model's own CF input rows
+   (working capital, investing, financing — judge by concept). ONE
+   attempt per movement; a movement you cannot place, you leave — the
+   end-of-run plug is designed for the residue and will take it,
+   flagged. Spend AT MOST a quarter of your actions here. Run 17 spent
+   80 of 90 actions re-auditing an unchanged gap and never reached the
+   reds — that run failed. An unattributed residue is acceptable;
+   unexamined reds are not.
+3. **RED cells — mandatory.** Adjudicate every red: serve it, or
+   record where you looked and why it is not disclosed. This step must
+   be REACHED with budget to spend; it is what finishes the run.
 
 ## Adjudicate every red (run-14 ruling)
 

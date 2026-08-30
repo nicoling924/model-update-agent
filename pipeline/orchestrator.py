@@ -693,9 +693,14 @@ class ObjectiveLoop:
             name = act["action"]
             args = act.get("args") or {}
             fingerprint = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
-            if name not in ("rescore", "note", "todo", "finish",
-                    "diagnose_balance", "statement_diff", "list_flags",
-                    "forecast_audit") \
+            # A LOOK ALREADY TAKEN TEACHES NOTHING UNTIL THE WORLD
+            # CHANGES (run-17: 17 forecast_audits + 12 diagnose_balances
+            # on unchanged state burned the budget). State-view tools
+            # repeat freely only after a write; bookkeeping tools always.
+            if name in ("rescore", "diagnose_balance", "statement_diff",
+                        "forecast_audit", "list_flags"):
+                fingerprint += f"|w{len(self.writer.log['written'])}"
+            if name not in ("note", "todo", "finish") \
                     and fingerprint in getattr(self, "_done", set()):
                 result = ("REPEAT: you already ran exactly this action — the "
                           "result has not changed. Take a DIFFERENT action "
