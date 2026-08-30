@@ -278,6 +278,16 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
                             v = no_prior_value(a.get("current"), anchors)
                             if v is None:
                                 continue    # no proven scale -> stays a loud hole
+                            from .writegate import (claimed_values,
+                                                    no_prior_duplicate)
+                            reg = claimed_values(served)
+                            reg.update(claimed_values(out))
+                            if no_prior_duplicate(v, doc, reg):
+                                log.append(
+                                    f"stage-3 REFUSED no-prior {t.key}: "
+                                    f"{v:,.1f} already has a home in this "
+                                    "document (one number, one home)")
+                                continue
                             out[t.key] = {
                                 "value": v, "status": "OK",
                                 "doc": doc, "page": grp[0], "conf": CONF_NO_PRIOR,

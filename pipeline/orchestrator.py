@@ -464,10 +464,11 @@ class ObjectiveLoop:
         before_card = self._card()
         before_fails = {c["name"] for c in before_card["checks"]
                         if c["status"] == "FAIL"}
-        before_gaps = {c["name"]: abs(c["value"])
+        before_gaps = {c["name"]: abs(c["got"] - c["expect"])
                        for c in before_card["checks"]
                        if c["status"] == "FAIL"
-                       and isinstance(c.get("value"), (int, float))}
+                       and isinstance(c.get("got"), (int, float))
+                       and isinstance(c.get("expect"), (int, float))}
         ok = self.writer.write(sheet, f"{col}{row}", value,
                                prior_coord=f"{pcol}{row}" if pcol else None,
                                note=f"objective loop: {why[:300]}",
@@ -484,9 +485,10 @@ class ObjectiveLoop:
         worsened = sorted(
             c["name"] for c in after_card["checks"]
             if c["status"] == "FAIL"
-            and isinstance(c.get("value"), (int, float))
+            and isinstance(c.get("got"), (int, float))
+            and isinstance(c.get("expect"), (int, float))
             and c["name"] in before_gaps
-            and abs(c["value"]) > before_gaps[c["name"]] + 1.0)
+            and abs(c["got"] - c["expect"]) > before_gaps[c["name"]] + 1.0)
         broke = sorted(after_fails - before_fails) + worsened
         if broke:
             self.writer.write(sheet, f"{col}{row}", held,

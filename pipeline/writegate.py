@@ -116,3 +116,21 @@ def judge_write(value, prior, was_served, evidence, claimed):
             "unproven — the value is printed but its row's comparative "
             "does not tie this cell's prior; written RED-flagged for the "
             "analyst", "red")
+
+
+def claimed_values(served):
+    """(doc, |value|) pairs already served — the one-home register."""
+    out = set()
+    for e in served.values():
+        if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
+            out.add((e.get("doc"), round(abs(e["value"]), 1)))
+    return out
+
+
+def no_prior_duplicate(value, doc, claimed_vals):
+    """Run-8 law: a NO-PRIOR read may not give a second home to a figure
+    the same document already served into another row (Raw!U153 took the
+    section total that row 156 had already proven — doubling the
+    section). Material figures only; small numbers repeat legitimately."""
+    return (isinstance(value, (int, float)) and abs(value) >= 50
+            and (doc, round(abs(value), 1)) in claimed_vals)

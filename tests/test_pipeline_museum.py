@@ -928,6 +928,35 @@ def test_evidence_law_run7_exhibits():
     assert verdict == "ALLOW" and flag is None
 
 
+
+
+def test_one_home_law_run8_exhibit():
+    """Run-8 pin (2026-08-30): Raw!U153 took the section total that row
+    156 had already proven from the same document — a no-prior read may
+    never give a second home to an already-served figure."""
+    from pipeline.writegate import claimed_values, no_prior_duplicate
+    served = {("Raw financials", 156): {
+        "value": 12182.46645655, "doc": "12053065.PDF", "page": 96}}
+    reg = claimed_values(served)
+    assert no_prior_duplicate(12182.5, "12053065.PDF", reg)
+    assert not no_prior_duplicate(12182.5, "OTHER.PDF", reg)
+    assert not no_prior_duplicate(0.2, "12053065.PDF",
+                                  claimed_values({("S", 1): {
+                                      "value": 0.2, "doc": "12053065.PDF"}}))
+
+
+def test_worsening_write_reverts():
+    """Run-8 pin: a write that makes an ALREADY-FAILING check worse is
+    reverted (the old guard only caught pass->fail)."""
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 151.0,
+              "U2": 110.0, "U3": 60.0, "U4": 171.5,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})   # already -1.5 off
+    lp = _loop(wb, _spec_tiny(), evidence=[[500.0, 100.0]])
+    r = lp.t_set_input({"cell": "S!U2", "value": 500.0, "why": "p9: t"})
+    assert r.startswith("REVERTED"), r
+    assert wb["S"]["U2"].value == 110.0
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

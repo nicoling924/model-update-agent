@@ -461,3 +461,19 @@ check reverts. Run-7's two writes pinned as museum exhibits (refused).
 Sense check wired to the Evaluator (0 verdicts last run — needed
 computed values, not caches). All suites green. Awaiting owner's
 go for run 8.
+
+**08-30 — RUN 8 (evidence law in force) AND THE ONE-HOME LAW.** The
+evidence law HELD: no fabrications, assets side exact to the decimal
+(U60 kept its proven 15,193.8; U72 honestly blank), sense check fired
+(19 verdicts). GATE REFUSED at -12,124: ONE cell — stage-3's no-prior
+reader wrote the section total (12,182.5, already PROVEN into Raw!156
+from the same page) into blank component row Raw!U153, doubling
+non-current liabilities. Red-flagged, so honest — but balance is
+objective #1. Root cause: the one-row-one-claim law existed only at
+the loop door; stage-3's no-prior path could still give a served
+figure a second home. FIX: the one-home register (writegate
+claimed_values/no_prior_duplicate) now guards stage-3's no-prior
+serves; also fixed the worsen-revert reading got/expect (it was keyed
+on a field checks never had — armed now). Both pinned as museum
+exhibits. Remaining known: Driver flag budget 24% (serving depth, not
+a law break) and the -58.6 equity residue. Awaiting go for run 9.
