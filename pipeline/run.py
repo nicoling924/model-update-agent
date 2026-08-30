@@ -363,6 +363,32 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if tcol and pcol and sheet in wb.sheetnames:
             writer.format_rollover(sheet, pcol, tcol)
 
+    # -- FORECAST-YEAR BALANCE, LAST RESORT (owner ruling: balance is
+    # for ALL years; plug only what genuine attribution could not place;
+    # the loop had its place_flow chance above). Parse the check row's
+    # own formula for its first leg (the assets row) to scale the
+    # red-if-large test.
+    from .checks import forecast_columns as _fcols
+    from .evaluator import Evaluator as _Ev
+    from .forecast_balance import last_resort_plug
+    for _c in (spec_d.get("check_rows") or []):
+        _sheet = _c.get("sheet")
+        if _sheet not in wb.sheetnames:
+            continue
+        _cols = _fcols(spec_d, _sheet, target_year)
+        _tcol = year_columns(spec_d, _sheet).get(str(target_year))
+        if not _cols or not _tcol:
+            continue
+        _assets = None
+        _cf = wb[_sheet][f"{_tcol}{_c['row']}"].value
+        if isinstance(_cf, str):
+            _m = __import__("re").search(r"[A-Z]{1,3}(\d+)", _cf)
+            if _m:
+                _assets = int(_m.group(1))
+        plugged = last_resort_plug(
+            wb, writer,
+            (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
+            _sheet, _c["row"], _cols, _assets, log)
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served)
 

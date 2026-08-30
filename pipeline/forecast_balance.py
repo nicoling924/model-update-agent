@@ -111,14 +111,32 @@ def place_flow(wb, writer, sheet, bs_row, cf_row, target_col, prior_col):
     return f, None
 
 
-def last_resort_plug(wb, writer, evaluate, sheet, check_row, year_cols,
+def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                      assets_row, log):
     """The residue only. One literal per year (a formula would be
-    circular through cash), orange + honest note, red when large."""
+    circular through cash), orange + honest note, red when large.
+    `make_eval()` returns a FRESH evaluator — each year's plug flows
+    through the cash chain into the next year's opening balance, so the
+    gap must be re-measured after every write."""
     ws = wb[sheet]
     plugged = []
     targets = None
     for col in year_cols:
+        evaluate = make_eval()
+        if year_cols and col == year_cols[0]:
+            # plugging a forecast on a broken ACTUAL base masks the real
+            # error — the actual year must tie first
+            try:
+                base_col = get_column_letter(
+                    column_index_from_string(col) - 1)
+                base_gap = evaluate(sheet, f"{base_col}{check_row}")
+                if isinstance(base_gap, (int, float)) and abs(base_gap) > 1:
+                    log(f"[run] forecast plugs WITHHELD: the actual year "
+                        f"({base_col}) check is off {base_gap:+,.1f} — "
+                        "tie the actuals first")
+                    return plugged
+            except Exception:
+                pass
         try:
             gap = evaluate(sheet, f"{col}{check_row}")
         except Exception:
@@ -138,11 +156,12 @@ def last_resort_plug(wb, writer, evaluate, sheet, check_row, year_cols,
         held = float(held) if isinstance(held, (int, float)) else 0.0
         value = round(held - gap, 4)
         big = False
-        try:
-            ta_move = abs(evaluate(sheet, f"{col}{assets_row}")) or 1.0
-            big = abs(gap) > PLUG_RED_SHARE * ta_move
-        except Exception:
-            pass
+        if assets_row:
+            try:
+                ta = abs(evaluate(sheet, f"{col}{assets_row}")) or 1.0
+                big = abs(gap) > PLUG_RED_SHARE * ta
+            except Exception:
+                pass
         if writer.write(sheet, f"{col}{row}", value,
                         prior_coord=None, trusted=True, flag="orange",
                         note=(f"LAST-RESORT PLUG: {-gap:+,.1f} could not "

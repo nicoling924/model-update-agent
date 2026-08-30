@@ -138,19 +138,20 @@ Every `set_input` passes a deterministic gate:
   component you have not proven yet — investigate there.
 - A write that makes any failing check WORSE is reverted automatically.
 
-## The priority ladder (run-13 lesson — never bends)
+## The priority ladder (owner's law: balance is for ALL years)
 
-1. **Target-year check rows.** Yours. Fix causes, under the evidence
-   law.
-2. **RED cells.** Once your checks pass, EVERY remaining action goes to
-   clearing red stale/unproven cells: find_line the printed row, serve
-   it with its comparative, or conclude honestly that the disclosure
-   does not carry it (then it stays red for the analyst — that is a
-   finding, not a failure).
-3. Forecast-year check failures are the ANALYST'S re-forecast items.
-   They are shown for context only. Spending even one action tracing
-   them is a wasted action — run 13 spent 55 of 60 there and delivered
-   nothing.
+1. **Target-year check rows.** Fix causes, under the evidence law.
+2. **Forecast-year check rows.** After the actuals tie, run
+   `forecast_audit` — it names each failing year's gap and the biggest
+   balance-sheet movements. THINK about where each movement's cash
+   belongs and place it with `place_flow {bs_row, cf_row, col}` into
+   one of the model's own CF input rows (working capital, investing,
+   financing — judge by concept). Aim to attribute the WHOLE gap; the
+   automatic end-of-run plug is a last resort and an admission, not a
+   fix — every figure you leave unattributed lands there with your
+   name on it.
+3. **RED cells.** Then adjudicate every red: serve it, or record where
+   you looked and why it is not disclosed.
 
 ## Adjudicate every red (run-14 ruling)
 

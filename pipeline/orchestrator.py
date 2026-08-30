@@ -546,7 +546,96 @@ class ObjectiveLoop:
 
     # -- the loop ------------------------------------------------------------
 
+    def _forecast_cols(self, sheet):
+        from .checks import forecast_columns
+        return forecast_columns(self.spec, sheet, self.ty)
+
+    def _bs_rows(self, sheet):
+        ws = self.wb[sheet]
+        rows, inside = [], False
+        for r in range(1, min(ws.max_row, 250) + 1):
+            lab = ""
+            for c in range(1, 7):
+                v = ws.cell(row=r, column=c).value
+                if isinstance(v, str) and v.strip():
+                    lab = v.strip()
+                    break
+            if re.search(r"balance\s*sheet", lab, re.IGNORECASE):
+                inside = True
+                continue
+            if inside:
+                if re.match(r"^check\b", lab, re.IGNORECASE):
+                    break
+                if lab:
+                    rows.append((r, lab))
+        return rows
+
+    def t_forecast_audit(self, args):
+        """The gap and the BS movements per failing forecast year — the
+        evidence for place_flow attribution."""
+        from .forecast_balance import audit
+        sheet = str(args.get("sheet") or "Model")
+        checks = [c for c in (self.spec.get("check_rows") or [])
+                  if c.get("sheet") == sheet]
+        if not checks or sheet not in self.wb.sheetnames:
+            return "MISS: no check row declared for that sheet"
+        tcol = self._tcol(sheet)
+        cols = [tcol] + self._forecast_cols(sheet)
+        ev = Evaluator(self.wb)
+        rep = audit(self.wb, lambda s, cd: ev.cell(s, cd), sheet,
+                    checks[0]["row"], self._bs_rows(sheet), cols)
+        rep = [y for y in rep if y["col"] != tcol]
+        if not rep:
+            return "all forecast years TIE — nothing to attribute"
+        out = []
+        for y in rep:
+            out.append(f"{y['col']}: gap {y['gap']:+,.1f} — biggest BS "
+                       "movements vs the previous column:")
+            for m in y["moves"][:12]:
+                out.append(f"  r{m['row']} {m['label'][:36]}: "
+                           f"{m['delta']:+,.1f}")
+        out.append("Attribute each movement that has no cash-flow "
+                   "counterpart with place_flow {bs_row, cf_row, col}; "
+                   "the residue is auto-plugged at the end (last resort).")
+        return "\n".join(out)
+
+    def t_place_flow(self, args):
+        """Attribution write: ONE BS row's movement lands in ONE designed
+        CF input row as a traceable orange formula."""
+        from .forecast_balance import place_flow
+        sheet = str(args.get("sheet") or "Model")
+        try:
+            bs_row = int(args.get("bs_row"))
+            cf_row = int(args.get("cf_row"))
+        except (TypeError, ValueError):
+            return 'MISS: need {"bs_row": int, "cf_row": int, "col": "V"}'
+        col = str(args.get("col") or "")
+        fcols = self._forecast_cols(sheet)
+        if col not in fcols:
+            return (f"MISS: col must be a forecast column {fcols} — "
+                    "actual years are never re-wired")
+        from openpyxl.utils import (column_index_from_string,
+                                    get_column_letter)
+        chain = [self._tcol(sheet)] + fcols
+        prior = chain[chain.index(col) - 1]
+        f, err = place_flow(self.wb, self.writer, sheet, bs_row, cf_row,
+                            col, prior)
+        if err:
+            return err
+        checks = [c for c in (self.spec.get("check_rows") or [])
+                  if c.get("sheet") == sheet]
+        gap = ""
+        if checks:
+            try:
+                g = Evaluator(self.wb).cell(sheet,
+                                            f"{col}{checks[0]['row']}")
+                gap = f" — {col} check now {g:+,.1f}"
+            except Exception:
+                pass
+        return f"PLACED {f} into {sheet}!{col}{cf_row} (orange){gap}"
+
     TOOLS = {"rescore": t_rescore, "trace_cell": t_trace_cell,
+             "forecast_audit": t_forecast_audit, "place_flow": t_place_flow,
              "find_line": t_find_line, "statement_diff": t_statement_diff,
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
@@ -576,7 +665,8 @@ class ObjectiveLoop:
             args = act.get("args") or {}
             fingerprint = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
             if name not in ("rescore", "note", "todo", "finish",
-                    "diagnose_balance", "statement_diff", "list_flags") \
+                    "diagnose_balance", "statement_diff", "list_flags",
+                    "forecast_audit") \
                     and fingerprint in getattr(self, "_done", set()):
                 result = ("REPEAT: you already ran exactly this action — the "
                           "result has not changed. Take a DIFFERENT action "

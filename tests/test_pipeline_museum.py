@@ -1102,6 +1102,88 @@ def test_dash_nil_law_run11_exhibit():
     assert nil_current_zero([it3], 0.6489) is None
 
 
+
+
+def test_forecast_balance_ladder():
+    """Owner ruling 2026-08-30: balance ALL years — attribute first,
+    plug only the residue, red when the plug is large."""
+    import openpyxl
+    from pipeline.forecast_balance import (audit, cf_input_rows,
+                                           last_resort_plug, place_flow)
+    from pipeline.evaluator import Evaluator
+    from pipeline.writer import Writer
+
+    def build(gap_v):
+        wb = openpyxl.Workbook()
+        ws = wb.active; ws.title = "Model"
+        ws["A2"] = "Balance Sheet"
+        ws["A3"] = "Receivables"
+        ws["U3"], ws["V3"] = 100.0, 130.0
+        ws["A4"] = "Liabilities"
+        ws["U4"], ws["V4"] = 100.0, 130.0 - gap_v
+        ws["A6"] = "Check"
+        ws["V6"] = "=(V3+V9)-V4"          # Others feeds the asset side
+        ws["A8"] = "Cash flow statement"
+        ws["A9"] = "Others"
+        ws["U9"], ws["V9"] = 0.0, 0.0
+        ws["A10"] = "Wired line"
+        ws["V10"] = "=V3"
+        return wb, ws
+
+    # audit names the gap and the movements
+    wb, ws = build(10.0)
+    ev = Evaluator(wb)
+    rep = audit(wb, lambda s, c: ev.cell(s, c), "Model", 6,
+                [(3, "Receivables"), (4, "Liabilities")], ["U", "V"])
+    assert rep and rep[0]["col"] == "V" and rep[0]["gap"] == 10.0
+    assert rep[0]["moves"][0]["row"] in (3, 4)
+
+    # placement targets are typed inputs only
+    assert (9, "Others") in cf_input_rows(ws, "V")
+    w = Writer(wb)
+    f, err = place_flow(wb, w, "Model", 3, 10, "V", "U")
+    assert f is None and "not a typed CF input cell" in err
+    f, err = place_flow(wb, w, "Model", 3, 9, "V", "U")
+    assert err is None and f == "=-(V3-U3)"
+    assert ws["V9"].value == "=-(V3-U3)"
+
+    # last-resort plug closes the residue; small plug stays orange
+    wb2, ws2 = build(10.0)
+    w2 = Writer(wb2)
+    plugged = last_resort_plug(
+        wb2, w2, (lambda: (lambda s, c, e=None: Evaluator(wb2).cell(s, c))),
+        "Model", 6, ["V"], 3, lambda m: None)
+    assert len(plugged) == 1 and plugged[0][2] == -10.0
+    assert abs(Evaluator(wb2).cell("Model", "V6")) <= 0.01, "must tie"
+    assert not plugged[0][3]                       # 10 <= 10% of 130? no:
+    # gap 10 vs assets 130 -> 7.7% -> not large
+    # a LARGE plug (>10% of the asset base) goes red
+    wb3, ws3 = build(30.0)
+    w3 = Writer(wb3)
+    plugged3 = last_resort_plug(
+        wb3, w3, (lambda: (lambda s, c: Evaluator(wb3).cell(s, c))),
+        "Model", 6, ["V"], 3, lambda m: None)
+    assert plugged3[0][3] is True
+    assert ws3["V9"].fill.start_color.rgb.endswith("FFC7CE")
+    # a broken ACTUAL base withholds every forecast plug
+    wb5, ws5 = build(10.0)
+    ws5["U6"] = "=(U3+U9)-U4"
+    ws5["U4"] = 50.0                       # actual year broken by 50
+    msgs5 = []
+    plugged5 = last_resort_plug(
+        wb5, Writer(wb5), (lambda: (lambda s, c: Evaluator(wb5).cell(s, c))),
+        "Model", 6, ["V"], 3, msgs5.append)
+    assert not plugged5 and any("WITHHELD" in m for m in msgs5)
+    # no designed catch-all -> the year is LEFT FAILING, never invented
+    wb4, ws4 = build(10.0)
+    ws4["A9"] = "Named line"
+    msgs = []
+    plugged4 = last_resort_plug(
+        wb4, Writer(wb4), (lambda: (lambda s, c: Evaluator(wb4).cell(s, c))),
+        "Model", 6, ["V"], 3, msgs.append)
+    assert not plugged4 and any("left failing" in m for m in msgs)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
