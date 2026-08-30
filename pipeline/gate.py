@@ -143,10 +143,12 @@ def flag_budget(wb, spec, target_year, flags):
     return fails
 
 
-def driver_roll(wb, spec, target_year, pre_map):
+def driver_roll(wb, spec, target_year, pre_map, writer_log=None):
     """Gate 4. Forecast columns keep formulas where they had them, and no
     sign-absurd first-forecast value (negative where prior and target
-    actuals are both positive aggregates)."""
+    actuals are both positive aggregates). The assumption freeze (owner
+    ruling 2026-08-30) is the one authorized formula->hardcode
+    replacement — every freeze is in writer_log["frozen"]."""
     from .evaluator import Evaluator
     fails = []
     ev = Evaluator(wb)
@@ -166,6 +168,12 @@ def driver_roll(wb, spec, target_year, pre_map):
             now_v = ws[f"{f1}{r}"].value
             if isinstance(pre_v, str) and pre_v.startswith("=") \
                     and not (isinstance(now_v, str) and now_v.startswith("=")):
+                # the assumption freeze (owner ruling 2026-08-30) is the
+                # ONE authorized formula->hardcode replacement; every
+                # freeze is in the writer log, orange, and reported
+                if any(ln.startswith(f"{sheet}!{f1}{r}:")
+                       for ln in (writer_log or {}).get("frozen", [])):
+                    continue
                 fails.append(f"DRIVER ROLL {sheet}!{f1}{r}: forecast formula "
                              f"replaced by {now_v!r}")
                 continue
@@ -217,14 +225,15 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     failures += magnitude_sweep(wb, spec, target_year,
                                 writer_log.get("written", ()), served=served)
     failures += flag_budget(wb, spec, target_year, writer_log.get("flags", ()))
-    failures += driver_roll(wb, spec, target_year, pre_map)
+    failures += driver_roll(wb, spec, target_year, pre_map, writer_log)
     failures += error_scan(wb, pre_map)
     tcols = sorted({c for sh in (spec.get("year_axis") or {})
                     for y, c in year_columns(spec, sh).items()
                     if y >= str(target_year)})
     allowed = {(r.split("!")[0], r.split("!")[1]) for r in
                list(writer_log.get("written", ())) +
-               [x.split(":")[0] for x in writer_log.get("restatements", ())]}
+               [x.split(":")[0] for x in writer_log.get("restatements", ())] +
+               [x.split(":")[0] for x in writer_log.get("frozen", ())]}
     bad = clobber_diff(pre_map, wb, tcols, allowed, skip_sheets=skip_sheets)
     failures += [f"CLOBBER {s}!{k}: {a!r} -> {b!r}" for s, k, a, b in bad[:20]]
     card = scorecard(wb, spec, target_year, served=served,

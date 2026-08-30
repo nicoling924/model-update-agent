@@ -257,6 +257,27 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_comp:
         log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
 
+    # -- THE ASSUMPTION FREEZE (owner ruling 2026-08-30): a forecast
+    # assumption wired to the past (%-formatted, formula referencing the
+    # newly actual column or earlier) would silently rebase onto the
+    # actual. Hold it at its PRE-UPDATE value as an orange hardcode; the
+    # report lists each with its old formula so restoring is one paste.
+    from openpyxl.utils import column_index_from_string
+    from .freeze import apply_freezes, plan_freezes
+    frozen_lines = []
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        if not tcol or sheet not in wb.sheetnames \
+                or sheet not in wb_values.sheetnames:
+            continue
+        plans = plan_freezes(wb, wb_values, [sheet],
+                             column_index_from_string(tcol))
+        frozen_lines += apply_freezes(wb, plans)
+    if frozen_lines:
+        writer.log.setdefault("frozen", []).extend(frozen_lines)
+        log(f"[run] assumption freeze: {len(frozen_lines)} forecast "
+            "assumptions held at their pre-update values (orange)")
+
     # -- Stage 4: the objective loop (Luna owns it), then the gate
     loop_summary = ""
     if client is not None:
@@ -299,6 +320,22 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     save(wb, out_path)
     log(f"[run] {'DELIVERED' if ok else 'GATE REFUSED — quarantined'}: "
         f"{out_path.name}")
+    # -- the executive _REPORT (owner's locked design): Luna composes,
+    # the code renders and referees; includes the sense-check second
+    # look. Regenerated on the delivered file; never fatal to the run.
+    if client is not None:
+        try:
+            from .execreport import report_only
+            rep = report_only(str(company_dir), str(out_path),
+                              str(archive), client, str(out_path))
+            log(f"[run] executive report: {rep['bridges']} bridges, "
+                f"{rep['refused']} refused, "
+                f"{len(rep.get('corrections', []))} corrected, sense "
+                f"verdicts: "
+                f"{len((rep['summary'].get('sense') or {}).get('verdicts', []))}")
+        except Exception as ex:
+            log(f"[run] executive report FAILED (old-style report kept): "
+                f"{ex}")
     for f in failures[:12]:
         log(f"[run]   gate: {f}")
     return {"ok": ok, "out": str(out_path), "archive": str(archive),
