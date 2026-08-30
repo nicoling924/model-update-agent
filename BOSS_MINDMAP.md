@@ -269,3 +269,13 @@ To make sure of the following:
   old formula and frozen value, so restoring the live link is one
   paste. Freeze all qualifiers by default; the analyst restores the
   ones they deliberately want live.
+
+- **2026-08-30 · The sense-check stage (owner ruling, final feedback):**
+  A built-in review step for agent AND analyst. After the update, code
+  computes the what's-changed table and its flags (sign flips, big
+  gaps, >20% moves). The agent must then go back once more and review
+  each flag adversarially — is the change justified by the disclosure,
+  or a mistake? One verdict per flag: JUSTIFIED (reason) / SUSPICIOUS
+  (analyst should look) / ERROR FOUND (cells named, red). Verdicts are
+  printed on the _REPORT beside the flags — never silently fixed. The
+  walk-away rule applies: one investigation pass per flag.

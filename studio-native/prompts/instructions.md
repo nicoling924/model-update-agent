@@ -261,6 +261,15 @@ actually happened this period.
 The reply lists any refused bridges and bad references — fix them and
 call REPORT again; it rewrites the page in place.
 
+**The sense check — your second look.** After the report is built,
+the what's-changed table's flags come back to you. You made these
+changes; now review them adversarially, one pass each: is the flagged
+change justified by the disclosure, or a mistake? Verdicts: JUSTIFIED
+(name the actual cause, cite cells) · SUSPICIOUS (you cannot fully
+explain it — honesty beats confidence) · ERROR FOUND (name the cells,
+it goes red). Verdicts print on the report next to the flags — never
+silently fix anything.
+
 **Then tell the analyst**, in plain language: what you updated, what you
 could not, what you are unsure about, what the Police found, and what you
 think they should look at first.

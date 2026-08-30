@@ -499,6 +499,23 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
              GREY, None, SGN)
         r += 1
         gap(10)
+    sense = summary.get("sense", {})
+    if sense.get("verdicts"):
+        sect("Sense check — the agent's second look at its own changes")
+        for v in sense["verdicts"]:
+            verdict = str(v.get("verdict", ""))
+            tint = (TINT_R if verdict == "ERROR FOUND"
+                    else TINT_O if verdict == "SUSPICIOUS" else None)
+            cell(r, 1, "⚠ %s  %s" % (str(v.get("label", ""))[:30],
+                                      str(v.get("period", ""))[:12]),
+                 SMALL, tint)
+            cell(r, 2, verdict, BOLD if tint else SMALL, tint)
+            cell(r, 4, str(v.get("reason", ""))[:90], SMALL, tint)
+            cell(r, 11, " ".join(str(c) for c in
+                                 (v.get("cells") or [])[:4])[:60],
+                 GREY, tint)
+            r += 1
+        gap(14)
     for note in (summary.get("skipped_note"), summary.get("company_note")):
         if note:
             cell(r, 1, str(note)[:200], GREYI)
@@ -682,6 +699,90 @@ def compose(client, facts, feedback=""):
                  "exactly these and resend the FULL object:\n" + feedback)
     return client.json(SYSTEM, user, _validate, repair_retries=2)
 
+
+# ---------------------------------------------------------- sense check
+
+SENSE_SYSTEM = """You are the analyst agent that JUST PERFORMED this
+model update. The what's-changed table flagged the items below. For each
+flag, go back once and review your own work adversarially: is the change
+justified by the data, or did the update make a mistake? Use the facts
+pack (model rows, raw rows, estimates, flags) — cite the cells that
+convinced you. NEVER propose silently fixing anything; the analyst
+decides. One investigation pass per item — no looping.
+Respond with ONE JSON object:
+{"verdicts": [{"label": str, "period": str,
+  "verdict": "JUSTIFIED" | "SUSPICIOUS" | "ERROR FOUND",
+  "reason": str (under 20 words, cite cells), "cells": [str, ...]}]}
+Every flagged item gets exactly one verdict. "JUSTIFIED" needs the
+actual cause (e.g. base effect of the 2025 beat flowing through frozen
+growth). If you cannot explain a change from the data, that is
+"SUSPICIOUS" — honesty beats confidence."""
+
+
+def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3):
+    """The what's-changed table as data, with the boss's flags — computed
+    from cached values (full runs always have them; cells without a
+    cached value are skipped, never guessed)."""
+    from openpyxl.utils import get_column_letter
+    out = []
+    if pre_wb is None or "Model" not in pre_wb.sheetnames:
+        return out
+    ws, pw = wb["Model"], pre_wb["Model"]
+    for it in mini_rows:
+        row, kind = int(it["row"]), str(it.get("kind", "value"))
+        deltas = {}
+        for i in range(-1, horizon + 1):
+            col = target_col + i
+            ov = pw.cell(row=row, column=col).value
+            nv = ws.cell(row=row, column=col).value
+            if not (isinstance(ov, (int, float))
+                    and isinstance(nv, (int, float))):
+                continue
+            head = pw.cell(row=2, column=col).value
+            period = (str(int(head))
+                      if isinstance(head, (int, float)) else "P%+d" % i)
+            d = ((nv - ov) / abs(ov) if kind == "value" and ov
+                 else nv - ov)
+            deltas[i] = (period, round(d, 4))
+            thr = 0.2 if kind == "value" else 0.02
+            if abs(d) > thr:
+                out.append({"label": it.get("label", ""), "row": row,
+                            "period": period, "kind": kind,
+                            "old": round(float(ov), 4),
+                            "new": round(float(nv), 4),
+                            "delta": round(d, 4), "flag": "big change"})
+        if 0 in deltas and 1 in deltas:      # roll-over sanity pair
+            d0, d1 = deltas[0][1], deltas[1][1]
+            gapthr = 0.3 if kind == "value" else 0.02
+            flag = ("sign flip vs next yr" if d0 * d1 < 0
+                    else "big gap vs next yr" if abs(d1 - d0) > gapthr
+                    else "")
+            if flag:
+                out.append({"label": it.get("label", ""), "row": row,
+                            "period": "%s→%s" % (deltas[0][0],
+                                                 deltas[1][0]),
+                            "kind": kind, "old": d0, "new": d1,
+                            "delta": round(d1 - d0, 4), "flag": flag})
+    return out
+
+
+def _validate_sense(d):
+    if not isinstance(d, dict) or not isinstance(d.get("verdicts"), list):
+        return 'need {"verdicts": [...]}'
+    for v in d["verdicts"]:
+        if not isinstance(v, dict) or v.get("verdict") not in (
+                "JUSTIFIED", "SUSPICIOUS", "ERROR FOUND"):
+            return ("each verdict needs verdict JUSTIFIED | SUSPICIOUS | "
+                    "ERROR FOUND")
+    return None
+
+
+def sense_check(client, flags, facts):
+    user = json.dumps({"flags": flags, "facts": facts}, ensure_ascii=False)
+    return client.json(SENSE_SYSTEM, user, _validate_sense,
+                       repair_retries=2)
+
+
 # ------------------------------------------------------------ the run
 
 
@@ -701,6 +802,16 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
                           feedback=json.dumps(refusals, ensure_ascii=False))
         kept, refusals, corrections = referee(summary, wb)
     summary["bridges"] = kept
+    mini_rows = summary.get("mini_pl", {}).get("rows", [])
+    dflags = collect_delta_flags(wb, pre_wb, mini_rows)
+    if dflags:
+        try:
+            summary["sense"] = sense_check(client, dflags, facts)
+        except Exception as ex:           # a failed second look is
+            summary["sense"] = {}         # reported, never fatal
+            summary["skipped_note"] = (str(summary.get(
+                "skipped_note", "")) + "  ·  sense check FAILED: "
+                + str(ex)[:80]).strip()
     if refusals:                       # surviving refusals: honest note
         summary["skipped_note"] = (
             (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
@@ -807,6 +918,24 @@ def _selftest():
     assert "residual" in flat and "Needs your attention" in flat
     assert "=HYPERLINK" in flat and "'Raw financials'!U5" in flat
     assert "=(Model!U4-Model!T4)*Model!T7/Model!T4" in flat  # '=' restored
+    # sense check: deterministic flags from cached values
+    pw["U4"] = 110.0
+    ws["T4"], ws["U4"], ws["V4"] = 100.0, 154.0, 121.0   # 2025 +40%, 2026 0%
+    fl = collect_delta_flags(wb, pre, [
+        {"label": "Revenue", "row": 4, "kind": "value"}])
+    kinds = {f["flag"] for f in fl}
+    assert "big change" in kinds, fl                  # 154 vs 110 = +40%
+    assert "big gap vs next yr" in kinds, fl          # +40% then 0%
+    good["sense"] = {"verdicts": [
+        {"label": "Revenue", "period": "2025→2026", "verdict": "JUSTIFIED",
+         "reason": "beat flows to base; growth frozen", "cells": ["Model!V5"]},
+        {"label": "Revenue", "period": "2025", "verdict": "ERROR FOUND",
+         "reason": "mapped the wrong row", "cells": ["Model!U4"]}]}
+    rows2 = render(wb, good, pre_wb=pre)
+    flat2 = "|".join(str(c.value) for row in wb["_REPORT"].iter_rows()
+                     for c in row if c.value is not None)
+    assert "second look" in flat2 and "ERROR FOUND" in flat2
+    assert "JUSTIFIED" in flat2 and rows2 > rows
     hb = openpyxl.Workbook()
     hw = hb.active; hw.title = "Model"
     hw.cell(row=1, column=20, value="2024-12-31")
