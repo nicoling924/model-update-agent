@@ -519,3 +519,12 @@ this]"; (2) place_flow inherits set_input's laws: cycle -> REVERTED,
 worse gap -> REVERTED; (3) plugs withheld on gaps > half the asset
 base (structural break, analyst ruling) and on a broken actual base.
 Driver unexamined reds 27% -> 18% (adjudication working; bar 15%).
+
+**08-31 — RUN 19: DELIVERED, ALL OBJECTIVES.** Every check row, every
+year: 0 failures, 0 cycles. 2026-2030 closed by attribution + ONE
+honest plug (V113 -9,592, orange, analyst-noted). Attribution window +
+look-law worked: loop reached the reds (6 adjudications), Driver under
+the neglect bar. Run 19a crashed on a syntax break that a backgrounded
+unread bench let through -> tools/bench.sh now gates every dispatch
+with an exit code. DFE FY25 COMPLETE. Pivot to CLP genericity per the
+overnight mandate.
