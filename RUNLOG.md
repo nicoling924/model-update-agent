@@ -528,3 +528,18 @@ the neglect bar. Run 19a crashed on a syntax break that a backgrounded
 unread bench let through -> tools/bench.sh now gates every dispatch
 with an exit code. DFE FY25 COMPLETE. Pivot to CLP genericity per the
 overnight mandate.
+
+**08-31 — CLP RUN 1 (genericity door-finder) AND FOUR LAWS.** The stack
+largely ADAPTED: reclass sweep found the Aus segment block unaided and
+applied the owner's recipe; 33 embedded hardcodes flagged; plugs
+correctly withheld on a broken actual; per-sheet neglect gates fired.
+Doors found + closed: (1) the dash-nil law zeroed the YEAR HEADER off a
+prior-period document -> year-like priors never nil-prove, prior-period
+docs banned as nil evidence, the axis band (rows<=3) excluded from all
+sweeps; (2) exec report crashed on 'Model' -> the whole report stack is
+now spec-driven (sheets, prior/target/next letters per sheet, primary
+from key_rows); (3) ROAFNA 2024 -1,264 pre-existed -> the
+inherited-break law: a check failing identically pre-update is the
+analyst's standing item, reported not refused (worsening still
+refuses); (4) ROAFNA 2025 (-859, ours) + SOC sign-absurd forecasts are
+DATA hunts the loop owns under the evidence law in run 2.

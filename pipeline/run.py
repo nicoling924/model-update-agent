@@ -390,7 +390,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
             _sheet, _c["row"], _cols, _assets, log)
     ok, failures, card = gate_mod.deliver_or_refuse(
-        wb, spec_d, target_year, pre_map, writer.log, served=served)
+        wb, spec_d, target_year, pre_map, writer.log, served=served,
+        pre_values_wb=wb_values)
+    for line in card.get("inherited_breaks", []):
+        log(f"[run]   inherited (analyst's): {line}")
 
     # -- report + spec-tab memory + snapshots
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
@@ -422,7 +425,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         try:
             from .execreport import report_only
             rep = report_only(str(company_dir), str(out_path),
-                              str(archive), client, str(out_path))
+                              str(archive), client, str(out_path),
+                              target_year=target_year)
             log(f"[run] executive report: {rep['bridges']} bridges, "
                 f"{rep['refused']} refused, "
                 f"{len(rep.get('corrections', []))} corrected, sense "

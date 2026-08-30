@@ -244,7 +244,8 @@ def error_scan(wb, pre_map):
 
 
 def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
-                      served=None, skip_sheets=("_REPORT", "_SPEC")):
+                      served=None, skip_sheets=("_REPORT", "_SPEC"),
+                      pre_values_wb=None):
     """The gate. -> (ok, failures, card). ok=False means the run must NOT
     deliver the workbook as the model — quarantine it with this list."""
     failures = []
@@ -270,7 +271,30 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     # achieving it): balance is required for ALL years, actual and
     # forecast alike.
     for c in card["checks"]:
-        if c["status"] == "FAIL":
+        if c["status"] != "FAIL":
+            continue
+        # THE INHERITED-BREAK LAW (CLP-1: ROAFNA 2024 was broken in the
+        # analyst's own pre-update model): a check that ALREADY failed
+        # the same way before the run is the analyst's standing item —
+        # reported, never refused. Making it WORSE is ours and refuses.
+        inherited = False
+        if pre_values_wb is not None:
+            m = __import__("re").match(r"^(.*)!r(\d+) \((\d{4})\)$",
+                                       c["name"])
+            if m:
+                sh, row, yr = m.group(1), int(m.group(2)), m.group(3)
+                col = year_columns(spec, sh).get(yr)
+                if col and sh in pre_values_wb.sheetnames:
+                    pv = pre_values_wb[sh][f"{col}{row}"].value
+                    if isinstance(pv, (int, float)) and abs(pv) > 1 \
+                            and isinstance(c["got"], (int, float)) \
+                            and abs(c["got"]) <= abs(pv) + 1:
+                        inherited = True
+        if inherited:
+            card.setdefault("inherited_breaks", []).append(
+                f"{c['name']}: {c['got']} (pre-update already "
+                f"failed — the analyst's standing item)")
+        else:
             failures.append(f"CHECK {c['name']}: {c['got']} vs {c['expect']}")
     if card["cycles"]:
         failures.append(f"CYCLES: {len(card['cycles'])} circular references "

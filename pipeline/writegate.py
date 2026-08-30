@@ -149,7 +149,7 @@ def no_prior_duplicate(value, doc, claimed_vals):
 _NIL_TOKENS = {"-", "–", "—", "―", "/", "不适用"}
 
 
-def nil_current_zero(items, prior, face_pages=None):
+def nil_current_zero(items, prior, face_pages=None, banned_docs=None):
     """The dash-nil law (run-11 pin, treasury shares): a statement line
     printing a standalone nil mark IMMEDIATELY before a number that ties
     the model's prior to full precision proves the current value is zero
@@ -166,7 +166,14 @@ def nil_current_zero(items, prior, face_pages=None):
     Returns the proving item or None."""
     if not isinstance(prior, (int, float)) or abs(prior) < 0.5:
         return None
+    # a year-like prior can never nil-prove (run CLP-1: the 2024 YEAR
+    # HEADER tied a dashed line in the prior-period AR and was zeroed)
+    if float(prior).is_integer() and 1900 <= prior <= 2100:
+        return None
     for it in items:
+        if banned_docs and _meta(it, "doc") in banned_docs:
+            continue                 # prior-period documents prove nothing
+                                     # about THIS period's nils
         # STATEMENT FACES ONLY (second dry-run audit: a five-year-summary
         # line and a note's 15,000,000 after a dash still slipped) — the
         # empty-current-slot reading is only trustworthy on the face,

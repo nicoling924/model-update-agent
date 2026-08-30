@@ -58,37 +58,65 @@ def _label_of(ws, row, max_col=6):
     return ""
 
 
-def gather_facts(wb, pre_wb, target_col=21, prior_col=20,
-                 pre_est_col=21, pre_next_col=22):
-    """Everything Luna needs to compose, as plain data. Deterministic."""
-    facts = {"model_rows": [], "raw_rows": [], "estimates": [], "flags": []}
-    ws = wb["Model"]
+DEFAULT_COLS = {"Model": ("T", "U", "V"),
+                "Raw financials": ("T", "U", "V")}
+
+
+def _colmaps(cols, primary):
+    """cols: {sheet: (prior_letter, target_letter, next_letter|None)}."""
+    from openpyxl.utils import column_index_from_string
+    cols = cols or DEFAULT_COLS
+    primary = primary or ("Model" if "Model" in cols else
+                          sorted(cols)[0])
+    idx = {sh: tuple(column_index_from_string(x) if x else None
+                     for x in v) for sh, v in cols.items()}
+    return cols, idx, primary
+
+
+def gather_facts(wb, pre_wb, cols=None, primary=None):
+    """Everything Luna needs to compose, as plain data. Deterministic.
+    Sheets and column letters come from the SPEC (CLP-1 pin: 'Model'
+    and T/U/V were DFE furniture, not law)."""
+    cols, idx, primary = _colmaps(cols, primary)
+    facts = {"primary": primary,
+             "columns": {sh: {"prior": v[0], "target": v[1],
+                              "next": v[2]} for sh, v in cols.items()},
+             "model_rows": [], "raw_rows": [], "estimates": [],
+             "flags": []}
+    pci, tci = idx[primary][0], idx[primary][1]
+    ws = wb[primary]
     for r in range(3, min(ws.max_row, MAX_ROW) + 1):
         lab = _label_of(ws, r)
         if not lab:
             continue
-        t = ws.cell(row=r, column=prior_col).value
-        u = ws.cell(row=r, column=target_col).value
+        t = ws.cell(row=r, column=pci).value
+        u = ws.cell(row=r, column=tci).value
         facts["model_rows"].append(
             [r, lab,
              round(t, 1) if isinstance(t, (int, float)) else None,
              round(u, 1) if isinstance(u, (int, float)) else None])
-    rf = wb["Raw financials"]
-    for r in range(3, min(rf.max_row, MAX_ROW) + 1):
-        lab = _label_of(rf, r, max_col=3)
-        t = rf.cell(row=r, column=prior_col).value
-        u = rf.cell(row=r, column=target_col).value
-        if lab and (isinstance(t, (int, float)) or isinstance(u, (int, float))):
-            facts["raw_rows"].append(
-                [r, lab,
-                 round(t, 1) if isinstance(t, (int, float)) else None,
-                 round(u, 1) if isinstance(u, (int, float)) else None])
-    if pre_wb is not None and "Model" in pre_wb.sheetnames:
-        pm = pre_wb["Model"]
+    for sh in cols:
+        if sh == primary or sh not in wb.sheetnames:
+            continue
+        rf = wb[sh]
+        p2, t2 = idx[sh][0], idx[sh][1]
+        for r in range(3, min(rf.max_row, MAX_ROW) + 1):
+            lab = _label_of(rf, r)
+            t = rf.cell(row=r, column=p2).value
+            u = rf.cell(row=r, column=t2).value
+            if lab and (isinstance(t, (int, float))
+                        or isinstance(u, (int, float))):
+                facts["raw_rows"].append(
+                    [sh, r, lab,
+                     round(t, 1) if isinstance(t, (int, float)) else None,
+                     round(u, 1) if isinstance(u, (int, float)) else None])
+    if pre_wb is not None and primary in pre_wb.sheetnames:
+        pm = pre_wb[primary]
+        nci = idx[primary][2]
         for r in range(3, min(pm.max_row, MAX_ROW) + 1):
             lab = _label_of(pm, r)
-            e = pm.cell(row=r, column=pre_est_col).value
-            n = pm.cell(row=r, column=pre_next_col).value
+            e = pm.cell(row=r, column=tci).value
+            n = (pm.cell(row=r, column=nci).value if nci else None)
             if lab and isinstance(e, (int, float)):
                 facts["estimates"].append(
                     [r, lab, round(e, 1),
@@ -111,7 +139,7 @@ def gather_facts(wb, pre_wb, target_col=21, prior_col=20,
     return facts
 
 
-def rollforward_headers(wb, target_col=21, prior_col=20):
+def rollforward_headers(wb, cols=None, primary=None):
     """After mark-to-actual, the period header rolls like the rest of the
     column: the prior actual header's FORMAT copies across, and header
     text that is a stale DUPLICATE of the prior column's (e.g.
@@ -120,10 +148,12 @@ def rollforward_headers(wb, target_col=21, prior_col=20):
     panel's '2025E' over a frozen-estimate column — is never touched:
     only exact duplicates count as stale."""
     import copy as _copy
+    cols, idx, primary = _colmaps(cols, primary)
     fixed = []
     for sn in wb.sheetnames:
-        if sn.startswith("_"):
+        if sn.startswith("_") or sn not in idx:
             continue
+        prior_col, target_col = idx[sn][0], idx[sn][1]
         ws = wb[sn]
         for hr in (1, 2):
             pc = ws.cell(row=hr, column=prior_col)
@@ -294,8 +324,7 @@ def referee(summary, wb):
 NUM, SGN, PCT = '#,##0.0', '+#,##0.0;-#,##0.0', '0.0%'
 
 
-def render(wb, summary, pre_wb=None, target_col_letter="U",
-           prior_col_letter="T", next_col_letter="V"):
+def render(wb, summary, pre_wb=None, cols=None, primary=None):
     """The owner's v3 layout, exactly. Deterministic."""
     from openpyxl.styles import Border, Font, PatternFill, Side
     BANNER = PatternFill("solid", fgColor="FFF2CC")
@@ -310,7 +339,11 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
     BODY = Font(size=11)
     SMALL = Font(size=10)
     THIN = Border(bottom=Side(style="thin", color="BFBFBF"))
-    T, U, V = prior_col_letter, target_col_letter, next_col_letter
+    cols, _cidx, primary = _colmaps(cols, primary)
+
+    def LET(sheet):
+        p, t, n = cols.get(sheet, cols[primary])
+        return p, t, (n or t)
 
     if "_REPORT" in wb.sheetnames:
         del wb["_REPORT"]
@@ -370,7 +403,8 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
         r += 1
         for it in grp.get("rows", []):
             mr = int(it["row"])
-            sheet = it.get("sheet", "Model")
+            sheet = it.get("sheet", primary)
+            T, U, V = LET(sheet)
             q = "'%s'" % sheet if re.search(r"[^A-Za-z0-9]", sheet) else sheet
             cell(r, 1, '=HYPERLINK("#%s!%s%d","%s")'
                  % (sheet.replace("'", ""), U, mr,
@@ -399,13 +433,17 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
         from openpyxl.utils import (column_index_from_string,
                                     get_column_letter)
         sect("2 · Mini P&L — old vs new   (FY-1 to FY+3, model grain)")
-        tci = column_index_from_string(target_col_letter)
+        mini_sheet = str(summary.get("mini_pl", {}).get("sheet", primary))
+        if mini_sheet not in wb.sheetnames:
+            mini_sheet = primary
+        _, mtl, _ = LET(mini_sheet)
+        tci = column_index_from_string(mtl)
         pcols = [get_column_letter(tci - 1 + i) for i in range(5)]
         labels = []
         for i, cl in enumerate(pcols):
             v = None
-            if pre_wb is not None and "Model" in pre_wb.sheetnames:
-                v = pre_wb["Model"].cell(
+            if pre_wb is not None and mini_sheet in pre_wb.sheetnames:
+                v = pre_wb[mini_sheet].cell(
                     row=2, column=column_index_from_string(cl)).value
             labels.append(str(int(v)) if isinstance(v, (int, float))
                           else ["FY-1", "FY0", "FY+1", "FY+2", "FY+3"][i])
@@ -428,17 +466,20 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
                     else '0.00' if kind == "pershare" else NUM)
             dfmt = ('0.0%' if kind == "margin"
                     else '0.00' if kind == "pershare" else PCT)
-            cell(r, 1, '=HYPERLINK("#Model!%s%d","%s")'
-                 % (target_col_letter, mr, str(it.get("label", ""))[:32]))
+            qm = ("'%s'" % mini_sheet
+                  if re.search(r"[^A-Za-z0-9]", mini_sheet) else mini_sheet)
+            cell(r, 1, '=HYPERLINK("#%s!%s%d","%s")'
+                 % (mini_sheet.replace("'", ""), mtl, mr,
+                    str(it.get("label", ""))[:32]))
             for i, cl in enumerate(pcols):
                 ov = None
-                if pre_wb is not None and "Model" in pre_wb.sheetnames:
-                    ov = pre_wb["Model"].cell(
+                if pre_wb is not None and mini_sheet in pre_wb.sheetnames:
+                    ov = pre_wb[mini_sheet].cell(
                         row=mr, column=column_index_from_string(cl)).value
                 cell(r, OLD0 + i,
                      round(ov, 4) if isinstance(ov, (int, float)) else "",
                      SMALL, None, vfmt)
-                cell(r, NEW0 + i, "=Model!%s%d" % (cl, mr),
+                cell(r, NEW0 + i, "=%s!%s%d" % (qm, cl, mr),
                      SMALL, None, vfmt)
                 oc = get_column_letter(OLD0 + i)
                 nc = get_column_letter(NEW0 + i)
@@ -477,7 +518,10 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
          "BS/CF when the move is material, ~20%+)")
     for b in summary.get("bridges", []):
         mr = int(b["row"])
-        sheet = b.get("sheet", "Model")
+        sheet = b.get("sheet", primary)
+        if sheet not in wb.sheetnames:
+            sheet = primary
+        T, U, V = LET(sheet)
         q = "'%s'" % sheet if re.search(r"[^A-Za-z0-9]", sheet) else sheet
         trow = r
         cell(r, 1, '=HYPERLINK("#%s!%s%d","%s")'
@@ -559,7 +603,12 @@ def render(wb, summary, pre_wb=None, target_col_letter="U",
 # ------------------------------------------------------------- compose
 
 SYSTEM = """You are an equity research analyst writing the one-page
-executive report of a model update, as JSON. You are given the model's
+executive report of a model update, as JSON. The facts carry
+"primary" (the main statement sheet), "columns" (each sheet's
+prior/target/next column LETTERS — always use THESE letters in
+formulas, they differ per model), and "raw_rows" as
+[sheet, row, label, prior, current]. Every snapshot/bridge entry must
+name its "sheet". You are given the model's
 own data; you COMPOSE the page by reasoning about it — never by matching
 words. The renderer draws the format; a referee will REFUSE any bridge
 whose lines do not tie. Respond with ONE JSON object, nothing else.
@@ -719,18 +768,20 @@ growth). If you cannot explain a change from the data, that is
 "SUSPICIOUS" — honesty beats confidence."""
 
 
-def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3,
-                        value_of=None):
+def collect_delta_flags(wb, pre_wb, mini_rows, cols=None, primary=None,
+                        horizon=3, value_of=None):
     """The what's-changed table as data, with the boss's flags. New-side
     values come from `value_of(sheet, coord)` when given (the run's own
     Evaluator — a freshly written workbook caches nothing), else from
     cached cell values. A value neither computable nor cached is
     skipped, never guessed."""
-    from openpyxl.utils import get_column_letter
+    from openpyxl.utils import column_index_from_string, get_column_letter
+    cols, idx, primary = _colmaps(cols, primary)
+    target_col = idx[primary][1]
     out = []
-    if pre_wb is None or "Model" not in pre_wb.sheetnames:
+    if pre_wb is None or primary not in pre_wb.sheetnames:
         return out
-    ws, pw = wb["Model"], pre_wb["Model"]
+    ws, pw = wb[primary], pre_wb[primary]
     for it in mini_rows:
         row, kind = int(it["row"]), str(it.get("kind", "value"))
         deltas = {}
@@ -740,7 +791,7 @@ def collect_delta_flags(wb, pre_wb, mini_rows, target_col=21, horizon=3,
             nv = ws.cell(row=row, column=col).value
             if value_of is not None and not isinstance(nv, (int, float)):
                 try:
-                    nv = value_of("Model",
+                    nv = value_of(primary,
                                   get_column_letter(col) + str(row))
                 except Exception:
                     nv = None
@@ -795,13 +846,43 @@ def sense_check(client, flags, facts):
 # ------------------------------------------------------------ the run
 
 
-def report_only(company_dir, model_path, pre_path, client, out_path=None):
+def _cols_from_spec(wb, company_dir, target_year):
+    """{sheet: (prior, target, next)} from the model's own spec — the
+    genericity backbone (CLP-1 pin: 'Model'/T/U/V were DFE furniture).
+    Falls back to the DFE defaults when no spec or year is available."""
+    try:
+        from .checks import forecast_columns, prior_column, year_columns
+        from .spec import load as spec_load
+        spec = spec_load(company_dir, wb)
+        cols, primary = {}, None
+        for sh in (spec.get("year_axis") or {}):
+            yc = year_columns(spec, sh)
+            t = yc.get(str(target_year))
+            p = prior_column(spec, sh, target_year)
+            if not t or not p:
+                continue
+            fc = forecast_columns(spec, sh, target_year)
+            cols[sh] = (p, t, fc[0] if fc else None)
+        for k in (spec.get("key_rows") or []):
+            if k.get("sheet") in cols:
+                primary = k["sheet"]
+                break
+        if cols:
+            return cols, primary
+    except Exception:
+        pass
+    return None, None
+
+
+def report_only(company_dir, model_path, pre_path, client, out_path=None,
+                target_year=None):
     import openpyxl
     wb = openpyxl.load_workbook(model_path)
     pre_wb = (openpyxl.load_workbook(pre_path, data_only=True)
               if pre_path else None)
-    headers_fixed = rollforward_headers(wb)
-    facts = gather_facts(wb, pre_wb)
+    cols, primary = _cols_from_spec(wb, company_dir, target_year)
+    headers_fixed = rollforward_headers(wb, cols, primary)
+    facts = gather_facts(wb, pre_wb, cols, primary)
     summary = compose(client, facts)
     kept, refusals, corrections = referee(summary, wb)
     tries = 0
@@ -819,7 +900,8 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         value_of = (lambda sheet, coord: ev.cell(sheet, coord))
     except Exception:
         pass                        # cached values remain the fallback
-    dflags = collect_delta_flags(wb, pre_wb, mini_rows, value_of=value_of)
+    dflags = collect_delta_flags(wb, pre_wb, mini_rows, cols, primary,
+                                 value_of=value_of)
     if dflags:
         try:
             summary["sense"] = sense_check(client, dflags, facts)
@@ -832,7 +914,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         summary["skipped_note"] = (
             (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
              + "; ".join(r["bridge"] or "?" for r in refusals)).strip())
-    render(wb, summary, pre_wb=pre_wb)
+    render(wb, summary, pre_wb=pre_wb, cols=cols, primary=primary)
     out = Path(out_path) if out_path else Path(model_path).with_name(
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)

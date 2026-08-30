@@ -1078,7 +1078,31 @@ def test_dash_nil_law_run11_exhibit():
                "source_line": "note line – 648,882.29"}
     assert nil_current_zero([it_note], 0.64888229) is None, \
         "a note line is never a nil proof — faces only"
+    # CLP-1 pins: a YEAR-like prior never nil-proves; prior-period
+    # documents are banned evidence
+    it_year = {"doc": "AR.PDF", "page": 1, "stmt_face": "bs",
+               "nums": [2024000.0],
+               "source_line": "some line – 2,024,000.00"}
+    assert nil_current_zero([it_year], 2024.0) is None
+    it_prev = {"doc": "e_2024 AR.PDF", "page": 224, "stmt_face": "bs",
+               "nums": [648882.29],
+               "source_line": "Less: Treasury shares – 648,882.29"}
+    assert nil_current_zero([it_prev], 0.64888229,
+                            banned_docs={"e_2024 AR.PDF"}) is None
+    assert nil_current_zero([it_prev], 0.64888229) is not None
     # an untagged item on a page the join served from IS a face
+    # CLP-1 pins: a YEAR-like prior never nil-proves; prior-period
+    # documents are banned evidence
+    it_year = {"doc": "AR.PDF", "page": 1, "stmt_face": "bs",
+               "nums": [2024000.0],
+               "source_line": "some line – 2,024,000.00"}
+    assert nil_current_zero([it_year], 2024.0) is None
+    it_prev = {"doc": "e_2024 AR.PDF", "page": 224, "stmt_face": "bs",
+               "nums": [648882.29],
+               "source_line": "Less: Treasury shares – 648,882.29"}
+    assert nil_current_zero([it_prev], 0.64888229,
+                            banned_docs={"e_2024 AR.PDF"}) is None
+    assert nil_current_zero([it_prev], 0.64888229) is not None
     it_served_page = {"doc": "ANN.PDF", "page": 6, "nums": [648882.29],
                       "source_line": "Less: Treasury shares – 648,882.29"}
     assert nil_current_zero([it_served_page], 0.64888229,
@@ -1246,6 +1270,33 @@ def test_attribution_window_run18_pin():
     assert not lp._fc_window_closed()
     lp._fc_spend = max(10, lp.budget0 // 4)
     assert lp._fc_window_closed()
+
+
+
+
+def test_inherited_break_law_clp1_pin():
+    """CLP-1: a check that already failed identically in the pre-update
+    model is the analyst's standing item — reported, not refused; making
+    it WORSE refuses."""
+    import openpyxl
+    from pipeline.gate import deliver_or_refuse
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": []}
+    def mk(t9, u9):
+        wb = _wb({"T2": 100.0, "U2": 110.0, "T9": t9, "U9": u9})
+        return wb
+    pre = mk(-1264.0, 0.0)
+    now_same = mk(-1264.0, 0.0)
+    ok, fails, card = deliver_or_refuse(now_same, spec, "2025", {}, {},
+                                        pre_values_wb=pre)
+    assert not any("CHECK S!r9 (2024)" in f for f in fails), fails
+    assert any("standing item" in x
+               for x in card.get("inherited_breaks", []))
+    now_worse = mk(-2264.0, 0.0)
+    ok2, fails2, _ = deliver_or_refuse(now_worse, spec, "2025", {}, {},
+                                       pre_values_wb=pre)
+    assert any("CHECK S!r9 (2024)" in f for f in fails2), fails2
 
 
 if __name__ == "__main__":
