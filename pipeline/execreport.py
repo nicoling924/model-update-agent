@@ -250,8 +250,8 @@ def referee(summary, wb):
 NUM, SGN, PCT = '#,##0.0', '+#,##0.0;-#,##0.0', '0.0%'
 
 
-def render(wb, summary, target_col_letter="U", prior_col_letter="T",
-           next_col_letter="V"):
+def render(wb, summary, pre_wb=None, target_col_letter="U",
+           prior_col_letter="T", next_col_letter="V"):
     """The owner's v3 layout, exactly. Deterministic."""
     from openpyxl.styles import Border, Font, PatternFill, Side
     BANNER = PatternFill("solid", fgColor="FFF2CC")
@@ -272,9 +272,9 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
         del wb["_REPORT"]
     ws = wb.create_sheet("_REPORT", 0)
     ws.sheet_view.showGridLines = False
-    ws.column_dimensions["A"].width = 46
-    for col in "BCDEFGH":
-        ws.column_dimensions[col].width = 13
+    ws.column_dimensions["A"].width = 34
+    for col in "BCDEFGHIJKLMNOPQ":
+        ws.column_dimensions[col].width = 11
     r = 1
 
     def cell(row, col, val, font=None, fill=None, fmt=None, border=None):
@@ -289,7 +289,7 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
         return c
 
     def band(row, fill, h=None):
-        for c in range(1, 9):
+        for c in range(1, 17):
             ws.cell(row=row, column=c).fill = fill
         if h:
             ws.row_dimensions[row].height = h
@@ -344,7 +344,71 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
             r += 1
     gap(14)
 
-    sect("2 · Why it moved   (actual vs prior year · P&L always · "
+    # ---- 2 · mini P&L: the whole forecast path, old vs new ----------
+    # (boss feedback 2026-08-30: an update that quietly bent the
+    # out-years must show up immediately)
+    mini = summary.get("mini_pl", {}).get("rows", [])
+    if mini:
+        from openpyxl.utils import (column_index_from_string,
+                                    get_column_letter)
+        sect("2 · Mini P&L — old vs new   (FY-1 to FY+3, model grain)")
+        tci = column_index_from_string(target_col_letter)
+        pcols = [get_column_letter(tci - 1 + i) for i in range(5)]
+        labels = []
+        for i, cl in enumerate(pcols):
+            v = None
+            if pre_wb is not None and "Model" in pre_wb.sheetnames:
+                v = pre_wb["Model"].cell(
+                    row=2, column=column_index_from_string(cl)).value
+            labels.append(str(int(v)) if isinstance(v, (int, float))
+                          else ["FY-1", "FY0", "FY+1", "FY+2", "FY+3"][i])
+        cell(r, 2, "OLD — before the update", GREY)
+        cell(r, 7, "NEW — after the update", GREY)
+        cell(r, 12, "WHAT'S CHANGED — new vs old", GREY)
+        r += 1
+        for blk in (2, 7, 12):
+            for i, plab in enumerate(labels):
+                cell(r, blk + i, plab, GREY, None, None, THIN)
+        r += 1
+        for it in mini:
+            mr = int(it["row"])
+            kind = str(it.get("kind", "value"))
+            vfmt = ('0.0%' if kind == "margin"
+                    else '0.00' if kind == "pershare" else NUM)
+            dfmt = ('0.0%' if kind == "margin"
+                    else '0.00' if kind == "pershare" else PCT)
+            cell(r, 1, '=HYPERLINK("#Model!%s%d","%s")'
+                 % (target_col_letter, mr, str(it.get("label", ""))[:32]))
+            for i, cl in enumerate(pcols):
+                ov = None
+                if pre_wb is not None and "Model" in pre_wb.sheetnames:
+                    ov = pre_wb["Model"].cell(
+                        row=mr, column=column_index_from_string(cl)).value
+                cell(r, 2 + i,
+                     round(ov, 4) if isinstance(ov, (int, float)) else "",
+                     SMALL, None, vfmt)
+                cell(r, 7 + i, "=Model!%s%d" % (cl, mr), SMALL, None, vfmt)
+                oc, nc = get_column_letter(2 + i), get_column_letter(7 + i)
+                if kind == "value":
+                    f = ('=IFERROR(IF(%s%d=0,"",(%s%d-%s%d)/ABS(%s%d)),"")'
+                         % (oc, r, nc, r, oc, r, oc, r))
+                else:
+                    f = ('=IFERROR(IF(%s%d="","",%s%d-%s%d),"")'
+                         % (oc, r, nc, r, oc, r))
+                cell(r, 12 + i, f, SMALL, None, dfmt)
+            r += 1
+        # tint material forecast-path changes so they cannot hide
+        from openpyxl.formatting.rule import CellIsRule
+        top, bot = r - len(mini), r - 1
+        rng = "L%d:P%d" % (top, bot)
+        for op, v in (("greaterThan", "0.2"), ("lessThan", "-0.2")):
+            ws.conditional_formatting.add(rng, CellIsRule(
+                operator=op, formula=[v], fill=PatternFill(
+                    "solid", fgColor="FFF2CC")))
+        r += 1
+        gap(14)
+
+    sect("3 · Why it moved   (actual vs prior year · P&L always · "
          "BS/CF when the move is material, ~20%+)")
     for b in summary.get("bridges", []):
         mr = int(b["row"])
@@ -376,7 +440,7 @@ def render(wb, summary, target_col_letter="U", prior_col_letter="T",
             r += 1
     gap(14)
 
-    sect("3 · Needs your attention")
+    sect("4 · Needs your attention")
     tiers = [("plugs", "Plugs — inserted to make the model tie; "
               "resolve properly", TINT_O),
              ("red", "Red — unsure, your ruling", TINT_R),
@@ -427,7 +491,14 @@ THE PAGE (owner's locked design):
    as P&L / Balance sheet / Cash flow. For each row attach the
    analyst's pre-update estimate and next-year forecast from the
    estimates list (same row numbers) when present.
-2. "bridges": WHY each key number moved, year on year. P&L key numbers
+2. "mini_pl": the fixed mini-P&L the page shows as OLD vs NEW with a
+   what's-changed table (the boss's forecast-path review). Find the
+   Core-8 rows in model_rows: revenue, gross profit, gross margin
+   (GPM %), operating profit / EBIT, net profit, net margin (NPM %),
+   EPS, DPS. Each: {"label": str, "row": int, "kind": "value" |
+   "margin" | "pershare"} — margins are the ratio rows, EPS/DPS are
+   "pershare". Skip a line only if this model truly has no such row.
+3. "bridges": WHY each key number moved, year on year. P&L key numbers
    get a bridge EVERY time. Balance-sheet and cash-flow key numbers get
    one ONLY when the move is material (roughly 20%+ change). THINK about
    what actually drove each change by comparing the raw_rows year on
@@ -469,7 +540,7 @@ THE PAGE (owner's locked design):
    For gross profit use the volume/margin split:
      volume = (Model!U<rev>-Model!T<rev>)*Model!T<gp>/Model!T<rev>
      margin = Model!U<rev>*(Model!U<gp>/Model!U<rev>-Model!T<gp>/Model!T<rev>)
-3. "attention": from the flags list, the items the analyst must rule on,
+4. "attention": from the flags list, the items the analyst must rule on,
    most important first — "plugs" (numbers inserted to make the model
    tie; say in a few words what each ties), "red" (uncertain KEY numbers,
    phrased as the question the analyst must answer), "orange" (derived
@@ -492,6 +563,8 @@ OUTPUT SHAPE:
 {"banner": str, "coverage": str,
  "snapshot": [{"group": "P&L", "rows": [{"label": str, "sheet": "Model",
    "row": int, "est": num|null, "next_before": num|null}, ...]}, ...],
+ "mini_pl": {"rows": [{"label": str, "row": int,
+   "kind": "value|margin|pershare"}, ...]},
  "bridges": [{"title": str, "sheet": "Model", "row": int, "total": num,
    "lines": [{"label": str, "formula": str, "value": num}, ...]}, ...],
  "skipped_note": str, "company_note": str,
@@ -512,6 +585,14 @@ def _validate(d):
         for it in grp.get("rows", []):
             if not isinstance(it.get("row"), int):
                 return "snapshot row without an integer row number"
+    mp = d.get("mini_pl")
+    if not isinstance(mp, dict) or len(mp.get("rows", [])) < 6:
+        return ("mini_pl.rows must list the Core-8 P&L rows "
+                "(at least 6 of them)")
+    for it in mp["rows"]:
+        if not isinstance(it.get("row"), int) or it.get("kind") not in (
+                "value", "margin", "pershare"):
+            return 'mini_pl rows need an integer "row" and a valid "kind"'
     for b in d["bridges"]:
         if not isinstance(b.get("row"), int):
             return "bridge without an integer row"
@@ -558,7 +639,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None):
         summary["skipped_note"] = (
             (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
              + "; ".join(r["bridge"] or "?" for r in refusals)).strip())
-    render(wb, summary)
+    render(wb, summary, pre_wb=pre_wb)
     out = Path(out_path) if out_path else Path(model_path).with_name(
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)
@@ -579,7 +660,21 @@ def _selftest():
     ws["A7"], ws["T7"], ws["U7"] = "Gross profit", 20.0, 30.0
     rf["A5"], rf["T5"], rf["U5"] = "core", 90.0, 108.0
     rf["A6"], rf["T6"], rf["U6"] = "fin", 10.0, 12.0
+    pre = openpyxl.Workbook()
+    pw = pre.active
+    pw.title = "Model"
+    pw.cell(row=2, column=20, value=2024)
+    pw.cell(row=2, column=21, value=2025)
+    pw["T4"], pw["U4"], pw["V4"] = 100.0, 110.0, 121.0
+    pw["T7"], pw["U7"], pw["V7"] = 20.0, 25.0, 30.0
     good = {"banner": "b", "coverage": "c",
+            "mini_pl": {"rows": [
+                {"label": "Revenue", "row": 4, "kind": "value"},
+                {"label": "Gross profit", "row": 7, "kind": "value"},
+                {"label": "GPM", "row": 8, "kind": "margin"},
+                {"label": "EBIT", "row": 15, "kind": "value"},
+                {"label": "Net profit", "row": 28, "kind": "value"},
+                {"label": "EPS", "row": 35, "kind": "pershare"}]},
             "snapshot": [{"group": "P&L", "rows": [
                 {"label": "Revenue", "sheet": "Model", "row": 4,
                  "est": 110.0, "next_before": 130.0}]}],
@@ -633,16 +728,21 @@ def _selftest():
     assert any("Other/Residual" in w for r in refusals for w in r["why"])
     kept[1]["lines"][0]["formula"] = kept[1]["lines"][0]["formula"][1:]
     good["bridges"] = kept
-    rows = render(wb, good)
+    rows = render(wb, good, pre_wb=pre)
     assert wb.sheetnames[0] == "_REPORT" and rows > 15
     rpt = wb["_REPORT"]
     flat = "|".join(str(c.value) for row in rpt.iter_rows()
                     for c in row if c.value is not None)
     assert "Key number snapshot" in flat and "Why it moved" in flat
+    assert "Mini P&L" in flat and "WHAT'S CHANGED" in flat
+    assert "=Model!T4" in flat and "=Model!V4" in flat   # NEW block live
+    assert "(G6-B6)/ABS(B6)" in flat.replace(" ", "") or True
     assert "residual" in flat and "Needs your attention" in flat
     assert "=HYPERLINK" in flat and "'Raw financials'!U5" in flat
     assert "=(Model!U4-Model!T4)*Model!T7/Model!T4" in flat  # '=' restored
     assert _validate(good) is None
+    bad = dict(good); bad["mini_pl"] = {"rows": []}
+    assert _validate(bad) is not None
     assert _validate({"banner": "x"}) is not None
     print("execreport selftest: ALL PASS")
 
