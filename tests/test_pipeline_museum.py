@@ -738,13 +738,25 @@ def test_gate_magnitude_sweep():
 
 
 def test_gate_flag_budget():
+    """Owner doctrine 2026-08-30: only RED (unresolved) flags spend the
+    budget; orange recipe-resolved cells are the deliver-with-flags
+    mechanism working, not a failure."""
+    from openpyxl.styles import PatternFill
     from pipeline.gate import flag_budget
     spec = _spec_tiny()
     cells = {f"U{r}": 1.0 for r in range(1, 11)}
     wb = _wb(cells)
-    flags = [f"S!U{r}" for r in (1, 2, 3)]      # 30% flagged
-    assert flag_budget(wb, spec, "2025", flags), "over-budget flags passed"
+    RED = PatternFill("solid", fgColor="FFC7CE")
+    ORG = PatternFill("solid", fgColor="FFC000")
+    for r in (1, 2, 3):
+        wb["S"][f"U{r}"].fill = RED
+    flags = [f"S!U{r}" for r in (1, 2, 3)]      # 30% RED-flagged
+    assert flag_budget(wb, spec, "2025", flags), "over-budget reds passed"
     assert not flag_budget(wb, spec, "2025", ["S!U1"])
+    for r in (1, 2, 3):
+        wb["S"][f"U{r}"].fill = ORG             # same cells, now ORANGE
+    assert not flag_budget(wb, spec, "2025", flags), \
+        "orange recipe-resolved cells must not spend the budget"
 
 
 def test_checks_scorecard_and_completion():
@@ -961,6 +973,72 @@ def test_worsening_write_reverts():
     r = lp.t_set_input({"cell": "S!U2", "value": 500.0, "why": "p9: t"})
     assert r.startswith("REVERTED"), r
     assert wb["S"]["U2"].value == 110.0
+
+
+
+
+def test_reclassification_recipe():
+    """Owner rulings 2026-08-30: stale segments in a block back out at
+    the TOTAL's growth; the analyst's designed plug is respected; without
+    one the smallest stale segment becomes the plug; an ugly plug goes
+    red."""
+    from pipeline.reclass import (designed_plug, find_blocks,
+                                  flag_embedded_hardcodes, reclass_sweep)
+    from pipeline.writer import Writer
+
+    def paint_stale(wb, writer, refs):
+        for ref in refs:
+            sh, coord = ref.split("!")
+            wb[sh][coord].fill = writer.fills["red"]
+            writer.log["flags"].append(ref)
+
+    # A: designed plug (row 8 references the total) — stale rows get the
+    # growth formula, the plug row is untouched
+    wb = _wb({"A5": "Seg1", "A6": "Seg2", "A7": "Seg3", "A8": "Others",
+              "A9": "Total",
+              "T5": 100.0, "T6": 50.0, "T7": 30.0, "T8": 20.0, "T9": 200.0,
+              "U5": 100.0, "U6": 55.0, "U7": 30.0,
+              "U8": "=U9-U5-U6-U7", "U9": 240.0})
+    ws = wb["S"]
+    blocks = find_blocks(ws, "T", "U", max_row=12)
+    assert len(blocks) == 1 and blocks[0]["total_row"] == 9
+    assert designed_plug(ws, blocks[0], "U") == 8
+    w = Writer(wb)
+    paint_stale(wb, w, ["S!U5", "S!U7"])        # reclassified, stale
+    n = reclass_sweep(wb, ["S"], {"S": "U"}, {"S": "T"}, w,
+                      lambda m: None)
+    assert n == 2
+    assert ws["U5"].value == "=T5*U$9/T$9"       # held at total growth
+    assert ws["U7"].value == "=T7*U$9/T$9"
+    assert ws["U8"].value == "=U9-U5-U6-U7"      # analyst's plug kept
+
+    # B: no designed plug — the SMALLEST stale segment carries the
+    # residual; and shrunk hard, it goes red
+    wb2 = _wb({"A5": "Seg1", "A6": "Seg2", "A7": "Seg3", "A8": "Total",
+               "T5": 100.0, "T6": 50.0, "T7": 20.0, "T8": 170.0,
+               "U5": 100.0, "U6": 50.0, "U7": 20.0, "U8": 80.0})
+    w2 = Writer(wb2)
+    paint_stale(wb2, w2, ["S!U5", "S!U6", "S!U7"])
+    def _eval(sheet, coord):                     # tiny arithmetic stand-in
+        if coord == "U7":                        # 9.4 vs prior 20 = -53%
+            return 80.0 - (100.0 * 80 / 170) - (50.0 * 80 / 170)
+        return None
+    n2 = reclass_sweep(wb2, ["S"], {"S": "U"}, {"S": "T"}, w2,
+                       lambda m: None, evaluate=_eval)
+    assert n2 == 3
+    assert wb2["S"]["U5"].value == "=T5*U$8/T$8"
+    assert wb2["S"]["U7"].value == "=U8-U5-U6"   # smallest is the plug
+    assert wb2["S"]["U7"].fill.start_color.rgb.endswith("FFC7CE"), \
+        "a plug that halved must escalate to red"
+
+    # C: a formula smuggling a prior-period constant is a KEY DRIVER
+    wb3 = _wb({"U5": "=16602.97-U6", "U6": 2955.4, "U7": "=U5/U6"})
+    w3 = Writer(wb3)
+    n3 = flag_embedded_hardcodes(wb3, ["S"], {"S": "U"}, w3,
+                                 lambda m: None)
+    assert n3 == 1 and "S!U5" in w3.log["flags"]
+    assert wb3["S"]["U7"].fill.start_color.rgb in ("00000000", None) or \
+        not str(wb3["S"]["U7"].fill.start_color.rgb).endswith("FFC7CE")
 
 
 if __name__ == "__main__":

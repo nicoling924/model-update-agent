@@ -257,6 +257,29 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_comp:
         log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
 
+    # -- THE RECLASSIFICATION RECIPE (owner rulings 2026-08-30): stale
+    # segment inputs in a block whose total is known are backed out at
+    # the total's growth rate; the residual lands in the analyst's own
+    # designed plug row (or the smallest stale segment). Then flag every
+    # formula smuggling a prior-period constant (key drivers, mindmap).
+    from .evaluator import Evaluator
+    from .reclass import flag_embedded_hardcodes, reclass_sweep
+    sheets_ax = list(spec_d.get("year_axis") or {})
+    ycols = {s: year_columns(spec_d, s).get(str(target_year))
+             for s in sheets_ax}
+    pcols = {s: prior_column(spec_d, s, target_year) for s in sheets_ax}
+    try:
+        _ev = Evaluator(wb)
+        _evaluate = (lambda sh, coord: _ev.cell(sh, coord))
+    except Exception:
+        _evaluate = None
+    n_seg = reclass_sweep(wb, sheets_ax, ycols, pcols, writer, log,
+                          evaluate=_evaluate)
+    if n_seg:
+        log(f"[run] reclassification: {n_seg} segment inputs held at the "
+            "total's growth (orange)")
+    flag_embedded_hardcodes(wb, sheets_ax, ycols, writer, log)
+
     # -- THE ASSUMPTION FREEZE (owner ruling 2026-08-30): a forecast
     # assumption wired to the past (%-formatted, formula referencing the
     # newly actual column or earlier) would silently rebase onto the

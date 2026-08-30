@@ -123,11 +123,25 @@ def magnitude_sweep(wb, spec, target_year, written, served=None):
 
 
 def flag_budget(wb, spec, target_year, flags):
-    """Gate 3. Flags per sheet vs filled target-column cells."""
+    """Gate 3. RED flags per sheet vs filled target-column cells.
+
+    Owner doctrine (2026-08-30): red = unresolved uncertainty and counts
+    against the budget; ORANGE = a figure resolved by a lawful recipe
+    (back-out, plug, freeze) awaiting true-up — it is the deliver-with-
+    flags mechanism working, not a failure, so it does not spend budget.
+    Colour is read from the cell itself, the one source of truth."""
     fails = []
     per_sheet = {}
-    for ref in flags:
-        sh = ref.split("!", 1)[0]
+    for ref in set(flags):
+        sh, _, coord = ref.partition("!")
+        if sh not in wb.sheetnames or not coord:
+            continue
+        try:
+            rgb = wb[sh][coord].fill.start_color.rgb
+        except Exception:
+            rgb = ""
+        if not (isinstance(rgb, str) and rgb.upper().endswith("FFC7CE")):
+            continue                      # orange or unpainted: no cost
         per_sheet[sh] = per_sheet.get(sh, 0) + 1
     for sheet, nflags in per_sheet.items():
         tcol = year_columns(spec, sheet).get(str(target_year))
@@ -138,8 +152,9 @@ def flag_budget(wb, spec, target_year, flags):
                      if ws[f"{tcol}{r}"].value is not None)
         if filled and nflags / filled > FLAG_BUDGET:
             fails.append(f"FLAG BUDGET {sheet}: {nflags}/{filled} "
-                         f"({nflags / filled:.0%}) of filled cells flagged — "
-                         f"the run failed this sheet, flags are not a waiver")
+                         f"({nflags / filled:.0%}) of filled cells RED-"
+                         f"flagged — the run failed this sheet, flags are "
+                         f"not a waiver")
     return fails
 
 

@@ -126,13 +126,12 @@ def judge_write(value, prior, was_served, evidence, claimed):
             "analyst", "red")
 
 
-def claimed_values(served):
-    """(doc, |value|) pairs already served — the one-home register."""
-    out = set()
-    for e in served.values():
-        if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
-            out.add((e.get("doc"), round(abs(e["value"]), 1)))
-    return out
+# ONE register, one law: stage-3's claimed_values and the loop's
+# claimed_keys are the SAME function. Two names survive for the museum's
+# history; two implementations may never exist again (a duplicate pair
+# drifted doc-keyed here while the law went document-agnostic, leaving
+# stage-3's guard silently dead — caught before run 10 delivered).
+claimed_values = claimed_keys
 
 
 def no_prior_duplicate(value, doc, claimed_vals):
