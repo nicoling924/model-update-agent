@@ -257,6 +257,44 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_comp:
         log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
 
+    # -- THE DASH-NIL SWEEP (run-11 pin): a stale row whose disclosure
+    # line prints a nil mark in the current slot next to a prior that
+    # ties is PROVEN zero this period (cancelled treasury shares).
+    from .writegate import nil_current_zero
+    face_pages = {(e.get("doc"), e.get("page")) for e in served.values()
+                  if isinstance(e, dict) and e.get("doc")}
+    n_nil = 0
+    for sheet, rows in hardcode_census.items():
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        for r in rows:
+            ref = f"{sheet}!{tcol}{r}"
+            if ref not in writer.log["flags"] or not pcol:
+                continue
+            pv = wb[sheet][f"{pcol}{r}"].value
+            lab = next((wb[sheet].cell(row=r, column=k).value
+                        for k in range(1, 7)
+                        if isinstance(wb[sheet].cell(row=r, column=k).value,
+                                      str)), "")
+            import re as _re
+            if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
+                continue                # a subtotal is never nil-proven
+            it = (nil_current_zero(ledger.items, pv, face_pages)
+                  if isinstance(pv, (int, float)) else None)
+            if it is not None and writer.write(
+                    sheet, f"{tcol}{r}", 0.0, prior_coord=f"{pcol}{r}",
+                    trusted=True,
+                    note=(f"disclosure prints nil (–) this period beside "
+                          f"the tying prior — proven zero "
+                          f"({it.doc} p{it.page})")):
+                from openpyxl.styles import PatternFill
+                wb[sheet][f"{tcol}{r}"].fill = PatternFill()  # clear red
+                writer.log["flags"] = [
+                    x for x in writer.log["flags"] if x != ref]
+                n_nil += 1
+    if n_nil:
+        log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
+
     # -- THE RECLASSIFICATION RECIPE (owner rulings 2026-08-30): stale
     # segment inputs in a block whose total is known are backed out at
     # the total's growth rate; the residual lands in the analyst's own

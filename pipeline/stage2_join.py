@@ -279,8 +279,9 @@ def join(ledger, targets, log=None):
                     f"{v:,.2f}@{it.doc}p{it.page}" for v, it, _ in cands[:4])))
             continue
         sv, it, s = cands[0]
-        if sv == 0:
-            continue
+        # a prior-tied PRINTED zero is a legitimate value (run-11 pin:
+        # cancelled treasury shares); only the tie gate decides
+
         served[t.key] = {
             "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
             "line": it.label[:60], "conf": CONF_JOINED,
@@ -347,8 +348,9 @@ def join(ledger, targets, log=None):
         if len({round(v, 2) for v, _i, _s in cands}) != 1:
             continue
         sv, it, s = cands[0]
-        if sv == 0:
-            continue
+        # a prior-tied PRINTED zero is a legitimate value (run-11 pin:
+        # cancelled treasury shares); only the tie gate decides
+
         served[t.key] = {
             "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
             "line": it.label[:60], "conf": CONF_JOINED,
@@ -564,8 +566,9 @@ def join_bound_tables(ledger, targets, served, log=None):
         if max(vals) - min(vals) > row_tol(max(vals, key=abs), base=1.0):
             continue
         sv, it, s = cands[0]
-        if sv == 0:
-            continue
+        # a prior-tied PRINTED zero is a legitimate value (run-11 pin:
+        # cancelled treasury shares); only the tie gate decides
+
         out[t.key] = {
             "value": sv, "status": "OK", "doc": it.doc, "page": it.page,
             "line": it.label[:60], "conf": CONF_JOINED,

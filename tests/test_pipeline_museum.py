@@ -1043,6 +1043,50 @@ def test_reclassification_recipe():
         not str(wb3["S"]["U7"].fill.start_color.rgb).endswith("FFC7CE")
 
 
+
+
+def test_dash_nil_law_run11_exhibit():
+    """Run-11 pin: 'Less: Treasury shares – 648,882.29' — a standalone
+    nil mark in the current slot beside the tying prior proves a zero."""
+    from pipeline.writegate import nil_current_zero
+    it = {"doc": "ANN.PDF", "page": 6, "nums": [648882.29],
+          "stmt_face": "bs",
+          "source_line": "Less: Treasury shares – 648,882.29"}
+    assert nil_current_zero([it], 0.64888229) is not None
+    assert nil_current_zero([it], 0.6489) is not None
+    assert nil_current_zero([it], 0.6) is None, \
+        "a rounded prior is not a full-precision tie"
+    assert nil_current_zero([it], 0.3) is None       # immaterial prior
+    it_param = {"doc": "A.PDF", "page": 1, "nums": [15.0],
+                "stmt_face": "pl", "source_line": "tax rate – 15"}
+    it_note = {"doc": "A.PDF", "page": 99, "nums": [648882.29],
+               "source_line": "note line – 648,882.29"}
+    assert nil_current_zero([it_note], 0.64888229) is None, \
+        "a note line is never a nil proof — faces only"
+    # an untagged item on a page the join served from IS a face
+    it_served_page = {"doc": "ANN.PDF", "page": 6, "nums": [648882.29],
+                      "source_line": "Less: Treasury shares – 648,882.29"}
+    assert nil_current_zero([it_served_page], 0.64888229,
+                            face_pages={("ANN.PDF", 6)}) is not None
+    assert nil_current_zero([it_served_page], 0.64888229,
+                            face_pages={("ANN.PDF", 99)}) is None
+    assert nil_current_zero([it_param], 15.0) is None, \
+        "parameters (few digits) prove nothing"
+    # no nil mark -> no proof; untied prior -> no proof
+    it2 = {"doc": "ANN.PDF", "page": 6, "nums": [648882.29],
+           "source_line": "Less: Treasury shares 648,882.29"}
+    assert nil_current_zero([it2], 0.6489) is None
+    assert nil_current_zero([it], 5.0) is None
+    it4 = {"doc": "A.PDF", "page": 1, "nums": [648882.29],
+           "source_line": "x – 12,345 648,882.29"}
+    assert nil_current_zero([it4], 0.6489) is None, \
+        "nil must sit DIRECTLY before the tying number"
+    # a negative number's dash is NOT a nil mark
+    it3 = {"doc": "A.PDF", "page": 1, "nums": [-1234.0, 648882.29],
+           "source_line": "Some line -1,234.00 648,882.29"}
+    assert nil_current_zero([it3], 0.6489) is None
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

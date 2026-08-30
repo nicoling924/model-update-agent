@@ -477,3 +477,19 @@ serves; also fixed the worsen-revert reading got/expect (it was keyed
 on a field checks never had — armed now). Both pinned as museum
 exhibits. Remaining known: Driver flag budget 24% (serving depth, not
 a law break) and the -58.6 equity residue. Awaiting go for run 9.
+
+**08-30 — RUNS 9-11 AND THE FINAL LAWS.** Run 9: -59 (one cross-document
+double-home, OCI as FX) -> one-home register made document-agnostic.
+Run 10 stopped by owner mid-flight; the stop exposed that a duplicated
+register had left stage-3's guard silently dead — unified to ONE
+function. Run 11 (full stack): 2025 balance to 1.0 — the cancelled
+treasury shares' disclosed ZERO was unservable (join skipped zeros; a
+dash-nil is not a number). Forecast-year 10,679 = the analyst's own
+model rebasing (pre model already failed -539); gate correctly scopes
+checks to <= target year. FIXES: zero-serve allowed on prior-tied rows;
+THE DASH-NIL LAW (a standalone nil directly before the full-precision
+tying prior, on a served face page, never a subtotal) — tightened twice
+by its own dry-run audits (20 -> 5 -> 3 zeros, final 3 all verified
+correct); reclass sweep live (Driver segments at total growth, designed
+plugs honored); embedded hardcodes flagged as key drivers; flag budget
+counts RED only. All museum-pinned.

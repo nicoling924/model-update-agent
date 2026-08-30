@@ -25,6 +25,7 @@ The law, applied to every loop write, on every model:
 
 This file is pure law: no workbook, no LLM — testable offline.
 """
+import re
 
 _TOL = 1e-3
 _SCALES = (1.0, 1e2, 1e3, 1e4, 1e6)   # 元/千元/万元 and friends into model mn
@@ -143,3 +144,54 @@ def no_prior_duplicate(value, doc, claimed_vals):
     law."""
     return (isinstance(value, (int, float)) and abs(value) >= 50
             and round(abs(value), 1) in claimed_vals)
+
+
+_NIL_TOKENS = {"-", "–", "—", "―", "/", "不适用"}
+
+
+def nil_current_zero(items, prior, face_pages=None):
+    """The dash-nil law (run-11 pin, treasury shares): a statement line
+    printing a standalone nil mark IMMEDIATELY before a number that ties
+    the model's prior to full precision proves the current value is zero
+    ("Less: Treasury shares – 648,882.29" = nil this year, 0.6mn last).
+
+    Tightened after its own dry-run audit zeroed 20 rows of which most
+    were wrong (tax rebates 340.9 zeroed; a tax-rate parameter zeroed):
+    - |prior| >= 0.5 — tiny ratios/factors prove nothing;
+    - the tie is FULL-PRECISION (2e-3 relative, no absolute floor);
+    - the tying printed number carries >= 4 significant digits — real
+      monetary figures do, parameters (1, 15, 365) do not;
+    - the nil token must sit DIRECTLY before the tying number — the
+      empty current slot, then the comparative, nothing between.
+    Returns the proving item or None."""
+    if not isinstance(prior, (int, float)) or abs(prior) < 0.5:
+        return None
+    for it in items:
+        # STATEMENT FACES ONLY (second dry-run audit: a five-year-summary
+        # line and a note's 15,000,000 after a dash still slipped) — the
+        # empty-current-slot reading is only trustworthy on the face,
+        # where column order is law. A face is a page the deterministic
+        # join actually served from (its own accepted serves ratify it);
+        # the stmt_face tag backs it up where present.
+        page_ok = bool(_meta(it, "stmt_face"))
+        if face_pages is not None and not page_ok:
+            page_ok = (_meta(it, "doc"), _meta(it, "page")) in face_pages
+        if not page_ok:
+            continue
+        line = str(_meta(it, "source_line", ""))
+        toks = line.split()
+        for i, t in enumerate(toks[:-1]):
+            if t not in _NIL_TOKENS:
+                continue
+            nxt = toks[i + 1]
+            digits = re.sub(r"[^0-9]", "", nxt)
+            if len(digits.lstrip("0")) < 4:
+                continue
+            try:
+                v = float(nxt.replace(",", "").replace(" ", ""))
+            except ValueError:
+                continue
+            for f in _SCALES:
+                if abs(v / f - abs(prior)) <= abs(prior) * 2e-3:
+                    return it
+    return None
