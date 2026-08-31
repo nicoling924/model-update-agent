@@ -424,6 +424,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if client is not None:
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
+        loop.load_bearing = lb           # tier law: the loop sees the wiring
         loop_summary = loop.run()
         log(f"[run] objective loop: {loop_summary[:150]}")
     else:

@@ -539,8 +539,20 @@ class ObjectiveLoop:
         return "MISS: use {'add': ...} or {'done': index}"
 
     def t_list_flags(self, args):
-        flags = self.writer.log["flags"]
-        return "\n".join(flags[-40:]) or "(no flags)"
+        # tier law: load-bearing reds are the loop's mandatory work;
+        # tier-3 is swept automatically and must never be searched
+        lb = getattr(self, "load_bearing", None)
+        out = []
+        for f in self.writer.log["flags"][-60:]:
+            m = re.match(r"^(.+)![A-Z]+([0-9]+)$", f)
+            if lb is not None and m:
+                tag = ("LOAD-BEARING — yours"
+                       if (m.group(1), int(m.group(2))) in lb
+                       else "tier-3 — swept, do not search")
+                out.append(f"{f}  [{tag}]")
+            else:
+                out.append(f)
+        return "\n".join(out) or "(no flags)"
 
     def t_finish(self, args):
         self.finished = str(args.get("summary", ""))[:800]
