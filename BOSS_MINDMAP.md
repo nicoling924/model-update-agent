@@ -280,6 +280,18 @@ To make sure of the following:
   printed on the _REPORT beside the flags — never silently fixed. The
   walk-away rule applies: one investigation pass per flag.
 
+- **2026-08-31 · Every run is the FINAL run (owner ruling, session brief):**
+  No run is a test. Each run aims to be the final, deliverable run —
+  mistakes and errors are not expected or budgeted for. We run multiple
+  times on different models ONLY to (1) surface issues we didn't expect,
+  (2) prove the agent is generic enough to adapt to different models,
+  (3) measure accuracy and time required. The agent launches to the
+  whole department; the mission is replicating what Fable 5 can do on a
+  less sophisticated brain. LARGE changes to the agent are welcome when
+  they serve the fundamental objective — but NEVER just patch the
+  issue: every fix must be generic and fix the underlying fundamental
+  cause before it is pushed.
+
 - **2026-08-31 · The tier law (owner ruling, CLP campaign):** effort
   follows the WIRING. A deterministic trace from the key rows through
   the forecast column's formulas marks every upstream row the model
