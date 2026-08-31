@@ -130,14 +130,47 @@ class ObjectiveLoop:
                    "freeze terminally at pre-update values)"]
         return out
 
+    def _failing_target_checks(self, tol=1.0):
+        """Spec check rows still failing in the TARGET year column.
+        -> [(sheet, row, residual)]."""
+        ev = Evaluator(self.wb)
+        out = []
+        for c in (self.spec.get("check_rows") or []):
+            sheet, row = c.get("sheet"), int(c.get("row"))
+            col = self._tcol(sheet)
+            if not col or sheet not in self.wb.sheetnames:
+                continue
+            expect = float(c.get("expect", 0))
+            try:
+                got = ev.cell(sheet, f"{col}{row}")
+            except Exception:
+                continue
+            if isinstance(got, (int, float)) and abs(got - expect) > tol:
+                out.append((sheet, row, got - expect))
+        return out
+
     def _state_block(self):
         card = self._card()
         todos = [f"  [{i}] {t}" for i, t in enumerate(self.todos)]
         notes = [f"  - {n}" for n in self.notes[-12:]]
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
         trips = self._trip_lines()
+        endgame = []
+        if self.budget <= 10:
+            fails = self._failing_target_checks()
+            if fails:
+                endgame = [
+                    f"== ENDGAME — {self.budget} actions left, checks "
+                    "still failing ==",
+                    "  CLOSE THE LADDER NOW (owner's law: a balanced "
+                    "flagged model beats an unbalanced one). For each "
+                    "check below: plug_residual into the largest "
+                    "eligible site (diagnose_balance names them). "
+                    "NO more searching.",
+                ] + [f"  CHECK {s}!{r} off {v:+,.1f}" for s, r, v in fails]
         return "\n".join([
             f"TARGET YEAR: {self.ty}   ACTIONS LEFT: {self.budget}",
+            *endgame,
             "== SCORECARD ==",
             summarize(card, self.ty, flags=self.writer.log["flags"],
                       spec=self.spec, wb=self.wb),
@@ -203,7 +236,7 @@ class ObjectiveLoop:
         except Exception as e:
             out.append(f"evaluation failed: {e}")
         if isinstance(v, str) and v.startswith("="):
-            refs = re.findall(r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+            refs = re.findall(r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?([A-Z]{1,3})(\d+)",
                               v.replace("$", ""))[:24]
             for sh2, sh3, c2, r2 in refs:
                 sh = (sh2 or sh3 or sheet).strip()
@@ -313,7 +346,52 @@ class ObjectiveLoop:
                                    f"disclosed≈{dv:,.2f} "
                                    f"({it.doc} p{it.page}: {it.source_line[:60]})")
                     break
-        return "\n".join(out[:40]) or f"no diffs: {stmt} lines tie the model"
+        out = out[:40]
+        # UNMATCHED DISCLOSURE LINES (owner's teaching: the leftover
+        # names the missing line). Single-year lines print NO comparative
+        # so prior-identity can never surface them — run-199's perpetual
+        # capital securities 3,872 stayed invisible through 90 actions.
+        from .ledger import admissible_label
+        priors = [abs(t.prior_value) for t in rows]
+        model_vals = set()
+        for sh in (self.spec.get("year_axis") or {}):
+            tc = self._tcol(sh)
+            if not tc or sh not in self.wb.sheetnames:
+                continue
+            ws = self.wb[sh]
+            for rr in range(1, min(ws.max_row, 400) + 1):
+                vv = ws[f"{tc}{rr}"].value
+                if isinstance(vv, (int, float)):
+                    model_vals.add(round(abs(vv), 1))
+
+        def _tied(n):
+            a = abs(n)
+            if round(a, 1) in model_vals:
+                return True
+            return any(abs(a - p) <= row_tol(p, base=0.6 if p >= 100
+                                             else 0.01) for p in priors)
+        unmatched = []
+        for it in self.ledger.items:
+            if (it.doc, it.page) not in pages \
+                    or not admissible_label(it.label):
+                continue
+            money = [n for n in it.nums if abs(n) >= 1.0]
+            if not money or len(money) > 5 or max(abs(n) for n in money) < 50:
+                continue
+            if any(1990 <= abs(n) <= 2100 for n in money):
+                continue                     # date/year furniture
+            if any(_tied(n) for n in money):
+                continue
+            unmatched.append(
+                f"  UNMATCHED '{str(it.label)[:40]}' = "
+                + ", ".join(f"{n:,.1f}" for n in money[:4])
+                + f" ({it.doc} p{it.page}) — ties NO model row: a line "
+                "the model never carried? (balance-first fold, red)")
+        if unmatched:
+            out.append("UNMATCHED DISCLOSURE LINES — the leftover names "
+                       "the missing line:")
+            out += unmatched[:12]
+        return "\n".join(out) or f"no diffs: {stmt} lines tie the model"
 
     def _diff_value(self, t):
         """The disclosed value for one target row — the shared evidence
@@ -336,7 +414,7 @@ class ObjectiveLoop:
             return []
         out = []
         for sh2, sh3, c2, r2 in re.findall(
-                r"(?:'([^']+)'|([A-Za-z0-9 _]+))?!?([A-Z]{1,3})(\d+)",
+                r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?([A-Z]{1,3})(\d+)",
                 v.replace("$", "")):
             sh = (sh2 or sh3 or sheet).strip()
             if sh in self.wb.sheetnames:
@@ -973,3 +1051,50 @@ class ObjectiveLoop:
         if self.finished is None:
             self.finished = "(action budget exhausted)"
         return self.finished
+
+
+def terminal_ladder(loop, log):
+    """The referee's last rung (owner ruling: 'if truly unsolvable —
+    back out, mark, still deliver'; a balanced model with a flagged
+    plug beats an unbalanced model). Runs AFTER the loop. For each
+    target-year check still failing: apply any remaining GUILTY
+    evidence diffs, then plug the exact residual into the largest
+    eligible numeric site — orange (red if wild), noted, reported.
+    Deterministic; the loop had every chance to do better first.
+    -> number of checks closed."""
+    closed = 0
+    for sheet, row, resid in loop._failing_target_checks():
+        diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})
+        for g in list(re.finditer(r"GUILTY (\S+)!(\d+)", diag))[:5]:
+            r = loop.t_apply_diff({"row": f"{g.group(1)}!{g.group(2)}"})
+            log(f"[run] terminal ladder: apply_diff {g.group(1)}!"
+                f"{g.group(2)} -> {str(r).splitlines()[0][:90]}")
+        still = [x for x in loop._failing_target_checks()
+                 if (x[0], x[1]) == (sheet, row)]
+        if not still:
+            closed += 1
+            log(f"[run] terminal ladder: {sheet}!{row} closed by "
+                "evidence diffs alone")
+            continue
+        tcol = loop._tcol(sheet)
+        sites = []
+        for (sh, coord) in dict.fromkeys(
+                loop._leaf_inputs(sheet, f"{tcol}{row}")):
+            m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+            if not m or m.group(1) != loop._tcol(sh):
+                continue
+            v = loop.wb[sh][coord].value
+            if isinstance(v, (int, float)):
+                sites.append((abs(v), sh, coord))
+        for _v, sh, coord in sorted(sites, reverse=True)[:3]:
+            r = loop.t_plug_residual(
+                {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
+                 "why": ("terminal ladder: the loop ended with this "
+                         "check failing; owner's law — back out, mark, "
+                         "still deliver")})
+            log(f"[run] terminal ladder: plug {sheet}!{row} into "
+                f"{sh}!{coord} -> {str(r).splitlines()[0][:90]}")
+            if str(r).startswith("PLUG"):
+                closed += 1
+                break
+    return closed

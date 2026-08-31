@@ -1487,6 +1487,52 @@ def test_198_composite_constants_law():
     assert not ok2 and "55555" in msg2, msg2
 
 
+def test_199_unmatched_lines_surface():
+    """Run-199: perpetual capital securities 3,872 — a single-year line
+    with no comparative — was invisible to every prior-identity tool
+    through 90 actions. statement_diff now lists face lines that tie NO
+    model row (the leftover names the missing line); tied lines and
+    year/date furniture stay out."""
+    wb = _wb({"T2": 100.0, "T9": "=T2", "U2": 110.0, "U9": "=U2"})
+    lp = _loop(wb, _spec_tiny())
+    for it in (Item(doc="RA", page=26, table_id=0, row_ord=0,
+                    label="Revenue", nums=[110.0, 100.0],
+                    source_line="Revenue 110 100"),
+               Item(doc="RA", page=26, table_id=0, row_ord=1,
+                    label="Perpetual capital securities", nums=[3872.0],
+                    source_line="Perpetual capital securities 3,872"),
+               Item(doc="RA", page=26, table_id=0, row_ord=2,
+                    label="as at", nums=[31.0, 2025.0],
+                    source_line="as at 31 December 2025")):
+        lp.ledger.add(it)
+    lp.ledger.faces[("RA", 26)] = "bs"
+    r = lp.t_statement_diff({"stmt": "bs"})
+    assert "UNMATCHED" in r and "3,872" in r, r
+    assert "Revenue" not in r.split("UNMATCHED")[1], r
+    assert "as at" not in r, r
+
+
+def test_199_terminal_ladder_delivers():
+    """Run-199: two runs exhausted their budget without completing the
+    owner's escalation ladder. The referee's last rung now closes a
+    failing target-year check itself — largest eligible site, flagged,
+    transactional — so 'back out, mark, still deliver' is guaranteed."""
+    from pipeline.orchestrator import terminal_ladder
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": 109.0, "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    lp = _loop(wb, _spec_tiny())
+    logs = []
+    n = terminal_ladder(lp, logs.append)
+    assert n == 1, (n, logs)
+    assert lp._failing_target_checks() == []
+    # largest site U4 was tried first, its plug REVERTED (moved the
+    # check the wrong way), and U2 landed — transactional to the end
+    assert wb["S"]["U4"].value == 171.0, wb["S"]["U4"].value
+    assert wb["S"]["U2"].value == 111.0, wb["S"]["U2"].value
+    assert any(v for v in lp.writer.log["written"]), "no write logged"
+
+
 def test_197_no_cached_value_is_red_not_silent():
     """Manual-calc models can have no pre-update cached value to hold —
     the honest terminal is red + SUSPICIOUS verdict, never a skip."""

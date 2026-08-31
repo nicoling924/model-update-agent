@@ -447,6 +447,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 "forecasts handed to the loop for investigation")
         loop_summary = loop.run()
         log(f"[run] objective loop: {loop_summary[:150]}")
+        # the referee's last rung (owner: back out, mark, still deliver)
+        from .orchestrator import terminal_ladder
+        n_tl = terminal_ladder(loop, log)
+        if n_tl:
+            log(f"[run] terminal ladder: {n_tl} actual-year checks closed "
+                "(flagged plugs/diffs, reported)")
     else:
         log("[run] stage 4 loop skipped: no client (dry run)")
 

@@ -706,39 +706,39 @@ OUTPUT SHAPE:
 
 def _validate(d):
     if not isinstance(d, dict):
-        return "not an object"
+        return ["not an object"]
     for k in ("banner", "snapshot", "bridges", "attention"):
         if k not in d:
-            return "missing key: " + k
+            return ["missing key: " + k]
     if not isinstance(d["snapshot"], list) or not d["snapshot"]:
-        return "snapshot empty"
+        return ["snapshot empty"]
     for grp in d["snapshot"]:
         for it in grp.get("rows", []):
             if not isinstance(it.get("row"), int):
-                return "snapshot row without an integer row number"
+                return ["snapshot row without an integer row number"]
     mp = d.get("mini_pl")
     if not isinstance(mp, dict) or len(mp.get("rows", [])) < 6:
-        return ("mini_pl.rows must list the Core-8 P&L rows "
-                "(at least 6 of them)")
+        return ["mini_pl.rows must list the Core-8 P&L rows "
+                "(at least 6 of them)"]
     for it in mp["rows"]:
         if not isinstance(it.get("row"), int) or it.get("kind") not in (
                 "value", "margin", "pershare"):
-            return 'mini_pl rows need an integer "row" and a valid "kind"'
+            return ['mini_pl rows need an integer "row" and a valid "kind"']
     for b in d["bridges"]:
         if not isinstance(b.get("row"), int):
-            return "bridge without an integer row"
+            return ["bridge without an integer row"]
         if not b.get("lines"):
-            return "bridge '%s' has no lines" % b.get("title")
+            return ["bridge '%s' has no lines" % b.get("title")]
     att = d["attention"]
     if not isinstance(att, dict):
-        return "attention must be an object with plugs/red/orange lists"
+        return ["attention must be an object with plugs/red/orange lists"]
     for k in ("plugs", "red", "orange"):
         for it in att.get(k, []):
             if not isinstance(it, dict) or not it.get("sheet") \
                     or not it.get("cell"):
-                return ("attention.%s items must be objects "
-                        '{"sheet","cell","note"}' % k)
-    return None
+                return ["attention.%s items must be objects "
+                        '{"sheet","cell","note"}' % k]
+    return []
 
 
 def compose(client, facts, feedback=""):
