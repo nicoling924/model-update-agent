@@ -1,38 +1,40 @@
-# HANDOFF — verified state as of 2026-08-31 ~15:30 (write nothing from chat memory; re-verify anything not listed here)
+# HANDOFF — verified state as of 2026-09-01 (verify on disk before asserting)
 
-## Verified facts (each checked on disk this session)
-- Branch: `rebuild`. Local = 352 commits ahead AND 287 behind
-  `origin/rebuild` (Aug 26) — DIVERGED. origin/main is abandoned (Aug 12).
-- Usual practice: runs on GitHub Actions via `sh dispatch.sh <CO> <PER>
-  <PRIOR> rebuild pipeline`; Actions commits results back (that's the 287).
-  Repo tracks CLP model + FY25 disclosures; LLM key in repo secrets.
-- GitHub auth is BROKEN since Aug 12 (credential helper pointed into a
-  deleted session scratchpad; helpers cleaned, keychain empty). Fix =
-  `gh` device login (install to ~/.local/bin — download was failing on
-  the owner's flaky network). Owner is non-technical: give them the
-  device code + github.com/login/device, never a terminal.
-- DFE FY25: DELIVERED and verified (run 19): 0 check failures ALL years,
-  file "companies/Dongfang Electric/model/Dongfang Electric FY25 (run 19
-  DELIVERED, all years).xlsx" (sent to owner).
-- CLP: run 4 RESTARTED ~15:40 (I killed the original by misreading its
-  shell wrapper as a duplicate — lesson pinned below). Log
-  clp_live_run4.log; buffered/quiet is normal; ~45-70 min.
-  NOTE: `ps` shows TWO lines per run (python + its zsh parent) — never
-  "deduplicate" them. Tier law active: loadbearing.py trace,
-  tier-3 growth back-outs, sign-absurd freeze, LB-only neglect budget.
-  All museum-pinned; `bash tools/bench.sh` is the ONLY dispatch gate.
+## Where things stand
+- **CLP FY25 DELIVERED BY HAND** (owner mandate: be Fable yourself, then
+  teach the agent). File sent to owner: scratchpad run204/
+  "CLP Model FY25 (Fable).xlsx". Balance 0 every year 2019–2030
+  (inherited ROAFNA 2024 −1,264 reported as the analyst's), keys exact
+  or definition-bridged, analyst forecasts intact, zero new eval
+  errors, new executive _REPORT on top. Full fix list in RUNLOG 09-01.
+- Agent runs 5–12 today (Actions #197–#204): first machine DELIVERY at
+  #203; #204 refused after the error-baseline law exposed the forecast
+  damage the freezes/plugs caused. All laws to date are museum-pinned
+  (78 exhibits), bench green, branch synced at b75b23a.
+- Engine: GitHub Actions via `sh dispatch.sh CLP FY25 FY24 rebuild
+  pipeline`; bench.sh gates every dispatch (never pipe away its exit
+  code). gh auth working (nicoling924, workflow scope).
 
-## Next steps, in order
-1. Read CLP run 4 card vs the 3 objectives (balance all years / segments
-   / key numbers). Report card → problems → proposal; NO auto-redispatch.
-2. Fix GitHub auth (device flow), then RECONCILE the divergence:
-   fetch, merge origin/rebuild into local (code conflicts → local wins,
-   tonight's laws are newest; keep remote's run artifacts), bench, push.
-   Do NOT blind-push or force-push.
-3. All future runs via dispatch.sh on Actions (owner's standing rule).
-   Push before dispatch — Actions runs the pushed ref.
+## The teaching backlog (owner-approved direction, NOT yet built)
+From the by-hand session — what the human did that the agent must learn:
+1. FORECAST INVIOLABILITY: never mutate forecast cells (kill the
+   sign-absurd freeze as a writer; tripwires stay investigation-only);
+   every forecast symptom is chased to its 2025 CAUSE.
+2. TWIN RE-ANCHOR: a value living in several homes (Final!65 & the
+   Driver NFA roll) must be re-anchored everywhere it lives.
+3. WRONG-ZERO GUARD: dash-nil needs downstream sanity (a zero that
+   collapses next year's revenue is disproven even if it errors nothing).
+4. COMPOSITE VINTAGE: extend the constants law to formulas whose
+   literals tie the PRIOR-year print even without the stale fingerprint
+   (the WC row, one-offs =94, net-interest =2254−235−15).
+5. PLUG-SANITY METER: the model's own plug/residual rows (HK export,
+   Driver Others) vs their priors are truth meters — wild = tripwire.
+6. SEGMENT PRIOR DISCIPLINE: every segment serve must tie its own row's
+   prior column (CN!AH9=−840 proves which column is China) — never an
+   assumed table order.
 
-## Standing laws (memory dir has the rest)
-Generic rules only · objective-based reasoning (balance/segments/keys) ·
-think like Fable 5 · code = referee · report-card protocol between runs ·
-never patch · VERIFY ON DISK BEFORE ASSERTING (this session's lesson).
+## Standing laws
+Generic rules only · objective-based reasoning · every run is the FINAL
+run · fix causes never patch · move-on law · error-baseline law ·
+prior-delta protocol · report card → problems → proposal, no dispatch
+without owner go · VERIFY ON DISK BEFORE ASSERTING.
