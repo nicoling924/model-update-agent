@@ -292,9 +292,16 @@ def error_scan(wb, pre_map):
 
 def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
                       served=None, skip_sheets=("_REPORT", "_SPEC"),
-                      pre_values_wb=None, load_bearing=None):
+                      pre_values_wb=None, load_bearing=None,
+                      pre_formulas_path=None):
     """The gate. -> (ok, failures, card). ok=False means the run must NOT
-    deliver the workbook as the model — quarantine it with this list."""
+    deliver the workbook as the model — quarantine it with this list.
+    pre_formulas_path: the archived pre-update file, loaded lazily to
+    EVALUATE pre-update check rows when the values workbook caches
+    nothing (manual-calc models cache no values — the run-201 lesson:
+    the inherited-break law could never prove ROAFNA's 2024 break was
+    the analyst's own, because a data_only load holds neither value nor
+    formula)."""
     failures = []
     failures += check_year_headers(wb, spec, target_year)
     failures += magnitude_sweep(wb, spec, target_year,
@@ -318,6 +325,7 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     # scoping checks to the target year redefined success instead of
     # achieving it): balance is required for ALL years, actual and
     # forecast alike.
+    _pre_fwb = [None]        # archived pre-update formulas, loaded lazily
     for c in card["checks"]:
         if c["status"] != "FAIL":
             continue
@@ -335,14 +343,23 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
                 if col and sh in pre_values_wb.sheetnames:
                     pv = pre_values_wb[sh][f"{col}{row}"].value
                     if not isinstance(pv, (int, float)):
-                        # a workbook WE previously wrote caches nothing —
-                        # evaluate the archived formulas instead (CLP-2)
-                        try:
-                            from .evaluator import Evaluator
-                            pv = Evaluator(pre_values_wb).cell(
-                                sh, f"{col}{row}")
-                        except Exception:
-                            pv = None
+                        # no cached value — a data_only load holds no
+                        # formulas either, so evaluate the ARCHIVED
+                        # pre-update file (lazy, once) instead
+                        if pre_formulas_path and _pre_fwb[0] is None:
+                            try:
+                                import openpyxl
+                                _pre_fwb[0] = openpyxl.load_workbook(
+                                    pre_formulas_path)
+                            except Exception:
+                                _pre_fwb[0] = False
+                        if _pre_fwb[0]:
+                            try:
+                                from .evaluator import Evaluator
+                                pv = Evaluator(_pre_fwb[0]).cell(
+                                    sh, f"{col}{row}")
+                            except Exception:
+                                pv = None
                     if isinstance(pv, (int, float)) and abs(pv) > 1 \
                             and isinstance(c["got"], (int, float)) \
                             and abs(c["got"]) <= abs(pv) + 1:

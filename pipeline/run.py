@@ -500,7 +500,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served,
-        pre_values_wb=wb_values, load_bearing=lb)
+        pre_values_wb=wb_values, load_bearing=lb,
+        pre_formulas_path=str(archive))
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
 
