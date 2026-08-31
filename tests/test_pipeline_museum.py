@@ -1708,6 +1708,36 @@ def test_203_key_tie_backs_out_the_estimate():
     assert wb["S"]["U3"].value.startswith("=(T3*(U2/T2))-("), wb["S"]["U3"].value
 
 
+def test_203_prior_delta_protocol():
+    """Owner's ruling: the PRIOR year proves the definition. A key that
+    differed from the print last year by the same nameable model rows
+    (MI + perpetual coupons) is CONFIRMED, not forced; a key whose
+    prior TIED the print must tie now."""
+    import json, pathlib, tempfile
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    wb = _wb({
+        # profit-for-the-year row, then MI and PCS, then the key row
+        "T3": 12718.0, "U3": 11546.0,
+        "T4": -840.0, "U4": -879.0,        # minority interests
+        "T5": -136.0, "U5": -199.0,        # perpetual coupons
+        "T6": "=T3+T4+T5", "U6": "=U3+U4+U5"})
+    wb["S"]["A4"], wb["S"]["A5"] = "Minority interests", "Perpetual coupons"
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [],
+            "key_rows": [{"name": "net profit", "sheet": "S", "row": 6}]}
+    panel = {"net profit": {"print": 11546.0, "prior": 12718.0}}
+    with tempfile.TemporaryDirectory() as td:
+        p = pathlib.Path(td) / "key_panel.json"
+        p.write_text(json.dumps(panel))
+        w = Writer(wb)
+        n = key_tie(wb, spec, 2025, w, p, lambda s: None)
+    assert n == 0                              # nothing forced
+    assert wb["S"]["U6"].value == "=U3+U4+U5"  # untouched
+    v = w.log.get("verdicts", [])
+    assert v and "JUSTIFIED" in v[0] and "Minority interests" in v[0], v
+
+
 def test_203_empty_row_law():
     """A row whose prior actual is empty is furniture — untrusted
     machine writes are refused there."""

@@ -68,6 +68,56 @@ def _printed(ledger, v):
     return None
 
 
+def _bridge_rows(wb, spec, target_year, sheet, key_coord, pcol,
+                 d_prior, d_cur, max_size=3):
+    """NAME the adjustment: model rows in the key's chain whose PRIOR
+    values sum to d_prior AND whose CURRENT values sum to d_cur — the
+    model's own wiring names what the analyst adds/removes vs the print
+    (e.g. minority interests + perpetual coupons).
+    -> [(sheet, row, label)] or None."""
+    from itertools import combinations
+    tcol = year_columns(spec, sheet).get(str(target_year))
+    seen = set()
+    _leaves(wb, sheet, key_coord, seen=seen)
+    rows = []
+    for (sh, coord) in seen:
+        m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+        if not m or (sh, coord) == (sheet, key_coord):
+            continue
+        tc = year_columns(spec, sh).get(str(target_year))
+        pc = prior_column(spec, sh, target_year)
+        if not tc or not pc or m.group(1) != tc:
+            continue
+        try:
+            cv = Evaluator(wb).cell(sh, coord)
+            pv = Evaluator(wb).cell(sh, f"{pc}{m.group(2)}")
+        except Exception:
+            continue
+        if not (isinstance(cv, (int, float)) and isinstance(pv, (int, float))):
+            continue
+        if abs(pv) < 0.5 and abs(cv) < 0.5:
+            continue
+        lab = ""
+        ws = wb[sh]
+        for lc in ("A", "B", "C", "D"):
+            v = ws[f"{lc}{m.group(2)}"].value
+            if isinstance(v, str) and v.strip():
+                lab = v.strip()[:30]
+                break
+        rows.append((sh, int(m.group(2)), lab, pv, cv))
+    rows = sorted(rows, key=lambda x: -abs(x[3]))[:25]
+    tol_p = max(1.0, abs(d_prior) * 0.01)
+    tol_c = max(1.0, abs(d_cur) * 0.01)
+    for size in (1, 2, 3):
+        if size > max_size:
+            break
+        for combo in combinations(rows, size):
+            if abs(sum(c[3] for c in combo) - d_prior) <= tol_p \
+                    and abs(sum(c[4] for c in combo) - d_cur) <= tol_c:
+                return [(c[0], c[1], c[2]) for c in combo]
+    return None
+
+
 def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
     """-> number of keys backed out to tie. Runs after the loop."""
     panel_path = Path(panel_path)
@@ -117,24 +167,60 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
         delta = got - want
         if abs(delta) <= max(TOL_ABS, abs(want) * TOL_REL):
             continue
-        # THE DEFINITION GUARD: if the model's own value IS a printed
-        # disclosed figure, this is two definitions of one label —
-        # a RED question for the analyst, never a forced write
-        src = _printed(ledger, got)
-        if src is not None:
+        # THE PRIOR-DELTA PROTOCOL (owner ruling 2026-08-31): the PRIOR
+        # year proves the definition. Model prior == printed prior ->
+        # the model follows the print, tie this year too (back-out
+        # below). Model prior != printed prior -> the difference IS the
+        # analyst's adjustment: NAME it (find the model rows whose two
+        # years' values ARE the two deltas), and if the same named
+        # bridge closes this year, the model is RIGHT despite differing
+        # from the print — confirmed, note on _REPORT, nothing forced.
+        pin_prior = (panel.get(name) or {}).get("prior")
+        model_prior = None
+        if pcol:
+            try:
+                model_prior = Evaluator(wb).cell(sheet, f"{pcol}{row}")
+            except Exception:
+                pass
+        adjusted = (isinstance(pin_prior, (int, float))
+                    and isinstance(model_prior, (int, float))
+                    and abs(model_prior - pin_prior)
+                    > max(TOL_ABS, abs(pin_prior) * TOL_REL))
+        if adjusted:
+            d_prior = model_prior - pin_prior
+            bridge = _bridge_rows(wb, spec, target_year, sheet,
+                                  f"{tcol}{row}", pcol, d_prior, delta)
             from openpyxl.comments import Comment
             cell = wb[sheet][f"{tcol}{row}"]
+            if bridge:
+                labels = " + ".join(b[2] or f"{b[0]}!{b[1]}"
+                                    for b in bridge)
+                writer.log.setdefault("verdicts", []).append(
+                    f"{sheet}!{tcol}{row}: JUSTIFIED — '{name}' differs "
+                    f"from the print by design: model = print "
+                    f"{'-' if delta < 0 else '+'} [{labels}] and the "
+                    f"same bridge closes BOTH years "
+                    f"({d_prior:+,.1f} prior, {delta:+,.1f} now)")
+                log(f"[run] key tie: '{name}' {got:,.2f} vs print "
+                    f"{want:,.2f} — CONFIRMED by the prior-delta "
+                    f"bridge [{labels}]; the analyst's treatment is "
+                    "preserved, nothing forced")
+                continue
+            src = _printed(ledger, got)
             cell.fill = writer.fills["red"]
             cell.comment = Comment(
-                f"DEFINITION QUESTION: '{name}' computes {got:,.2f}, which "
-                f"the disclosure ITSELF prints ({src}) — but the pinned "
-                f"panel says {want:,.2f}. Two definitions of one label "
-                "(reported vs attributable / underlying). ANALYST RULING; "
-                "nothing forced.", "Model Update Agent")
+                f"DEFINITION QUESTION: '{name}' computes {got:,.2f} vs "
+                f"printed {want:,.2f} ({delta:+,.2f}), and the prior "
+                f"year ALSO differed ({d_prior:+,.2f}) — an adjustment "
+                "exists but no model rows explain BOTH deltas."
+                + (f" Note: {got:,.2f} is itself printed ({src})."
+                   if src else "")
+                + " ANALYST RULING; nothing forced.",
+                "Model Update Agent")
             writer.log["flags"].append(f"{sheet}!{tcol}{row}")
-            log(f"[run] key tie: '{name}' {got:,.2f} vs pin {want:,.2f} — "
-                f"model value is itself printed ({src}): definition "
-                "question, red, nothing forced")
+            log(f"[run] key tie: '{name}' off {delta:+,.2f} AND prior "
+                f"off {d_prior:+,.2f} with no closing bridge — red "
+                "question for the analyst")
             continue
         tied_before = {nm for nm, _g, _w, ok in _key_state() if ok}
         # candidates: every FORMULA cell in the key's chain (estimate
