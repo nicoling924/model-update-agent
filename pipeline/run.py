@@ -278,6 +278,55 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_comp:
         log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
 
+    # -- THE LOAD-BEARING TRACE + TIER-3 SWEEP (owner ruling, CLP
+    # campaign): effort follows the wiring. Rows the model's own
+    # formulas consume on the way to the key rows are LOAD-BEARING —
+    # staleness there stays red and must be adjudicated. Everything
+    # else is tier-3: never searched, held at the group's growth as a
+    # traceable orange formula, awaiting true-up.
+    from .loadbearing import trace as lb_trace
+    lb = lb_trace(wb, spec_d, target_year)
+    rev_key = next((k for k in (spec_d.get("key_rows") or [])
+                    if "rev" in str(k.get("name", "")).lower()), None)
+    n_t3 = 0
+    for sheet, rows in hardcode_census.items():
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        pcol = prior_column(spec_d, sheet, target_year)
+        if not tcol or not pcol:
+            continue
+        for r in rows:
+            ref = f"{sheet}!{tcol}{r}"
+            if ref not in writer.log["flags"] or (sheet, r) in lb:
+                continue
+            cell_now = wb[sheet][f"{tcol}{r}"]
+            from openpyxl.styles import PatternFill as _PF
+            try:
+                rgb = cell_now.fill.start_color.rgb
+            except Exception:
+                rgb = ""
+            if not (isinstance(rgb, str) and rgb.upper().endswith("FFC7CE")):
+                continue                     # already handled by a sweep
+            pv = wb[sheet][f"{pcol}{r}"].value
+            if not isinstance(pv, (int, float)):
+                continue
+            if rev_key:
+                ks, kr = rev_key["sheet"], rev_key["row"]
+                ktc = year_columns(spec_d, ks).get(str(target_year))
+                kpc = prior_column(spec_d, ks, target_year)
+                f = (f"={pcol}{r}*('{ks}'!{ktc}{kr}/'{ks}'!{kpc}{kr})")
+            else:
+                f = f"={pcol}{r}"
+            if writer.write(sheet, f"{tcol}{r}", f,
+                            prior_coord=f"{pcol}{r}", flag="orange",
+                            note=("tier-3 back-out: not load-bearing for "
+                                  "the key rows; held at the group's "
+                                  "growth — true up when segment detail "
+                                  "is disclosed")):
+                n_t3 += 1
+    if n_t3:
+        log(f"[run] tier-3 sweep: {n_t3} non-load-bearing stale inputs "
+            "held at group growth (orange)")
+
     # -- THE DASH-NIL SWEEP (run-11 pin): a stale row whose disclosure
     # line prints a nil mark in the current slot next to a prior that
     # ties is PROVEN zero this period (cancelled treasury shares).
@@ -412,9 +461,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             wb, writer,
             (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
             _sheet, _c["row"], _cols, _assets, log)
+    # -- SIGN-ABSURD FREEZE (owner ruling): a forecast driver that
+    # computes negative where both actual years are positive is upstream
+    # noise, never a forecast — hold it at its pre-update value, orange.
+    from .freeze import freeze_sign_absurd
+    n_sa = freeze_sign_absurd(wb, spec_d, target_year, wb_values, writer)
+    if n_sa:
+        log(f"[run] sign-absurd freeze: {n_sa} forecast drivers held at "
+            "pre-update values (orange)")
+
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served,
-        pre_values_wb=wb_values)
+        pre_values_wb=wb_values, load_bearing=lb)
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
 

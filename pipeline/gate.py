@@ -122,7 +122,7 @@ def magnitude_sweep(wb, spec, target_year, written, served=None):
     return fails
 
 
-def flag_budget(wb, spec, target_year, flags):
+def flag_budget(wb, spec, target_year, flags, load_bearing=None):
     """Gate 3. RED flags per sheet vs filled target-column cells.
 
     Owner doctrine (2026-08-30): red = unresolved uncertainty and counts
@@ -152,6 +152,13 @@ def flag_budget(wb, spec, target_year, flags):
         note = str(cell.comment.text) if cell.comment else ""
         if note and "STALE INPUT" not in note:
             continue                      # adjudicated: a finding
+        # tier law (owner ruling): only LOAD-BEARING staleness is
+        # neglect — decoration outside the wiring trace is the tier-3
+        # sweep's job, not the loop's
+        if load_bearing is not None:
+            row_m = __import__("re").match(r"^[A-Z]+([0-9]+)$", coord)
+            if row_m and (sh, int(row_m.group(1))) not in load_bearing:
+                continue
         per_sheet[sh] = per_sheet.get(sh, 0) + 1
     for sheet, nflags in per_sheet.items():
         tcol = year_columns(spec, sheet).get(str(target_year))
@@ -245,14 +252,15 @@ def error_scan(wb, pre_map):
 
 def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
                       served=None, skip_sheets=("_REPORT", "_SPEC"),
-                      pre_values_wb=None):
+                      pre_values_wb=None, load_bearing=None):
     """The gate. -> (ok, failures, card). ok=False means the run must NOT
     deliver the workbook as the model — quarantine it with this list."""
     failures = []
     failures += check_year_headers(wb, spec, target_year)
     failures += magnitude_sweep(wb, spec, target_year,
                                 writer_log.get("written", ()), served=served)
-    failures += flag_budget(wb, spec, target_year, writer_log.get("flags", ()))
+    failures += flag_budget(wb, spec, target_year, writer_log.get("flags", ()),
+                            load_bearing=load_bearing)
     failures += driver_roll(wb, spec, target_year, pre_map, writer_log)
     failures += error_scan(wb, pre_map)
     tcols = sorted({c for sh in (spec.get("year_axis") or {})

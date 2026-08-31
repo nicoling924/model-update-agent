@@ -152,9 +152,13 @@ Every `set_input` passes a deterministic gate:
    80 of 90 actions re-auditing an unchanged gap and never reached the
    reds — that run failed. An unattributed residue is acceptable;
    unexamined reds are not.
-3. **RED cells — mandatory.** Adjudicate every red: serve it, or
-   record where you looked and why it is not disclosed. This step must
-   be REACHED with budget to spend; it is what finishes the run.
+3. **RED cells — mandatory, and TIERED.** The state block marks which
+   reds are LOAD-BEARING (the model's own wiring consumes them on the
+   way to the key rows) — those are yours: serve each, or record where
+   you looked and why it is not disclosed. Reds outside the wiring are
+   tier-3: the sweeps hold them at the group's growth automatically —
+   NEVER spend an action searching for one. This step must be REACHED
+   with budget to spend; it is what finishes the run.
 
 ## Adjudicate every red (run-14 ruling)
 

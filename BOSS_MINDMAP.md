@@ -279,3 +279,16 @@ To make sure of the following:
   (analyst should look) / ERROR FOUND (cells named, red). Verdicts are
   printed on the _REPORT beside the flags — never silently fixed. The
   walk-away rule applies: one investigation pass per flag.
+
+- **2026-08-31 · The tier law (owner ruling, CLP campaign):** effort
+  follows the WIRING. A deterministic trace from the key rows through
+  the forecast column's formulas marks every upstream row the model
+  actually consumes (LOAD-BEARING: segment revenue, segment earnings —
+  what IFRS 8 guarantees is published). Load-bearing staleness is
+  neglect and must be adjudicated. Everything outside the trace is
+  tier-3: NEVER searched, held at the group's growth as an orange
+  traceable formula (the reclass recipe's cousin), trued up when
+  detail appears. Companion guard: a forecast driver computing
+  sign-absurd (negative where both actual years are positive) freezes
+  at its pre-update value, orange — upstream noise never becomes a
+  forecast.

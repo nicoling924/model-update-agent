@@ -1299,6 +1299,71 @@ def test_inherited_break_law_clp1_pin():
     assert any("CHECK S!r9 (2024)" in f for f in fails2), fails2
 
 
+
+
+def test_load_bearing_trace_and_tier_law():
+    """CLP campaign pins: (1) the wiring trace crosses sheets through the
+    forecast column's formulas; (2) the neglect budget counts ONLY
+    load-bearing reds — tier-3 decoration costs nothing."""
+    import openpyxl
+    from pipeline.loadbearing import trace
+    from pipeline.gate import flag_budget
+    wb = openpyxl.Workbook()
+    m = wb.active; m.title = "M"
+    seg = wb.create_sheet("Seg")
+    # M!V7 (forecast) consumes Seg!V5; Seg!V5 consumes its own V3
+    m["V7"] = "='Seg'!V5*2"
+    seg["V5"] = "=V3+1"
+    seg["V3"] = "=U3"
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}},
+                          "Seg": {"columns": {"2024": "T", "2025": "U",
+                                              "2026": "V"}}},
+            "key_rows": [{"sheet": "M", "row": 7, "name": "revenue"}],
+            "check_rows": []}
+    lb = trace(wb, spec, "2025")
+    assert ("Seg", 5) in lb and ("Seg", 3) in lb, lb
+    assert ("Seg", 99) not in lb
+    # gate: 30 red cells on Seg, none load-bearing -> no neglect failure
+    from openpyxl.styles import PatternFill
+    red = PatternFill("solid", fgColor="FFC7CE")
+    flags = []
+    for r in range(40, 70):
+        seg[f"U{r}"] = 1.0
+        seg[f"U{r}"].fill = red
+        flags.append(f"Seg!U{r}")
+    assert flag_budget(wb, spec, "2025", flags, load_bearing=lb) == []
+    # the same reds ON the load-bearing set do fail
+    lb2 = lb | {("Seg", r) for r in range(40, 70)}
+    assert flag_budget(wb, spec, "2025", flags, load_bearing=lb2)
+
+
+def test_sign_absurd_freeze_pin():
+    """CLP pin: a forecast computing negative where both actuals are
+    positive freezes at its pre-update value, orange, in the frozen log
+    (which the driver-roll gate honors as the authorized replacement)."""
+    import openpyxl
+    from pipeline.freeze import freeze_sign_absurd
+    wb = openpyxl.Workbook()
+    ws = wb.active; ws.title = "S"
+    ws["T9"], ws["U9"] = 6536.0, 7081.0
+    ws["V9"] = "=U9-20000"                     # computes negative
+    ws["T11"], ws["U11"] = 100.0, 110.0
+    ws["V11"] = "=U11*1.05"                    # healthy
+    pre = openpyxl.Workbook()
+    pw = pre.active; pw.title = "S"
+    pw["V9"], pw["V11"] = 7200.0, 115.0
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}}}
+    class W:  # writer stub
+        log = {}
+    n = freeze_sign_absurd(wb, spec, "2025", pre, W)
+    assert n == 1, n
+    assert ws["V9"].value == 7200.0
+    assert ws["V11"].value == "=U11*1.05"
+    assert any("sign-absurd" in x for x in W.log["frozen"])
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

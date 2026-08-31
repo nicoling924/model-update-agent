@@ -83,3 +83,67 @@ def apply_freezes(wb, plans):
         lines.append("%s!%s: frozen at %s — was %s"
                      % (p["sheet"], p["coord"], p["value"], p["oldFormula"]))
     return lines
+
+
+def freeze_sign_absurd(wb, spec, target_year, pre_values_wb, writer):
+    """Owner ruling (CLP campaign): a first-forecast cell that computes
+    NEGATIVE where prior and target actuals are both positive aggregates
+    is upstream noise wearing a forecast's clothes. Hold it at its
+    pre-update cached value (orange, noted, in writer.log["frozen"] so
+    the driver-roll gate recognizes the authorized replacement)."""
+    from .checks import forecast_columns, prior_column, year_columns
+    from .evaluator import Evaluator
+    from openpyxl.styles import PatternFill
+    from openpyxl.comments import Comment
+    ev = Evaluator(wb)
+    fill = PatternFill("solid", fgColor=ORANGE)
+    n = 0
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames \
+                or sheet not in pre_values_wb.sheetnames:
+            continue
+        fcols = forecast_columns(spec, sheet, target_year)
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        pcol = prior_column(spec, sheet, target_year)
+        if not fcols or not tcol or not pcol:
+            continue
+        f1 = fcols[0]
+        ws = wb[sheet]
+        for r in range(1, ws.max_row + 1):
+            c = ws[f"{f1}{r}"]
+            if not (isinstance(c.value, str) and c.value.startswith("=")):
+                continue
+            tv, pv = ws[f"{tcol}{r}"].value, ws[f"{pcol}{r}"].value
+            if isinstance(tv, str):
+                try:
+                    tv = ev.cell(sheet, f"{tcol}{r}")
+                except Exception:
+                    continue
+            if not (isinstance(tv, (int, float))
+                    and isinstance(pv, (int, float))):
+                continue
+            if not (tv > 10.0 and pv > 10.0):
+                continue
+            try:
+                fv = ev.cell(sheet, f"{f1}{r}")
+            except Exception:
+                continue
+            if not (isinstance(fv, (int, float)) and fv < 0):
+                continue
+            hold = pre_values_wb[sheet][f"{f1}{r}"].value
+            if not isinstance(hold, (int, float)):
+                continue
+            old_f = c.value
+            c.value = round(hold, 6)
+            c.fill = fill
+            c.comment = Comment(
+                "SIGN-ABSURD FREEZE: this forecast computed %.1f where "
+                "both actual years are positive — upstream inputs are "
+                "incomplete. Held at the pre-update value; restore the "
+                "formula (%s) once the inputs are trued up."
+                % (fv, old_f), "Model Update Agent")
+            writer.log.setdefault("frozen", []).append(
+                "%s!%s%d: frozen at %s — was %s (sign-absurd %.1f)"
+                % (sheet, f1, r, round(hold, 4), old_f, fv))
+            n += 1
+    return n
