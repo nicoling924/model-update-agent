@@ -14,8 +14,11 @@
 - DFE FY25: DELIVERED and verified (run 19): 0 check failures ALL years,
   file "companies/Dongfang Electric/model/Dongfang Electric FY25 (run 19
   DELIVERED, all years).xlsx" (sent to owner).
-- CLP: run 4 IN FLIGHT locally (started 14:58, log clp_live_run4.log,
-  buffered/quiet is normal). Tier law active: loadbearing.py trace,
+- CLP: run 4 RESTARTED ~15:40 (I killed the original by misreading its
+  shell wrapper as a duplicate — lesson pinned below). Log
+  clp_live_run4.log; buffered/quiet is normal; ~45-70 min.
+  NOTE: `ps` shows TWO lines per run (python + its zsh parent) — never
+  "deduplicate" them. Tier law active: loadbearing.py trace,
   tier-3 growth back-outs, sign-absurd freeze, LB-only neglect budget.
   All museum-pinned; `bash tools/bench.sh` is the ONLY dispatch gate.
 
