@@ -1338,30 +1338,25 @@ def test_load_bearing_trace_and_tier_law():
     assert flag_budget(wb, spec, "2025", flags, load_bearing=lb2)
 
 
-def test_sign_absurd_freeze_pin():
-    """CLP pin: a forecast computing negative where both actuals are
-    positive freezes at its pre-update value, orange, in the frozen log
-    (which the driver-roll gate honors as the authorized replacement)."""
+def test_sign_absurd_detection_pin():
+    """CLP pin (rewritten under FORECAST INVIOLABILITY, owner
+    2026-09-01): the detection still finds the negative-where-actuals-
+    positive forecast — but nothing ever freezes it; the healthy row is
+    never even listed."""
     import openpyxl
-    from pipeline.freeze import freeze_sign_absurd
+    from pipeline.gate import sign_absurd_rows
     wb = openpyxl.Workbook()
     ws = wb.active; ws.title = "S"
     ws["T9"], ws["U9"] = 6536.0, 7081.0
     ws["V9"] = "=U9-20000"                     # computes negative
     ws["T11"], ws["U11"] = 100.0, 110.0
     ws["V11"] = "=U11*1.05"                    # healthy
-    pre = openpyxl.Workbook()
-    pw = pre.active; pw.title = "S"
-    pw["V9"], pw["V11"] = 7200.0, 115.0
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
                                             "2026": "V"}}}}
-    class W:  # writer stub
-        log = {}
-    n = freeze_sign_absurd(wb, spec, "2025", pre, W)
-    assert n == 1, n
-    assert ws["V9"].value == 7200.0
+    rows = sign_absurd_rows(wb, spec, "2025")
+    assert [(r[0], r[1], r[2]) for r in rows] == [("S", "V", 9)], rows
+    assert ws["V9"].value == "=U9-20000"       # forecast stays LIVE
     assert ws["V11"].value == "=U11*1.05"
-    assert any("sign-absurd" in x for x in W.log["frozen"])
 
 
 # ── Run-197 exhibits: the plug grammar and the tripwire law ──────────────
@@ -1396,23 +1391,23 @@ def test_197_plug_accepts_the_refs_its_own_tools_print():
     assert "formula" in bad2 and "diagnose_balance" in bad2, bad2
 
 
-def test_197_one_detection_feeds_tripwires_freeze_and_gate():
-    """Run-197: the sign-absurd freezer and the gate were two
-    implementations of one law and the freezer held 0 of the gate's 6
-    rows (a formula-valued prior actual bailed the freezer out). ONE
-    predicate now feeds the loop's tripwire list, the terminal freeze,
-    and the gate — and a verdicted row is adjudicated, not refused."""
+def test_204_signflip_never_frozen():
+    """Run-204 autopsy (owner 2026-09-01): hardcoding forecast formulas
+    at pre-update values broke every forecast year's balance — FORECAST
+    INVIOLABILITY. Sign-flips are detected by ONE predicate, handed to
+    the loop, and the terminal state is LIVE + red + SUSPICIOUS verdict
+    — never a frozen hardcode. A verdicted row is adjudicated, not
+    refused."""
     import openpyxl
     from pipeline.gate import driver_roll, sign_absurd_rows
-    from pipeline.freeze import freeze_sign_absurd
     from pipeline.writer import Writer
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "S"
     ws["T2"] = 6536.0
-    ws["T9"] = "=T2"                    # formula-valued PRIOR actual —
-    ws["U9"] = 7081.0                   # the exact class the old freezer
-    ws["V9"] = "=U9-20000"              # skipped while the gate failed it
+    ws["T9"] = "=T2"                    # formula-valued prior actual
+    ws["U9"] = 7081.0
+    ws["V9"] = "=U9-20000"
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
                                             "2026": "V"}}}}
     rows = sign_absurd_rows(wb, spec, "2025")
@@ -1421,22 +1416,15 @@ def test_197_one_detection_feeds_tripwires_freeze_and_gate():
     w = Writer(wb)
     fails = driver_roll(wb, spec, "2025", {}, w.log)
     assert any("UNEXAMINED" in f for f in fails), fails
-    # a JUSTIFIED verdict adjudicates: reported, not refused, not frozen
+    # the terminal (run.py behavior, law-level): SUSPICIOUS verdict,
+    # formula stays LIVE — and the gate accepts the adjudication
     w.log.setdefault("verdicts", []).append(
-        "S!V9: JUSTIFIED — disclosure supports the negative")
+        "S!V9: SUSPICIOUS — sign-flip unresolved; cause is in the "
+        "actual column")
     assert driver_roll(wb, spec, "2025", {}, w.log) == []
-    pre = openpyxl.Workbook()
-    pre.active.title = "S"
-    pre["S"]["V9"] = 7200.0
-    assert freeze_sign_absurd(wb, spec, "2025", pre, w) == 0
-    assert ws["V9"].value == "=U9-20000"
-    # unresolved -> terminal freeze, authorized, gate satisfied
-    w2 = Writer(wb)
-    assert freeze_sign_absurd(wb, spec, "2025", pre, w2) == 1
-    assert ws["V9"].value == 7200.0
-    assert any("UNRESOLVED" in v for v in w2.log["verdicts"])
-    pre_map = {"S": {"V9": "=U9-20000"}}
-    assert driver_roll(wb, spec, "2025", pre_map, w2.log) == []
+    assert ws["V9"].value == "=U9-20000"     # NEVER hardcoded
+    from pipeline import freeze
+    assert not hasattr(freeze, "freeze_sign_absurd")   # writer retired
 
 
 def test_198_composite_constants_law():
@@ -1749,26 +1737,55 @@ def test_203_empty_row_law():
     assert w.write("S", "U5", 105.0, prior_coord="T5") is True
 
 
-def test_197_no_cached_value_is_red_not_silent():
-    """Manual-calc models can have no pre-update cached value to hold —
-    the honest terminal is red + SUSPICIOUS verdict, never a skip."""
+def test_204_teachings_twin_collapse_plugmeter():
+    """The by-hand teachings, law-level: (2) a served value re-anchors
+    its stale twins; (3) a zero that kills a healthy forecast row is
+    caught by the collapse detector; (5) the model's own residual rows
+    read as truth meters."""
     import openpyxl
-    from pipeline.freeze import freeze_sign_absurd
+    from pipeline.teachings import (collapsed_forecasts, forecast_baseline,
+                                    plug_meter, twin_reanchor)
     from pipeline.writer import Writer
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "S"
-    ws["T9"], ws["U9"] = 6536.0, 7081.0
-    ws["V9"] = "=U9-20000"
+    # twin: rows 5 and 7 both held 1,577 last year; row 5 gets served
+    ws["T5"], ws["U5"] = 1577.0, 1650.0
+    ws["T7"], ws["U7"] = 1577.0, 1577.0          # stale twin hardcode
+    ws["T8"], ws["U8"] = 1577.0, "=U5"           # formula twin, healthy
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
                                             "2026": "V"}}}}
-    pre = openpyxl.Workbook()
-    pre.active.title = "S"                      # V9 has no cached value
     w = Writer(wb)
-    assert freeze_sign_absurd(wb, spec, "2025", pre, w) == 1
-    assert ws["V9"].value == "=U9-20000"        # formula kept, but…
-    assert "S!V9" in w.log["flags"]             # …red-flagged and
-    assert any("SUSPICIOUS" in v for v in w.log["verdicts"])
+    w.log["written"].append("S!U5")
+    n_rw, n_tw = twin_reanchor(wb, wb, spec, 2025, w, lambda s: None)
+    assert n_rw == 1 and ws["U7"].value == 1650.0, (n_rw, ws["U7"].value)
+    # collapse: V9 = units*price; baseline healthy, tariff zeroed -> caught
+    wb2 = openpyxl.Workbook()
+    w2s = wb2.active
+    w2s.title = "S"
+    w2s["T5"], w2s["U5"] = 95.8, 97.1
+    w2s["T6"], w2s["U6"] = 360.0, 360.0
+    w2s["V9"] = "=U5*U6"
+    base = forecast_baseline(wb2, spec, 2025)
+    assert base[("S", 9)] > 100
+    w2s["U5"] = 0.0                              # the run-204 tariff crime
+    got = collapsed_forecasts(wb2, spec, 2025, base)
+    assert [(s, r) for s, r, _n, _w in got] == [("S", 9)], got
+    # plug meter: residual row explodes vs its prior
+    wb3 = openpyxl.Workbook()
+    w3s = wb3.active
+    w3s.title = "S"
+    w3s["T2"], w3s["U2"] = 50649.0, 48967.0      # total (sales)
+    w3s["T3"], w3s["U3"] = 34000.0, 34723.0      # basic
+    w3s["T4"], w3s["U4"] = 16645.0, 15842.0      # fuel
+    w3s["T5"], w3s["U5"] = "=T2-T3-T4", "=U2-U3-U4"   # export plug
+    # the wrong tariff: plug -1,598 vs prior +4 — sign-flipped, large:
+    # METERED (exactly how the by-hand session caught the tariff)
+    pm = plug_meter(wb3, spec, 2025)
+    assert [(s, r) for s, r, _n, _w in pm] == [("S", 5)], pm
+    # the fuel fix lands: plug -185 vs +4 — small: quiet
+    w3s["U4"] = 14429.0
+    assert plug_meter(wb3, spec, 2025) == []
 
 
 if __name__ == "__main__":

@@ -292,6 +292,27 @@ To make sure of the following:
   issue: every fix must be generic and fix the underlying fundamental
   cause before it is pushed.
 
+- **2026-09-01 · The by-hand teachings (owner mandate: "do it yourself
+  with Fable 5, then teach the agent how you think"):** after twelve
+  machine runs, the model was finished BY HAND; the six habits that
+  finished it are now laws, all generic: (1) FORECAST INVIOLABILITY —
+  the agent writes ONE column; forecast symptoms are chased to their
+  actual-column causes (forecast_diff vs the analyst's own pre-update
+  model); the sign-absurd freeze writer is retired — unresolved flips
+  stay LIVE, red, reported. (2) TWIN RE-ANCHOR — a served quantity's
+  other homes (same prior, still stale) re-anchor with it. (3) A ZERO
+  MUST SURVIVE ITS CONSEQUENCES — a zero that kills a healthy forecast
+  row is auto-disproven (collapse guard vs the analyst's own baseline).
+  (4) COMPOSITE VINTAGE — literals tying the prior-year print are last
+  year's numbers even without the stale fingerprint. (5) PLUG METERS —
+  the model's own residual rows are truth meters; wild swings point at
+  wrong inputs. (6) SEGMENT PRIOR DISCIPLINE — a serve into a row with
+  a known prior must cite a page carrying that prior, else it lands
+  red (wrong-column guard). Standing rider: the BACK-OUT LADDER always
+  applies when a figure is genuinely absent — traceable-formula
+  back-outs, key-tie, growth recipe, red-with-where-looked; deliver,
+  never stall.
+
 - **2026-08-31 · The error-baseline law (owner ruling, reviewing the
   first CLP delivery):** original models can carry hidden errors that
   are not the agent's doing — so the agent COUNTS the evaluation

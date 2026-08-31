@@ -45,6 +45,57 @@ search everything the documents printed (including transcribed scan pages).
 The model's labels may be in a different language than the filing: match by
 MEANING and by prior-year values, never by spelling.
 
+## How the analyst who finished this model thinks (owner mandate
+## 2026-09-01 — the by-hand session that completed CLP when twelve
+## machine runs could not; these habits are GENERIC, for any model)
+
+1. **The actual column is yours; the forecast is the analyst's.** You
+   write ONE column. When a forecast year breaks — imbalance, error,
+   sign-flip, collapse — the cause is an actual-column input its
+   formulas consume. `forecast_diff` compares every forecast row
+   against the analyst's own pre-update model and names the actual
+   cells behind the biggest moves. Fix the actual; the forecast heals
+   itself. NEVER hardcode a forecast formula (the failed run froze 33
+   of them and broke every year).
+2. **Follow the wire across sheets.** Models are storeys: statements ←
+   drivers ← regional/segment sheets. The cell that shows the symptom
+   is rarely the cell that holds the cause — trace two, three, four
+   hops (`trace_cell`, `trace_error`) until you reach the INPUT.
+3. **The model's own plug rows are truth meters.** Rows like
+   `=total−parts` absorb whatever is wrong upstream: a plug at −1,598
+   whose prior was −4 is the model telling you a sibling input is
+   wrong. Read the PLUG METERS section; fix the input, watch the plug
+   return to sanity — that return IS your proof.
+4. **A quantity lives in several homes.** The BS row and the roll base
+   that feeds the forecasts often hold the same number (same prior).
+   Serving one and not the other breaks every forecast year — the twin
+   sweep re-anchors hardcodes and red-flags formula twins for you.
+5. **Segments map by their own prior, never by table order.** The
+   model's prior column proves which disclosure column is which
+   (a sheet holding −840 last year IS the segment that printed −840).
+   A cited page that does not carry the row's own prior lands the
+   write RED — wrong-column grabs are how China got Hong Kong's D&A.
+6. **A zero must survive its consequences.** An evidence-clean zero
+   that kills next year's revenue is wrong evidence. The collapse
+   guard reverts zero-writes that do this; treat any COLLAPSED
+   FORECAST flag as a symptom to trace.
+7. **Literals carry vintages.** Any literal in a rolled formula that
+   equals a prior-year printed figure is last year's number wearing a
+   formula's clothes — `rewrite_constants` replaces it from the same
+   line's current figure.
+
+## THE BACK-OUT LADDER (owner's standing reminder): when a figure
+truly is not found — or not disclosed in a results announcement — you
+still deliver. In order: (a) derive it from totals + known
+relationships as a TRACEABLE FORMULA (component = total − mapped
+members), orange; (b) keys must still tie their printed values — the
+key-tie machinery backs the unresolvable component out so they do;
+(c) segment blocks under a disclosed total use the growth back-out
+recipe with the smallest member as plug; (d) a figure with no
+relationship to anchor it stays at prior, RED, with where-you-looked
+documented (the machine look does this for you). One pass, then move
+on — never a wrong unflagged number, never a stalled run.
+
 ## The balance doctrine (owner's ruling)
 
 **The balance sheet balances itself when every input is right.** A non-zero
@@ -149,6 +200,10 @@ with both readings, never a silent choice.
   — close a TRIPWIRE (see below). ERROR_FIXED only after your repair is
   applied and rescored; JUSTIFIED needs the disclosure reason;
   SUSPICIOUS is the honest unresolved state for the analyst.
+- `forecast_diff {"sheet": "..."}` (sheet optional) — every forecast row
+  vs the analyst's own pre-update model, biggest moves first, with the
+  actual-column cells each formula consumes. THE tool for any broken
+  forecast year: fix the actual cause, never the forecast.
 - `flag_cell {"cell": "Sheet!C7", "why": "..."}` — the honest hole.
 
 Cell references: every tool accepts `Sheet!AI99` and `Sheet!99` alike —

@@ -155,6 +155,20 @@ class ObjectiveLoop:
         notes = [f"  - {n}" for n in self.notes[-12:]]
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
         trips = self._trip_lines()
+        plugs = []
+        done_v = {v.split(":", 1)[0]
+                  for v in self.writer.log.get("verdicts", [])}
+        for (pm_sh, pm_r, pm_now, pm_was) in getattr(
+                self, "plugmeters", [])[:8]:
+            key = f"{pm_sh}!{self._tcol(pm_sh)}{pm_r}"
+            if key in done_v:
+                continue
+            plugs.append(
+                f"  {key}: the model's own residual computed {pm_was:,.1f} "
+                f"last year, {pm_now:,.1f} now — a wild plug means an "
+                f"INPUT feeding its total is wrong (the export-plug "
+                f"lesson). trace_cell the total's components, fix the "
+                f"input, then verdict {{\"item\": \"{key}\", ...}}")
         errs = []
         for (s, c, why) in getattr(self, "error_items", [])[:10]:
             try:
@@ -182,6 +196,9 @@ class ObjectiveLoop:
             *endgame,
             *(["== NEW ERRORS (this update broke cells that computed "
                "before — HIGHEST priority) =="] + errs if errs else []),
+            *(["== PLUG METERS (the model's own residual rows moved "
+               "wildly — each needs ONE verdict) =="] + plugs
+              if plugs else []),
             "== SCORECARD ==",
             summarize(card, self.ty, flags=self.writer.log["flags"],
                       spec=self.spec, wb=self.wb),
@@ -736,6 +753,67 @@ class ObjectiveLoop:
                 + chain[-4:]
         return "\n".join(chain)
 
+    def t_forecast_diff(self, args):
+        """THE BY-HAND METHOD for broken forecast years (owner ruling
+        2026-09-01: the forecast is the analyst's — never mutate it;
+        every forecast symptom has an ACTUAL-column cause). Evaluates a
+        forecast year row-by-row against the analyst's PRE-UPDATE model
+        and lists the biggest movers with the actual-column cells their
+        formulas consume — the cause candidates."""
+        sheet = str(args.get("sheet") or "")
+        path = getattr(self, "pre_path", None)
+        if not path:
+            return "MISS: no pre-update archive available"
+        if getattr(self, "_pre_wb", None) is None:
+            import openpyxl
+            self._pre_wb = openpyxl.load_workbook(path)
+        from .checks import forecast_columns
+        evN, evP = Evaluator(self.wb), Evaluator(self._pre_wb)
+        sheets = [sheet] if sheet else list(
+            (self.spec.get("year_axis") or {}))
+        movers = []
+        for sh in sheets:
+            if sh not in self.wb.sheetnames \
+                    or sh not in self._pre_wb.sheetnames:
+                continue
+            fc = forecast_columns(self.spec, sh, self.ty)
+            if not fc:
+                continue
+            ws = self.wb[sh]
+            for r in range(1, min(ws.max_row, 300) + 1):
+                f = ws[f"{fc[0]}{r}"].value
+                if not (isinstance(f, str) and f.startswith("=")):
+                    continue
+                try:
+                    vn = evN.cell(sh, f"{fc[0]}{r}")
+                    vp = evP.cell(sh, f"{fc[0]}{r}")
+                except Exception:
+                    continue
+                if isinstance(vn, (int, float)) \
+                        and isinstance(vp, (int, float)) \
+                        and abs(vn - vp) > max(200.0, abs(vp) * 0.5):
+                    movers.append((abs(vn - vp), sh, r, vn, vp, f))
+        if not movers:
+            return ("forecast matches the analyst's pre-update model "
+                    "everywhere material")
+        out = ["FORECAST vs the analyst's own model (biggest moves; the "
+               "cause of each is an ACTUAL-column input its formula "
+               "consumes — fix the actual, never the forecast):"]
+        tcols = {sh: self._tcol(sh) for sh in sheets}
+        for _d, sh, r, vn, vp, f in sorted(movers, reverse=True)[:12]:
+            causes = []
+            for m in re.finditer(
+                    r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
+                    r"([A-Z]{1,3})(\d+)", str(f).replace("$", "")):
+                csh = (m.group(1) or m.group(2) or sh).strip()
+                if m.group(3) == tcols.get(csh) \
+                        or m.group(3) == self._tcol(csh):
+                    causes.append(f"{csh}!{m.group(3)}{m.group(4)}")
+            out.append(f"  {sh}!{r}: now {vn:,.1f} vs analyst {vp:,.1f}"
+                       + (f" — reads actuals {', '.join(causes[:4])}"
+                          if causes else " — trace_cell it"))
+        return "\n".join(out)
+
     def t_rewrite_constants(self, args):
         """THE CONSTANTS LAW, on demand (owner ruling 2026-08-31): a
         formula still embedding last year's literals (=4976+23) that
@@ -793,6 +871,34 @@ class ObjectiveLoop:
         sheet, col, row = cr
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
+        # SEGMENT PRIOR DISCIPLINE (by-hand teaching #6, the run-204
+        # wrong-column lesson: China's D&A was served Hong Kong's
+        # number): a page cited for a row that has a known prior must
+        # ALSO carry that prior somewhere — otherwise the write lands
+        # RED, never clean. The row's own prior is the only proof you
+        # read the right column.
+        forced_flag = args.get("flag")
+        pc0 = prior_column(self.spec, sheet, self.ty)
+        pv0 = self.wb[sheet][f"{pc0}{row}"].value if pc0 else None
+        if isinstance(pv0, (int, float)) and abs(pv0) >= 10:
+            m_pg = re.search(r"p(?:age)?\.?\s*(\d+)", why, re.IGNORECASE)
+            corro = False
+            if m_pg:
+                pg = int(m_pg.group(1))
+                tol0 = row_tol(pv0, base=0.6 if abs(pv0) >= 100 else 0.01)
+                for it in self.ledger.items:
+                    if it.page != pg:
+                        continue
+                    if any(abs(abs(n) - abs(pv0)) <= tol0
+                           for n in it.nums):
+                        corro = True
+                        break
+            if not corro and not forced_flag:
+                args = dict(args)
+                args["flag"] = "red"
+                args["why"] = (why + " [prior NOT corroborated on the "
+                               "cited page — wrong-column risk, red]")
+                why = args["why"]
         held = self.wb[sheet][f"{col}{row}"].value
         redirected = ""
         if isinstance(held, str) and held.startswith("="):
@@ -1120,6 +1226,7 @@ class ObjectiveLoop:
              "plug_residual": t_plug_residual,
              "rewrite_constants": t_rewrite_constants,
              "trace_error": t_trace_error,
+             "forecast_diff": t_forecast_diff,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,

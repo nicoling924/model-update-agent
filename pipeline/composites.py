@@ -37,6 +37,7 @@ from .evaluator import Evaluator
 from .numerics import SCALES, row_tol, to_model_units
 
 LITERAL_FLOOR = 100.0     # a cell must embed one literal this big to trigger
+VINTAGE_FLOOR = 50.0      # vintage mode: smaller carried actuals qualify
 STALE_TOL = 1.0           # evaluated == prior actual within this = stale
 AXIS_BAND = 3             # header rows, never swept
 
@@ -154,9 +155,9 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
     if not lits:
         return False, (f"{sheet}!{tcol}{row} embeds no carried-actual "
                        "literals (structural scalers don't count)")
-    if not any(abs(float(x)) >= LITERAL_FLOOR for x in lits):
+    if not any(abs(float(x)) >= VINTAGE_FLOOR for x in lits):
         return False, (f"{sheet}!{tcol}{row}: all literals below "
-                       f"{LITERAL_FLOOR:g} — modeling constants, not "
+                       f"{VINTAGE_FLOOR:g} — modeling constants, not "
                        "carried actuals")
     ev = Evaluator(wb)
     try:
@@ -167,9 +168,24 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
     if not (isinstance(cur, (int, float)) and isinstance(pv, (int, float))):
         return False, f"{sheet}!{tcol}{row}: cell or prior not numeric"
     if abs(cur - pv) > STALE_TOL:
-        return False, (f"{sheet}!{tcol}{row} evaluates {cur:,.2f} vs prior "
-                       f"{pv:,.2f} — no stale fingerprint; the law only "
-                       "touches cells still equal to their prior")
+        # THE VINTAGE EXTENSION (by-hand teaching #4, run-204: the WC
+        # row, the one-offs =94, net interest =2254-235-15 — literals
+        # tying the PRIOR-year print are last year's numbers even when
+        # the cell does not evaluate to its prior). Qualify only when
+        # EVERY large literal individually ties a prior-position print;
+        # the page-coherence proof below still decides.
+        big = [x for x in lits if abs(float(x)) >= VINTAGE_FLOOR]
+        if not big:
+            return False, (f"{sheet}!{tcol}{row} evaluates {cur:,.2f} vs "
+                           f"prior {pv:,.2f} — no stale fingerprint and no "
+                           "vintage literals")
+        for x in big:
+            if not candidates(ledger, x):
+                return False, (f"{sheet}!{tcol}{row}: literal {x} ties no "
+                               "prior-position print — not a carried "
+                               "actual; cell untouched")
+        lits = big + [x for x in lits if abs(float(x)) < VINTAGE_FLOOR
+                      and candidates(ledger, x)]
     proof, why = prove_cell(ledger, lits)
     if proof is None:
         return False, (f"{sheet}!{tcol}{row} UNPROVEN — {why} "
@@ -221,7 +237,7 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None):
                 continue
             lits = [x for x in literals_of(f)
                     if abs(float(x)) not in MODELING_CONSTANTS]
-            if not lits or not any(abs(float(x)) >= LITERAL_FLOOR
+            if not lits or not any(abs(float(x)) >= VINTAGE_FLOOR
                                    for x in lits):
                 continue
             ok, msg = rewrite_cell(wb, spec, target_year, ledger, writer,

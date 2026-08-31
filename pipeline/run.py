@@ -154,6 +154,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if err_base:
         log(f"[run] error baseline: {len(err_base)} cells already fail to "
             "evaluate in the analyst's own model (their standing items)")
+    # the by-hand teaching (owner 2026-09-01): the analyst's own first
+    # forecast year, evaluated BEFORE we touch anything, defines
+    # "healthy" — a write must survive its consequences there
+    from .teachings import collapsed_forecasts, forecast_baseline
+    fc_base = forecast_baseline(wb, spec_d, target_year)
+    log(f"[run] forecast baseline: {len(fc_base)} healthy first-forecast "
+        "rows recorded (collapse guard armed)")
 
     def err_guard(stage, cap=60):
         """A stage that made cells stop computing gets its journaled
@@ -184,6 +191,55 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run]   error guard [{stage}]: {len(cur)} new errors "
                 "remain — the gate will refuse them: "
                 + "; ".join(f"{s}!{c}" for s, c, _w in cur[:5]))
+
+    def collapse_guard(stage, cap=40):
+        """A write must survive its consequences (the run-204 tariff: an
+        evidence-clean ZERO deleted next year's revenue). A ZERO write
+        that collapsed a healthy forecast row is auto-disproven and
+        reverted; a NON-zero write that did so is red-tripwired for the
+        loop — it might be a real actual with a real consequence."""
+        from openpyxl.comments import Comment
+        cur = collapsed_forecasts(wb, spec_d, target_year, fc_base)
+        if not cur:
+            return
+        undo = writer.log.get("undo", [])
+        popped = 0
+        while cur and undo and popped < cap:
+            sh, coord, old = undo.pop()
+            popped += 1
+            prev = wb[sh][coord].value
+            if not (isinstance(prev, (int, float)) and abs(prev) < 0.5):
+                continue                  # only zero-writes auto-revert
+            wb[sh][coord] = old
+            now = collapsed_forecasts(wb, spec_d, target_year, fc_base)
+            if len(now) < len(cur):
+                log(f"[run]   collapse guard [{stage}]: REVERTED "
+                    f"{sh}!{coord} (zero -> restored {str(old)[:22]!r}) — "
+                    "the zero killed a healthy forecast row "
+                    "(auto-disproven)")
+                writer.log["flags"] = [x for x in writer.log["flags"]
+                                       if x != f"{sh}!{coord}"]
+                cur = now
+            else:
+                wb[sh][coord] = prev
+        for (sh, r, now, was) in cur[:10]:
+            from .checks import forecast_columns as _fc
+            fc1 = _fc(spec_d, sh, target_year)
+            if not fc1:
+                continue
+            cell = wb[sh][f"{fc1[0]}{r}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = Comment(
+                f"COLLAPSED FORECAST: the analyst's model computed "
+                f"{was:,.1f} here; after the update it computes {now:,.1f}."
+                " An actual-column input this row consumes changed "
+                "drastically — verify that input (forecast_diff names "
+                "candidates).", "Model Update Agent")
+            writer.log["flags"].append(f"{sh}!{fc1[0]}{r}")
+        if cur:
+            log(f"[run]   collapse guard [{stage}]: {len(cur)} forecast "
+                "rows collapsed vs the analyst's baseline — red-flagged, "
+                "loop must trace the actual-column cause")
     pre_estimates = report_mod.snapshot_estimates(wb_values, spec_d, target_year)
 
     # -- census + Stage 1
@@ -288,6 +344,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"disclosed comparatives (orange), {n_cr} unproven (red, "
             "evidence noted)")
     err_guard("constants law")
+    collapse_guard("constants law")
 
     # -- PRE-LOOP DETERMINISTIC SWEEP (owner ruling: find it and fix it;
     # the loop's budget must not be spent on rows code can prove). For each
@@ -428,6 +485,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_nil:
         log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
     err_guard("tier-3 + dash-nil")
+    collapse_guard("tier-3 + dash-nil")
 
     # -- THE RECLASSIFICATION RECIPE (owner rulings 2026-08-30): stale
     # segment inputs in a block whose total is known are backed out at
@@ -473,6 +531,19 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         log(f"[run] assumption freeze: {len(frozen_lines)} forecast "
             "assumptions held at their pre-update values (orange)")
     err_guard("reclass + freeze")
+    collapse_guard("reclass + freeze")
+
+    # -- TWIN RE-ANCHOR (by-hand teaching #2): a served quantity's other
+    # homes (same prior, still stale) re-anchor with it — the run-204
+    # NFA lesson: a stale twin base breaks every forecast year.
+    from .teachings import plug_meter, twin_reanchor
+    n_rw, n_tw = twin_reanchor(wb, wb_values, spec_d, target_year, writer,
+                               log)
+    if n_rw or n_tw:
+        log(f"[run] twin re-anchor: {n_rw} stale twin hardcodes re-served, "
+            f"{n_tw} formula twins red-tripwired")
+    err_guard("twin re-anchor")
+    collapse_guard("twin re-anchor")
 
     # -- THE MOVE-ON LAW (owner ruling 2026-08-31): code does the
     # exhaustive not-disclosed looking for every stale red; the loop's
@@ -502,6 +573,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if loop.error_items:
             log(f"[run] {len(loop.error_items)} NEW evaluation errors "
                 "handed to the loop (trace_error each to its cause)")
+        # by-hand teaching #5: the model's own residual rows are truth
+        # meters — a wild plug means an input feeding its total is wrong
+        loop.plugmeters = plug_meter(wb, spec_d, target_year)
+        if loop.plugmeters:
+            log(f"[run] plug meter: {len(loop.plugmeters)} of the model's "
+                "own residual rows moved wildly — the loop investigates "
+                "their inputs")
         loop_summary = loop.run()
         log(f"[run] objective loop: {loop_summary[:150]}")
         # the referee's last rung (owner: back out, mark, still deliver)
@@ -511,6 +589,36 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run] terminal ladder: {n_tl} actual-year checks closed "
                 "(flagged plugs/diffs, reported)")
         err_guard("loop + terminal ladder")
+        collapse_guard("loop + terminal ladder")
+        # loop serves get the twin treatment too
+        n_rw2, n_tw2 = twin_reanchor(wb, wb_values, spec_d, target_year,
+                                     writer, log)
+        if n_rw2 or n_tw2:
+            err_guard("twin re-anchor 2")
+            collapse_guard("twin re-anchor 2")
+        # unresolved plug meters: reported, never silent
+        from openpyxl.comments import Comment as _C2
+        done_v = {v.split(":", 1)[0]
+                  for v in writer.log.get("verdicts", [])}
+        for (pm_sh, pm_r, pm_now, pm_was) in plug_meter(wb, spec_d,
+                                                        target_year):
+            tc_pm = spec_d["year_axis"][pm_sh]["columns"].get(
+                str(target_year)) if pm_sh in spec_d.get(
+                    "year_axis", {}) else None
+            if not tc_pm or f"{pm_sh}!{tc_pm}{pm_r}" in done_v:
+                continue
+            cell = wb[pm_sh][f"{tc_pm}{pm_r}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = _C2(
+                f"PLUG METER: this residual row computed {pm_was:,.1f} "
+                f"last year and {pm_now:,.1f} now — the model's own plug "
+                "is absorbing something wrong in the inputs that feed "
+                "its total. ANALYST REVIEW.", "Model Update Agent")
+            writer.log["flags"].append(f"{pm_sh}!{tc_pm}{pm_r}")
+            writer.log.setdefault("verdicts", []).append(
+                f"{pm_sh}!{tc_pm}{pm_r}: SUSPICIOUS — the model's own "
+                f"residual swung {pm_was:,.1f} -> {pm_now:,.1f}; an "
+                "input feeding its total is probably wrong")
         # -- THE KEY-TIE LAW (owner ruling 2026-08-31): every key row
         # must tie its pinned printed value; the unresolvable component
         # is backed out (orange, traceable) so the key ties exactly.
@@ -519,6 +627,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 company_dir / "replay" / str(period) / "key_panel.json",
                 log, ledger=ledger)
         err_guard("key tie")
+        collapse_guard("key tie")
     else:
         log("[run] stage 4 loop skipped: no client (dry run)")
 
@@ -554,16 +663,38 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             wb, writer,
             (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
             _sheet, _c["row"], _cols, _assets, log)
-    # -- SIGN-ABSURD FREEZE (owner ruling): a forecast driver that
-    # computes negative where both actual years are positive is upstream
-    # noise, never a forecast — hold it at its pre-update value, orange.
-    from .freeze import freeze_sign_absurd
-    n_sa = freeze_sign_absurd(wb, spec_d, target_year, wb_values, writer,
-                              pre_formulas_path=str(archive))
+    # -- FORECAST INVIOLABILITY (the by-hand teaching, owner 2026-09-01,
+    # replacing the sign-absurd freeze writer that broke run 204's
+    # balance): the analyst's forecast formulas are never hardcoded.
+    # A sign-flip still unresolved after the loop is a red REPORTED
+    # question naming where the cause lives — the actual column.
+    from openpyxl.comments import Comment as _Cmt
+    verdicted = {v.split(":", 1)[0]
+                 for v in writer.log.get("verdicts", [])}
+    n_sa = 0
+    for (s_sh, s_c, s_r, s_fv, s_pv, s_tv) in gate_mod.sign_absurd_rows(
+            wb, spec_d, target_year):
+        key = f"{s_sh}!{s_c}{s_r}"
+        if key in verdicted:
+            continue
+        cell = wb[s_sh][f"{s_c}{s_r}"]
+        cell.fill = writer.fills["red"]
+        cell.comment = _Cmt(
+            f"SIGN-FLIP UNRESOLVED: this forecast computes {s_fv:,.1f} "
+            f"where both actual years are positive ({s_pv:,.1f} -> "
+            f"{s_tv:,.1f}). The formula is the analyst's and stays LIVE "
+            "— the cause is an actual-column input it consumes. "
+            "ANALYST REVIEW.", "Model Update Agent")
+        writer.log["flags"].append(key)
+        writer.log.setdefault("verdicts", []).append(
+            f"{key}: SUSPICIOUS — sign-flip unresolved; the cause is in "
+            "the actual column (formula left live, red)")
+        n_sa += 1
     if n_sa:
-        log(f"[run] sign-absurd freeze: {n_sa} forecast drivers held at "
-            "pre-update values (orange)")
-    err_guard("plugs + freezes")
+        log(f"[run] sign-flip terminal: {n_sa} unresolved forecasts left "
+            "LIVE, red, reported (never frozen — the run-204 lesson)")
+    err_guard("plugs + terminal")
+    collapse_guard("plugs + terminal")
 
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served,
