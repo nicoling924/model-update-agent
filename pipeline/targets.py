@@ -60,6 +60,14 @@ def backout_addresses(spec):
     return out
 
 
+import re as _re_mod
+
+# =AH158, =+Aus!AI89, =-'SOC Accounts'!AI8 — one cell, nothing computed
+_SINGLE_REF = _re_mod.compile(
+    r"^=\s*[+-]?\s*(?:(?:'[^']+'|[A-Za-z][A-Za-z0-9 _]*)!)?"
+    r"[A-Z]{1,3}\d{1,5}\s*$")
+
+
 def _input_kind(wb_f, sheet, pcol, r):
     if wb_f is None or sheet not in wb_f.sheetnames:
         return ""
@@ -86,6 +94,7 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
     hints = hints or {}
     backouts = backout_addresses(spec)
     targets = []
+    _EV = [None]        # lazy evaluator over the formulas workbook
     for sheet, axis in (spec.get("year_axis") or {}).items():
         cols = axis.get("columns") or {}
         years = sorted(cols)
@@ -113,6 +122,32 @@ def from_workbook(wb_values, spec, target_year, hints=None, max_row=400,
             if r <= 12 and _is_year_mark(pv):
                 continue
             prior = float(pv) if isinstance(pv, (int, float)) else None
+            # THE EVALUATED-PRIOR LAW (run-205 autopsy: CN's amortisation
+            # prior lives behind a formula, cached nowhere on a
+            # manual-calc model — the row became a 'no prior' target, its
+            # stage-3 read went unchecksummed and landed +1,598 on a row
+            # whose true prior is -282). A formula prior is still a
+            # prior: evaluate it. Every guard downstream — checksums,
+            # bands, sign, twins, identity joins — regains its anchor.
+            if prior is None and wb_formulas is not None \
+                    and sheet in getattr(wb_formulas, "sheetnames", []):
+                fv = wb_formulas[sheet][f"{pcol}{r}"].value
+                # LINK rows only (single-cell reference, the typed
+                # number's other home) — computed formulas never gain a
+                # fake identity (the first cut anchored VIEW rows too
+                # and serve collisions exploded: 39 twin drops, 64
+                # forecast collapses in the dry run)
+                if isinstance(fv, str) and _SINGLE_REF.match(
+                        fv.replace("$", "")):
+                    if _EV[0] is None:
+                        from .evaluator import Evaluator
+                        _EV[0] = Evaluator(wb_formulas)
+                    try:
+                        got = _EV[0].cell(sheet, f"{pcol}{r}")
+                    except Exception:
+                        got = None
+                    if isinstance(got, (int, float)):
+                        prior = float(got)
             p2 = ws[f"{p2col}{r}"].value if p2col else None
             prior2 = float(p2) if isinstance(p2, (int, float)) else None
             if not label and prior is None:

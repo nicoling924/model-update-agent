@@ -178,6 +178,29 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
             continue
         if not isinstance(gap, (int, float)) or abs(gap) <= 1:
             continue
+        # THE CASCADE BREAKER (run-205: plugs doubled year over year,
+        # -2,327 -> -42,512 — each plug flows through cash into the next
+        # year's gap and the series feeds itself). An ESCALATING plug
+        # series is a structural symptom, not a residue: stop plugging,
+        # leave the years failing with their collapse-flag causes for
+        # the analyst/loop — forecast inviolability over cosmetics.
+        if plugged and abs(gap) > 1.6 * abs(plugged[-1][2]) \
+                and abs(gap) > 500:
+            log(f"[run] forecast plugs STOPPED at {col}: the series is "
+                f"escalating ({plugged[-1][2]:+,.1f} -> {-gap:+,.1f}) — "
+                "a cascade means an unresolved actual-column cause, "
+                "never a residue; plugs unwound, years left failing "
+                "with their collapse-flag causes")
+            for pcol, prow, pval, _big in plugged:
+                c2 = ws.cell(row=prow,
+                             column=column_index_from_string(pcol))
+                if isinstance(c2.value, (int, float)):
+                    c2.value = round(c2.value - pval, 6)
+                    c2.comment = Comment(
+                        "forecast plug UNWOUND: the plug series was "
+                        "escalating (cascade) — see collapse flags for "
+                        "the actual-column causes.", "Model Update Agent")
+            return []
         if targets is None:
             targets = cf_input_rows(ws, col)
         others = [r for r, lab in targets if _OTHERS.match(lab or "")]

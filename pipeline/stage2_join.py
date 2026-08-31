@@ -533,6 +533,19 @@ def join_bound_tables(ledger, targets, served, log=None):
 
     out, decisions = {}, []
     twins = defaultdict(list)
+    # THE SEGMENT-GEOMETRY GUARD (run-205 autopsy: China's D&A tied its
+    # prior -840 inside the AR's PRIOR-YEAR segment table, where the
+    # adjacent number is the NEIGHBOURING SEGMENT's prior, not this
+    # year — and Hong Kong's -5,727 was served as China's current). In
+    # a prior-only matrix every value is some row's prior: a candidate
+    # "current" that itself ties a DIFFERENT row's prior is a segment
+    # neighbour, never a year neighbour — refuse it.
+    all_priors = {}
+    for t2 in targets:
+        if isinstance(t2.prior_value, (int, float)) \
+                and abs(t2.prior_value) >= 10:
+            all_priors.setdefault(round(abs(t2.prior_value), 1),
+                                  set()).add((t2.sheet, t2.row))
     for t in unserved:
         pv = t.prior_value
         tol = max(0.6, abs(pv) * 5e-4)       # identity-grade rows only
@@ -559,6 +572,11 @@ def join_bound_tables(ledger, targets, served, log=None):
                 # coincidence measured through the 100x band here
                 if abs(sv0) > 30 * abs(pv) or abs(sv0) * 30 < abs(pv):
                     continue
+                owners = all_priors.get(round(abs(sv0), 1), set()) \
+                    - {(t.sheet, t.row)}
+                if owners:
+                    continue      # segment-geometry guard: that "current"
+                                  # is another row's prior
                 cands.append((sv0, it, s))
         if not cands or len(cands) > MAX_CANDS:
             continue

@@ -1338,6 +1338,76 @@ def test_load_bearing_trace_and_tier_law():
     assert flag_budget(wb, spec, "2025", flags, load_bearing=lb2)
 
 
+def test_205_segment_geometry_guard():
+    """Run-205: China's D&A tied its prior -840 inside the PRIOR-YEAR
+    segment matrix, where the adjacent number is the neighbouring
+    SEGMENT (Hong Kong's -5,727), not the next year. A bound-table
+    candidate current that itself ties another row's prior is refused."""
+    from pipeline.stage2_join import join_bound_tables
+    from pipeline.targets import TargetRow
+    led = Ledger()
+    # a prior-only segment matrix: one row, five segment columns
+    for i in range(4):
+        led.add(Item(doc="AR", page=178, table_id=1, row_ord=i,
+                     label=f"Row {i}", nums=[-5727.0 - i, -840.0 - i,
+                                            -2658.0 - i, -51.0 - i],
+                     source_line="x"))
+    led.faces[("AR", 178)] = "bs"
+    tg = [TargetRow(sheet="CN", row=9, label="D&A", prior_value=-840.0),
+          TargetRow(sheet="HK", row=9, label="D&A", prior_value=-5727.0)]
+    out, _dec = join_bound_tables(led, tg, {}, log=[])
+    assert ("CN", 9) not in out or \
+        abs(out[("CN", 9)]["value"] + 5727.0) > 1, out.get(("CN", 9))
+
+
+def test_205_evaluated_prior_law():
+    """Run-205: a prior behind a formula on a manual-calc model made the
+    row a 'no prior' target — its unguarded read landed +1,598 on a row
+    whose true prior is -282. Formula priors are EVALUATED now."""
+    import openpyxl
+    from pipeline.targets import from_workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["A9"] = "Amortisation"
+    ws["T9"] = "=T20"                    # prior behind a formula
+    ws["T20"] = -282.0
+    values = openpyxl.Workbook()
+    vs = values.active
+    vs.title = "S"
+    vs["A9"] = "Amortisation"            # data_only: no cache (manual calc)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    tg = from_workbook(values, spec, 2025, wb_formulas=wb)
+    t9 = [t for t in tg if t.row == 9]
+    assert t9 and t9[0].prior_value == -282.0, t9
+
+
+def test_205_forecast_plug_cascade_breaker():
+    """Run-205: plugs doubled year over year (-2,327 -> -42,512) — each
+    plug flows through cash into the next year's gap. An escalating
+    series stops, unwinds, and leaves the years failing with causes."""
+    import openpyxl
+    from pipeline.forecast_balance import last_resort_plug
+    from pipeline.evaluator import Evaluator
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["A20"] = "Cash flow statement"
+    ws["A21"] = "Others"
+    # a check row engineered to cascade: each year's gap doubles and the
+    # plug row feeds it (gap_col = base*2^i - plug contributions)
+    ws["V21"], ws["W21"], ws["X21"] = 0.0, 0.0, 0.0
+    ws["V30"], ws["W30"], ws["X30"] = "=1000-V21", "=2600-W21-V21", "=7000-X21-W21-V21"
+    logs = []
+    plugged = last_resort_plug(
+        wb, Writer(wb), lambda: (lambda s, c: Evaluator(wb).cell(s, c)),
+        "S", 30, ["V", "W", "X"], None, logs.append)
+    assert plugged == [], plugged
+    assert any("STOPPED" in l or "escalating" in l for l in logs), logs
+    assert ws["V21"].value in (0.0, 0), ws["V21"].value   # unwound
+
+
 def test_assumption_freeze_pure_inheritance_only():
     """Owner side-question 2026-09-01, two defects exposed: (a) a growth
     DISPLAY (=V6/U6-1, touches its own column) must never freeze — only
