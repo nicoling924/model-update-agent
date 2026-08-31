@@ -292,6 +292,22 @@ To make sure of the following:
   issue: every fix must be generic and fix the underlying fundamental
   cause before it is pushed.
 
+- **2026-08-31 · Sign-change clarification (owner, reviewing CLP run 5):**
+  Two different rules, do not conflate. (1) FREEZE is for assumption
+  links only: a future-year assumption wired to the newly-actual column
+  (2026E growth =2025A) is saved as a constant at its pre-update value
+  so the actual never silently rewrites the analyst's original
+  assumption. (2) The SIGN-CHANGE test is a TRIPWIRE for loud agent
+  mistakes, in the _REPORT mini-P&L spirit: if 2025A < 2025E, the new
+  2026E should normally be LOWER than the old 2026E — a sign flip
+  usually means the agent mis-rolled something. The response is to
+  INVESTIGATE what happened (trace the row, find the cause — one pass,
+  walk-away), ending in a verdict on _REPORT: ERROR FOUND (fixed) /
+  JUSTIFIED (reason) / SUSPICIOUS (analyst looks). Freezing at the old
+  value is only the terminal state when investigation cannot resolve —
+  nonsense never ships as a live forecast, but detection's purpose is
+  finding the mistake, not hiding it.
+
 - **2026-08-31 · The tier law (owner ruling, CLP campaign):** effort
   follows the WIRING. A deterministic trace from the key rows through
   the forecast column's formulas marks every upstream row the model
