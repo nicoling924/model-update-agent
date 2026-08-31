@@ -200,13 +200,21 @@ Every `set_input` passes a deterministic gate:
    NEVER spend an action searching for one. This step must be REACHED
    with budget to spend; it is what finishes the run.
 
-## Adjudicate every red (run-14 ruling)
+## Adjudicate every red (run-14 ruling) — and MOVE ON (owner's law)
 
-Delivery is blocked only by UNEXAMINED reds. For each red cell: serve
-it under the evidence law, or `flag_cell` it with WHERE you looked and
-WHY the figure is not disclosed — that converts it into a delivered
-finding for the analyst. Working the whole red queue to adjudicated is
-what finishes the run.
+Code has already run the exhaustive not-disclosed search on every
+stale red: rows the whole ledger cannot tie are ALREADY adjudicated as
+proven-not-disclosed — spend nothing on them. Your queue is only the
+reds whose note says "evidence candidates exist": serve each, or say
+why the candidate is the wrong line.
+
+THE MOVE-ON LAW: never get stuck on a row that is not critical to the
+key numbers or the balance. Once every check passes and the keys are
+proven, adjudicate what your remaining budget allows and FINISH —
+leftover reds are the analyst's findings list on _REPORT, not your
+failure. A run that ends balanced, keys proven, with honest flags, is
+a SUCCESS. A run that burns its budget hunting one non-critical cell
+fails everything.
 
 ## Tripwires (owner ruling 2026-08-31: the sign change finds YOUR mistakes)
 

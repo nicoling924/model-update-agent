@@ -1533,6 +1533,74 @@ def test_199_terminal_ladder_delivers():
     assert any(v for v in lp.writer.log["written"]), "no write logged"
 
 
+def test_202_moveon_machine_look():
+    """Run-202: one sheet's unexamined reds refused a run whose balance
+    and keys were done — the loop can never visit ~100 reds. The
+    move-on law: code runs the exhaustive not-disclosed search itself;
+    a red the whole ledger cannot tie becomes a PROVEN finding, one
+    with candidates stays the loop's work."""
+    import openpyxl
+    from openpyxl.comments import Comment
+    from pipeline.moveon import machine_look
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T5"], ws["U5"] = 777.0, 777.0        # prior nowhere in the ledger
+    ws["T6"], ws["U6"] = 555.0, 555.0        # prior IS in the ledger
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    led = Ledger()
+    led.add(Item(doc="RA", page=9, table_id=0, row_ord=0,
+                 label="Some line", nums=[560.0, 555.0],
+                 source_line="Some line 560 555"))
+    w = Writer(wb)
+    for coord in ("U5", "U6"):
+        ws[coord].comment = Comment("STALE INPUT: rolled...", "t")
+        w.log["flags"].append(f"S!{coord}")
+    n_proved, n_evid = machine_look(wb, spec, 2025, led, w, lambda s: None)
+    assert (n_proved, n_evid) == (1, 1)
+    assert "NOT DISCLOSED (proven)" in ws["U5"].comment.text
+    assert "evidence candidates exist" in ws["U6"].comment.text
+    # gate contract: the proven one no longer counts as unexamined
+    from pipeline.gate import flag_budget
+    ws["U5"].fill = w.fills["red"]
+    ws["U6"].fill = w.fills["red"]
+    fails = flag_budget(wb, spec, 2025, w.log["flags"])
+    assert fails and "1/" in fails[0], fails
+
+
+def test_202_moveon_gate_reports_not_refuses():
+    """With every check passing and nothing structural broken, flag
+    budget breaches are REPORTED on the card, never refusing (the
+    move-on law). While anything else fails, they still refuse."""
+    from pipeline.gate import deliver_or_refuse
+    import openpyxl
+    from openpyxl.comments import Comment
+    from pipeline.writer import Writer, formula_map
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T2"], ws["U2"] = 100.0, 110.0
+    ws["T9"], ws["U9"] = "=T2-T2", "=U2-U2"      # check row passes
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}]}
+    w = Writer(wb)
+    for r in range(20, 30):                       # 10 unexamined reds
+        ws[f"U{r}"] = 1.0
+        ws[f"U{r}"].fill = w.fills["red"]
+        ws[f"U{r}"].comment = Comment("STALE INPUT: rolled", "t")
+        w.log["flags"].append(f"S!U{r}")
+    ok, fails, card = deliver_or_refuse(wb, spec, 2025, formula_map(wb),
+                                        w.log)
+    assert ok, fails
+    assert card.get("moveon_reported"), card.get("moveon_reported")
+    # break the check -> the same staleness refuses again
+    ws["U9"] = "=U2-50"
+    ok2, fails2, _ = deliver_or_refuse(wb, spec, 2025, formula_map(wb),
+                                       w.log)
+    assert not ok2 and any("FLAG BUDGET" in f for f in fails2), fails2
+
+
 def test_197_no_cached_value_is_red_not_silent():
     """Manual-calc models can have no pre-update cached value to hold —
     the honest terminal is red + SUSPICIOUS verdict, never a skip."""

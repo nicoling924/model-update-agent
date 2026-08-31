@@ -292,6 +292,21 @@ To make sure of the following:
   issue: every fix must be generic and fix the underlying fundamental
   cause before it is pushed.
 
+- **2026-08-31 · The move-on law (owner ruling, reviewing CLP run 9):**
+  The agent must learn to MOVE ON even when it cannot find some stale
+  inputs. If an input is not critical to the drivers or the company's
+  key numbers, do not get stuck hunting it — move to another part, or
+  end the run, AS LONG AS the key numbers are correct and the model is
+  balanced. Getting stuck wastes the whole budget and fails the whole
+  run. Mechanized as: (1) code performs the exhaustive not-disclosed
+  search for every stale red and documents it (the proof the mindmap's
+  guard demands — asserting is banned, searching is cheap for code);
+  (2) with every check passing and the keys correct, remaining
+  unexamined staleness is REPORTED on _REPORT as the analyst's
+  findings list — it never refuses delivery. Neglect still refuses
+  while balance/keys are unmet: moving on is earned by the objectives,
+  never a shortcut past them.
+
 - **2026-08-31 · Sign-change clarification (owner, reviewing CLP run 5):**
   Two different rules, do not conflate. (1) FREEZE is for assumption
   links only: a future-year assumption wired to the newly-actual column

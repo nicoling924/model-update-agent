@@ -431,6 +431,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         log(f"[run] assumption freeze: {len(frozen_lines)} forecast "
             "assumptions held at their pre-update values (orange)")
 
+    # -- THE MOVE-ON LAW (owner ruling 2026-08-31): code does the
+    # exhaustive not-disclosed looking for every stale red; the loop's
+    # queue shrinks to the rows where evidence actually exists.
+    from .moveon import machine_look
+    machine_look(wb, spec_d, target_year, ledger, writer, log)
+
     # -- Stage 4: the objective loop (Luna owns it), then the gate
     loop_summary = ""
     if client is not None:
@@ -504,6 +510,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         pre_formulas_path=str(archive))
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
+    for line in card.get("moveon_reported", []):
+        log(f"[run]   move-on (reported, not refused): {line}")
 
     # -- report + spec-tab memory + snapshots
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,

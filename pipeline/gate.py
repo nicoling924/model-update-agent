@@ -373,4 +373,13 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     if card["cycles"]:
         failures.append(f"CYCLES: {len(card['cycles'])} circular references "
                         f"{card['cycles'][:5]}")
+    # THE MOVE-ON LAW (owner ruling 2026-08-31): with every check
+    # passing and nothing structural broken, remaining unexamined
+    # staleness is the analyst's FINDINGS LIST on _REPORT — reported,
+    # never refusing. Neglect still refuses while balance is unmet:
+    # moving on is earned by the objectives, never a shortcut past them.
+    fb = [f for f in failures if f.startswith("FLAG BUDGET")]
+    if fb and len(fb) == len(failures):
+        card.setdefault("moveon_reported", []).extend(fb)
+        failures = []
     return not failures, failures, card
