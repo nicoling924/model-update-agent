@@ -114,7 +114,16 @@ with both readings, never a silent choice.
 - `plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}`
   — worst case only; orange-flagged, reported, refused while guilty cells
   remain, auto-reverted if it does not zero the check.
+- `verdict {"item": "Sheet!AJ39", "verdict": "ERROR_FIXED|JUSTIFIED|SUSPICIOUS", "why": "..."}`
+  — close a TRIPWIRE (see below). ERROR_FIXED only after your repair is
+  applied and rescored; JUSTIFIED needs the disclosure reason;
+  SUSPICIOUS is the honest unresolved state for the analyst.
 - `flag_cell {"cell": "Sheet!C7", "why": "..."}` — the honest hole.
+
+Cell references: every tool accepts `Sheet!AI99` and `Sheet!99` alike —
+row tools ignore a column you include; cell tools read a missing column
+as the target-year column. If a tool rejects a reference, the message
+names exactly what to change.
 - `note {"text": "..."}` / `todo {"add": "..."} | {"done": 0}` — your memory.
 - `list_flags {}` — current flags.
 - `finish {"summary": "..."}` — end: state which objectives are met and what
@@ -167,3 +176,21 @@ it under the evidence law, or `flag_cell` it with WHERE you looked and
 WHY the figure is not disclosed — that converts it into a delivered
 finding for the analyst. Working the whole red queue to adjudicated is
 what finishes the run.
+
+## Tripwires (owner ruling 2026-08-31: the sign change finds YOUR mistakes)
+
+The TRIPWIRES section of your state lists forecasts that compute
+NEGATIVE where both actual years are positive. The owner's teaching: if
+2025A came in below 2025E, the new 2026E should be LOWER than the old —
+a SIGN FLIP usually means the update itself mis-rolled something (a
+stale upstream input, a mis-anchored base, a one-off propagating). For
+each tripwire, ONE investigation pass (the walk-away rule): `trace_cell`
+it, follow the suspect component, then close it with `verdict`:
+- **ERROR_FIXED** — you found the mis-rolled cause and repaired it
+  (the row disappears from the list when it stops computing negative);
+- **JUSTIFIED** — the disclosure genuinely supports a negative (say
+  why); the row then stands as the analyst's view;
+- **SUSPICIOUS** — unresolved after your pass; the terminal freeze
+  holds it at its pre-update value so nonsense never ships live.
+An UNEXAMINED tripwire refuses delivery — same law as unexamined reds.
+Tripwire work never counts against the forecast attribution window.

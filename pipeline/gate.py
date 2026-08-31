@@ -177,15 +177,66 @@ def flag_budget(wb, spec, target_year, flags, load_bearing=None):
     return fails
 
 
+def sign_absurd_rows(wb, spec, target_year):
+    """THE ONE sign-flip detection (owner ruling 2026-08-31: the sign
+    change is a mistake TRIPWIRE — the loop investigates each hit and
+    verdicts it; freezing is only the terminal state). This single
+    predicate feeds the loop's tripwire list, the terminal freeze, and
+    the gate, so they can never disagree (run-197 exhibit: the freezer
+    and the gate were two implementations and the freezer held 0 of the
+    gate's 6 rows). Both actual years are evaluated — a formula-valued
+    prior is as real as a hardcoded one.
+    -> [(sheet, first_forecast_col, row, fv, pv, tv), ...]"""
+    from .evaluator import Evaluator
+    ev = Evaluator(wb)
+    out = []
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        fcols = forecast_columns(spec, sheet, target_year)
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        pcol = prior_column(spec, sheet, target_year)
+        if not fcols or not tcol or not pcol:
+            continue
+        f1 = fcols[0]
+        ws = wb[sheet]
+        for r in range(1, ws.max_row + 1):
+            now_v = ws[f"{f1}{r}"].value
+            if not (isinstance(now_v, str) and now_v.startswith("=")):
+                continue
+            tv, pv = ws[f"{tcol}{r}"].value, ws[f"{pcol}{r}"].value
+            if isinstance(tv, str) and tv.startswith("="):
+                try:
+                    tv = ev.cell(sheet, f"{tcol}{r}")
+                except Exception:
+                    tv = None
+            if isinstance(pv, str) and pv.startswith("="):
+                try:
+                    pv = ev.cell(sheet, f"{pcol}{r}")
+                except Exception:
+                    pv = None
+            if not isinstance(tv, (int, float)) or not isinstance(pv, (int, float)):
+                continue
+            if tv > AGGREGATE_MIN and pv > AGGREGATE_MIN:
+                try:
+                    fv = ev.cell(sheet, f"{f1}{r}")
+                except Exception:
+                    continue
+                if isinstance(fv, (int, float)) and fv < 0:
+                    out.append((sheet, f1, r, fv, pv, tv))
+    return out
+
+
 def driver_roll(wb, spec, target_year, pre_map, writer_log=None):
     """Gate 4. Forecast columns keep formulas where they had them, and no
-    sign-absurd first-forecast value (negative where prior and target
-    actuals are both positive aggregates). The assumption freeze (owner
-    ruling 2026-08-30) is the one authorized formula->hardcode
-    replacement — every freeze is in writer_log["frozen"]."""
-    from .evaluator import Evaluator
+    UNADJUDICATED sign-absurd first-forecast value. The assumption freeze
+    and the terminal sign-absurd freeze are the authorized
+    formula->hardcode replacements — every freeze is in
+    writer_log["frozen"]. A sign-absurd row carrying a loop verdict
+    (writer_log["verdicts"]) is adjudicated: reported on _REPORT, not
+    refused — an unexamined sign flip is neglect, an examined one is a
+    finding (same law as the flag budget)."""
     fails = []
-    ev = Evaluator(wb)
     for sheet in (spec.get("year_axis") or {}):
         if sheet not in wb.sheetnames:
             continue
@@ -202,35 +253,24 @@ def driver_roll(wb, spec, target_year, pre_map, writer_log=None):
             now_v = ws[f"{f1}{r}"].value
             if isinstance(pre_v, str) and pre_v.startswith("=") \
                     and not (isinstance(now_v, str) and now_v.startswith("=")):
-                # the assumption freeze (owner ruling 2026-08-30) is the
-                # ONE authorized formula->hardcode replacement; every
-                # freeze is in the writer log, orange, and reported
+                # freezes (assumption or terminal sign-absurd) are the
+                # authorized replacements; each is in the writer log,
+                # orange, and reported
                 if any(ln.startswith(f"{sheet}!{f1}{r}:")
                        for ln in (writer_log or {}).get("frozen", [])):
                     continue
                 fails.append(f"DRIVER ROLL {sheet}!{f1}{r}: forecast formula "
                              f"replaced by {now_v!r}")
-                continue
-            if not (isinstance(now_v, str) and now_v.startswith("=")):
-                continue
-            tv, pv = ws[f"{tcol}{r}"].value, ws[f"{pcol}{r}"].value
-            if isinstance(tv, str) and tv.startswith("="):
-                try:
-                    tv = ev.cell(sheet, f"{tcol}{r}")
-                except Exception:
-                    tv = None
-            if not isinstance(tv, (int, float)) or not isinstance(pv, (int, float)):
-                continue
-            if tv > AGGREGATE_MIN and pv > AGGREGATE_MIN:
-                try:
-                    fv = ev.cell(sheet, f"{f1}{r}")
-                except Exception:
-                    continue
-                if isinstance(fv, (int, float)) and fv < 0:
-                    fails.append(f"DRIVER ROLL {sheet}!{f1}{r}: forecast "
-                                 f"{fv:,.2f} negative where actuals are "
-                                 f"positive ({pv:,.2f} -> {tv:,.2f}) — "
-                                 f"sign-absurd class")
+    verdicted = {v.split(":", 1)[0]
+                 for v in (writer_log or {}).get("verdicts", [])}
+    for (sheet, f1, r, fv, pv, tv) in sign_absurd_rows(wb, spec, target_year):
+        if f"{sheet}!{f1}{r}" in verdicted:
+            continue
+        fails.append(f"DRIVER ROLL {sheet}!{f1}{r}: forecast "
+                     f"{fv:,.2f} negative where actuals are "
+                     f"positive ({pv:,.2f} -> {tv:,.2f}) — "
+                     f"sign-absurd class, UNEXAMINED (the loop "
+                     f"must trace it and verdict)")
     return fails
 
 

@@ -71,16 +71,37 @@ class ObjectiveLoop:
         return scorecard(self.wb, self.spec, self.ty, served=self.served,
                          flags=self.writer.log["flags"])
 
+    def _trip_lines(self):
+        """Open tripwires: sign-flipped forecasts handed in by the sense
+        check (owner ruling 2026-08-31: a mistake DETECTOR — investigate
+        once, then verdict; never silently freeze)."""
+        done = {v.split(":", 1)[0] for v in
+                self.writer.log.get("verdicts", [])}
+        out = []
+        for (sheet, col, r, fv, pv, tv) in getattr(self, "tripwires", []):
+            key = f"{sheet}!{col}{r}"
+            if key in done:
+                continue
+            out.append(f"  {key}: forecast {fv:,.2f} NEGATIVE where actuals "
+                       f"are positive ({pv:,.2f} -> {tv:,.2f}) — usually a "
+                       f"mis-rolled or missing upstream input. trace_cell it "
+                       f"ONCE, then verdict {{\"item\": \"{key}\", ...}}")
+        return out
+
     def _state_block(self):
         card = self._card()
         todos = [f"  [{i}] {t}" for i, t in enumerate(self.todos)]
         notes = [f"  - {n}" for n in self.notes[-12:]]
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
+        trips = self._trip_lines()
         return "\n".join([
             f"TARGET YEAR: {self.ty}   ACTIONS LEFT: {self.budget}",
             "== SCORECARD ==",
             summarize(card, self.ty, flags=self.writer.log["flags"],
                       spec=self.spec, wb=self.wb),
+            *(["== TRIPWIRES (sign-flip sense check — each needs ONE "
+               "verdict: ERROR_FIXED / JUSTIFIED / SUSPICIOUS) =="] + trips
+              if trips else []),
             "== OPEN TODOS ==", *(todos or ["  (none)"]),
             "== YOUR NOTES ==", *(notes or ["  (none)"]),
             "== ACTION HISTORY (newest last) ==", *(hist or ["  (none)"]),
@@ -91,15 +112,43 @@ class ObjectiveLoop:
     def _tcol(self, sheet):
         return year_columns(self.spec, sheet).get(self.ty)
 
+    # ONE reference grammar for EVERY tool (run-197 exhibit: the loop's
+    # own tools printed refs as 'Final!AI99' and plug_residual then
+    # rejected that exact form with a MISS that never named the defect —
+    # the endgame budget burned on format-guessing and the plug that
+    # would have delivered never landed). Column letters are always
+    # tolerated: row tools ignore them, cell tools default a missing
+    # column to the target year's column.
+    _REF_RE = re.compile(r"^(?:'([^']+)'|([^!]+))!?\s*([A-Z]{1,3})?(\d{1,5})$")
+
+    def _row_ref(self, ref):
+        """-> (sheet, row) or None. Accepts Model!95 AND Model!AI95."""
+        m = self._REF_RE.match(str(ref).strip().replace("$", ""))
+        if not m:
+            return None
+        return (m.group(1) or m.group(2)).strip(), int(m.group(4))
+
+    def _cell_ref(self, ref, default_tcol=True):
+        """-> (sheet, col, row) or None. A missing column defaults to the
+        sheet's target-year column when default_tcol."""
+        m = self._REF_RE.match(str(ref).strip().replace("$", ""))
+        if not m:
+            return None
+        sheet = (m.group(1) or m.group(2)).strip()
+        col = m.group(3) or (self._tcol(sheet) if default_tcol else None)
+        if not col:
+            return None
+        return sheet, col, int(m.group(4))
+
     def t_rescore(self, args):
         return summarize(self._card(), self.ty)
 
     def t_trace_cell(self, args):
         ref = str(args.get("cell", ""))
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$", ref.replace("$", ""))
-        if not m:
-            return f"MISS: cell ref '{ref}' unparseable (Sheet!C7 form)"
-        sheet, col, row = (m.group(1) or m.group(2)), m.group(3), int(m.group(4))
+        cr = self._cell_ref(ref)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable — use \"Sheet!C7\" (a bare row like \"Sheet!7\" reads the target-year column)"
+        sheet, col, row = cr
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
         ws = self.wb[sheet]
@@ -279,6 +328,7 @@ class ObjectiveLoop:
             return f"MISS: check row does not evaluate: {e}"
         out = [f"check {sheet}!{col}{row} residual = {residual:,.2f}"]
         guilty = 0
+        sites = []          # numeric leaf inputs = the only legal plug sites
         flagged_refs = set(self.writer.log["flags"])
         for (sh, coord) in dict.fromkeys(self._leaf_inputs(sheet, f"{col}{row}")):
             mm = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
@@ -286,6 +336,8 @@ class ObjectiveLoop:
                 continue
             t = self.targets.get((sh, int(mm.group(2))))
             cur = self.wb[sh][coord].value
+            if isinstance(cur, (int, float)):
+                sites.append((sh, coord, str(t.label)[:30] if t else "?", cur))
             got = self._diff_value(t) if t is not None else None
             if got is not None and isinstance(cur, (int, float)):
                 dv, it, _s = got
@@ -317,6 +369,15 @@ class ObjectiveLoop:
             out.append("  no leaf disagrees and no unproven suspects — "
                        "find_line the residual amount, or (worst case) "
                        "plug_residual with a named component")
+        if guilty == 0 and sites:
+            best = sorted(sites, key=lambda s: -abs(s[3]))[:5]
+            out.append("  eligible plug sites (numeric inputs feeding this "
+                       "check, largest first):")
+            for sh, coord, lab, cur in best:
+                out.append(f"    {sh}!{coord} '{lab}' = {cur:,.2f}")
+            sh, coord, _, _ = best[0]
+            out.append(f"  e.g. plug_residual {{\"check\": \"{sheet}!{row}\", "
+                       f"\"into\": \"{sh}!{coord}\", \"why\": ...}}")
         return "\n".join(out)
 
     def t_plug_residual(self, args):
@@ -332,15 +393,18 @@ class ObjectiveLoop:
         if "GUILTY" in diag:
             return ("REFUSED: evidence-based fixes remain — plug only after "
                     "these are applied or ruled out:\n" + diag)
-        mc = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", check.replace("$", ""))
-        mi = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$",
-                      into.replace("$", ""))
-        if not mc or not mi:
-            return "MISS: need {\"check\": \"Model!95\", \"into\": \"Sheet!U177\", \"why\": ...}"
-        c_sheet, c_row = (mc.group(1) or mc.group(2)).strip(), int(mc.group(3))
+        rc = self._row_ref(check)
+        if not rc:
+            return (f"MISS: check '{check}' unparseable — name the check ROW, "
+                    "e.g. \"Final!99\" (column letters tolerated and ignored)")
+        ci = self._cell_ref(into)
+        if not ci:
+            return (f"MISS: into '{into}' unparseable — the plug lands in ONE "
+                    "numeric input cell, e.g. \"Sheet!U177\" (a bare row uses "
+                    "the target-year column)")
+        c_sheet, c_row = rc
         c_col = self._tcol(c_sheet)
-        i_sheet, i_col, i_row = ((mi.group(1) or mi.group(2)).strip(),
-                                 mi.group(3), int(mi.group(4)))
+        i_sheet, i_col, i_row = ci
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")
@@ -350,7 +414,10 @@ class ObjectiveLoop:
             return "MISS: that check already passes — nothing to plug"
         held = self.wb[i_sheet][f"{i_col}{i_row}"].value
         if not isinstance(held, (int, float)):
-            return f"MISS: {into} is not a numeric input cell"
+            return (f"MISS: {i_sheet}!{i_col}{i_row} holds "
+                    f"{'a formula' if isinstance(held, str) else 'nothing'}, "
+                    "not a numeric input — plug into a numeric INPUT "
+                    "component; diagnose_balance lists the eligible sites")
         pcol = prior_column(self.spec, i_sheet, self.ty)
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", held - residual,
@@ -382,10 +449,10 @@ class ObjectiveLoop:
         the same transactional guards as set_input. The loop's primary
         repair move."""
         ref = str(args.get("row") or args.get("cell") or "")
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!?(\d+)$", ref.replace("$", ""))
-        if not m:
-            return f"MISS: row ref '{ref}' unparseable (Sheet!row form, e.g. Model!49)"
-        sheet, row = (m.group(1) or m.group(2)).strip(), int(m.group(3))
+        rr = self._row_ref(ref)
+        if not rr:
+            return f"MISS: row ref '{ref}' unparseable — use \"Model!49\" (column letters tolerated and ignored)"
+        sheet, row = rr
         t = self.targets.get((sheet, row))
         if t is None:
             return f"MISS: {sheet}!{row} is not a census row"
@@ -403,9 +470,9 @@ class ObjectiveLoop:
     def t_set_input(self, args):
         ref = str(args.get("cell", ""))
         why = str(args.get("why", ""))
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3})(\d+)$", ref.replace("$", ""))
-        if not m:
-            return f"MISS: cell ref '{ref}' unparseable"
+        cr = self._cell_ref(ref)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable — use \"Sheet!AI99\" (a bare row writes the target-year column)"
         if not re.search(r"p(?:age)?\.?\s*\d+", why, re.IGNORECASE):
             return ("REFUSED: 'why' must cite the disclosure page "
                     "(e.g. 'p102: ...') — no citation, no write")
@@ -413,7 +480,7 @@ class ObjectiveLoop:
             value = float(args.get("value"))
         except (TypeError, ValueError):
             return "MISS: numeric value required"
-        sheet, col, row = (m.group(1) or m.group(2)), m.group(3), int(m.group(4))
+        sheet, col, row = cr
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
         held = self.wb[sheet][f"{col}{row}"].value
@@ -510,10 +577,10 @@ class ObjectiveLoop:
 
     def t_flag_cell(self, args):
         ref = str(args.get("cell", ""))
-        m = re.match(r"^(?:'([^']+)'|([^!]+))!([A-Z]{1,3}\d+)$", ref.replace("$", ""))
-        if not m:
-            return f"MISS: cell ref '{ref}' unparseable"
-        sheet, coord = (m.group(1) or m.group(2)), m.group(3)
+        cr = self._cell_ref(ref)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable — use \"Sheet!AI99\" (a bare row flags the target-year column)"
+        sheet, coord = cr[0], f"{cr[1]}{cr[2]}"
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
         cell = self.wb[sheet][coord]
@@ -523,6 +590,33 @@ class ObjectiveLoop:
         cell.comment = Comment(str(args.get("why", "flagged for review"))[:400],
                                "Model Update Agent")
         return "FLAGGED"
+
+    def t_verdict(self, args):
+        """SENSE-CHECK VERDICT (owner ruling 2026-08-31): a tripwire — a
+        sign-flipped forecast or other loud anomaly — is a mistake
+        DETECTOR. Investigate once (trace_cell), then adjudicate:
+        ERROR_FIXED (you found and repaired the cause), JUSTIFIED (the
+        disclosure supports it — say why), or SUSPICIOUS (unresolved —
+        the analyst should look). Every verdict prints on _REPORT."""
+        item = str(args.get("item") or args.get("cell") or "")
+        v = str(args.get("verdict") or "").upper().replace("-", "_").replace(" ", "_")
+        why = str(args.get("why") or "").strip()
+        if v not in ("JUSTIFIED", "ERROR_FIXED", "SUSPICIOUS"):
+            return ('MISS: need {"item": "Sheet!AJ39", "verdict": '
+                    '"JUSTIFIED|ERROR_FIXED|SUSPICIOUS", "why": ...}')
+        if len(why) < 15:
+            return ("MISS: a verdict without its reasoning is not "
+                    "adjudication — say what you traced and found")
+        cr = self._cell_ref(item, default_tcol=False)
+        key = (f"{cr[0]}!{cr[1]}{cr[2]}" if cr else None)
+        if key is None:
+            rr = self._row_ref(item)
+            if not rr:
+                return f"MISS: item '{item}' unparseable — use \"Sheet!AJ39\""
+            key = f"{rr[0]}!{rr[1]}"
+        self.writer.log.setdefault("verdicts", []).append(
+            f"{key}: {v} — {why[:250]}")
+        return f"VERDICT recorded for {key}: {v}"
 
     def t_note(self, args):
         self.notes.append(str(args.get("text", ""))[:300])
@@ -571,6 +665,12 @@ class ObjectiveLoop:
                         "set_input", "statement_diff"):
             return False
         blob = json.dumps(args, ensure_ascii=False)
+        # tripwire investigation is MANDATED sense-check work (owner
+        # ruling 2026-08-31), not the balance-gap re-tracing the
+        # walk-away window exists to stop — it never counts against it
+        for (sheet, col, r, _fv, _pv, _tv) in getattr(self, "tripwires", []):
+            if f"{sheet}!{col}{r}" in blob:
+                return False
         for sheet in (self.spec.get("year_axis") or {}):
             for col in self._forecast_cols(sheet):
                 if re.search("[!\\s\"']" + col + "\\$?\\d", blob):
@@ -702,6 +802,7 @@ class ObjectiveLoop:
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
+             "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
              "finish": t_finish}
 
@@ -733,7 +834,7 @@ class ObjectiveLoop:
             if name in ("rescore", "diagnose_balance", "statement_diff",
                         "forecast_audit", "list_flags"):
                 fingerprint += f"|w{len(self.writer.log['written'])}"
-            if name not in ("note", "todo", "finish") \
+            if name not in ("note", "todo", "verdict", "finish") \
                     and fingerprint in getattr(self, "_done", set()):
                 result = ("REPEAT: you already ran exactly this action — the "
                           "result has not changed. Take a DIFFERENT action "

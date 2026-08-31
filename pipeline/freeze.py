@@ -85,65 +85,91 @@ def apply_freezes(wb, plans):
     return lines
 
 
-def freeze_sign_absurd(wb, spec, target_year, pre_values_wb, writer):
-    """Owner ruling (CLP campaign): a first-forecast cell that computes
-    NEGATIVE where prior and target actuals are both positive aggregates
-    is upstream noise wearing a forecast's clothes. Hold it at its
-    pre-update cached value (orange, noted, in writer.log["frozen"] so
-    the driver-roll gate recognizes the authorized replacement)."""
-    from .checks import forecast_columns, prior_column, year_columns
-    from .evaluator import Evaluator
+def freeze_sign_absurd(wb, spec, target_year, pre_values_wb, writer,
+                       pre_formulas_path=None):
+    """TERMINAL state of the sign-flip tripwire (owner ruling 2026-08-31:
+    the sign change is a mistake DETECTOR — the loop investigates each
+    hit first and verdicts it on _REPORT; only what remains unresolved
+    lands here, so nonsense never ships as a live forecast). Consumes
+    gate.sign_absurd_rows — the ONE detection — so the freezer and the
+    gate can never disagree (run-197 exhibit: as two implementations,
+    the freezer held 0 of the gate's 6 rows).
+    - JUSTIFIED rows stand as the analyst's view: never frozen.
+    - Unresolved rows with a pre-update cached value: held there,
+      orange, in writer.log["frozen"] (the gate's authorized
+      replacement), verdict UNRESOLVED recorded.
+    - Unresolved rows with NO cached value (manual-calc models never
+      cache — proven on CLP, where every forecast cache is None): the
+      pre-update value is COMPUTED by evaluating the archived pre-update
+      workbook's own formulas (pre_formulas_path). Only when that too
+      fails is the honest terminal red + a SUSPICIOUS verdict —
+      reported, never silently passed."""
+    from .gate import sign_absurd_rows
     from openpyxl.styles import PatternFill
     from openpyxl.comments import Comment
-    ev = Evaluator(wb)
     fill = PatternFill("solid", fgColor=ORANGE)
-    n = 0
-    for sheet in (spec.get("year_axis") or {}):
-        if sheet not in wb.sheetnames \
-                or sheet not in pre_values_wb.sheetnames:
-            continue
-        fcols = forecast_columns(spec, sheet, target_year)
-        tcol = year_columns(spec, sheet).get(str(target_year))
-        pcol = prior_column(spec, sheet, target_year)
-        if not fcols or not tcol or not pcol:
-            continue
-        f1 = fcols[0]
-        ws = wb[sheet]
-        for r in range(1, ws.max_row + 1):
-            c = ws[f"{f1}{r}"]
-            if not (isinstance(c.value, str) and c.value.startswith("=")):
-                continue
-            tv, pv = ws[f"{tcol}{r}"].value, ws[f"{pcol}{r}"].value
-            if isinstance(tv, str):
-                try:
-                    tv = ev.cell(sheet, f"{tcol}{r}")
-                except Exception:
-                    continue
-            if not (isinstance(tv, (int, float))
-                    and isinstance(pv, (int, float))):
-                continue
-            if not (tv > 10.0 and pv > 10.0):
-                continue
+    red = PatternFill("solid", fgColor="FFC7CE")
+    verdicts = writer.log.setdefault("verdicts", [])
+    pre_ev = [None]          # lazy: load the archive only on cache miss
+
+    def _pre_value(sheet, coord):
+        v = (pre_values_wb[sheet][coord].value
+             if sheet in pre_values_wb.sheetnames else None)
+        if isinstance(v, (int, float)):
+            return v
+        if pre_formulas_path:
+            if pre_ev[0] is None:
+                import openpyxl
+                from .evaluator import Evaluator
+                pre_ev[0] = Evaluator(
+                    openpyxl.load_workbook(pre_formulas_path))
             try:
-                fv = ev.cell(sheet, f"{f1}{r}")
+                v = pre_ev[0].cell(sheet, coord)
             except Exception:
-                continue
-            if not (isinstance(fv, (int, float)) and fv < 0):
-                continue
-            hold = pre_values_wb[sheet][f"{f1}{r}"].value
-            if not isinstance(hold, (int, float)):
-                continue
-            old_f = c.value
-            c.value = round(hold, 6)
-            c.fill = fill
+                return None
+            if isinstance(v, (int, float)):
+                return v
+        return None
+
+    n = 0
+    for (sheet, f1, r, fv, pv, tv) in sign_absurd_rows(wb, spec, target_year):
+        key = f"{sheet}!{f1}{r}"
+        if any(v.startswith(key + ":") and "JUSTIFIED" in v
+               for v in verdicts):
+            continue
+        c = wb[sheet][f"{f1}{r}"]
+        hold = _pre_value(sheet, f"{f1}{r}")
+        if not isinstance(hold, (int, float)):
+            c.fill = red
             c.comment = Comment(
-                "SIGN-ABSURD FREEZE: this forecast computed %.1f where "
-                "both actual years are positive — upstream inputs are "
-                "incomplete. Held at the pre-update value; restore the "
-                "formula (%s) once the inputs are trued up."
-                % (fv, old_f), "Model Update Agent")
-            writer.log.setdefault("frozen", []).append(
-                "%s!%s%d: frozen at %s — was %s (sign-absurd %.1f)"
-                % (sheet, f1, r, round(hold, 4), old_f, fv))
+                "SIGN-ABSURD, UNRESOLVED: this forecast computes %.1f "
+                "where both actual years are positive (%.1f -> %.1f) — "
+                "usually a mis-rolled upstream input. No pre-update "
+                "cached value exists to hold it at (manual-calc model). "
+                "ANALYST MUST REVIEW." % (fv, pv, tv),
+                "Model Update Agent")
+            writer.log["flags"].append(key)
+            verdicts.append(
+                f"{key}: SUSPICIOUS — sign-absurd {fv:,.1f} unresolved by "
+                f"the loop and no pre-update cached value to hold; "
+                f"analyst review")
             n += 1
+            continue
+        old_f = c.value
+        c.value = round(hold, 6)
+        c.fill = fill
+        c.comment = Comment(
+            "SIGN-ABSURD FREEZE (terminal): this forecast computed %.1f "
+            "where both actual years are positive — upstream inputs are "
+            "incomplete. Held at the pre-update value; restore the "
+            "formula (%s) once the inputs are trued up."
+            % (fv, old_f), "Model Update Agent")
+        writer.log.setdefault("frozen", []).append(
+            "%s!%s%d: frozen at %s — was %s (sign-absurd %.1f)"
+            % (sheet, f1, r, round(hold, 4), old_f, fv))
+        verdicts.append(
+            f"{key}: UNRESOLVED — held at pre-update {round(hold, 4)} "
+            f"(computed {fv:,.1f}); restore the formula once inputs are "
+            f"trued up")
+        n += 1
     return n

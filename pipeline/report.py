@@ -96,6 +96,19 @@ def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
         r += 1
     r += 1
 
+    verdicts = writer_log.get("verdicts", [])
+    if verdicts:
+        head("SENSE-CHECK VERDICTS — tripwires adjudicated by the agent "
+             "(owner ruling 2026-08-31)")
+        for v in verdicts[:40]:
+            ref, _, rest = v.partition(": ")
+            if "!" in ref and ref.split("!", 1)[0] in wb.sheetnames:
+                link_row(ref, rest)
+            else:
+                ws[f"A{r}"] = v[:250]
+                r += 1
+        r += 1
+
     head("4. CORE FIGURES — actual vs the model's own pre-update estimate")
     for name, ref, est in pre_estimates:
         sheet, coord = ref.split("!", 1)

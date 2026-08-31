@@ -425,6 +425,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
         loop.load_bearing = lb           # tier law: the loop sees the wiring
+        # sense tripwires (owner ruling 2026-08-31): sign-flipped
+        # forecasts are handed to the loop as mistake-detector items —
+        # investigate once, verdict on _REPORT; the terminal freeze
+        # after the loop takes only what remains unresolved
+        loop.tripwires = gate_mod.sign_absurd_rows(wb, spec_d, target_year)
+        if loop.tripwires:
+            log(f"[run] sense tripwires: {len(loop.tripwires)} sign-flip "
+                "forecasts handed to the loop for investigation")
         loop_summary = loop.run()
         log(f"[run] objective loop: {loop_summary[:150]}")
     else:
@@ -466,7 +474,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # computes negative where both actual years are positive is upstream
     # noise, never a forecast — hold it at its pre-update value, orange.
     from .freeze import freeze_sign_absurd
-    n_sa = freeze_sign_absurd(wb, spec_d, target_year, wb_values, writer)
+    n_sa = freeze_sign_absurd(wb, spec_d, target_year, wb_values, writer,
+                              pre_formulas_path=str(archive))
     if n_sa:
         log(f"[run] sign-absurd freeze: {n_sa} forecast drivers held at "
             "pre-update values (orange)")

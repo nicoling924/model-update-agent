@@ -1364,6 +1364,103 @@ def test_sign_absurd_freeze_pin():
     assert any("sign-absurd" in x for x in W.log["frozen"])
 
 
+# ── Run-197 exhibits: the plug grammar and the tripwire law ──────────────
+
+def test_197_plug_accepts_the_refs_its_own_tools_print():
+    """Run-197: diagnose_balance printed 'Final!AI99' and plug_residual
+    rejected that exact form with a MISS that never named the defect —
+    the endgame budget burned on format-guessing and the delivering plug
+    never landed. One grammar now: column-qualified checks parse, bare
+    rows default to the target column, and every MISS names the fix."""
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": 109.0, "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    lp = _loop(wb, _spec_tiny())
+    # diagnose accepts the column-qualified form AND lists eligible sites
+    diag = lp.t_diagnose_balance({"check": "S!U9"})
+    assert "eligible plug sites" in diag, diag
+    assert "S!U4" in diag and "plug_residual" in diag, diag
+    # the run-197 call shape itself: column-qualified check, bare-row into
+    r = lp.t_plug_residual({"check": "S!U9", "into": "S!2",
+                            "why": "no guilty cell; test"})
+    assert "MISS" not in r, r
+    assert wb["S"]["U2"].value == 111.0, wb["S"]["U2"].value
+    # MISS messages name the defect, never just an example
+    bad = lp.t_plug_residual({"check": "nonsense", "into": "S!U3",
+                              "why": "t"})
+    assert "unparseable" in bad and "tolerated" in bad, bad
+    wb2 = _wb({"T2": 100.0, "U2": 90.0, "U3": 60.0, "U4": 171.0,
+               "T9": "=T2", "U9": "=U2-U3-U4+140"})
+    lp2 = _loop(wb2, _spec_tiny())
+    bad2 = lp2.t_plug_residual({"check": "S!9", "into": "S!U9", "why": "t"})
+    assert "formula" in bad2 and "diagnose_balance" in bad2, bad2
+
+
+def test_197_one_detection_feeds_tripwires_freeze_and_gate():
+    """Run-197: the sign-absurd freezer and the gate were two
+    implementations of one law and the freezer held 0 of the gate's 6
+    rows (a formula-valued prior actual bailed the freezer out). ONE
+    predicate now feeds the loop's tripwire list, the terminal freeze,
+    and the gate — and a verdicted row is adjudicated, not refused."""
+    import openpyxl
+    from pipeline.gate import driver_roll, sign_absurd_rows
+    from pipeline.freeze import freeze_sign_absurd
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T2"] = 6536.0
+    ws["T9"] = "=T2"                    # formula-valued PRIOR actual —
+    ws["U9"] = 7081.0                   # the exact class the old freezer
+    ws["V9"] = "=U9-20000"              # skipped while the gate failed it
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}}}
+    rows = sign_absurd_rows(wb, spec, "2025")
+    assert [(r[0], r[1], r[2]) for r in rows] == [("S", "V", 9)], rows
+    # unexamined -> the gate refuses and says the loop must verdict it
+    w = Writer(wb)
+    fails = driver_roll(wb, spec, "2025", {}, w.log)
+    assert any("UNEXAMINED" in f for f in fails), fails
+    # a JUSTIFIED verdict adjudicates: reported, not refused, not frozen
+    w.log.setdefault("verdicts", []).append(
+        "S!V9: JUSTIFIED — disclosure supports the negative")
+    assert driver_roll(wb, spec, "2025", {}, w.log) == []
+    pre = openpyxl.Workbook()
+    pre.active.title = "S"
+    pre["S"]["V9"] = 7200.0
+    assert freeze_sign_absurd(wb, spec, "2025", pre, w) == 0
+    assert ws["V9"].value == "=U9-20000"
+    # unresolved -> terminal freeze, authorized, gate satisfied
+    w2 = Writer(wb)
+    assert freeze_sign_absurd(wb, spec, "2025", pre, w2) == 1
+    assert ws["V9"].value == 7200.0
+    assert any("UNRESOLVED" in v for v in w2.log["verdicts"])
+    pre_map = {"S": {"V9": "=U9-20000"}}
+    assert driver_roll(wb, spec, "2025", pre_map, w2.log) == []
+
+
+def test_197_no_cached_value_is_red_not_silent():
+    """Manual-calc models can have no pre-update cached value to hold —
+    the honest terminal is red + SUSPICIOUS verdict, never a skip."""
+    import openpyxl
+    from pipeline.freeze import freeze_sign_absurd
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T9"], ws["U9"] = 6536.0, 7081.0
+    ws["V9"] = "=U9-20000"
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}}}
+    pre = openpyxl.Workbook()
+    pre.active.title = "S"                      # V9 has no cached value
+    w = Writer(wb)
+    assert freeze_sign_absurd(wb, spec, "2025", pre, w) == 1
+    assert ws["V9"].value == "=U9-20000"        # formula kept, but…
+    assert "S!V9" in w.log["flags"]             # …red-flagged and
+    assert any("SUSPICIOUS" in v for v in w.log["verdicts"])
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
