@@ -16,8 +16,8 @@ on:
         default: ""
         required: false
       action:
-        description: "updater (THE agent — default), pipeline, chain/update/learn (legacy)"
-        default: "updater"
+        description: "pipeline (THE agent — default), updater (previous gen), legacy behind explicit name"
+        default: "pipeline"
         required: false
       prior_period:
         description: "Prior period for the learner leg of chain/learn (e.g. FY24)"
@@ -46,7 +46,15 @@ jobs:
       # fresh extraction) so no run inherits context from a previous one.
       - name: Run model update / learner
         run: |
-          if [ "${{ inputs.action || 'updater' }}" = "updater" ]; then
+          if [ "${{ inputs.action || 'pipeline' }}" = "pipeline" ]; then
+            # THE CURRENT AGENT (clean rebuild, law era — delivered DFE FY25
+            # run 19 with zero check failures all years). Exit 0 = DELIVERED,
+            # 1 = GATE REFUSED (quarantined workbook + replay evidence are
+            # still committed and uploaded), 2 = usage/env error.
+            YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
+            python -m pipeline.cli "companies/${{ inputs.company }}" \
+              "${{ inputs.period }}" "20${YY}" --budget=90
+          elif [ "${{ inputs.action }}" = "updater" ]; then
             # THE NEW AGENT (objectives rework 2026-08-17): one loop owns the
             # run, always delivers, 4 Police laws. Exit 3 = PAUSED for the
             # analyst (restatement question in updates/ — answer and re-run);
@@ -73,14 +81,17 @@ jobs:
             echo "::error::updater is the agent (AUDIT_2026-08-18_dispatch.md)."
             exit 64
           fi
-      - name: Persist decision ledger (case law survives across runs)
-        if: ${{ always() && (inputs.action == 'updater' || inputs.action == '') }}
+      - name: Persist results (model, replay evidence, case law)
+        if: ${{ always() && (inputs.action == 'pipeline' || inputs.action == 'updater' || inputs.action == '') }}
         run: |
           git config user.name "model-update-agent"
           git config user.email "agent@users.noreply.github.com"
           git pull --rebase origin "${GITHUB_REF_NAME}" || true
-          git add "companies/${{ inputs.company }}/updates/decisions.json" 2>/dev/null || true
-          git commit -m "decisions: ${{ inputs.company }} ${{ inputs.period }} case law" || echo "no new decisions"
+          git add "companies/${{ inputs.company }}/model/" \
+                  "companies/${{ inputs.company }}/model-archive/" \
+                  "companies/${{ inputs.company }}/replay/" \
+                  "companies/${{ inputs.company }}/updates/" 2>/dev/null || true
+          git commit -m "run results: ${{ inputs.company }} ${{ inputs.period }} (${{ inputs.action || 'pipeline' }})" || echo "no new results"
           git push || echo "push skipped"
       - name: Persist learner/discover/digest outputs
         if: ${{ inputs.action == 'learn' || inputs.action == 'discover' || inputs.action == 'digest' }}
