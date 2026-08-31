@@ -31,27 +31,55 @@ _A1 = re.compile(r"(?:('?[^'!=,()*/+\-]{1,40}'?)!)?\$?([A-Z]{1,3})\$?"
 
 
 def _refs_backward(formula, target_col, own_row):
-    """True if any SAME-SHEET reference points at target_col or earlier.
-    Cross-sheet refs are ignored (their column letters live on another
-    axis). A reference to the cell's own row in an earlier column is the
-    classic chain; any earlier-column ref qualifies."""
+    """True only when the formula inherits PURELY from the past: every
+    same-sheet reference points at target_col or earlier, and at least
+    one exists. A ratio touching its own column (=AJ31/AI31-1, a growth
+    DISPLAY) is wiring, never an assumption — the owner's law: only
+    cells that would silently rebase onto the new actual are frozen."""
+    saw_back = False
     for m in _A1.finditer(formula):
         if m.group(1):                      # sheet-qualified: another axis
             continue
         if column_index_from_string(m.group(2)) <= target_col:
-            return True
-    return False
+            saw_back = True
+        else:
+            return False                    # touches its own/later column
+    return saw_back
 
 
-def plan_freezes(wb, pre_wb, sheets, target_col, horizon=8, max_row=300):
+def plan_freezes(wb, pre_wb, sheets, target_col, horizon=8, max_row=300,
+                 pre_formulas_wb=None):
     """Scan forecast columns (target_col+1 .. +horizon) of the given
     sheets; return [{sheet, coord, oldFormula, value}] for every cell
-    the law freezes. Read-only — apply_freezes() writes."""
+    the law freezes. Read-only — apply_freezes() writes.
+    pre_formulas_wb: the archived pre-update workbook (formulas) —
+    manual-calc models cache NO values, so the pre-update value is
+    COMPUTED when the cache is empty (the fourth appearance of the
+    no-cached-values disease; without it a CLP-style model silently
+    froze nothing and every growth assumption rebased)."""
     plans = []
+    pre_ev = [None]
+
+    def _pre_value(sn, coord):
+        v = pre_wb[sn][coord].value if sn in pre_wb.sheetnames else None
+        if isinstance(v, (int, float)):
+            return v
+        if pre_formulas_wb is not None:
+            if pre_ev[0] is None:
+                from .evaluator import Evaluator
+                pre_ev[0] = Evaluator(pre_formulas_wb)
+            try:
+                v = pre_ev[0].cell(sn, coord)
+            except Exception:
+                return None
+            if isinstance(v, (int, float)):
+                return v
+        return None
+
     for sn in sheets:
         if sn not in wb.sheetnames or sn not in pre_wb.sheetnames:
             continue
-        ws, pw = wb[sn], pre_wb[sn]
+        ws = wb[sn]
         for row in range(1, min(ws.max_row, max_row) + 1):
             for col in range(target_col + 1, target_col + 1 + horizon):
                 c = ws.cell(row=row, column=col)
@@ -62,7 +90,7 @@ def plan_freezes(wb, pre_wb, sheets, target_col, horizon=8, max_row=300):
                     continue
                 if not _refs_backward(f, target_col, row):
                     continue
-                pre = pw.cell(row=row, column=col).value
+                pre = _pre_value(sn, c.coordinate)
                 if not isinstance(pre, (int, float)):
                     continue                # no pre-update value to hold
                 plans.append({"sheet": sn, "coord": c.coordinate,

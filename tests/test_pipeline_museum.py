@@ -1338,6 +1338,34 @@ def test_load_bearing_trace_and_tier_law():
     assert flag_budget(wb, spec, "2025", flags, load_bearing=lb2)
 
 
+def test_assumption_freeze_pure_inheritance_only():
+    """Owner side-question 2026-09-01, two defects exposed: (a) a growth
+    DISPLAY (=V6/U6-1, touches its own column) must never freeze — only
+    cells inheriting PURELY from the past (=U5); (b) manual-calc models
+    cache nothing, so the pre-update hold value is COMPUTED from the
+    archived formulas (the fourth no-cached-values fix)."""
+    import openpyxl
+    from openpyxl.utils import column_index_from_string
+    from pipeline.freeze import plan_freezes
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T5"], ws["U5"] = 0.28, 0.30           # growth assumption history
+    ws["V5"] = "=U5"                          # 2026E rate = 2025 rate
+    ws["V6"] = "=V2/U2-1"                     # growth DISPLAY: wiring
+    ws["U2"], ws["V2"] = 100.0, 130.0
+    for c in ("V5", "V6"):
+        ws[c].number_format = "0%"
+    # manual-calc: the values workbook caches NOTHING for V5
+    values = openpyxl.Workbook()
+    values.active.title = "S"
+    tc = column_index_from_string("U")
+    assert plan_freezes(wb, values, ["S"], tc) == []      # no cache: skip
+    plans = plan_freezes(wb, values, ["S"], tc, pre_formulas_wb=wb)
+    assert [(p["sheet"], p["coord"], p["value"]) for p in plans] \
+        == [("S", "V5", 0.30)], plans                     # display excluded
+
+
 def test_sign_absurd_detection_pin():
     """CLP pin (rewritten under FORECAST INVIOLABILITY, owner
     2026-09-01): the detection still finds the negative-where-actuals-

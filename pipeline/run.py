@@ -517,6 +517,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # report lists each with its old formula so restoring is one paste.
     from openpyxl.utils import column_index_from_string
     from .freeze import apply_freezes, plan_freezes
+    wb_pre_formulas = load(archive)      # manual-calc models cache nothing
     frozen_lines = []
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
@@ -524,7 +525,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 or sheet not in wb_values.sheetnames:
             continue
         plans = plan_freezes(wb, wb_values, [sheet],
-                             column_index_from_string(tcol))
+                             column_index_from_string(tcol),
+                             pre_formulas_wb=wb_pre_formulas)
         frozen_lines += apply_freezes(wb, plans)
     if frozen_lines:
         writer.log.setdefault("frozen", []).extend(frozen_lines)
