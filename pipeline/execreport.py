@@ -717,9 +717,12 @@ def _validate(d):
             if not isinstance(it.get("row"), int):
                 return ["snapshot row without an integer row number"]
     mp = d.get("mini_pl")
-    if not isinstance(mp, dict) or len(mp.get("rows", [])) < 6:
-        return ["mini_pl.rows must list the Core-8 P&L rows "
-                "(at least 6 of them)"]
+    # as many core rows as THIS model carries — the >=6 floor was DFE
+    # furniture and starved every CLP report (its condensed P&L offers
+    # 5 distinct core rows)
+    if not isinstance(mp, dict) or len(mp.get("rows", [])) < 4:
+        return ["mini_pl.rows must list this model's core P&L rows "
+                "(revenue, profits, per-share — at least 4)"]
     for it in mp["rows"]:
         if not isinstance(it.get("row"), int) or it.get("kind") not in (
                 "value", "margin", "pershare"):
@@ -882,6 +885,19 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     wb = openpyxl.load_workbook(model_path)
     pre_wb = (openpyxl.load_workbook(pre_path, data_only=True)
               if pre_path else None)
+    if target_year is None:
+        # report-only reruns: the workbook's own spec tab remembers the
+        # period it was updated to (report-only was collapsing to the
+        # DFE 'Model' default without this — run-203 lesson)
+        try:
+            from .spec import read_spec_tab
+            period = str(read_spec_tab(wb).get("_last_run", {})
+                         .get("period", ""))
+            m = re.search(r"(\d{2})$", period)
+            if m:
+                target_year = int("20" + m.group(1))
+        except Exception:
+            pass
     cols, primary = _cols_from_spec(wb, company_dir, target_year)
     headers_fixed = rollforward_headers(wb, cols, primary)
     facts = gather_facts(wb, pre_wb, cols, primary)
