@@ -236,6 +236,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_stale:
         log(f"[run] {n_stale} unserved hardcode inputs flagged STALE (red)")
 
+    # -- THE COMPOSITE-CONSTANTS LAW (owner ruling 2026-08-31): formulas
+    # still embedding last year's literals (=4976+23) are rewritten from
+    # their own disclosed comparatives — the run-51 silent-carry class,
+    # rebuilt as a proof-gated law (see composites.py).
+    from .composites import sweep as composites_sweep
+    n_cw, n_cr = composites_sweep(wb, spec_d, target_year, ledger, writer,
+                                  log, check_rows=spec_d.get("check_rows"))
+    if n_cw or n_cr:
+        log(f"[run] constants law: {n_cw} stale composites rewritten from "
+            f"disclosed comparatives (orange), {n_cr} unproven (red, "
+            "evidence noted)")
+
     # -- PRE-LOOP DETERMINISTIC SWEEP (owner ruling: find it and fix it;
     # the loop's budget must not be spent on rows code can prove). For each
     # stale row: unique identity-grade face evidence -> write it (stage-2-

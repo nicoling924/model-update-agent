@@ -71,21 +71,63 @@ class ObjectiveLoop:
         return scorecard(self.wb, self.spec, self.ty, served=self.served,
                          flags=self.writer.log["flags"])
 
+    def _trip_groups(self):
+        """Tripwires clustered by shared upstream inputs (run-198: 46
+        traces for 18 tripwires that chain to a handful of SOC roots —
+        one investigation per CHAIN, not per cell)."""
+        trips = getattr(self, "tripwires", [])
+        if not trips:
+            return []
+        leafsets = {}
+        for (sheet, col, r, fv, pv, tv) in trips:
+            leafsets[(sheet, col, r)] = frozenset(
+                self._leaf_inputs(sheet, f"{col}{r}")) or frozenset(
+                    [(sheet, f"{col}{r}")])
+        groups = []
+        for t in trips:
+            k = (t[0], t[1], t[2])
+            for g in groups:
+                if leafsets[k] & leafsets[(g[0][0], g[0][1], g[0][2])]:
+                    g.append(t)
+                    break
+            else:
+                groups.append([t])
+        return groups
+
     def _trip_lines(self):
         """Open tripwires: sign-flipped forecasts handed in by the sense
         check (owner ruling 2026-08-31: a mistake DETECTOR — investigate
-        once, then verdict; never silently freeze)."""
+        once per CHAIN, then verdict every member; never silently
+        freeze). Spend is capped: the terminal freeze safely holds
+        whatever remains."""
         done = {v.split(":", 1)[0] for v in
                 self.writer.log.get("verdicts", [])}
+        cap = max(6, self.budget0 // 6)
+        spent = getattr(self, "_trip_spend", 0)
         out = []
-        for (sheet, col, r, fv, pv, tv) in getattr(self, "tripwires", []):
-            key = f"{sheet}!{col}{r}"
-            if key in done:
+        for g in self._trip_groups():
+            open_g = [t for t in g if f"{t[0]}!{t[1]}{t[2]}" not in done]
+            if not open_g:
                 continue
-            out.append(f"  {key}: forecast {fv:,.2f} NEGATIVE where actuals "
-                       f"are positive ({pv:,.2f} -> {tv:,.2f}) — usually a "
-                       f"mis-rolled or missing upstream input. trace_cell it "
-                       f"ONCE, then verdict {{\"item\": \"{key}\", ...}}")
+            keys = ", ".join(f"{s}!{c}{r}" for s, c, r, *_ in open_g[:12])
+            s0, c0, r0, fv0, pv0, tv0 = open_g[0]
+            if len(open_g) > 1:
+                out.append(
+                    f"  CHAIN ({len(open_g)} rows share upstream inputs): "
+                    f"{keys} — e.g. {s0}!{c0}{r0} computes {fv0:,.2f} where "
+                    f"actuals are {pv0:,.2f} -> {tv0:,.2f}. ONE trace of "
+                    f"the chain, then verdict {{\"items\": [{keys.split(', ')[0]!r}, ...], ...}} "
+                    f"covering every member")
+            else:
+                out.append(
+                    f"  {s0}!{c0}{r0}: forecast {fv0:,.2f} NEGATIVE where "
+                    f"actuals are positive ({pv0:,.2f} -> {tv0:,.2f}) — "
+                    f"usually a mis-rolled upstream input. trace_cell it "
+                    f"ONCE, then verdict {{\"item\": \"{s0}!{c0}{r0}\", ...}}")
+        if out and spent >= cap:
+            out = [f"  (tripwire budget spent — {len(out)} chains remain; "
+                   "verdict only what you already understand, the rest "
+                   "freeze terminally at pre-update values)"]
         return out
 
     def _state_block(self):
@@ -299,6 +341,11 @@ class ObjectiveLoop:
             sh = (sh2 or sh3 or sheet).strip()
             if sh in self.wb.sheetnames:
                 out += self._leaf_inputs(sh, f"{c2}{r2}", depth + 1, seen)
+        if not out:
+            # a formula with no cell references (=4976+23) IS a leaf —
+            # the constants-composite class was invisible to this walk
+            # for four CLP runs (run-198 lesson)
+            return [(sheet, coord)]
         return out
 
     def t_diagnose_balance(self, args):
@@ -338,6 +385,31 @@ class ObjectiveLoop:
             cur = self.wb[sh][coord].value
             if isinstance(cur, (int, float)):
                 sites.append((sh, coord, str(t.label)[:30] if t else "?", cur))
+            if isinstance(cur, str) and cur.startswith("="):
+                # a ref-less composite leaf: stillness is the signal —
+                # evaluating to its own prior = last year's actual never
+                # rolled (the run-198 class)
+                try:
+                    ce = ev.cell(sh, coord)
+                except Exception:
+                    ce = None
+                pv2 = None
+                sh_p = prior_column(self.spec, sh, self.ty)
+                if sh_p:
+                    try:
+                        pv2 = ev.cell(sh, f"{sh_p}{mm.group(2)}")
+                    except Exception:
+                        pv2 = None
+                if isinstance(ce, (int, float)) \
+                        and isinstance(pv2, (int, float)) \
+                        and abs(ce - pv2) <= 1.0:
+                    out.append(
+                        f"  STALE COMPOSITE {sh}!{coord} holds {cur[:34]} "
+                        f"and still evaluates its own prior {ce:,.2f} — "
+                        f"last year's actual never rolled -> "
+                        f"rewrite_constants {{\"cell\": \"{sh}!"
+                        f"{mm.group(2)}\"}}")
+                continue
             got = self._diff_value(t) if t is not None else None
             if got is not None and isinstance(cur, (int, float)):
                 dv, it, _s = got
@@ -419,15 +491,24 @@ class ObjectiveLoop:
                     "not a numeric input — plug into a numeric INPUT "
                     "component; diagnose_balance lists the eligible sites")
         pcol = prior_column(self.spec, i_sheet, self.ty)
+        # the sanctioned last resort bypasses the band (run-198: the
+        # band refused the delivering plug); a WILD plug still lands —
+        # the total must tie — but escalates RED with the question, per
+        # the owner's reclass ruling #3
+        wild = abs(residual) > 0.5 * max(abs(held), 1.0)
+        wild_txt = (", WILD — swings the component by more than half; "
+                    "a mapped sibling is probably wrong" if wild else "")
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", held - residual,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
-            flag="orange",
-            note=(f"PLUG (worst case): absorbed check residual "
+            trusted=True,
+            flag="red" if wild else "orange",
+            note=(f"PLUG (worst case{wild_txt}): absorbed check residual "
                   f"{residual:,.2f} from {check}; was {held:,.2f}. "
                   f"ANALYST MUST REVIEW. {why[:200]}"))
         if not ok:
-            return "REFUSED by write guard (band/lock) — choose another component"
+            return ("REFUSED by write guard (lock) — choose another "
+                    "component")
         try:
             after = Evaluator(self.wb).cell(c_sheet, f"{c_col}{c_row}")
         except Exception:
@@ -442,6 +523,23 @@ class ObjectiveLoop:
                     "does not feed this check; pick one inside its chain")
         return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
                 f"(orange-flagged, in the report). Check {check} now zero.")
+
+    def t_rewrite_constants(self, args):
+        """THE CONSTANTS LAW, on demand (owner ruling 2026-08-31): a
+        formula still embedding last year's literals (=4976+23) that
+        evaluates to its own prior is rewritten from its own disclosed
+        comparatives — every literal must tie a face line's comparative
+        and all ties must agree, else the cell is untouched and the MISS
+        names exactly what tied."""
+        ref = str(args.get("cell") or args.get("row") or "")
+        rr = self._row_ref(ref)
+        if not rr:
+            return (f"MISS: cell '{ref}' unparseable — use \"Final!65\" "
+                    "(column letters tolerated)")
+        from .composites import rewrite_cell
+        ok, msg = rewrite_cell(self.wb, self.spec, self.ty, self.ledger,
+                               self.writer, rr[0], rr[1])
+        return ("REWRITTEN " + msg) if ok else ("MISS: " + msg)
 
     def t_apply_diff(self, args):
         """One action from finding to fixing: write the disclosed value for
@@ -598,25 +696,32 @@ class ObjectiveLoop:
         ERROR_FIXED (you found and repaired the cause), JUSTIFIED (the
         disclosure supports it — say why), or SUSPICIOUS (unresolved —
         the analyst should look). Every verdict prints on _REPORT."""
-        item = str(args.get("item") or args.get("cell") or "")
+        items = args.get("items") if isinstance(args.get("items"), list) \
+            else [args.get("item") or args.get("cell") or ""]
         v = str(args.get("verdict") or "").upper().replace("-", "_").replace(" ", "_")
         why = str(args.get("why") or "").strip()
         if v not in ("JUSTIFIED", "ERROR_FIXED", "SUSPICIOUS"):
-            return ('MISS: need {"item": "Sheet!AJ39", "verdict": '
-                    '"JUSTIFIED|ERROR_FIXED|SUSPICIOUS", "why": ...}')
+            return ('MISS: need {"item": "Sheet!AJ39"} (or {"items": '
+                    '[...]}) with "verdict": '
+                    '"JUSTIFIED|ERROR_FIXED|SUSPICIOUS", "why": ...')
         if len(why) < 15:
             return ("MISS: a verdict without its reasoning is not "
                     "adjudication — say what you traced and found")
-        cr = self._cell_ref(item, default_tcol=False)
-        key = (f"{cr[0]}!{cr[1]}{cr[2]}" if cr else None)
-        if key is None:
-            rr = self._row_ref(item)
+        keys = []
+        for item in items:
+            cr = self._cell_ref(str(item), default_tcol=False)
+            if cr:
+                keys.append(f"{cr[0]}!{cr[1]}{cr[2]}")
+                continue
+            rr = self._row_ref(str(item))
             if not rr:
-                return f"MISS: item '{item}' unparseable — use \"Sheet!AJ39\""
-            key = f"{rr[0]}!{rr[1]}"
-        self.writer.log.setdefault("verdicts", []).append(
-            f"{key}: {v} — {why[:250]}")
-        return f"VERDICT recorded for {key}: {v}"
+                return (f"MISS: item '{item}' unparseable — use "
+                        "\"Sheet!AJ39\"")
+            keys.append(f"{rr[0]}!{rr[1]}")
+        for key in keys:
+            self.writer.log.setdefault("verdicts", []).append(
+                f"{key}: {v} — {why[:250]}")
+        return f"VERDICT recorded for {', '.join(keys)}: {v}"
 
     def t_note(self, args):
         self.notes.append(str(args.get("text", ""))[:300])
@@ -801,6 +906,7 @@ class ObjectiveLoop:
              "find_line": t_find_line, "statement_diff": t_statement_diff,
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
+             "rewrite_constants": t_rewrite_constants,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
@@ -852,6 +958,10 @@ class ObjectiveLoop:
                 self._done.add(fingerprint)
                 if self._is_forecast_action(name, args):
                     self._fc_spend += 1
+                if name == "trace_cell" and any(
+                        f"{s}!{c}{r}" in json.dumps(args, ensure_ascii=False)
+                        for s, c, r, *_ in getattr(self, "tripwires", [])):
+                    self._trip_spend = getattr(self, "_trip_spend", 0) + 1
                 try:
                     result = self.TOOLS[name](self, args)
                 except Exception as e:

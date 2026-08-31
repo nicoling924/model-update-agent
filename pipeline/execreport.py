@@ -827,14 +827,16 @@ def collect_delta_flags(wb, pre_wb, mini_rows, cols=None, primary=None,
 
 
 def _validate_sense(d):
+    # contract: return a LIST of error strings (a bare string iterates
+    # char-wise in the retry prompt — the run-198 'a; t; t; e; n' bug)
     if not isinstance(d, dict) or not isinstance(d.get("verdicts"), list):
-        return 'need {"verdicts": [...]}'
+        return ['need {"verdicts": [...]}']
     for v in d["verdicts"]:
         if not isinstance(v, dict) or v.get("verdict") not in (
                 "JUSTIFIED", "SUSPICIOUS", "ERROR FOUND"):
-            return ("each verdict needs verdict JUSTIFIED | SUSPICIOUS | "
-                    "ERROR FOUND")
-    return None
+            return ["each verdict needs verdict JUSTIFIED | SUSPICIOUS | "
+                    "ERROR FOUND"]
+    return []
 
 
 def sense_check(client, flags, facts):

@@ -129,6 +129,8 @@ class Client:
                 errs = [f"Response was not valid JSON: {e}"]
             else:
                 errs = validate(obj)
+                if isinstance(errs, str):   # a bare string would iterate
+                    errs = [errs]           # char-wise below (run-198)
                 if not errs:
                     return obj
             if attempt < repair_retries:

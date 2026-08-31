@@ -1439,6 +1439,54 @@ def test_197_one_detection_feeds_tripwires_freeze_and_gate():
     assert driver_roll(wb, spec, "2025", pre_map, w2.log) == []
 
 
+def test_198_composite_constants_law():
+    """Run-198: -240 was 8 stale composite formulas (=4976+23 — run 51's
+    own exhibit cell) invisible to every layer and unfixable by any
+    tool. The law: every embedded literal must tie a face line's
+    comparative, the WHOLE composition must resolve on a COMMON page
+    (the by-hand method — a statement is read as a page), and all
+    qualifying pages must agree. Decoy note-table ties on other pages
+    must not poison, and structural scalers never trigger."""
+    import openpyxl
+    from pipeline.composites import literals_of, rewrite_cell, sweep
+    from pipeline.writer import Writer
+    assert literals_of("=4976+23") == ["4976", "23"]
+    assert literals_of("=AI61-'SOC Accounts'!AI8") == []
+    assert literals_of("=U9*100/1000") == ["100", "1000"]
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T5"] = "=158532+10183"          # prior actual (same composition)
+    ws["U5"] = "=158532+10183"          # stale mark-to-actual carry
+    ws["T7"], ws["U7"] = 40.0, "=U5*100/168715"   # scalers only: no trigger
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    led = Ledger()
+    led.add(Item(doc="AR", page=25, table_id=0, row_ord=0,
+                 label="Fixed assets", nums=[166094.0, 158532.0],
+                 source_line="Fixed assets 166,094 158,532"))
+    led.add(Item(doc="AR", page=25, table_id=0, row_ord=1,
+                 label="Right-of-use assets", nums=[10034.0, 10183.0],
+                 source_line="Right-of-use assets 10,034 10,183"))
+    # decoy: a PPE note on ANOTHER page ties 158532 to a different figure
+    led.add(Item(doc="AR", page=33, table_id=0, row_ord=0,
+                 label="Net book value", nums=[133059.0, 158532.0],
+                 source_line="Net book value 133,059 158,532"))
+    for p in (25, 33):
+        led.faces[("AR", p)] = "bs"
+    w = Writer(wb)
+    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
+    assert ok, msg
+    assert wb["S"]["U5"].value == "=166094+10034", wb["S"]["U5"].value
+    # non-stale cells and scaler-only cells are never touched
+    n_ok, _n_red = sweep(wb, spec, 2025, led, w, lambda s: None)
+    assert wb["S"]["U7"].value == "=U5*100/168715"
+    # the decoy page alone (no partner literal) can never win: a cell
+    # whose only ties disagree across pages refuses
+    ws["U6"] = ws["T6"] = "=158532+55555"
+    ok2, msg2 = rewrite_cell(wb, spec, 2025, led, w, "S", 6)
+    assert not ok2 and "55555" in msg2, msg2
+
+
 def test_197_no_cached_value_is_red_not_silent():
     """Manual-calc models can have no pre-update cached value to hold —
     the honest terminal is red + SUSPICIOUS verdict, never a skip."""

@@ -66,20 +66,43 @@ it with evidence, and the tools do the legwork:
 A subtotal is NEVER edited directly — repair components; the total re-ties
 itself. Never plug an innocent row while a guilty component is findable.
 
-## Reading a residual (decode before touching)
+## How an analyst cracks a residual (owner's teaching, CLP run 6 —
+## the run where -240 was 8 offsetting errors and the machine hunted
+## the digits for four runs while a human read the statement once)
 
-- Off by exactly **2× a known value** → a SIGN FLIP; fix the sign, not the
-  magnitude. Some rows legitimately flip sign year to year (OCI, FX,
-  working-capital moves) — read them as printed this year.
-- **Identical residual across every forecast year** → ONE propagating
-  actual-year base; find the single cell, not five errors.
-- A composite residual often **decomposes exactly** into the open check rows;
-  sum the open checks before assuming a new unknown.
-- An **exact-delta match names the cell**: a subtotal short by 74.9 with one
-  component holding 5.0 where the filing prints 79.9 — that difference IS the
-  diagnosis. Search the residual amount with `find_line`.
-- Correcting an input can RE-OPEN a balance a plug was hiding. That is
-  progress: the residual now measures the plug's absorbed error.
+**NEVER hunt the residual's digits.** A residual is usually a NET of
+several errors that mostly cancel — the number -240 appears in no
+document, and `find_line {"name": "240"}` is the trap the machine
+walked into four runs straight. Instead:
+
+1. **Decompose the check, not the gap.** Lay out EVERY component of the
+   failing check — label, current value, prior value, and what the cell
+   HOLDS (hardcode? formula? formula with embedded literals?).
+   `diagnose_balance` gives you exactly this table. Read the whole
+   table before touching anything.
+2. **Stillness is the signal.** In a year where everything moved, a row
+   whose current value EQUALS its prior is suspect — and a formula like
+   `=158532+10183` whose literals are last year's disclosed figures is
+   a fingerprint: last year's mark-to-actual, never rolled. diagnose
+   marks these STALE COMPOSITE → `rewrite_constants` each one.
+3. **Read the whole statement beside the whole statement.**
+   `statement_diff` the failing check's statement and work EVERY line
+   it reports, not just one — the errors cancel in the total but each
+   line is individually wrong.
+4. **The comparative column is the map.** Every disclosed line prints
+   last year next to this year — a stale value or literal is FOUND by
+   its prior, and the same line hands you the current figure.
+5. **Accept only a full reconciliation.** You are done when the check
+   evaluates ZERO — and a small remaining gap after real corrections
+   usually EQUALS one disclosed line the model never carried (a new
+   equity instrument, a new reserve). `find_line` that exact leftover:
+   the leftover NAMES the missing line. Fold it into the best-fitted
+   row, red-flagged (balance-first placement, owner ruling).
+
+Also useful: off by exactly **2× a known value** → a sign flip; an
+**identical residual across every forecast year** → one propagating
+base; correcting an input can RE-OPEN a balance a plug was hiding —
+that is progress, the residual now measures the plug's absorbed error.
 
 ## Root cause, not cell-by-cell
 
@@ -110,7 +133,15 @@ with both readings, never a silent choice.
   The why MUST cite a page. Auto-redirects view rows to their input cell.
   Guarded, transactional, auto-reverted if it breaks passing checks.
 - `diagnose_balance {"check": "Model!95"}` — decompose a failing check row
-  to its leaf inputs; names every GUILTY cell with its disclosed value.
+  to its leaf inputs; names every GUILTY cell with its disclosed value,
+  every STALE COMPOSITE (formula still evaluating its own prior), and
+  the eligible plug sites.
+- `rewrite_constants {"cell": "Final!65"}` — rewrite a stale composite
+  formula (=158532+10183) from its own disclosed comparatives: each
+  embedded literal is found as a face line's prior-year figure and
+  replaced by that line's current figure, composition preserved,
+  orange. Refuses (with the evidence it found) unless every literal
+  proves.
 - `plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}`
   — worst case only; orange-flagged, reported, refused while guilty cells
   remain, auto-reverted if it does not zero the check.
