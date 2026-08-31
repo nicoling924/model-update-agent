@@ -737,11 +737,26 @@ def _validate(d):
         return ["attention must be an object with plugs/red/orange lists"]
     for k in ("plugs", "red", "orange"):
         for it in att.get(k, []):
-            if not isinstance(it, dict) or not it.get("sheet") \
-                    or not it.get("cell"):
+            if not isinstance(it, dict) \
+                    or not (it.get("note") or (it.get("sheet")
+                                               and it.get("cell"))):
                 return ["attention.%s items must be objects "
                         '{"sheet","cell","note"}' % k]
     return []
+
+
+def _normalize(d):
+    """Tolerate the harmless shape drift Luna produces instead of
+    failing the whole report: a bare-string attention item becomes a
+    note without a link (run-204: three CLP reports died on this)."""
+    if isinstance(d, dict) and isinstance(d.get("attention"), dict):
+        for k, v in d["attention"].items():
+            if isinstance(v, list):
+                d["attention"][k] = [
+                    x if isinstance(x, dict)
+                    else {"sheet": "", "cell": "", "note": str(x)[:200]}
+                    for x in v]
+    return d
 
 
 def compose(client, facts, feedback=""):
@@ -749,7 +764,9 @@ def compose(client, facts, feedback=""):
     if feedback:
         user += ("\n\nTHE REFEREE REFUSED PART OF YOUR LAST ANSWER — fix "
                  "exactly these and resend the FULL object:\n" + feedback)
-    return client.json(SYSTEM, user, _validate, repair_retries=2)
+    return _normalize(client.json(
+        SYSTEM, user, lambda d: _validate(_normalize(d)),
+        repair_retries=2))
 
 
 # ---------------------------------------------------------- sense check
