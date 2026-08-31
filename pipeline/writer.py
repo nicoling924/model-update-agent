@@ -220,6 +220,16 @@ class Writer:
                 self.log["band_refused"].append(
                     f"{ref}: {value!r} (≈{guard_v:,.1f}) vs prior {pv!r}")
                 return False
+        # the empty-row law (owner ruling 2026-08-31): a row whose prior
+        # actual is EMPTY is furniture — machine writes stay out of it
+        # (trusted writes may proceed: folds and proven serves carry
+        # their own evidence)
+        if not trusted and prior_coord is not None \
+                and ws[prior_coord].value in (None, ""):
+            self.log.setdefault("empty_row_refused", []).append(ref)
+            return False
+        # undo journal (error-baseline law): every write is reversible
+        self.log.setdefault("undo", []).append((sheet, coord, cell.value))
         cell.value = value
         if prior_coord is not None:      # inherit the prior actual's look
             prior = ws[prior_coord]

@@ -155,6 +155,15 @@ class ObjectiveLoop:
         notes = [f"  - {n}" for n in self.notes[-12:]]
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
         trips = self._trip_lines()
+        errs = []
+        for (s, c, why) in getattr(self, "error_items", [])[:10]:
+            try:
+                Evaluator(self.wb).cell(s, c)
+                continue                       # since fixed
+            except Exception:
+                pass
+            errs.append(f"  {s}!{c}: {why} — trace_error it, fix the "
+                        "CAUSE (never paper over the symptom)")
         endgame = []
         if self.budget <= 10:
             fails = self._failing_target_checks()
@@ -171,6 +180,8 @@ class ObjectiveLoop:
         return "\n".join([
             f"TARGET YEAR: {self.ty}   ACTIONS LEFT: {self.budget}",
             *endgame,
+            *(["== NEW ERRORS (this update broke cells that computed "
+               "before — HIGHEST priority) =="] + errs if errs else []),
             "== SCORECARD ==",
             summarize(card, self.ty, flags=self.writer.log["flags"],
                       spec=self.spec, wb=self.wb),
@@ -602,6 +613,129 @@ class ObjectiveLoop:
         return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
                 f"(orange-flagged, in the report). Check {check} now zero.")
 
+    def t_trace_error(self, args):
+        """FOLLOW THE ERROR TO ITS CAUSE (the run-203 investigation,
+        taught): an erroring cell is a symptom — walk its precedents to
+        the deepest cell that fails (or the zero divisor), then ask the
+        provenance questions: what did that cell hold BEFORE the run
+        (the archive is the before-picture), what does it hold now, is
+        it flagged, did this run write it. A wrong unflagged write has
+        nowhere to hide from this walk."""
+        ref = str(args.get("cell", ""))
+        cr = self._cell_ref(ref)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable — use \"Final!AJ99\""
+        sheet, col, row = cr
+        ev = Evaluator(self.wb)
+        try:
+            v = ev.cell(sheet, f"{col}{row}")
+            return (f"{sheet}!{col}{row} evaluates fine ({v:,.2f}) — "
+                    "no error to trace")
+        except Exception as e:
+            err = str(e).splitlines()[0][:60]
+        chain = [f"{sheet}!{col}{row}: {err}"]
+        cur = (sheet, f"{col}{row}")
+        for _hop in range(30):
+            sh, coord = cur
+            f = self.wb[sh][coord].value if sh in self.wb.sheetnames else None
+            if not (isinstance(f, str) and f.startswith("=")):
+                break
+            nxt = None
+            zero_div = None
+            for m in re.finditer(
+                    r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
+                    r"([A-Z]{1,3})(\d+)(?::([A-Z]{1,3})(\d+))?",
+                    f.replace("$", "")):
+                psh = (m.group(1) or m.group(2) or sh).strip()
+                if psh not in self.wb.sheetnames:
+                    continue
+                # ranges expand row-wise: the failing cell is often
+                # INSIDE a SUM range, not at its endpoints
+                r1, r2 = int(m.group(4)), int(m.group(6) or m.group(4))
+                probes = [f"{m.group(3)}{rr}"
+                          for rr in range(min(r1, r2),
+                                          min(max(r1, r2), min(r1, r2) + 50)
+                                          + 1)]
+                for pco in probes:
+                    try:
+                        pv = ev.cell(psh, pco)
+                    except Exception:
+                        nxt = (psh, pco)  # a precedent errors: go deeper
+                        break
+                if nxt:
+                    break
+                pco = probes[0]
+                pv0 = None
+                try:
+                    pv0 = ev.cell(psh, pco)
+                except Exception:
+                    pass
+                pv = pv0
+                # a zero precedent that the formula divides by
+                if pv == 0 and re.search(
+                        r"/\s*(?:'" + re.escape(psh) + r"'!|"
+                        + re.escape(psh) + r"!)?\$?"
+                        + m.group(3) + r"\$?" + m.group(4)
+                        + r"(?![0-9])", f.replace("$", "")):
+                    zero_div = (psh, pco)
+            if nxt is not None:
+                chain.append(f"  <- {nxt[0]}!{nxt[1]} also fails")
+                cur = nxt
+                continue
+            if zero_div is not None:
+                sh2, co2 = zero_div
+                # follow the zero through view chains (=AI125) to the
+                # cell where the zero is actually TYPED — provenance
+                # belongs to the hardcode, not the mirror
+                for _f in range(6):
+                    v2 = self.wb[sh2][co2].value
+                    if not (isinstance(v2, str) and v2.startswith("=")):
+                        break
+                    refs2 = re.findall(
+                        r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
+                        r"([A-Z]{1,3})(\d+)", v2.replace("$", ""))
+                    if len(refs2) != 1:
+                        break
+                    q = refs2[0]
+                    qsh = (q[0] or q[1] or sh2).strip()
+                    if qsh not in self.wb.sheetnames:
+                        break
+                    chain.append(f"  zero flows from {sh2}!{co2} ({v2})")
+                    sh2, co2 = qsh, f"{q[2]}{q[3]}"
+                cell = self.wb[sh2][co2]
+                held = cell.value
+                pcol = prior_column(self.spec, sh2, self.ty)
+                r2 = "".join(c for c in co2 if c.isdigit())
+                prior = (self.wb[sh2][f"{pcol}{r2}"].value if pcol else None)
+                pre = "?"
+                path = getattr(self, "pre_path", None)
+                if path:
+                    if getattr(self, "_pre_wb", None) is None:
+                        import openpyxl
+                        self._pre_wb = openpyxl.load_workbook(path)
+                    if sh2 in self._pre_wb.sheetnames:
+                        pre = self._pre_wb[sh2][co2].value
+                flagged = f"{sh2}!{co2}" in self.writer.log["flags"]
+                written = f"{sh2}!{co2}" in self.writer.log.get("written", [])
+                note = (str(cell.comment.text)[:80] if cell.comment else "")
+                chain.append(
+                    f"  CAUSE: {sh2}!{co2} = {held!r} and the formula "
+                    f"divides by it. BEFORE the run it held {pre!r}; "
+                    f"prior actual {prior!r}; "
+                    f"{'WRITTEN BY THIS RUN' if written else 'not written by this run'}, "
+                    f"{'flagged' if flagged else 'UNFLAGGED'}"
+                    + (f"; note: {note}" if note else "")
+                    + ". Fix the cause (set_input the true value with "
+                    "citation, or restore the pre-run value), then rescore.")
+                break
+            chain.append("  (no deeper failing precedent found — inspect "
+                         "this cell's own formula with trace_cell)")
+            break
+        if len(chain) > 9:                # collapse the middle of a long walk
+            chain = chain[:4] + [f"  ... ({len(chain) - 8} hops) ..."] \
+                + chain[-4:]
+        return "\n".join(chain)
+
     def t_rewrite_constants(self, args):
         """THE CONSTANTS LAW, on demand (owner ruling 2026-08-31): a
         formula still embedding last year's literals (=4976+23) that
@@ -985,6 +1119,7 @@ class ObjectiveLoop:
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
              "rewrite_constants": t_rewrite_constants,
+             "trace_error": t_trace_error,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,

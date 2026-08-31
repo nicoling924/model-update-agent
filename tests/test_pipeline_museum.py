@@ -1601,6 +1601,124 @@ def test_202_moveon_gate_reports_not_refuses():
     assert not ok2 and any("FLAG BUDGET" in f for f in fails2), fails2
 
 
+def test_203_error_baseline_law():
+    """Run-203: two unflagged zeros made every forecast year #DIV/0! and
+    the gate, blind to EVAL_ERROR, called the model balanced. The law:
+    count errors BEFORE the update; only NEW errors are the agent's —
+    they refuse (traced); pre-existing ones report as the analyst's."""
+    import openpyxl
+    from pipeline.errorscan import error_cells, new_errors
+    from pipeline.gate import deliver_or_refuse
+    from pipeline.writer import Writer, formula_map
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T5"], ws["U5"], ws["V5"] = 1577.0, 1577.0, "=U5"
+    ws["T6"], ws["U6"], ws["V6"] = "=100/T5", "=100/U5", "=100/V5"
+    ws["T8"] = "=1/0"                      # the analyst's own old error
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}},
+            "check_rows": []}
+    base = error_cells(wb, spec)
+    assert set(base) == {("S", "T8")}, base
+    ws["U5"] = 0.0                         # the run-203 crime
+    cur = error_cells(wb, spec)
+    ne = new_errors(base, cur)
+    assert {(s, c) for s, c, _ in ne} == {("S", "U6"), ("S", "V6")}, ne
+    w = Writer(wb)
+    ok, fails, card = deliver_or_refuse(wb, spec, 2025, formula_map(wb),
+                                        w.log, error_baseline=base)
+    assert not ok and sum(f.startswith("NEW ERROR") for f in fails) == 2
+    assert card.get("preexisting_errors") == ["S!T8"], card
+
+
+def test_203_error_guard_reverts_the_breaking_write():
+    """The write chokepoint's journal lets the error guard restore the
+    exact write that made cells stop computing — the auto-disproof of a
+    false 'proven zero'."""
+    import openpyxl
+    from pipeline.errorscan import error_cells, new_errors
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T5"], ws["U5"] = 1577.0, 1577.0
+    ws["T6"], ws["U6"] = "=100/T5", "=100/U5"
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    base = error_cells(wb, spec)
+    w = Writer(wb)
+    assert w.write("S", "U7", 5.0, prior_coord="T5", trusted=True)  # innocent
+    assert w.write("S", "U5", 0.0, prior_coord="T5", trusted=True)  # culprit
+    assert new_errors(base, error_cells(wb, spec))
+    # the run.py guard logic, distilled: pop newest-first, keep innocents
+    undo = w.log["undo"]
+    cur = new_errors(base, error_cells(wb, spec))
+    while cur and undo:
+        sh, coord, old = undo.pop()
+        prev = wb[sh][coord].value
+        wb[sh][coord] = old
+        now = new_errors(base, error_cells(wb, spec))
+        if len(now) < len(cur):
+            cur = now
+        else:
+            wb[sh][coord] = prev
+    assert ws["U5"].value == 1577.0        # culprit reverted
+    assert ws["U7"].value == 5.0           # innocent kept
+    assert not new_errors(base, error_cells(wb, spec))
+
+
+def test_203_trace_error_names_the_cause():
+    """The taught investigation: from the erroring cell down to the zero
+    divisor, with the before-picture and the write provenance."""
+    wb = _wb({"T5": 1577.0, "U5": 0.0,
+              "T6": "=100/T5", "U6": "=100/U5", "U9": "=U6"})
+    lp = _loop(wb, _spec_tiny())
+    r = lp.t_trace_error({"cell": "S!U9"})
+    assert "CAUSE: S!U5" in r, r
+    assert "divides by it" in r and "UNFLAGGED" in r, r
+    ok = lp.t_trace_error({"cell": "S!T6"})
+    assert "evaluates fine" in ok
+
+
+def test_203_key_tie_backs_out_the_estimate():
+    """Run-203: total opex still held the FORECAST formula
+    (=prior*revenue growth) in the actual column — +148 flowed into
+    operating profit, net profit and EPS. The key-tie law wraps that
+    exact component (formula over a hardcode prior = the type
+    violation) so the key ties the print, orange, traceable."""
+    import json
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    wb = _wb({"T2": 90964.0, "U2": 88018.0,           # revenue (ties)
+              "T3": -76061.0, "U3": "=T3*(U2/T2)",    # opex: estimate!
+              "T4": "=T2+T3", "U4": "=U2+U3"})        # net profit key
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [],
+            "key_rows": [{"name": "net profit", "sheet": "S", "row": 4}]}
+    panel = {"net profit": {"print": 14272.0, "prior": 14903.0}}
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as td:
+        p = pathlib.Path(td) / "key_panel.json"
+        p.write_text(json.dumps(panel))
+        w = Writer(wb)
+        n = key_tie(wb, spec, 2025, w, p, lambda s: None)
+    assert n == 1, n
+    from pipeline.evaluator import Evaluator
+    assert abs(Evaluator(wb).cell("S", "U4") - 14272.0) <= 1.0
+    assert wb["S"]["U3"].value.startswith("=(T3*(U2/T2))-("), wb["S"]["U3"].value
+
+
+def test_203_empty_row_law():
+    """A row whose prior actual is empty is furniture — untrusted
+    machine writes are refused there."""
+    from pipeline.writer import Writer
+    wb = _wb({"T5": 100.0})
+    w = Writer(wb)
+    assert w.write("S", "U9", 5.0, prior_coord="T9") is False
+    assert w.log["empty_row_refused"] == ["S!U9"]
+    assert w.write("S", "U5", 105.0, prior_coord="T5") is True
+
+
 def test_197_no_cached_value_is_red_not_silent():
     """Manual-calc models can have no pre-update cached value to hold —
     the honest terminal is red + SUSPICIOUS verdict, never a skip."""

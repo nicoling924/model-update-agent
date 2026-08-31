@@ -144,6 +144,46 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     wb = load(model_path)                       # formulas
     wb_values = load(model_path, data_only=True)  # cached values
     pre_map = formula_map(wb)
+
+    # -- THE ERROR-BASELINE LAW (owner ruling 2026-08-31): count the
+    # evaluation errors BEFORE touching anything. Pre-existing errors
+    # are the analyst's; every error the update ADDS is ours and either
+    # reverts (journaled writes) or refuses at the gate, traced.
+    from .errorscan import error_cells, new_errors
+    err_base = error_cells(wb, spec_d)
+    if err_base:
+        log(f"[run] error baseline: {len(err_base)} cells already fail to "
+            "evaluate in the analyst's own model (their standing items)")
+
+    def err_guard(stage, cap=60):
+        """A stage that made cells stop computing gets its journaled
+        writes reverted, newest first, until the grid is back to the
+        baseline — a 'proven' value that breaks the model is
+        auto-disproven (the run-203 nuclear-capacity lesson)."""
+        cur = new_errors(err_base, error_cells(wb, spec_d))
+        if not cur:
+            return
+        undo = writer.log.get("undo", [])
+        popped = 0
+        while cur and undo and popped < cap:
+            sh, coord, old = undo.pop()
+            popped += 1
+            prev = wb[sh][coord].value
+            wb[sh][coord] = old
+            now = new_errors(err_base, error_cells(wb, spec_d))
+            if len(now) < len(cur):
+                log(f"[run]   error guard [{stage}]: REVERTED {sh}!{coord} "
+                    f"({str(prev)[:24]!r} -> restored {str(old)[:24]!r}) — "
+                    "the write made cells stop computing (auto-disproven)")
+                writer.log["flags"] = [x for x in writer.log["flags"]
+                                       if x != f"{sh}!{coord}"]
+                cur = now
+            else:
+                wb[sh][coord] = prev      # innocent write: keep it
+        if cur:
+            log(f"[run]   error guard [{stage}]: {len(cur)} new errors "
+                "remain — the gate will refuse them: "
+                + "; ".join(f"{s}!{c}" for s, c, _w in cur[:5]))
     pre_estimates = report_mod.snapshot_estimates(wb_values, spec_d, target_year)
 
     # -- census + Stage 1
@@ -247,6 +287,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         log(f"[run] constants law: {n_cw} stale composites rewritten from "
             f"disclosed comparatives (orange), {n_cr} unproven (red, "
             "evidence noted)")
+    err_guard("constants law")
 
     # -- PRE-LOOP DETERMINISTIC SWEEP (owner ruling: find it and fix it;
     # the loop's budget must not be spent on rows code can prove). For each
@@ -386,6 +427,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 n_nil += 1
     if n_nil:
         log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
+    err_guard("tier-3 + dash-nil")
 
     # -- THE RECLASSIFICATION RECIPE (owner rulings 2026-08-30): stale
     # segment inputs in a block whose total is known are backed out at
@@ -430,6 +472,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         writer.log.setdefault("frozen", []).extend(frozen_lines)
         log(f"[run] assumption freeze: {len(frozen_lines)} forecast "
             "assumptions held at their pre-update values (orange)")
+    err_guard("reclass + freeze")
 
     # -- THE MOVE-ON LAW (owner ruling 2026-08-31): code does the
     # exhaustive not-disclosed looking for every stale red; the loop's
@@ -451,6 +494,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if loop.tripwires:
             log(f"[run] sense tripwires: {len(loop.tripwires)} sign-flip "
                 "forecasts handed to the loop for investigation")
+        # error-baseline law: NEW errors are the loop's mandatory work —
+        # trace_error walks each to its cause (with the pre-update
+        # archive as the before-picture)
+        loop.pre_path = str(archive)
+        loop.error_items = new_errors(err_base, error_cells(wb, spec_d))
+        if loop.error_items:
+            log(f"[run] {len(loop.error_items)} NEW evaluation errors "
+                "handed to the loop (trace_error each to its cause)")
         loop_summary = loop.run()
         log(f"[run] objective loop: {loop_summary[:150]}")
         # the referee's last rung (owner: back out, mark, still deliver)
@@ -459,6 +510,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if n_tl:
             log(f"[run] terminal ladder: {n_tl} actual-year checks closed "
                 "(flagged plugs/diffs, reported)")
+        err_guard("loop + terminal ladder")
+        # -- THE KEY-TIE LAW (owner ruling 2026-08-31): every key row
+        # must tie its pinned printed value; the unresolvable component
+        # is backed out (orange, traceable) so the key ties exactly.
+        from .keytie import key_tie
+        key_tie(wb, spec_d, target_year, writer,
+                company_dir / "replay" / str(period) / "key_panel.json",
+                log, ledger=ledger)
+        err_guard("key tie")
     else:
         log("[run] stage 4 loop skipped: no client (dry run)")
 
@@ -503,11 +563,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_sa:
         log(f"[run] sign-absurd freeze: {n_sa} forecast drivers held at "
             "pre-update values (orange)")
+    err_guard("plugs + freezes")
 
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served,
         pre_values_wb=wb_values, load_bearing=lb,
-        pre_formulas_path=str(archive))
+        pre_formulas_path=str(archive), error_baseline=err_base)
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
     for line in card.get("moveon_reported", []):

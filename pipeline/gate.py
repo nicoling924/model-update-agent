@@ -293,7 +293,7 @@ def error_scan(wb, pre_map):
 def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
                       served=None, skip_sheets=("_REPORT", "_SPEC"),
                       pre_values_wb=None, load_bearing=None,
-                      pre_formulas_path=None):
+                      pre_formulas_path=None, error_baseline=None):
     """The gate. -> (ok, failures, card). ok=False means the run must NOT
     deliver the workbook as the model — quarantine it with this list.
     pre_formulas_path: the archived pre-update file, loaded lazily to
@@ -373,6 +373,21 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     if card["cycles"]:
         failures.append(f"CYCLES: {len(card['cycles'])} circular references "
                         f"{card['cycles'][:5]}")
+    # THE ERROR-BASELINE LAW (owner ruling 2026-08-31): errors refuse
+    # LOUDEST — but only the errors the update INTRODUCED. Pre-existing
+    # ones are the analyst's standing items (run-203: two unflagged
+    # zeros made every forecast year #DIV/0! and this gate, blind to
+    # EVAL_ERROR, called the model balanced).
+    if error_baseline is not None:
+        from .errorscan import error_cells, new_errors
+        cur = error_cells(wb, spec)
+        for s, c, why in new_errors(error_baseline, cur):
+            failures.append(f"NEW ERROR {s}!{c}: {why} — this cell "
+                            "computed before the update; the update "
+                            "broke it (trace_error names the cause)")
+        if error_baseline:
+            card.setdefault("preexisting_errors", []).extend(
+                sorted(f"{s}!{c}" for (s, c) in error_baseline)[:20])
     # THE MOVE-ON LAW (owner ruling 2026-08-31): with every check
     # passing and nothing structural broken, remaining unexamined
     # staleness is the analyst's FINDINGS LIST on _REPORT — reported,

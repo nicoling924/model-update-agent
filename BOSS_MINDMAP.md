@@ -292,6 +292,24 @@ To make sure of the following:
   issue: every fix must be generic and fix the underlying fundamental
   cause before it is pushed.
 
+- **2026-08-31 · The error-baseline law (owner ruling, reviewing the
+  first CLP delivery):** original models can carry hidden errors that
+  are not the agent's doing — so the agent COUNTS the evaluation
+  errors (#DIV/0! class) in the model BEFORE it starts, cell by cell.
+  If the error count INCREASED after the update, the agent made
+  mistakes: every NEW erroring cell is a refusal item, traced to the
+  written cell that caused it. Pre-existing errors are the analyst's
+  standing items — reported, never refused. Companion guards from the
+  same review: (a) a write that makes any cell stop computing is
+  auto-reverted — a "proven" zero that breaks the model is thereby
+  auto-DISproven (the run-203 lesson: dash-nil zeroed two nuclear
+  capacity inputs unflagged and every forecast year errored while the
+  gate, blind to EVAL_ERROR, called it balanced); (b) the empty-row
+  law: a row with no prior value and no forecast formula is furniture
+  — never write there; (c) keys must tie their printed values, with
+  label-TEXT search allowed for serving (numbers are not the only
+  identity — the opex lesson).
+
 - **2026-08-31 · The move-on law (owner ruling, reviewing CLP run 9):**
   The agent must learn to MOVE ON even when it cannot find some stale
   inputs. If an input is not critical to the drivers or the company's
