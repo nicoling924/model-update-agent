@@ -543,3 +543,22 @@ inherited-break law: a check failing identically pre-update is the
 analyst's standing item, reported not refused (worsening still
 refuses); (4) ROAFNA 2025 (-859, ours) + SOC sign-absurd forecasts are
 DATA hunts the loop owns under the evidence law in run 2.
+
+**09-01 — THE FABLE-BY-HAND SESSION (owner mandate: do it yourself,
+then teach the agent).** Starting from run-204's quarantine (2025 right,
+forecasts wrecked): restored ALL forecast columns to the analyst's
+formulas, then fixed every 2026+ symptom at its 2025 CAUSE: false-nil
+Basic Tariff (97.1 = 95.8 x printed +1.4%), fuel clause -1,043 (was
+stale 370 asset), TSF tie 2,786 (fund-arithmetic gap flagged), NFA roll
+re-anchored (accdep actual -143,161), SoC depreciation basis 5,832 (not
+the HK segment 5,965), segment D&A wrong-column serves (China -915 /
+Aus -2,795 — the model's own prior column proves the mapping), India
+221 (was 4,108 wrong line), one-offs bridge -441 (was 2024's 94), CF
+compositions re-served from the printed CF statement (WC, non-cash,
+net-interest, financing incl PCS redemption -3,933/issue +3,872 and the
+sign-flipped short-term -1,768), RE plug removed for the true items
+(PCS fold 9,815 = 5,943+3,872 red). RESULT: balance 0 EVERY year
+2019-2030 (inherited ROAFNA 2024 reported), pretax/NP/OP/EPS/CFI exact
+to print, CFO/CFF definition-bridged (interest classification, both
+years), 2026 NP 11,632 vs analyst 11,819, ZERO new eval errors, new
+executive _REPORT composed. Deliverable: CLP Model FY25 (Fable).xlsx.
