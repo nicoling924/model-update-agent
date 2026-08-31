@@ -1048,10 +1048,11 @@ def _selftest():
     assert hw.cell(row=2, column=21).value == 2025
     assert hw.cell(row=2, column=29).value == "2025E"
     assert len(hfx) == 1, hfx
-    assert _validate(good) is None
+    assert _validate(good) == []          # list contract (run-199 bug:
     bad = dict(good); bad["mini_pl"] = {"rows": []}
-    assert _validate(bad) is not None
-    assert _validate({"banner": "x"}) is not None
+    assert isinstance(_validate(bad), list) and _validate(bad)
+    errs = _validate({"banner": "x"})     # a bare string iterated
+    assert errs and errs[0].startswith("missing key"), errs
     print("execreport selftest: ALL PASS")
 
 
