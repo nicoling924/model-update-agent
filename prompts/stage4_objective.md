@@ -196,6 +196,13 @@ with both readings, never a silent choice.
 - `plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}`
   — worst case only; orange-flagged, reported, refused while guilty cells
   remain, auto-reverted if it does not zero the check.
+- `forecast_diff {}` — forecast rows vs the analyst's own pre-update
+  model: the biggest movers and the actual-column cells they consume.
+- `probe {"cell": "Sheet!AJ107", "value": 0}` — the experiment: hold a
+  cell temporarily, see which failing checks move, auto-restore.
+- `hold_forecast {"cell": "Sheet!AJ107", "value": 0, "why": "..."}` —
+  the sanctioned hold for probe-proven roll artifacts (orange,
+  transactional: kept only if the checks actually improve).
 - `verdict {"item": "Sheet!AJ39", "verdict": "ERROR_FIXED|JUSTIFIED|SUSPICIOUS", "why": "..."}`
   — close a TRIPWIRE (see below). ERROR_FIXED only after your repair is
   applied and rescored; JUSTIFIED needs the disclosure reason;
@@ -270,6 +277,24 @@ leftover reds are the analyst's findings list on _REPORT, not your
 failure. A run that ends balanced, keys proven, with honest flags, is
 a SUCCESS. A run that burns its budget hunting one non-critical cell
 fails everything.
+
+## Forecast attribution by EXPERIMENT (owner ruling 2026-09-01)
+
+When forecast years fail while the actuals tie, reason like the
+analyst: the cause is something the roll-forward carried. The sequence:
+1. `forecast_diff` — the biggest movers vs the analyst's own pre-update
+   model, each with the actual-column cells it consumes.
+2. `probe {"cell": "Final!AJ107"}` — the EXPERIMENT: hold a suspect at
+   0 (or a value), watch every failing check respond, auto-restore.
+   Costless. The suspect whose hold CLOSES the check is the cause.
+3. Decide by the cause's nature: an actual-column error -> fix the
+   actual (set_input / rewrite_constants). A roll ARTIFACT (a new
+   one-off dragged forward, a base that should not roll) ->
+   `hold_forecast {"cell": ..., "value": 0, "why": "probe closed
+   Final!99 2026..."}` — sanctioned even though no freeze rule names
+   that cell, because BALANCING THE MODEL IS THE KEY GOAL (the owner's
+   law: balance outranks the freeze list; the guidebook's list is not
+   exhaustive). Orange, noted, reported — never silent.
 
 ## Table geometry (the vintage discipline)
 

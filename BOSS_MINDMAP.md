@@ -346,6 +346,18 @@ To make sure of the following:
   while balance/keys are unmet: moving on is earned by the objectives,
   never a shortcut past them.
 
+- **2026-09-01 · Balance outranks the freeze list (owner ruling, the
+  forecast-leak discussion):** the guidebook's freeze rule names only
+  growth-rate assumptions — but the freeze list is NOT exhaustive. When
+  the agent PROVES BY EXPERIMENT that a specific rolled-forward input
+  (whatever its type) is what un-balances the forecast years — probe:
+  hold the suspect, re-measure the check, watch it close — then,
+  because balancing the model is the key goal, the agent holds/zeroes
+  that cell (orange, noted, reported) even though no rule names it.
+  Think like Fable 5: hypothesis → experiment → measured proof →
+  sanctioned action → flag for the analyst. Reasoning from the
+  objective beats executing the letter of the rules.
+
 - **2026-08-31 · Sign-change clarification (owner, reviewing CLP run 5):**
   Two different rules, do not conflate. (1) FREEZE is for assumption
   links only: a future-year assumption wired to the newly-actual column

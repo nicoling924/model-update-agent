@@ -1942,6 +1942,37 @@ def test_206_vintage_guard_and_corroboration():
     assert proof and abs(proof["2254"][0] - 1860.0) < 1, (proof, why)
 
 
+def test_207_probe_and_hold_forecast():
+    """Owner ruling 2026-09-01: think like Fable — the probe experiment
+    (hold a suspect, watch checks respond, auto-restore) and the
+    sanctioned hold for probe-proven roll artifacts, transactional."""
+    wb = _wb({"T5": 100.0, "U5": 110.0,
+              "U7": -352.0, "V7": "=U7",          # the leak
+              "T9": "=T5-T5", "U9": "=U5-U5", "V9": "=V7"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}]}
+    lp = _loop(wb, spec)
+    r = lp.t_probe({"cell": "S!V7"})
+    assert "CLOSES" in r and wb["S"]["V7"].value == "=U7", r  # restored
+    # hold on a non-forecast column refused
+    bad = lp.t_hold_forecast({"cell": "S!U7", "why": "x" * 30})
+    assert "not a forecast-column" in bad, bad
+    ok = lp.t_hold_forecast({"cell": "S!V7",
+                             "why": "probe closed S!9 2026 to zero"})
+    assert ok.startswith("HELD"), ok
+    assert wb["S"]["V7"].value == 0.0
+    assert any("agent hold" in f for f in lp.writer.log["frozen"])
+    # a hold that does NOT improve checks reverts
+    wb2 = _wb({"U7": -352.0, "V7": "=U7", "T9": "=T5-T5",
+               "U9": "=U7-U7", "V9": "=V8-V8"})
+    lp2 = _loop(wb2, spec)
+    r2 = lp2.t_hold_forecast({"cell": "S!V7",
+                              "why": "probe proved nothing honestly"})
+    assert r2.startswith("REVERTED"), r2
+    assert wb2["S"]["V7"].value == "=U7"
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

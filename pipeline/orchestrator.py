@@ -753,6 +753,131 @@ class ObjectiveLoop:
                 + chain[-4:]
         return "\n".join(chain)
 
+    def t_probe(self, args):
+        """THE EXPERIMENT (owner ruling 2026-09-01: think like Fable —
+        hypothesis, experiment, measured proof). Temporarily set a cell
+        to a value (default 0), re-measure EVERY failing check row in
+        every year, restore the cell, and report which checks moved.
+        Costless and reversible — the by-hand method that found the
+        forecast leak ('zeroing this row moves the 2026 check to 0')."""
+        ref = str(args.get("cell", ""))
+        cr = self._cell_ref(ref, default_tcol=False)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable — use \"Final!AJ107\""
+        sh, col, row = cr
+        if sh not in self.wb.sheetnames:
+            return f"MISS: no sheet '{sh}'"
+        try:
+            probe_val = float(args.get("value", 0))
+        except (TypeError, ValueError):
+            return "MISS: numeric value required"
+        from .checks import year_columns as _yc
+        before = {}
+        ev = Evaluator(self.wb)
+        for c in (self.spec.get("check_rows") or []):
+            for y, ycol in sorted(_yc(self.spec, c["sheet"]).items()):
+                try:
+                    v = ev.cell(c["sheet"], f"{ycol}{int(c['row'])}")
+                except Exception:
+                    continue
+                if isinstance(v, (int, float)) and abs(v) > 1:
+                    before[(c["sheet"], int(c["row"]), y)] = v
+        old = self.wb[sh][f"{col}{row}"].value
+        self.wb[sh][f"{col}{row}"] = probe_val
+        out = [f"PROBE {sh}!{col}{row} = {probe_val:g} (was "
+               f"{str(old)[:26]!r}) — failing checks respond:"]
+        ev2 = Evaluator(self.wb)
+        moved = 0
+        for (csh, crow, y), was in sorted(before.items()):
+            try:
+                now = ev2.cell(csh, f"{_yc(self.spec, csh)[y]}{crow}")
+            except Exception:
+                now = None
+            if isinstance(now, (int, float)) and abs(now - was) > 1:
+                moved += 1
+                closes = " <== CLOSES" if abs(now) < 1 else ""
+                out.append(f"  {csh}!{crow} ({y}): {was:,.1f} -> "
+                           f"{now:,.1f}{closes}")
+        self.wb[sh][f"{col}{row}"] = old      # a probe never commits
+        if moved == 0:
+            out.append("  (none — this cell does not drive the failing "
+                       "checks)")
+        else:
+            out.append("  If a hold PROVES the fix and the cell is a "
+                       "roll artifact, hold_forecast it (owner's law: "
+                       "balance outranks the freeze list).")
+        return "\n".join(out)
+
+    def t_hold_forecast(self, args):
+        """THE SANCTIONED HOLD (owner ruling 2026-09-01): when a probe
+        proves a rolled-forward FORECAST cell un-balances the model,
+        hold it at a value (default 0) — orange, noted, verdicted —
+        even though no freeze rule names it: balancing the model is the
+        key goal. Transactional: kept only if the failing checks
+        actually improve."""
+        ref = str(args.get("cell", ""))
+        why = str(args.get("why", ""))
+        cr = self._cell_ref(ref, default_tcol=False)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable"
+        sh, col, row = cr
+        from .checks import forecast_columns as _fc
+        if col not in (_fc(self.spec, sh, self.ty) or []):
+            return (f"MISS: {sh}!{col}{row} is not a forecast-column "
+                    "cell — actual-column errors are fixed with "
+                    "set_input/rewrite_constants, never held")
+        if len(why) < 20:
+            return ("MISS: say what your probe proved (which check "
+                    "closed) — a hold without proof is a patch")
+        try:
+            hold_val = float(args.get("value", 0))
+        except (TypeError, ValueError):
+            return "MISS: numeric value required"
+        fails0 = self._failing_target_checks()
+        # forecast checks too
+        ev = Evaluator(self.wb)
+        from .checks import year_columns as _yc
+        def _all_fail_mass():
+            m = 0.0
+            for c in (self.spec.get("check_rows") or []):
+                for y, ycol in _yc(self.spec, c["sheet"]).items():
+                    try:
+                        v = Evaluator(self.wb).cell(
+                            c["sheet"], f"{ycol}{int(c['row'])}")
+                    except Exception:
+                        continue
+                    if isinstance(v, (int, float)):
+                        m += abs(v)
+            return m
+        mass0 = _all_fail_mass()
+        old = self.wb[sh][f"{col}{row}"].value
+        self.wb[sh][f"{col}{row}"] = hold_val
+        mass1 = _all_fail_mass()
+        if mass1 >= mass0 - 1:
+            self.wb[sh][f"{col}{row}"] = old
+            return (f"REVERTED: holding {sh}!{col}{row} did not improve "
+                    f"the checks (total residual {mass0:,.1f} -> "
+                    f"{mass1:,.1f}) — the probe did not prove this cell")
+        from openpyxl.comments import Comment
+        cell = self.wb[sh][f"{col}{row}"]
+        cell.fill = self.writer.fills["orange"]
+        cell.comment = Comment(
+            f"HELD BY THE AGENT (balance outranks the freeze list, "
+            f"owner 2026-09-01): was {str(old)[:60]}; probe proved this "
+            f"rolled cell un-balances the forecast (total residual "
+            f"{mass0:,.1f} -> {mass1:,.1f}). {why[:200]}",
+            "Model Update Agent")
+        self.writer.log["flags"].append(f"{sh}!{col}{row}")
+        self.writer.log.setdefault("frozen", []).append(
+            f"{sh}!{col}{row}: held at {hold_val:g} — was {str(old)[:40]} "
+            f"(agent hold, probe-proven)")
+        self.writer.log.setdefault("verdicts", []).append(
+            f"{sh}!{col}{row}: ERROR_FIXED — roll artifact held at "
+            f"{hold_val:g}; checks improved {mass0:,.1f} -> {mass1:,.1f}")
+        return (f"HELD {sh}!{col}{row} at {hold_val:g} (orange, "
+                f"reported): total check residual {mass0:,.1f} -> "
+                f"{mass1:,.1f}")
+
     def t_forecast_diff(self, args):
         """THE BY-HAND METHOD for broken forecast years (owner ruling
         2026-09-01: the forecast is the analyst's — never mutate it;
@@ -1226,6 +1351,8 @@ class ObjectiveLoop:
              "plug_residual": t_plug_residual,
              "rewrite_constants": t_rewrite_constants,
              "trace_error": t_trace_error,
+             "forecast_diff": t_forecast_diff,
+             "probe": t_probe, "hold_forecast": t_hold_forecast,
              "forecast_diff": t_forecast_diff,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
              "verdict": t_verdict,
