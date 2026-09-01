@@ -550,7 +550,12 @@ class ObjectiveLoop:
                 continue
             t = self.targets.get((sh, int(mm.group(2))))
             cur = self.wb[sh][coord].value
-            if isinstance(cur, (int, float)):
+            if isinstance(cur, (int, float)) \
+                    and (sh, int(mm.group(2))) not in (self.served or {}):
+                # PROVEN SITES ARE NOT PLUG SITES (run-213 autopsy: the
+                # endgame plugged 1,421 into share capital 23,243 — a
+                # value the reconciliation had PROVEN from print — and
+                # every forecast year inherited the distortion)
                 sites.append((sh, coord, str(t.label)[:30] if t else "?", cur))
             if isinstance(cur, str) and cur.startswith("="):
                 # a ref-less composite leaf: stillness is the signal —
@@ -644,6 +649,16 @@ class ObjectiveLoop:
         c_sheet, c_row = rc
         c_col = self._tcol(c_sheet)
         i_sheet, i_col, i_row = ci
+        pe = (self.served or {}).get((i_sheet, i_row))
+        if isinstance(pe, dict):
+            # A PROVEN NUMBER IS NEVER PLUGGED (run-213: share capital
+            # 23,243, reconciliation-proven from print, absorbed a
+            # 1,421 plug — 2025 "balanced", every forecast year broke)
+            return (f"REFUSED: {i_sheet}!{i_col}{i_row} is PROVEN — "
+                    f"served {pe.get('value'):,.2f} from {pe.get('doc')} "
+                    f"p{pe.get('page')}. A proven number is never plugged; "
+                    "pick an UNPROVEN component (diagnose_balance lists "
+                    "them) or leave the check failing, flagged")
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")

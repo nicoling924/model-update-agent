@@ -2238,6 +2238,37 @@ def test_wq_component_card_offers_the_receipts():
     assert tool == "set_input" and abs(args["value"] - 9815.0) < 1
 
 
+def test_plug_never_lands_on_a_proven_cell():
+    # run-213: the endgame plugged 1,421 into share capital 23,243 — a
+    # value the reconciliation had PROVEN from print. 2025 "balanced";
+    # every forecast year broke. Proven cells are not plug sites, and
+    # diagnose must not even OFFER them.
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T5"], ws["U5"] = 23243.0, 23243.0     # PROVEN share capital
+    ws["T6"], ws["U6"] = 1000.0, 1000.0       # unproven input
+    ws["T10"], ws["U10"] = "=T5+T6-24243", "=U5+U6-25664"  # check: -1,421
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
+                                "header_row": 2}},
+            "check_rows": [{"sheet": "M", "row": 10, "expect": 0}]}
+    led = _ledger([], face_pages=((95, "bs"),))
+    served = {("M", 5): {"value": 23243.0, "doc": "ar.pdf", "page": 26,
+                         "conf": 5, "note": "reconciliation"}}
+    loop = ObjectiveLoop(wb, spec, 2025, led, [], served, Writer(wb), None)
+    r = loop.t_plug_residual({"check": "M!10", "into": "M!U5",
+                              "why": "absorb the residual"})
+    assert str(r).startswith("REFUSED") and "PROVEN" in str(r), r
+    assert wb["M"]["U5"].value == 23243.0
+    diag = loop.t_diagnose_balance({"check": "M!10"})
+    assert "M!U5" not in diag.split("eligible plug sites")[-1], \
+        "diagnose offered a proven cell as a plug site"
+
+
 def test_verdict_error_fixed_requires_the_error_gone():
     # the Fable-drive's own sin: 36 tripwires mass-approved as fixed
     # while forecasts still computed negative. Code now re-checks.

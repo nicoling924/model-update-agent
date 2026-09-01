@@ -693,3 +693,18 @@ prior-tie / companion / co-printed), sign-flip warning, evidence
 quality outranks the probe in offer ranking. Offline greedy: Final plug
 5,320 -> 1,448, ROAFNA 1,190 -> 39, forecast gap 1,645 -> 196. Museum
 98 green. Redispistched.
+
+## 2026-09-01 — RUN 213 + THE PROVEN-PLUG LAW
+
+Run 213 (queue): forecast gap down 1,645 -> 109/yr; Luna landed the
+AI97 receipt (=9,815, exactly the answer key) and honestly refused both
+plug cards. AUTOPSY: the residual-loop/endgame had plugged 1,421 into
+SHARE CAPITAL 23,243 — a value reconciliation had PROVEN from print —
+so 2025 "balanced" while every forecast year inherited the distortion.
+NEW LAW (museum 99): a PROVEN cell is never a plug site — refused in
+t_plug_residual AND excluded from diagnose's eligible-site list (the
+terminal ladder inherits). Offline: all cosmetic plugs now refuse; the
+gate shows the TRUE residual (-1,448 = 1,043+343+35+27, three SoC
+account mis-mappings) instead of plug-balanced fiction. Deliver-refused
+-but-honest beats balanced-but-wrong (owner's no-wrong-unflagged rule);
+the receipts cards can now ask about the SoC leaves directly.
