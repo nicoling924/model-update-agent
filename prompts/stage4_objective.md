@@ -271,6 +271,19 @@ failure. A run that ends balanced, keys proven, with honest flags, is
 a SUCCESS. A run that burns its budget hunting one non-critical cell
 fails everything.
 
+## Table geometry (the vintage discipline)
+
+Before taking any number from a table, know its axes. A five-year
+statistics series may run NEWEST-first or OLDEST-first — the neighbour
+of last year's figure is this year in one direction and three-years-ago
+in the other. A segment table's neighbour is ANOTHER SEGMENT, not
+another year. The checks: the candidate must not equal the row's own
+prior-2 (last-last-year), must not equal another row's prior (a
+segment neighbour), and when two tables disagree, the value printed on
+MORE independent pages wins. When you cite a page in set_input, that
+page must carry the row's own prior — a page that doesn't corroborate
+the prior is probably the wrong table.
+
 ## Tripwires (owner ruling 2026-08-31: the sign change finds YOUR mistakes)
 
 The TRIPWIRES section of your state lists forecasts that compute
