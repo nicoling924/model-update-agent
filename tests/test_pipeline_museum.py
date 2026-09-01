@@ -2338,6 +2338,83 @@ def test_verdict_error_fixed_requires_the_error_gone():
     assert "VERDICT recorded" in str(r2), r2
 
 
+
+
+# ── Exhibits: the recomposition law (owner ruling 2026-09-02) ────────────
+# "When there is a new ingredient this year that adds into the subtotal,
+# we add it — core analyst skill." The old recipe's comparatives locate
+# its printed section; members refresh with THIS year's signs, new items
+# join, the analyst's exclusions are respected.
+
+
+def _recompose_fixture(lines):
+    import openpyxl
+    led = _ledger([_item(95, i + 1, lab, nums, table_id=0)
+                   for i, (lab, nums) in enumerate(lines)],
+                  face_pages=((95, "cf"),))
+    led._doc_periods = {DOC: "current"}
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T2"], ws["U2"] = 2024, 2025
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
+                                "header_row": 2}}}
+    return wb, spec, led
+
+
+def test_recompose_new_ingredient_joins():
+    from pipeline.composites import recompose_cell
+    from pipeline.writer import Writer
+    wb, spec, led = _recompose_fixture([
+        ("proceeds from borrowings", [900.0, 800.0]),
+        ("repayment of borrowings", [-500.0, -400.0]),
+        ("issue of new securities", [250.0]),          # NEW: no prior
+        ("settlement of instruments", [-60.0, -70.0]),
+    ])
+    wb["M"]["T7"], wb["M"]["U7"] = 330.0, "=800-400-70"
+    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
+    assert ok, msg
+    from pipeline.composites import signed_literals
+    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
+    assert abs(got - (900 - 500 + 250 - 60)) < 0.01, wb["M"]["U7"].value
+
+
+def test_recompose_respects_analyst_exclusion():
+    from pipeline.composites import recompose_cell
+    from pipeline.writer import Writer
+    wb, spec, led = _recompose_fixture([
+        ("proceeds from borrowings", [900.0, 800.0]),
+        ("a line the analyst excluded", [123.0, 111.0]),  # material prior,
+                                                          # NOT in recipe
+        ("repayment of borrowings", [-500.0, -400.0]),
+    ])
+    wb["M"]["T7"], wb["M"]["U7"] = 400.0, "=800-400"
+    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
+    assert ok, msg
+    from pipeline.composites import signed_literals
+    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
+    assert abs(got - 400) < 0.01, wb["M"]["U7"].value
+    assert "EXCLUDED" in (wb["M"]["U7"].comment.text if wb["M"]["U7"].comment else "")
+
+
+def test_recompose_sign_from_this_years_print():
+    # short-term borrowings flipped from +increase to -decrease: the
+    # sign comes from the printed CURRENT, never the comparative
+    from pipeline.composites import recompose_cell
+    from pipeline.writer import Writer
+    wb, spec, led = _recompose_fixture([
+        ("proceeds from borrowings", [900.0, 800.0]),
+        ("change in short-term borrowings", [-300.0, 200.0]),
+        ("repayment of borrowings", [-500.0, -400.0]),
+    ])
+    wb["M"]["T7"], wb["M"]["U7"] = 600.0, "=800+200-400"
+    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
+    assert ok, msg
+    from pipeline.composites import signed_literals
+    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
+    assert abs(got - (900 - 300 - 500)) < 0.01, wb["M"]["U7"].value
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

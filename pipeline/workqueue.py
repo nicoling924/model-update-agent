@@ -766,8 +766,35 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
                 work.append(WorkItem("COMPONENT", item.sheet, item.row,
                                      check=item.check,
                                      priority=item.priority))
+    # THE EXAMINATION CLOSER (owner bar 2026-09-02: an unexamined red is
+    # neglect; a documented look is a finding). Every red cell the queue
+    # did not reach — capped, moot, or never carded — gets its look
+    # documented: candidates found (listed, awaiting adjudication) or
+    # provably none (not disclosed by triangulation).
+    n_doc = 0
+    for sheet, row in _red_cells(loop):
+        col = _tcol(loop, sheet)
+        if not col or sheet not in loop.wb.sheetnames:
+            continue
+        cmt = loop.wb[sheet][f"{col}{row}"].comment
+        if cmt is not None and "STALE INPUT" not in str(cmt.text):
+            continue                      # already an examined finding
+        cands = candidates_for(loop, sheet, row, k=2)
+        if cands:
+            why = ("QUEUE-DOCUMENTED: candidate(s) exist, awaiting "
+                   "adjudication — " + "; ".join(
+                       f"{c['value']:,.1f} ({c['doc'][:18]} p{c['page']})"
+                       for c in cands[:2]))
+        else:
+            why = ("QUEUE-DOCUMENTED: zero candidates — no current-"
+                   "document line ties this row's prior at any scale; "
+                   "not disclosed by triangulation, held at prior")
+        loop.TOOLS["flag_cell"](loop, {"cell": f"{sheet}!{row}",
+                                       "why": why})
+        n_doc += 1
     summary = (f"queue: {len(queue)} items — {n_auto} auto-resolved in "
                f"phase0, {done} adjudicated, {defaulted} defaulted, "
-               f"{moot} moot, {dead} drained, {calls} LLM calls")
+               f"{moot} moot, {dead} drained, {calls} LLM calls, "
+               f"{n_doc} reds documented")
     log(f"[run] {summary}")
     return summary

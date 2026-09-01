@@ -816,3 +816,30 @@ default floor (its 15 adjudications added no keys over machinery) —
 the red-team fallback stands: route the ~10 judgment cards to a
 stronger engine, or the analyst rules them in Excel. Next: the
 genericity test (a drastically different model from another team).
+
+## 2026-09-02 (night) — THE RECOMPOSITION LAW + CEILING 10/11
+
+Owner mandate: sustain root-cause->law->offline-proof->push; CLP bar =
+ceiling green; then DFE genericity. Built tonight (all offline, museum
+103):
+- RECOMPOSITION LAW (composites.recompose_cell, hooked after the
+  same-shape rewrite): the old recipe's comparatives locate its printed
+  section; members refresh with THIS year's printed signs; NEW
+  ingredients join (incl. one-number lines, invisible to joins);
+  beneath-materiality items that grew join; the analyst's exclusions
+  are respected (noted); section extension bounded by the one-home law.
+  CF rows now EXACT to the by-hand key: =517+319+63-460-46,
+  =-111+919-5+532-465-88, =12508-10672-1768-233-381-3933+3872.
+- NOTE-COLUMN DISCIPLINE in candidates() (notes are positive small
+  ints; '[30,-104,-278]' no longer pairs the note) -> =-159-975-104
+  and =197-1418 exact.
+- THE CHANGE VOTE: combos with fewer identity mappings outrank page
+  majority (a real update changes numbers) — r119's true pair beat two
+  note coincidences.
+- FINAL CLOSER: terminal ladder re-runs before the gate (late keytie/
+  anchor writes re-opened ROAFNA by 748). EXAMINATION CLOSER: every
+  unreached red gets its documented look (flag budgets now honest).
+OFFLINE: CEILING gate green, keys 10/11 exact (miss = recurring-NP
+one-offs bridge, printed only on non-face pages, documented red — per
+owner ruling flag is the deliverable). FLOOR gate green, keys 9/11.
+Dispatching CLP (authorized run 1 of 2); DFE genericity test next.

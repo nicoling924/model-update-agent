@@ -770,6 +770,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     err_guard("plugs + terminal")
     collapse_guard("plugs + terminal")
 
+    # THE FINAL CLOSER (2026-09-02: keytie back-outs and roll-base
+    # anchors run AFTER the terminal ladder and can re-open an actual-
+    # year check by a residue — the closer is idempotent, so it runs
+    # once more just before the gate; probe-tested, proven-protected)
+    if client is not None or stage4_answerer is not None:
+        n_tl2 = terminal_ladder(loop, log)
+        if n_tl2:
+            log(f"[run] terminal ladder (final): {n_tl2} late-shifted "
+                "actual-year checks re-closed")
+            err_guard("terminal final")
+            collapse_guard("terminal final")
+
     ok, failures, card = gate_mod.deliver_or_refuse(
         wb, spec_d, target_year, pre_map, writer.log, served=served,
         pre_values_wb=wb_values, load_bearing=lb,

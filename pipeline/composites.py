@@ -87,6 +87,14 @@ def candidates(ledger, lit):
                 continue
             for s in scales:
                 ns = [to_model_units(n, s) for n in it.nums]
+                # note-column discipline (2026-09-02: '[30, -104, -278]'
+                # paired (30, x) and the sweep wrote the NOTE NUMBER
+                # into the model): drop a leading positive small int
+                # dwarfed by the money that follows
+                if len(ns) >= 2 and 0 < ns[0] <= 120 \
+                        and float(ns[0]).is_integer() \
+                        and min(abs(x) for x in ns[1:]) > 2 * ns[0]:
+                    ns = ns[1:]
                 for i in range(len(ns) - 1):
                     if abs(abs(ns[i + 1]) - v) > tol:
                         continue
@@ -240,13 +248,21 @@ def prove_cell(ledger, lits, row_label=""):
                 combos.setdefault(tuple(vals), []).append(pg)
     if not combos:
         return None, "composition ambiguous on every common page"
-    ranked = sorted(combos.items(), key=lambda kv: -len(kv[1]))
+    def _n_ident(vals):
+        return sum(1 for v, lit in zip(vals, lits)
+                   if abs(v - abs(float(lit))) <= 0.6)
+    ranked = sorted(combos.items(),
+                    key=lambda kv: (_n_ident(kv[0]), -len(kv[1])))
     if len(ranked) > 1:
-        # CORROBORATION RESOLVES (run-206: the true finance-cost pair
-        # prints on the P&L face AND the CF note; the false one is a
-        # single oldest-first series read backwards)
-        if not (len(ranked[0][1]) >= 2
-                and len(ranked[0][1]) > len(ranked[1][1])):
+        # THE CHANGE VOTE (r119, 2026-09-02: the true pair 197+1,418
+        # lost page-corroboration to two note coincidences that each
+        # mapped a literal TO ITSELF. A real update CHANGES numbers —
+        # a combination with strictly fewer identity mappings outranks;
+        # only true ties fall back to page-majority corroboration.)
+        if _n_ident(ranked[0][0]) < _n_ident(ranked[1][0]):
+            pass                          # unique least-identity combo wins
+        elif not (len(ranked[0][1]) >= 2
+                  and len(ranked[0][1]) > len(ranked[1][1])):
             return None, ("pages disagree on the combination: "
                           + "; ".join("+".join(f"{v:,.0f}" for v in k)
                                       for k in list(combos)[:3]))
@@ -369,6 +385,14 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None):
                 continue
             ok, msg = rewrite_cell(wb, spec, target_year, ledger, writer,
                                    sheet, r)
+            if not ok and ("UNPROVEN" in msg or "REFUSED" in msg):
+                # same-shape refresh failed: the composition may have
+                # CHANGED SHAPE (new ingredients) — the recomposition
+                # law gets one attempt before the cell stays red
+                ok2, msg2 = recompose_cell(wb, spec, target_year, ledger,
+                                           writer, sheet, r)
+                if ok2:
+                    ok, msg = ok2, msg2
             if ok:
                 n_ok += 1
                 log(f"[run]   constants law: {msg}")
@@ -376,3 +400,281 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None):
                 n_red += 1
                 log(f"[run]   constants law: {msg[:180]}")
     return n_ok, n_red
+
+
+_CHAIN = re.compile(r"^=\s*([+-]?\s*\d+(?:\.\d+)?)((?:\s*[+-]\s*"
+                    r"\d+(?:\.\d+)?)*)\s*$")
+
+
+def signed_literals(formula):
+    """A pure ±-literal chain ('=9817-7131+2269') -> [(sign, lit)] or
+    None. Recomposition v1 covers exactly this shape — the analyst's
+    hand-summed statement section."""
+    if not _CHAIN.match(str(formula).replace(" ", "")):
+        return None
+    out = []
+    for m in re.finditer(r"([+-]?)(\d+(?:\.\d+)?)",
+                         str(formula)[1:].replace(" ", "")):
+        out.append((-1.0 if m.group(1) == "-" else 1.0, m.group(2)))
+    return out or None
+
+
+def _narrow_pair(ns):
+    """(current, comparative) from a narrow printed line, or None.
+    Two numbers = the pair; three with a small leading note ref = drop
+    the note. Anything else is not a recompose source."""
+    ms = [n for n in ns if abs(n) >= 0.5]
+    def _note_like(a, rest):
+        return (0 < a <= 120 and float(a).is_integer() and rest
+                and min(abs(x) for x in rest) > 2 * abs(a))
+    if len(ms) == 3 and _note_like(ms[0], ms[1:]):
+        ms = ms[1:]
+    elif len(ms) == 2 and _note_like(ms[0], ms[1:]):
+        ms = ms[1:]
+    if len(ms) == 2:
+        return ms[0], ms[1]
+    if len(ms) == 1:
+        return (ms[0],)          # single current figure, no comparative
+    return None
+
+
+def recompose_cell(wb, spec, target_year, ledger, writer, sheet, row):
+    """THE RECOMPOSITION LAW (owner ruling 2026-09-02: "when there is a
+    new ingredient this year that adds into the subtotal, we add it —
+    this is core analyst skill").
+
+    The old recipe names its own source: its signed literals match the
+    COMPARATIVE column of one contiguous run of lines in ONE printed
+    table. Within that span, the analyst's thinking is mechanical:
+      - a line whose comparative is in the old recipe -> refreshed to
+        its current figure;
+      - a line with NO comparative but a current figure -> genuinely
+        NEW -> joins the sum (the owner's rule);
+      - a line with a material comparative the analyst EXCLUDED last
+        year -> stays excluded (their intent), noted for review.
+    Every step is proven from print; ambiguity refuses. Generic: no
+    labels, no sheet names, no statement knowledge."""
+    tcol = year_columns(spec, sheet).get(str(target_year))
+    pcol = prior_column(spec, sheet, target_year)
+    if not tcol or not pcol:
+        return False, "no target/prior column"
+    cell = wb[sheet][f"{tcol}{row}"]
+    f = cell.value
+    sl = signed_literals(f) if isinstance(f, str) else None
+    if not sl:
+        return False, (f"{sheet}!{tcol}{row}: not a pure ±-literal chain "
+                       "— recomposition v1 covers hand-summed sections")
+    lits = [(s, x) for s, x in sl
+            if abs(float(x)) not in MODELING_CONSTANTS]
+    if len(lits) < 2:
+        return False, f"{sheet}!{tcol}{row}: fewer than 2 carried literals"
+    bad_docs = ledger.noncurrent_docs()
+    pv_tabs = getattr(ledger, "_pv_tables", set())
+    from collections import defaultdict
+    tables = defaultdict(list)
+    for it in ledger.items:
+        # NOT joinable(): a NEW ingredient is exactly a ONE-number line
+        # ('Issue of perpetual capital securities  3,872'), which the
+        # join's two-number rule rightly ignores — recomposition needs
+        # structure (table, row order), not a pair
+        if it.doc in bad_docs or it.disputed \
+                or it.table_id is None or it.row_ord is None \
+                or (it.doc, it.page) not in ledger.faces \
+                or (it.doc, it.page, it.table_id) in pv_tabs:
+            continue
+        tables[(it.doc, it.page, it.table_id)].append(it)
+    old_val = sum(s * float(x) for s, x in lits)
+    held = set()
+    for sh2 in (spec.get("year_axis") or {}):
+        tc2 = year_columns(spec, sh2).get(str(target_year))
+        if not tc2 or sh2 not in wb.sheetnames:
+            continue
+        ws2 = wb[sh2]
+        for r2 in range(1, min(ws2.max_row, 300) + 1):
+            v2 = ws2[f"{tc2}{r2}"].value
+            if isinstance(v2, (int, float)) and abs(v2) >= 2.0:
+                held.add(round(abs(v2), 1))
+    results = {}
+    for key, items in tables.items():
+        items.sort(key=lambda i: i.row_ord or 0)
+        pairs = []
+        for it in items:
+            p = _narrow_pair(it.nums or [])
+            pairs.append((it, p))
+        big = [(s2, x) for s2, x in lits if abs(float(x)) >= 10.0]
+        small = [(s2, x) for s2, x in lits if abs(float(x)) < 10.0]
+        if len(big) < 2:
+            continue
+        # phase 1: the big literals locate the span; coincidences are
+        # resolved by LOCALITY (the line nearest the others wins)
+        cand = {}
+        for s2, x in big:
+            v = abs(float(x))
+            tol = row_tol(v, base=0.6 if v >= 100 else 0.01)
+            hits = [j for j, (it, p) in enumerate(pairs)
+                    if p is not None and len(p) == 2
+                    and abs(abs(p[1]) - v) <= tol]
+            if not hits:
+                cand = None
+                break
+            cand[(s2, x)] = hits
+        if not cand:
+            continue
+        anchor = [h[0] for h in cand.values() if len(h) == 1]
+        if not anchor:
+            continue
+        mid = sorted(anchor)[len(anchor) // 2]
+        matched, used = {}, set()
+        ok_m = True
+        for k, hits in sorted(cand.items(),
+                              key=lambda kv: len(kv[1])):
+            free = [h for h in hits if h not in used]
+            if not free:
+                ok_m = False
+                break
+            best = sorted(free, key=lambda h: abs(h - mid))
+            if len(best) > 1 and abs(best[0] - mid) == abs(best[1] - mid):
+                ok_m = False
+                break
+            used.add(best[0])
+            matched[k] = best[0]
+        if not ok_m:
+            continue
+        # identity-span filter: lines printing the same figure twice
+        # (a note repeating one year) prove no vintage — discard when
+        # they dominate
+        n_ident = sum(1 for j in matched.values()
+                      if pairs[j][1] is not None and len(pairs[j][1]) == 2
+                      and abs(pairs[j][1][0] - pairs[j][1][1]) <= 0.6)
+        if n_ident * 2 >= len(matched):
+            continue
+        js = sorted(matched.values())
+        # SECTION EXTENSION (the r106 lesson: this year's NEW items —
+        # a deconsolidation gain, FV gains — print just OUTSIDE the old
+        # recipe's hull, inside the same section). Extend over member
+        # lines (singles, or pairs whose comparative is immaterial);
+        # STOP at the first line with a material unmatched comparative
+        # in each direction — that is the neighbouring section's
+        # territory (D&A above, exchange below, both other model rows).
+        sum_lits0 = sum(abs(float(x)) for _s3, x in lits)
+        tiny = max(2.0, 0.01 * sum_lits0)   # beneath-materiality bar:
+                                            # an item immaterial LAST
+                                            # year was left out of the
+                                            # recipe; grown material
+                                            # now, it joins
+        lo, hi = js[0], js[-1]
+        while lo - 1 >= 0:
+            p2 = pairs[lo - 1][1]
+            if p2 is not None and (len(p2) == 1 or abs(p2[1]) <= tiny):
+                lo -= 1
+                continue
+            break
+        while hi + 1 < len(pairs):
+            p2 = pairs[hi + 1][1]
+            if p2 is not None and (len(p2) == 1 or abs(p2[1]) <= tiny):
+                hi += 1
+                continue
+            break
+        span = range(lo, hi + 1)
+        # phase 2: small literals must resolve INSIDE the span — a
+        # comparative pair, or a single unchanged figure
+        small_at = {}
+        for s2, x in small:
+            v = abs(float(x))
+            hit = None
+            for j in span:
+                if j in used:
+                    continue
+                it, p = pairs[j]
+                if p is not None and len(p) == 2 \
+                        and abs(abs(p[1]) - v) <= 0.6:
+                    hit = (j, p[0])
+                    break
+                if p is not None and len(p) == 1 \
+                        and abs(abs(p[0]) - v) <= 0.6:
+                    hit = (j, p[0])
+                    break
+            if hit is None:
+                ok_m = False
+                break
+            used.add(hit[0])
+            matched[(s2, x)] = hit[0]
+            small_at[hit[0]] = (s2, abs(hit[1]))
+        if not ok_m:
+            continue
+        mults = []
+        for (s, x), j in matched.items():
+            _it, p = pairs[j]
+            if len(p) == 2 and p[1] != 0:
+                mults.append(s * (1.0 if p[1] > 0 else -1.0))
+        mult = 1.0 if sum(mults) >= 0 else -1.0
+        terms, new_items, excluded = [], [], []
+        sum_lits = sum(abs(float(x)) for _s, x in lits)
+        ok_span = True
+        for j in span:
+            it, p = pairs[j]
+            if j in small_at:
+                s2m, vm = small_at[j]
+                terms.append((s2m, vm, str(it.label)[:36]))
+                continue
+            if j in used:
+                # THE SIGN COMES FROM THE PRINTED CURRENT (r136 lesson:
+                # short-term borrowings flipped from an increase +2,269
+                # to a decrease -1,768 — the comparative's sign is last
+                # year's direction, never this year's)
+                terms.append((mult * (1.0 if p[0] > 0 else -1.0),
+                              abs(p[0]), str(it.label)[:36]))
+                continue
+            if p is not None and len(p) == 1:
+                if abs(p[0]) >= 2.0 and round(abs(p[0]), 1) not in held:
+                    # single current figure, no comparative: NEW item
+                    # (one-home: a value already typed elsewhere in the
+                    # model belongs to another row)
+                    new_items.append((mult * (1.0 if p[0] > 0 else -1.0),
+                                      abs(p[0]), str(it.label)[:36]))
+                continue
+            if p is None:
+                continue
+            cur2, comp2 = p
+            if abs(abs(comp2) - sum_lits) <= row_tol(sum_lits, base=1.0):
+                continue          # the section's own subtotal line
+            if abs(comp2) > tiny:
+                excluded.append((comp2, str(it.label)[:36]))
+                continue
+            if abs(cur2) >= 2.0 and round(abs(cur2), 1) not in held:
+                new_items.append((mult * (1.0 if cur2 > 0 else -1.0),
+                                  abs(cur2), str(it.label)[:36]))
+        if not ok_span or len(excluded) > len(matched):
+            continue
+        parts = list(terms) + list(new_items)
+        total = sum(sgn * v for sgn, v, _l in parts)
+        fstr = "=" + "".join(
+            (("+" if sgn > 0 else "-") if i or sgn < 0 else "")
+            + f"{v:g}" for i, (sgn, v, _l) in enumerate(parts))
+        results.setdefault(round(total, 1), []).append(
+            (key, fstr, parts, new_items, excluded))
+    if not results:
+        return False, (f"{sheet}!{tcol}{row}: no printed table carries "
+                       "the old recipe's comparatives in one span")
+    if len(results) > 1:
+        return False, (f"{sheet}!{tcol}{row}: tables disagree on the "
+                       "recomposition ("
+                       + "; ".join(f"{k:,.1f}" for k in results) + ")")
+    (key, fstr, parts, new_items, excluded) = list(results.values())[0][0]
+    doc, page, _t = key
+    note = (f"RECOMPOSED (new-ingredient law): was {f}; the old recipe's "
+            f"comparatives map one span of {doc} p{page}. "
+            + (f"NEW items joined: "
+               + ", ".join(f"{lab} {sgn * v:+,.0f}"
+                           for sgn, v, lab in new_items) + ". "
+               if new_items else "")
+            + (f"Analyst-EXCLUDED last year, kept out: "
+               + ", ".join(f"{lab} ({c:,.0f})"
+                           for c, lab in excluded) + " — review. "
+               if excluded else ""))
+    ok = writer.write(sheet, f"{tcol}{row}", fstr,
+                      prior_coord=f"{pcol}{row}", flag="orange",
+                      note=note[:480])
+    if not ok:
+        return False, f"{sheet}!{tcol}{row}: recomposition {fstr} REFUSED by the write guard"
+    return True, f"{sheet}!{tcol}{row}: {f} -> {fstr}"
