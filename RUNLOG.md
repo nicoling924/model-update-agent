@@ -595,3 +595,20 @@ Post-fix dry run serves Aus 34,191 / MI -879 / PCS -199 correctly BY
 ITSELF; replayed drive on the new base: keys all match, tripwires
 collapsed from 5 chains to 2 singletons. Remaining answer-key diffs are
 segment-detail back-outs (the loop's red queue), not serve errors.
+
+## 2026-09-01 — THE FABLE-TRANSPLANT (owner: "pull ur skill and ur thinking process into luna agent")
+
+Three transplants, museum-gated (92 green):
+- ORDER OF WORK doctrine in the prompt — the exact drive sequence:
+  actual-balance by decomposition first; then walk each statement whole
+  via the PAGE VIEW; bridge unprinted splits from printed total-parts;
+  trace_serve surprise numbers before believing them; tripwires last,
+  bulk-verdicted once the actual year ties.
+- find_line {"page": N} PAGE VIEW — the whole extracted page in print
+  order (my reading method with zero transcription risk; runs 21-25
+  proved Luna must never transcribe — this shows machine-extracted
+  numbers only).
+- trace_serve tool — the in-run autopsy: who served this cell, from
+  which page, by which method; loop now receives the serve provenance.
+Dispatching Luna on the fixed pipeline: the test of whether the floor
+is now high enough for the cheap brain.

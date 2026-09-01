@@ -84,6 +84,32 @@ MEANING and by prior-year values, never by spelling.
    formula's clothes — `rewrite_constants` replaces it from the same
    line's current figure.
 
+## THE ORDER OF WORK (the Fable-drive, 2026-09-01: this exact sequence
+## closed CLP — balance 0 all years, every key exact — in ~30 actions)
+
+1. **Actual-year balance first, by decomposition.** `diagnose_balance`
+   each failing check; fix the named component CAUSES with evidence.
+   No plug while a cause is findable. Do not touch forecasts yet.
+2. **Then walk each statement whole.** `find_line {"page": N}` on the
+   P&L / BS / CF face pages shows the printed statement in print
+   order. March down it against the model column: printed single
+   figure → `set_input`; model composite → `write_backout` whose
+   literals all sit on that page (the CF was closed exactly this way:
+   `=1860-194-15` finance costs − income − dividends received).
+3. **Bridge what is not printed.** A split the disclosure omits usually
+   has a printed TOTAL and a printed PART: back out the remainder
+   (JV −12 = printed total −1,595 minus printed associates 1,607).
+4. **Distrust surprise numbers before using them.** A cell that moved
+   wildly (the >50% movers, a −95% segment) or that you did not write:
+   `trace_serve` it — the serve's own page and method are shown. The
+   two classic mis-serves are a WIDE SEGMENT ROW read across columns
+   and a PRIOR-VINTAGE table; the page view exposes both in one look.
+5. **Tripwires last, in bulk.** Once the actual year ties, most
+   sign-flip chains have already healed — re-check, then one
+   `verdict` with items covering every member whose cause you fixed.
+   Only chains that SURVIVE the actual-year repair need their own
+   trace.
+
 ## THE BACK-OUT LADDER (owner's standing reminder): when a figure
 truly is not found — or not disclosed in a results announcement — you
 still deliver. In order: (a) derive it from totals + known
@@ -171,6 +197,14 @@ with both readings, never a silent choice.
   prior. The investigation move for any gap.
 - `find_line {"name": "text or number"}` — search the whole evidence ledger
   (label, line text, or a value at any scale).
+- `find_line {"page": 214}` (optional `"doc"`) — THE PAGE VIEW: every
+  extracted line of that page in print order. Use it to walk a whole
+  statement against the model, and to check a suspect serve's source
+  row geometry.
+- `trace_serve {"cell": "Final!AI25"}` — who wrote this number: the
+  serve's document, page, source line and method — or the fact that
+  nothing served it (a rollover holding last year). ALWAYS run this
+  before believing or overwriting a surprising value.
 - `statement_diff {"stmt": "pl|bs|cf"}` — the disclosed statement matched
   line-by-line against the model on prior-year identity; every DIFF/EMPTY
   line is a candidate error with its disclosed value already found.

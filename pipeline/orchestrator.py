@@ -300,6 +300,35 @@ class ObjectiveLoop:
         return "\n".join(out)
 
     def t_find_line(self, args):
+        # PAGE VIEW (the Fable-drive method): {"page": 214} (optional
+        # "doc" substring) lists that page's machine-extracted lines in
+        # print order — the analyst's "lay the whole statement beside
+        # the model", with zero transcription risk. This is how the CF
+        # statement was composed in the by-hand drive.
+        if args.get("page") is not None:
+            try:
+                pn = int(args["page"])
+            except (TypeError, ValueError):
+                return "MISS: page must be a number"
+            dq = str(args.get("doc") or "").lower()
+            prior_docs = self.ledger.prior_period_docs()
+            items = [it for it in self.ledger.items
+                     if it.page == pn and (not dq or dq in it.doc.lower())]
+            if not items:
+                return f"MISS: no extracted lines on p{pn}"
+            items.sort(key=lambda it: (it.doc in prior_docs, it.doc,
+                                       it.table_id or 0, it.row_ord or 0))
+            out = []
+            for it in items[:70]:
+                tag = ("PRIOR-PERIOD DOC — not citable"
+                       if it.doc in prior_docs
+                       else self.ledger.face(it.doc, it.page) or "no-face")
+                nums = " ".join(f"{n:,.10g}" for n in (it.nums or [])[:8])
+                out.append(f"{it.doc[:24]} p{pn} [{tag}] "
+                           f"'{str(it.label)[:52]}' {nums}")
+            if len(items) > 70:
+                out.append(f"... {len(items) - 70} more lines not shown")
+            return "\n".join(out)
         q = str(args.get("name") or args.get("query")
                 or args.get("label") or "").strip()
         if not q:
@@ -332,6 +361,37 @@ class ObjectiveLoop:
             f"{it.doc} p{it.page} "
             f"[{'PRIOR-PERIOD DOC — not citable' if it.doc in prior_docs else self.ledger.face(it.doc, it.page) or 'no-face'}]"
             f" {it.source_line[:110]}" for it in hits)
+
+    def t_trace_serve(self, args):
+        """THE AUTOPSY TOOL (owner directive 2026-09-01): who wrote this
+        number? Reads the run's own serve provenance so a suspect value
+        is traced to its page and gate before it is believed or fixed."""
+        rr = self._cell_ref(str(args.get("cell") or args.get("row") or ""))
+        if rr is None:
+            return "MISS: give a cell like {\"cell\": \"Final!AI25\"}"
+        sheet, col, row = rr
+        coord = f"{col}{row}"
+        e = self.served.get((sheet, row))
+        held = self.wb[sheet][coord].value if sheet in self.wb.sheetnames \
+            else None
+        head = f"{sheet}!{coord} holds: {held!r}\n"
+        if not isinstance(e, dict):
+            return (head + "NOT served by the deterministic stages — the "
+                    "value is a rollover, a sweep re-anchor, or a loop "
+                    "write. If it still equals last year it is STALE: "
+                    "find_line the printed current figure (or the page "
+                    "view) and serve it with evidence.")
+        v = e.get("value")
+        vtxt = f"{v:,.2f}" if isinstance(v, (int, float)) else repr(v)
+        return (head
+                + f"served {vtxt} from {e.get('doc')} "
+                  f"p{e.get('page')} line '{str(e.get('line'))[:48]}' "
+                  f"(conf {e.get('conf')})\n"
+                + f"method: {str(e.get('note'))[:200]}\n"
+                + "If this number looks wrong, check the SOURCE ROW's "
+                  "geometry with the page view (find_line {\"page\": N}): "
+                  "wide segment rows and prior-vintage tables are the two "
+                  "classic mis-serves.")
 
     def t_statement_diff(self, args):
         stmt = str(args.get("stmt", "bs"))
@@ -1413,6 +1473,7 @@ class ObjectiveLoop:
     TOOLS = {"rescore": t_rescore, "trace_cell": t_trace_cell,
              "forecast_audit": t_forecast_audit, "place_flow": t_place_flow,
              "find_line": t_find_line, "statement_diff": t_statement_diff,
+             "trace_serve": t_trace_serve,
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
              "rewrite_constants": t_rewrite_constants,
