@@ -742,3 +742,22 @@ clean candidate A still on it (invisible because card outcomes were
 unnamed — observability shipped in 217, which is superseded and
 cancelled). FIX: a guard refusal RE-ASKS the card once — refusal
 reason shown, refused option removed (what a human does). Museum 100.
+
+## 2026-09-01 — THE BISECT (owner: "rework the agent, compare past runs")
+
+Every commit of the era scored by the SAME offline machinery run
+(flag-default, no LLM) against the by-hand key:
+  9d0cff7 pre-queue baseline : 2025 off 5,378 | fc 4,519 | keys 2/11
+  35640bb autopsy serve laws : 2025 off 5,285 | fc 4,737 | keys 4/11
+  a8bdf07 the work queue     : 2025 = 0      | fc   196 | keys 7/11  <- best
+  9392b86 garbage-card fix   : 2025 = 0      | fc   196 | keys 7/11
+  9a355c0 proven-plug BAN    : 2025 off 5,320 | fc 4,772 | keys 7/11  <- THE REGRESSION
+  ...     (three commits inherit it)
+  cfecf58 probe-tested plug  : 2025 = 0      | fc   196 | keys 7/11  <- restored
+VERDICT: the owner was right — the blanket proven-plug ban (9a355c0)
+broke the balance objective for runs 214-218. It is replaced by the
+probe-tested plug (unproven sites first; a proven site only when the
+live experiment shows zero forecast damage; lands RED). Everything
+else the era added is neutral-or-better: the queue itself took the
+machinery from keys 2/11 to 7/11 and closed 2025. Current head =
+best machinery state of any commit, ever.
