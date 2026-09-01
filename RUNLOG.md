@@ -678,3 +678,18 @@ Offline greedy test: ROAFNA terminal plug 1,190 -> 39; forecast gap
 1,645 -> 196. Remaining: Final!99's receipt is guarded by the
 proven-value law (surfaced loudly, analyst's call). Dispatching the
 next queue run with owner go.
+
+## 2026-09-01 — RUN 212 + the garbage-card fix
+
+Run 212 (queue): Luna again flawless in conduct — 7 cited serves, 16
+reasoned abstentions, honest verdicts, refused both plugs. The receipts
+failed to land: the residual-completion generator offered TAUTOLOGICAL
+closers (cur±residual matched to any printed number — 'Property under
+development -> -4,606'), which the evidence law rightly refused; the
+real receipt (9,815 co-printed with prior 6,063) ranked below them.
+Exactly the red-team's garbage-card prediction, observed live.
+FIXED: completion generator DELETED (evidence-grounded candidates only:
+prior-tie / companion / co-printed), sign-flip warning, evidence
+quality outranks the probe in offer ranking. Offline greedy: Final plug
+5,320 -> 1,448, ROAFNA 1,190 -> 39, forecast gap 1,645 -> 196. Museum
+98 green. Redispistched.

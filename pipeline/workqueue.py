@@ -462,29 +462,14 @@ def render_card(loop, item):
                             "basis": (f"co-printed with the prior "
                                       f"{pv_l:,.1f} on one line")})
                         nline += 1
-            # THE RESIDUAL-COMPLETION OFFER (run-211's second receipt):
-            # the value that closes the check through this leaf is
-            # cur ± residual — if THAT number is printed in a current
-            # doc, the residual is this component's missing piece
-            # (5,943 NCI + 3,872 PCS = printed 9,815).
-            periods = getattr(loop.ledger, "_doc_periods", None) or {}
-            for v_close in (cur + residual, cur - residual):
-                for it2 in loop.ledger.items:
-                    if periods.get(it2.doc) != "current":
-                        continue
-                    if any(abs(abs(n) - abs(v_close))
-                           <= max(0.6, abs(v_close) * 5e-4)
-                           for n in (it2.nums or [])):
-                        cands.append({
-                            "value": v_close, "doc": it2.doc,
-                            "page": it2.page,
-                            "line": str(it2.label)[:60],
-                            "face": loop.ledger.face(it2.doc, it2.page)
-                            or "no-face",
-                            "warnings": [],
-                            "basis": (f"held {cur:,.1f} + residual = "
-                                      f"printed {v_close:,.1f}")})
-                        break
+            # NO residual-completion candidates (run-212 autopsy: a
+            # cur±residual value matched against ANY printed number
+            # "closes the check" TAUTOLOGICALLY — a wrong plug wearing
+            # a citation; the red-team's garbage-card prediction
+            # observed live as 'Property under development -> -4,606'.
+            # The evidence law refused it, but it must not be OFFERED).
+            # Candidates are evidence-grounded only: prior-tie,
+            # positional companion, co-printed with the prior.
             seen_v = set()
             for c in cands:
                 if abs(c["value"] - cur) <= max(1.0, abs(cur) * 2e-3):
@@ -502,10 +487,18 @@ def render_card(loop, item):
                 ws[coord] = old
                 if not isinstance(after, (int, float)):
                     continue
+                if (c["value"] < 0) != (cur < 0) and abs(cur) >= 10:
+                    c = dict(c)
+                    c["warnings"] = c["warnings"] + [
+                        "SIGN FLIP vs the held value — almost never a "
+                        "genuine serve"]
                 offers.append((abs(after), sh, r2, coord, cur, c, after))
         if not offers:
             return None
-        offers.sort(key=lambda o: (o[0], o[1], o[2]))
+        # evidence quality outranks the probe: a clean candidate that
+        # merely IMPROVES beats a warned one that "closes" (run-212: the
+        # closers were the garbage)
+        offers.sort(key=lambda o: (len(o[5]["warnings"]), o[0], o[1], o[2]))
         offers = offers[:4]
         lines = [f"CARD COMPONENT check {sheet}!{col}{row} residual = "
                  f"{residual:,.2f}",
