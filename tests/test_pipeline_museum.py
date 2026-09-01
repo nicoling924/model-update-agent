@@ -2144,6 +2144,7 @@ def _wq_loop():
         _item(95, 1, "cash total", [60000.0, 58000.0]),
         _item(95, 2, "cost total", [41000.0, 39000.0]),
         _item(95, 3, "cash and equivalents", [3905.0, 4976.0]),
+        _item(95, 5, "cash incl restricted deposits", [3872.0, 4976.0]),
         _item(95, 4, "megawatt capacity", [812000.0, 810.0]),  # decoy pair
     ]
     led = _ledger(items, face_pages=((95, "bs"),))
@@ -2185,6 +2186,39 @@ def test_wq_decoy_out_of_world_never_offered():
     loop = _wq_loop()
     cands = candidates_for(loop, "M", 9)
     assert all(abs(c["value"]) < 81000 for c in cands), cands
+
+
+def test_wq_refusal_reasks_once():
+    # run-216: Luna picked candidate D on the fuel-clause card, the
+    # one-home law refused it, and the card was ABANDONED with the
+    # clean candidate A still on it. A refusal must re-ask ONCE with
+    # the refusal shown and the refused option removed.
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import run_queue
+    loop = _wq_loop()
+    calls = {"n": 0}
+    orig = ObjectiveLoop.TOOLS["set_input"]
+
+    def refuse_first(self, args):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "REFUSED by the evidence law: synthetic first refusal"
+        return orig(self, args)
+    ObjectiveLoop.TOOLS = dict(ObjectiveLoop.TOOLS, set_input=refuse_first)
+    try:
+        seen = {"reask": 0}
+
+        def pick(text, options, default):
+            if "NOTE: your previous answer" in text:
+                seen["reask"] += 1
+            sv = [k for k in options if k.startswith("serve:")]
+            return sv[0] if sv else default
+        run_queue(loop, None, lambda *a: None, answerer=pick)
+    finally:
+        ObjectiveLoop.TOOLS = dict(ObjectiveLoop.TOOLS, set_input=orig)
+    assert seen["reask"] >= 1, "refusal did not re-ask the card"
+    assert loop.wb["M"]["U7"].value in (3905.0, 3872.0), \
+        "no serve landed after the re-ask"
 
 
 def test_wq_llm_absent_means_machinery_baseline():

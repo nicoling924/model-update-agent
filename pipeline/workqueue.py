@@ -697,6 +697,45 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
             res = str(loop.TOOLS[tool](loop, args))
         except Exception as e:
             res = f"TOOL ERROR: {e}"
+        if res.startswith(("REFUSED", "MISS")) and len(options) > 2 \
+                and not drain:
+            # THE RE-ASK (run-216 autopsy: Luna picked candidate D on
+            # the fuel-clause card, the one-home law refused it, and
+            # the card was ABANDONED with the clean candidate A still
+            # sitting on it). A refusal is information — show it, drop
+            # the refused option, ask ONCE more.
+            log(f"[queue] {item.kind} {item.sheet}!{item.row or ''} "
+                f"-> {ans} REFUSED — re-asking without it")
+            options2 = {k: v for k, v in options.items() if k != ans}
+            text2 = (text + f"\n  NOTE: your previous answer '{ans}' was "
+                     f"refused by the write guard: "
+                     f"{res.splitlines()[0][:120]}\n  choose among the "
+                     "remaining answers only.")
+            try:
+                if answerer is not None:
+                    ans2 = answerer(text2, options2, default)
+                elif client is not None:
+                    calls += 1
+                    ans2, why = _llm_answer(loop, client, text2, options2,
+                                            log)
+                else:
+                    ans2 = default
+                if ans2 not in options2:
+                    ans2 = default
+            except Exception:
+                ans2 = default
+            ans = ans2
+            tool, args = options2.get(ans, (None, None))
+            if tool is None:
+                item.state = "DEFAULTED"
+                defaulted += 1
+                log(f"[queue] {item.kind} {item.sheet}!{item.row or ''} "
+                    f"-> {ans} (after refusal)")
+                continue
+            try:
+                res = str(loop.TOOLS[tool](loop, args))
+            except Exception as e:
+                res = f"TOOL ERROR: {e}"
         item.state = "DONE"
         done += 1
         log(f"[queue] {item.kind} {item.sheet}!{item.row or ''} -> {ans}: "

@@ -733,3 +733,12 @@ load-bearing rows (the lb trace) outrank size in SERVE priority.
 Verified offline: the AI7 card now deals, candidate A = -1,043
 (warning-free after block-context kinship), serve lands, residual moves
 by exactly 1,413. Museum 99 green. Redispatched.
+
+## 2026-09-01 — RUN 216 AUTOPSY: THE RE-ASK
+
+216's fuel-clause card WAS dealt — Luna picked candidate D, the
+one-home law refused the write, and the card was ABANDONED with the
+clean candidate A still on it (invisible because card outcomes were
+unnamed — observability shipped in 217, which is superseded and
+cancelled). FIX: a guard refusal RE-ASKS the card once — refusal
+reason shown, refused option removed (what a human does). Museum 100.
