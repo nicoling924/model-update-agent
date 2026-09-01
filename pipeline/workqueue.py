@@ -280,11 +280,18 @@ def build_queue(loop):
             items.append(WorkItem("TRIPWIRE", refs=refs,
                                   priority=float(len(refs))))
     for sheet, row, res in loop._failing_target_checks():
+        items.append(WorkItem("COMPONENT", sheet, row,
+                              check=f"{sheet}!{row}", priority=abs(res)))
         items.append(WorkItem("PLUG", sheet, row,
                               check=f"{sheet}!{row}", priority=abs(res)))
-    order = {"SERVE": 0, "TRIPWIRE": 1, "PLUG": 2}
+    order = {"SERVE": 0, "COMPONENT": 1, "TRIPWIRE": 2, "PLUG": 3}
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
-    return items[:MAX_CARDS]
+    # the cap trims only the SERVE flood — check, tripwire and plug
+    # items are few and load-bearing (a cap that silently dropped every
+    # COMPONENT card cost run-211's successor its receipts)
+    serves = [w for w in items if w.kind == "SERVE"]
+    rest = [w for w in items if w.kind != "SERVE"]
+    return serves[:max(10, MAX_CARDS - len(rest))] + rest
 
 
 def phase0(loop, log):
@@ -395,6 +402,136 @@ def render_card(loop, item):
                                        "verdict": "SUSPICIOUS",
                                        "why": "card: unresolved"})}
         return "\n".join(lines), options, "suspicious"
+    if item.kind == "COMPONENT":
+        # THE RECEIPTS CARD (run-211 autopsy: a 5,293 balance gap was
+        # plugged into ONE cell when the truth was a printed two-cell
+        # split — the machinery never ASKED about the check's own
+        # components). For each numeric input feeding the failing check
+        # that has a printed candidate, the probe MEASURES what serving
+        # it does to the residual — "closes the check" is shown, not
+        # guessed.
+        sheet, row = item.sheet, item.row
+        col = _tcol(loop, sheet)
+        ev = Evaluator(loop.wb)
+        try:
+            residual = ev.cell(sheet, f"{col}{row}")
+        except Exception:
+            return None
+        if abs(residual) <= 1.0:
+            return None
+        offers = []
+        leaves = list(dict.fromkeys(
+            loop._leaf_inputs(sheet, f"{col}{row}")))
+        for sh, coord in leaves:
+            m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
+            if not m or m.group(1) != _tcol(loop, sh):
+                continue
+            cur = loop.wb[sh][coord].value
+            if not isinstance(cur, (int, float)):
+                continue
+            r2 = int(m.group(2))
+            cands = candidates_for(loop, sh, r2, k=3)
+            # SAME-LINE candidates: a number CO-PRINTED with the leaf's
+            # prior in one line is a candidate even when not adjacent
+            # (p17 'NCI' [6,063, 26,258, 9,815] — the model folds NCI
+            # and PCS into one row; the closing 9,815 sits two slots
+            # from the prior 6,063). The probe demotes the garbage.
+            pv_l, _tl = _prior_of(loop, sh, r2)
+            periods = getattr(loop.ledger, "_doc_periods", None) or {}
+            if pv_l:
+                nline = 0
+                for it2 in loop.ledger.items:
+                    if periods.get(it2.doc) != "current" or nline >= 3:
+                        continue
+                    ns2 = it2.nums or []
+                    if not any(abs(abs(n) - abs(pv_l))
+                               <= max(0.6, abs(pv_l) * 5e-4) for n in ns2):
+                        continue
+                    for n in ns2:
+                        if abs(abs(n) - abs(pv_l)) <= 0.6 or abs(n) < 10:
+                            continue
+                        if not (abs(n) <= 30 * abs(pv_l)
+                                and abs(n) * 30 >= abs(pv_l)):
+                            continue
+                        v = abs(n) if cur >= 0 else -abs(n)
+                        cands.append({
+                            "value": v, "doc": it2.doc, "page": it2.page,
+                            "line": str(it2.label)[:60],
+                            "face": loop.ledger.face(it2.doc, it2.page)
+                            or "no-face", "warnings": [],
+                            "basis": (f"co-printed with the prior "
+                                      f"{pv_l:,.1f} on one line")})
+                        nline += 1
+            # THE RESIDUAL-COMPLETION OFFER (run-211's second receipt):
+            # the value that closes the check through this leaf is
+            # cur ± residual — if THAT number is printed in a current
+            # doc, the residual is this component's missing piece
+            # (5,943 NCI + 3,872 PCS = printed 9,815).
+            periods = getattr(loop.ledger, "_doc_periods", None) or {}
+            for v_close in (cur + residual, cur - residual):
+                for it2 in loop.ledger.items:
+                    if periods.get(it2.doc) != "current":
+                        continue
+                    if any(abs(abs(n) - abs(v_close))
+                           <= max(0.6, abs(v_close) * 5e-4)
+                           for n in (it2.nums or [])):
+                        cands.append({
+                            "value": v_close, "doc": it2.doc,
+                            "page": it2.page,
+                            "line": str(it2.label)[:60],
+                            "face": loop.ledger.face(it2.doc, it2.page)
+                            or "no-face",
+                            "warnings": [],
+                            "basis": (f"held {cur:,.1f} + residual = "
+                                      f"printed {v_close:,.1f}")})
+                        break
+            seen_v = set()
+            for c in cands:
+                if abs(c["value"] - cur) <= max(1.0, abs(cur) * 2e-3):
+                    continue
+                if round(c["value"], 1) in seen_v:
+                    continue
+                seen_v.add(round(c["value"], 1))
+                ws = loop.wb[sh]
+                old = ws[coord].value
+                ws[coord] = c["value"]
+                try:
+                    after = Evaluator(loop.wb).cell(sheet, f"{col}{row}")
+                except Exception:
+                    after = None
+                ws[coord] = old
+                if not isinstance(after, (int, float)):
+                    continue
+                offers.append((abs(after), sh, r2, coord, cur, c, after))
+        if not offers:
+            return None
+        offers.sort(key=lambda o: (o[0], o[1], o[2]))
+        offers = offers[:4]
+        lines = [f"CARD COMPONENT check {sheet}!{col}{row} residual = "
+                 f"{residual:,.2f}",
+                 "  printed values exist for these components; the probe "
+                 "shows what serving each does to the check:"]
+        options = {}
+        for j, (aft_abs, sh, r2, coord, cur, c, after) in enumerate(offers):
+            t = loop.targets.get((sh, r2))
+            lab = str(t.label)[:30] if t is not None else "?"
+            mark = " <== CLOSES the check" if aft_abs <= 1.0 else ""
+            w = ("  ⚠ " + "; ⚠ ".join(c["warnings"])) if c["warnings"] else ""
+            lines.append(
+                f"    fix:{j} {sh}!{coord} '{lab}' {cur:,.2f} -> "
+                f"{c['value']:,.2f} ({c['doc'][:22]} p{c['page']} "
+                f"'{c['line'][:36]}') residual {residual:,.1f} -> "
+                f"{after:,.1f}{mark}{w}")
+            options[f"fix:{j}"] = ("set_input", {
+                "cell": f"{sh}!{coord}", "value": c["value"],
+                "why": f"p{c['page']}: '{c['line'][:40]}' "
+                       f"({c['doc'][:26]}) — component card: check "
+                       f"residual {residual:,.1f} -> {after:,.1f}"})
+        options["not_disclosed"] = (None, None)
+        lines.append("  answers: " + ", ".join(options)
+                     + "  (not_disclosed = leave the check for the plug "
+                       "decision)")
+        return "\n".join(lines), options, "not_disclosed"
     if item.kind == "PLUG":
         sheet, row = item.sheet, item.row
         still = [(s, r) for s, r, _ in loop._failing_target_checks()
@@ -461,9 +598,21 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
     t0 = time.monotonic()
     n_auto = phase0(loop, log)
     queue = build_queue(loop)
+    # plugs are dealt strictly LAST — a re-dealt COMPONENT card (next
+    # receipt after a landed fix) must always outrank the plug decision
+    work = [w for w in queue if w.kind != "PLUG"]
+    plugs = [w for w in queue if w.kind == "PLUG"]
     calls = dead = done = defaulted = moot = 0
     breaker = 0
-    for item in queue:
+    seq, i = work, 0
+    while True:
+        if i >= len(seq):
+            if seq is work:
+                seq, i = plugs, 0
+                continue
+            break
+        item = seq[i]
+        i += 1
         rendered = render_card(loop, item)
         if rendered is None:
             item.state = "MOOT"
@@ -514,6 +663,18 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
         item.state = "DONE"
         done += 1
         log(f"[queue] {item.kind} -> {ans}: {res.splitlines()[0][:90]}")
+        if item.kind == "COMPONENT" and res.startswith("WRITTEN"):
+            # a landed component fix may reveal the NEXT receipt (the
+            # 84,367-then-9,815 sequence): re-deal for the same check,
+            # bounded to 3 rounds
+            rounds = sum(1 for w in work if w.kind == "COMPONENT"
+                         and w.check == item.check)
+            if rounds < 3 and any(
+                    (s, r) == (item.sheet, item.row)
+                    for s, r, _ in loop._failing_target_checks()):
+                work.append(WorkItem("COMPONENT", item.sheet, item.row,
+                                     check=item.check,
+                                     priority=item.priority))
     summary = (f"queue: {len(queue)} items — {n_auto} auto-resolved in "
                f"phase0, {done} adjudicated, {defaulted} defaulted, "
                f"{moot} moot, {dead} drained, {calls} LLM calls")

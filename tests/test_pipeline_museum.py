@@ -2196,6 +2196,74 @@ def test_wq_llm_absent_means_machinery_baseline():
     assert "defaulted" in s
 
 
+def test_wq_component_card_offers_the_receipts():
+    # run-211: a 5,293 gap was plugged into one cell when a printed
+    # two-cell split existed. The COMPONENT card must offer the printed
+    # candidate WITH its probe-measured effect, and serving it must
+    # close the check.
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow as TR
+    from pipeline.workqueue import build_queue, render_card
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T5"], ws["U5"] = 5943.0, 5943.0        # component: stale
+    ws["T6"], ws["U6"] = 100000.0, 103872.0    # other side, correct
+    ws["T7"], ws["U7"] = 94057.0, 94057.0      # other component
+    ws["T10"], ws["U10"] = "=T6-T5-T7", "=U6-U5-U7"   # check: 3,872 off
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
+                                "header_row": 2}},
+            "check_rows": [{"sheet": "M", "row": 10, "expect": 0}]}
+    items = _anchors() + [
+        _item(95, 3, "reserves incl PCS", [9815.0, 5943.0]),
+    ]
+    led = _ledger(items, face_pages=((95, "bs"),))
+    led._doc_periods = {DOC: "current"}
+    targets = _anchor_targets() + [
+        TR("M", 5, "reserves incl PCS", 5943.0, prior2_value=5100.0)]
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
+    q = build_queue(loop)
+    comp = [w for w in q if w.kind == "COMPONENT"]
+    assert comp, "no COMPONENT item for the failing check"
+    rendered = render_card(loop, comp[0])
+    assert rendered is not None, "component card did not render"
+    text, options, default = rendered
+    assert "CLOSES the check" in text, text
+    assert default == "not_disclosed"
+    fix = next(k for k in options if k.startswith("fix:"))
+    tool, args = options[fix]
+    assert tool == "set_input" and abs(args["value"] - 9815.0) < 1
+
+
+def test_verdict_error_fixed_requires_the_error_gone():
+    # the Fable-drive's own sin: 36 tripwires mass-approved as fixed
+    # while forecasts still computed negative. Code now re-checks.
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["T7"], ws["U7"], ws["V7"] = 800.0, 900.0, "=-U7"   # absurd forecast
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"},
+                                "header_row": 2}}, "check_rows": []}
+    led = _ledger([], face_pages=((95, "bs"),))
+    loop = ObjectiveLoop(wb, spec, 2025, led, [], {}, Writer(wb), None)
+    loop.tripwires = [("M", "V", 7, -900.0, 800.0, 900.0)]
+    r = loop.t_verdict({"items": ["M!V7"], "verdict": "ERROR_FIXED",
+                        "why": "claimed fixed without checking anything"})
+    assert str(r).startswith("REJECTED"), r
+    ws["V7"] = "=U7"                       # actually fix it
+    r2 = loop.t_verdict({"items": ["M!V7"], "verdict": "ERROR_FIXED",
+                         "why": "cause repaired; forecast recomputes sane"})
+    assert "VERDICT recorded" in str(r2), r2
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

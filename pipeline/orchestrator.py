@@ -1287,6 +1287,41 @@ class ObjectiveLoop:
                 return (f"MISS: item '{item}' unparseable — use "
                         "\"Sheet!AJ39\"")
             keys.append(f"{rr[0]}!{rr[1]}")
+        if v == "ERROR_FIXED":
+            # THE VERDICT RE-VERIFICATION LAW (2026-09-01: the Fable-drive
+            # itself mass-approved 36 tripwires as fixed while forecast
+            # profits were still negative — balance held, truth did not).
+            # "Fixed" is not a claim, it is a state: code re-checks the
+            # cell and rejects the verdict while the absurdity persists.
+            trips = {(s, c, r): (pv0, tv0)
+                     for (s, c, r, _f, pv0, tv0)
+                     in getattr(self, "tripwires", []) or []}
+            ev = Evaluator(self.wb)
+            still = []
+            for key in keys:
+                mm = re.match(r"^([^!]+)!([A-Z]{1,3})(\d+)$", key)
+                if not mm:
+                    continue
+                pt = trips.get((mm.group(1), mm.group(2),
+                                int(mm.group(3))))
+                if not pt:
+                    continue
+                try:
+                    fv = ev.cell(mm.group(1),
+                                 f"{mm.group(2)}{mm.group(3)}")
+                except Exception:
+                    continue
+                if isinstance(fv, (int, float)) and fv < 0 \
+                        and pt[0] > 0 and pt[1] > 0:
+                    still.append(f"{key} still computes {fv:,.1f} where "
+                                 f"actuals are {pt[0]:,.1f} -> "
+                                 f"{pt[1]:,.1f}")
+            if still:
+                return ("REJECTED: ERROR_FIXED requires the error to be "
+                        "GONE — code re-checked and these still compute "
+                        "sign-absurd values: " + "; ".join(still[:6])
+                        + ". Fix the actual-column cause first, or "
+                        "verdict JUSTIFIED/SUSPICIOUS with reasons")
         for key in keys:
             self.writer.log.setdefault("verdicts", []).append(
                 f"{key}: {v} — {why[:250]}")

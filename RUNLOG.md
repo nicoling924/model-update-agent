@@ -649,3 +649,32 @@ NEXT (owner go required): dispatch ONE run, STAGE4_MODE=queue — Luna's
 cheap A/B on ~40 cards vs the always-flag baseline, guards bounding the
 damage. If Luna ≈ default or worse: route cards to a stronger engine or
 leave them red (red-team verdict).
+
+## 2026-09-01 (later) — RUN 211 (queue-mode, Luna) + the receipts build
+
+Run 211, STAGE4_MODE=queue: NIGHT-AND-DAY vs run 210 — Luna answered 28
+cards: 5 cited writes, 15 reasoned abstentions (it READ the warnings),
+5 bulk tripwire verdicts, 2 plug refusals; zero repeats, zero spirals;
+guards caught its 2 bad picks. Gate refused on ONE item: forecast years
+flat 1,645 — traced to the 2025 equity gap closed by a one-cell PLUG
+where the truth is a printed two-cell split (RE 84,367 + NCI/PCS 9,815).
+HONESTY NOTE: scoring exposed that the Fable-drive file's own forecast
+was wrong despite balancing (36 tripwires mass-approved unverified) —
+the by-hand answer key remains the only correct forecast.
+
+Built (council follow-through, museum 98 green):
+- COMPONENT cards ("the receipts"): for a failing check, each numeric
+  leaf's printed candidates are PROBED — the card shows 'residual
+  -5,293 -> -1,421' / 'CLOSES the check' measured, not guessed; landed
+  fixes re-deal the card (sequential receipts); plugs dealt strictly
+  last. Candidate generators: prior-tie + positional companion +
+  residual-completion (cur ± residual printed) + same-line co-printed.
+- VERDICT RE-VERIFICATION: ERROR_FIXED is rejected by code while the
+  cell still computes a sign-absurd value (my own drive's sin, now
+  impossible for anyone).
+- cap fix: the SERVE flood can no longer truncate COMPONENT/TRIPWIRE/
+  PLUG items out of the queue.
+Offline greedy test: ROAFNA terminal plug 1,190 -> 39; forecast gap
+1,645 -> 196. Remaining: Final!99's receipt is guarded by the
+proven-value law (surfaced loudly, analyst's call). Dispatching the
+next queue run with owner go.
