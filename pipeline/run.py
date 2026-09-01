@@ -710,6 +710,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # red-if-large test.
     from .checks import forecast_columns as _fcols
     from .evaluator import Evaluator as _Ev
+    # ROLL-BASE CONSISTENCY, second pass (the law is idempotent; loop
+    # and queue writes can shift a base AFTER the first anchor solved —
+    # re-measure, re-solve)
+    from .teachings import roll_base_mismatches as _rbm2
+    n_rb2 = _rbm2(wb, spec_d, target_year, writer, log)
+    if n_rb2:
+        err_guard("roll-base 2")
+        collapse_guard("roll-base 2")
     from .forecast_balance import last_resort_plug
     for _c in (spec_d.get("check_rows") or []):
         _sheet = _c.get("sheet")
@@ -729,14 +737,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             wb, writer,
             (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
             _sheet, _c["row"], _cols, _assets, log)
-    # THE HOLD TUNER (owner regression ruling 2026-09-01): a FLAT
-    # forecast residual left after all repairs means an auto-probe hold
-    # is off by exactly that constant — tune it by experiment
-    from .teachings import tune_holds
-    n_tune = tune_holds(wb, spec_d, target_year, writer, log)
-    if n_tune:
-        err_guard("hold tuner")
-        collapse_guard("hold tuner")
     # -- FORECAST INVIOLABILITY (the by-hand teaching, owner 2026-09-01,
     # replacing the sign-absurd freeze writer that broke run 204's
     # balance): the analyst's forecast formulas are never hardcoded.

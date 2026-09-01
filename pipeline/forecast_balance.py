@@ -191,11 +191,11 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                 "a cascade means an unresolved actual-column cause, "
                 "never a residue; plugs unwound, years left failing "
                 "with their collapse-flag causes")
-            for pcol, prow, pval, _big in plugged:
+            for pcol, prow, _pval, _big, pdelta in plugged:
                 c2 = ws.cell(row=prow,
                              column=column_index_from_string(pcol))
                 if isinstance(c2.value, (int, float)):
-                    c2.value = round(c2.value - pval, 6)
+                    c2.value = round(c2.value - pdelta, 6)
                     c2.comment = Comment(
                         "forecast plug UNWOUND: the plug series was "
                         "escalating (cascade) — see collapse flags for "
@@ -224,7 +224,26 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
         held = ws.cell(row=row,
                        column=column_index_from_string(col)).value
         held = float(held) if isinstance(held, (int, float)) else 0.0
-        value = round(held - gap, 4)
+        # THE COEFFICIENT PROBE (2026-09-02: a plug sized on the +1
+        # assumption DOUBLED the residual it aimed to close — the row's
+        # true coefficient on the check was -2. Measure, never assume:
+        # bump the row 1.0, read the check's response, size by it.)
+        cell_p = ws.cell(row=row, column=column_index_from_string(col))
+        old_p = cell_p.value
+        cell_p.value = held + 1.0
+        try:
+            probe = make_eval()(sheet, f"{col}{check_row}")
+        except Exception:
+            probe = None
+        cell_p.value = old_p
+        coeff = (probe - gap) if isinstance(probe, (int, float)) else None
+        if not isinstance(coeff, (int, float)) or abs(coeff) < 0.1:
+            log(f"[run] forecast plug WITHHELD on {col}: the designed "
+                f"catch-all row does not move this check (coeff "
+                f"{coeff if coeff is None else round(coeff, 3)}) — left "
+                "failing for the analyst")
+            continue
+        value = round(held - gap / coeff, 4)
         big = False
         if assets_row:
             try:
@@ -247,7 +266,8 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                     "the year's asset base move) — a big plug usually "
                     "means a mis-wired forecast line. Analyst ruling "
                     "needed.", "Model Update Agent")
-            plugged.append((col, row, round(-gap, 1), big))
+            plugged.append((col, row, round(-gap, 1), big,
+                            round(value - held, 6)))
             log(f"[run] forecast plug {sheet}!{col}{row}: {-gap:+,.1f}"
                 + ("  (RED — large)" if big else ""))
     return plugged

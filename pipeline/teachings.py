@@ -498,6 +498,23 @@ def tune_holds(wb, spec, target_year, writer, log):
     return n
 
 
+def _fc_resids_of(wb, spec, target_year):
+    out = []
+    ev = Evaluator(wb)
+    for c in (spec.get("check_rows") or []):
+        sh, r = c.get("sheet"), int(c.get("row"))
+        if sh not in wb.sheetnames:
+            continue
+        for col in forecast_columns(spec, sh, int(target_year)):
+            try:
+                v = ev.cell(sh, f"{col}{r}")
+            except Exception:
+                continue
+            if isinstance(v, (int, float)):
+                out.append(v)
+    return out
+
+
 def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
     """THE ROLL-BASE CONSISTENCY LAW (owner ruling 2026-09-01, the flat-
     forecast-gap autopsy — and the mechanization of the standing
@@ -680,6 +697,87 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
                         log(f"[run]   roll-base back-out: {sh2}!{c2}{r2} "
                             f"= {v2:,.1f} + {-gap:,.1f} (defined by "
                             f"{sheet}!{r}'s typed actual)")
+            if not stale_inputs:
+                # NOTHING is stale — every component served/computed,
+                # yet the roll misses the typed actual: the model's own
+                # arithmetic lacks a flow this year (the by-hand SoC
+                # fund verdict, mechanized). Anchor the roll's largest
+                # unit-coefficient TERM to make the base reproduce the
+                # typed actual — traceable back-out, orange, component
+                # question left for the analyst. Solvability by
+                # perturbation, never assumed.
+                terms = []
+                for m in re.finditer(
+                        r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
+                        r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
+                    sh2 = (m.group(1) or m.group(2) or sheet).strip()
+                    c2, r2 = m.group(3), int(m.group(4))
+                    if sh2 not in wb.sheetnames:
+                        continue
+                    if c2 != year_columns(spec, sh2).get(str(target_year)):
+                        continue
+                    v2 = wb[sh2][f"{c2}{r2}"].value
+                    if not (isinstance(v2, str) and v2.startswith("=")):
+                        continue          # typed inputs were queue work
+                    try:
+                        e2 = Evaluator(wb).cell(sh2, f"{c2}{r2}")
+                    except Exception:
+                        continue
+                    if isinstance(e2, (int, float)):
+                        terms.append((abs(e2), sh2, c2, r2, e2, v2))
+                fired = False
+                for _a, sh2, c2, r2, e2, old_f in sorted(terms,
+                                                         reverse=True):
+                    cellu = wb[sh2][f"{c2}{r2}"]
+                    cellu.value = e2 + 1.0
+                    scratch = f"ZZ{r}"
+                    old_s = ws[scratch].value
+                    ws[scratch] = shifted
+                    try:
+                        got2 = Evaluator(wb).cell(sheet, scratch)
+                    except Exception:
+                        got2 = None
+                    ws[scratch] = old_s
+                    cellu.value = old_f
+                    if not isinstance(got2, (int, float)):
+                        continue
+                    coeff = got2 - got
+                    if abs(abs(coeff) - 1.0) > 1e-6:
+                        continue
+                    adj = -gap if coeff > 0 else gap
+                    fc0 = [abs(x) for x in _fc_resids_of(wb, spec,
+                                                         target_year)
+                           if abs(x) > 1.0]
+                    if not fc0:
+                        break     # no forecast check failing: anchor
+                                  # nothing, the mismatch stays a flag
+                    ok = writer.write(
+                        sh2, f"{c2}{r2}", f"=({e2:g})+({adj:g})",
+                        prior_coord=None, trusted=True, flag="orange",
+                        note=(f"ROLL-BASE ANCHOR: {sheet}!{r}'s typed "
+                              f"{target_year} actual is {h:,.1f} but the "
+                              f"model's own arithmetic computes "
+                              f"{got:,.1f} — a component flow is missing "
+                              f"this year. Anchored {e2:,.1f} + "
+                              f"{adj:+,.1f} so the roll reproduces the "
+                              "disclosed closing; ANALYST to reconcile "
+                              "the components. True up when disclosed."))
+                    if ok:
+                        fc1 = [abs(x) for x in _fc_resids_of(
+                            wb, spec, target_year) if abs(x) > 1.0]
+                        if sum(fc1) > sum(fc0) - abs(gap) * 0.5:
+                            # the experiment failed: this anchor did not
+                            # repair the forecasts — undo it
+                            cellu2 = wb[sh2][f"{c2}{r2}"]
+                            cellu2.value = old_f
+                            continue
+                        fired = True
+                        log(f"[run]   roll-base anchor: {sh2}!{c2}{r2} "
+                            f"= {e2:,.1f} {adj:+,.1f} (so {sheet}!{r} "
+                            "rolls from its typed actual; forecast "
+                            f"residual mass {sum(fc0):,.0f} -> "
+                            f"{sum(fc1):,.0f})")
+                        break
             log(f"[run] roll-base mismatch: {sheet}!{r} actual {h:,.1f} "
                 f"vs its own roll {got:,.1f} (gap {gap:+,.1f}) — base "
                 "inputs flagged for the queue")

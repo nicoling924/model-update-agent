@@ -783,3 +783,23 @@ rewrites to =1860-194-15 EXACT to the answer key; ceiling run: 2025
 balance CLOSED at 0, forecasts flat 424 (remaining roll bases whose
 values are unprinted — back-out/cards work), India flag budget 16%
 vs 15%. Museum 100 green throughout.
+
+## 2026-09-02 — FIRST FULLY-GREEN OFFLINE STATE (floor AND ceiling)
+
+The last three generic laws (all experiment-based, zero cell-specific
+code):
+- ROLL-BASE ANCHOR: when a roll base misses its typed actual with
+  NOTHING stale, the model's own arithmetic lacks a flow — anchor the
+  largest unit-coefficient term so the roll reproduces the disclosed
+  closing (transactional: kept only if forecast residual mass drops).
+  Second idempotent pass after the queue (later writes shift bases).
+- THE COEFFICIENT PROBE (forecast plugs): a plug sized on the +1
+  assumption DOUBLED the residual (true coeff was -2). Bump the row,
+  measure the check's response, size by it; unwind uses the recorded
+  actual delta. Hold-tuner experiment retired (never proved).
+- Ordering: causes (anchors) before residues (plugs).
+RESULT: museum 100 green; offline gate DELIVERS at BOTH bounds —
+always-flag floor (no LLM: balance all years, keys 6/11, 108 red /
+47 orange, honest) and oracle ceiling (balance all years, one +10
+orange plug). Remaining ceiling->floor gap = the card answers: Luna's
+A/B is now a pure brain measurement, machinery fully proven.
