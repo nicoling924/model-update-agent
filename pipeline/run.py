@@ -114,8 +114,15 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
 
 
 def update(company_dir, period, target_year, client=None, loop_budget=60,
-           log=print):
-    """One model update. Returns dict with paths + outcome."""
+           log=print, stage4_mode=None, stage4_answerer=None):
+    """One model update. Returns dict with paths + outcome.
+
+    stage4_mode: 'queue' (default — the council's work-queue inversion:
+    machine plans, LLM answers one card at a time, then a small residual
+    loop), 'queue-only' (no residual loop), 'loop' (the legacy free
+    agent — byte-identical run-210 behavior, the instant rollback).
+    stage4_answerer: offline driver for the queue (tests/replays) —
+    callable(text, options, default) -> answer id; runs without any LLM."""
     company_dir = Path(company_dir)
     run_log = []
 
@@ -567,9 +574,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from .moveon import machine_look
     machine_look(wb, spec_d, target_year, ledger, writer, log)
 
-    # -- Stage 4: the objective loop (Luna owns it), then the gate
+    # -- Stage 4: the work queue (machine plans, LLM answers cards) or
+    # the legacy free loop, then the gate
+    import os as _os
+    mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
     loop_summary = ""
-    if client is not None:
+    if client is not None or stage4_answerer is not None:
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
         loop.load_bearing = lb           # tier law: the loop sees the wiring
@@ -596,8 +606,19 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run] plug meter: {len(loop.plugmeters)} of the model's "
                 "own residual rows moved wildly — the loop investigates "
                 "their inputs")
-        loop_summary = loop.run()
-        log(f"[run] objective loop: {loop_summary[:150]}")
+        if mode == "loop":
+            loop_summary = loop.run()
+            log(f"[run] objective loop: {loop_summary[:150]}")
+        else:
+            from .workqueue import run_queue
+            loop_summary = run_queue(loop, client, log,
+                                     answerer=stage4_answerer)
+            if mode == "queue" and client is not None:
+                # the council's residual open loop: small, gated, only
+                # for what no card could close
+                loop.budget = min(loop.budget, 10)
+                loop_summary += " | residual loop: " + loop.run()
+                log(f"[run] residual loop: {loop_summary[-120:]}")
         # the referee's last rung (owner: back out, mark, still deliver)
         from .orchestrator import terminal_ladder
         n_tl = terminal_ladder(loop, log)

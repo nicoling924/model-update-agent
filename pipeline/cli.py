@@ -43,7 +43,8 @@ def main(argv=None):
         client = make_client()
     from .run import update
     res = update(company_dir, period, int(target_year), client=client,
-                 loop_budget=int(kv.get("--budget", 60)))
+                 loop_budget=int(kv.get("--budget", 60)),
+                 stage4_mode=kv.get("--stage4-mode"))
     print(f"\n{'DELIVERED' if res['ok'] else 'GATE REFUSED'}: {res['out']}")
     if client is not None:
         u = getattr(client, "usage", None)

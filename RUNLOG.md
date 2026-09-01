@@ -612,3 +612,40 @@ Three transplants, museum-gated (92 green):
   which page, by which method; loop now receives the serve provenance.
 Dispatching Luna on the fixed pipeline: the test of whether the floor
 is now high enough for the cheap brain.
+
+## 2026-09-01 (night) — THE WORK-QUEUE INVERSION (council build)
+
+Owner: "we have been stuck for quite some time — make it a solid build —
+call in the council." Three independent council seats (architect,
+red-team, operator) reviewed the inversion against the run-210 evidence.
+Verdicts: ADOPT-WITH-CHANGES / build-machinery-first-gate-the-LLM /
+concrete build plan. Built per synthesis:
+
+- pipeline/workqueue.py: machine-driven stage 4. Phase-0 auto-resolve
+  (GUILTY diffs, stale-composite + red-formula rewrites — existing
+  gates, earlier). Cards rendered lazily from LIVE state; SERVE /
+  TRIPWIRE / PLUG kinds; candidates carry their own indictments
+  (vintage, wide-row, loose-tie-vs-exact-home, proportion, kinship,
+  small-value warnings) + positional COMPANION generator (prior found
+  at slot k of a same-labelled twin table -> current read at slot k)
+  + residual-hypothesis lines on plug cards. Every answer executes
+  through the loop's existing guarded tools; flag is every card's
+  default; not_disclosed adjudications are documented on the cell
+  (examined red, the move-on law). Circuit breaker, call cap, wall
+  clock; STAGE4_MODE=loop is the byte-identical rollback.
+- Offline calibration on live CLP state (no LLM):
+  * always-flag (production default): SAFE — machinery keys exact
+    (OP 14,272 / NP 10,468 / CFI -14,328), 2025 closed, reds examined.
+  * oracle (answer-key answerer): 25/45 serve cards carry the exact
+    truth (was 6/43 before the companion/pool/ordering fixes).
+  * strict auto-serve test: 16 right / 9 wrong -> auto-serve is NOT
+    shippable; the wrongs are definitional twins (group-vs-segment
+    'Operating costs', group associates into a segment sheet) — the
+    genuine judgment residue. The "empty middle" is real and small.
+- Museum: 96 exhibits green (4 new queue contracts: garbage answer ->
+  default; serve lands with citation; out-of-world decoy never offered;
+  no-LLM = machinery baseline). Bench GREEN.
+NEXT (owner go required): dispatch ONE run, STAGE4_MODE=queue — Luna's
+cheap A/B on ~40 cards vs the always-flag baseline, guards bounding the
+damage. If Luna ≈ default or worse: route cards to a stronger engine or
+leave them red (red-team verdict).

@@ -2120,6 +2120,82 @@ def test_fd_reconcile_header_and_input_twin():
     assert ("D", 7) not in serves, "formula twin must not be written"
 
 
+# ── Exhibits: the work-queue inversion (council ruling 2026-09-01) ──────
+# Run-210: a free-roaming weak LLM spent 90 actions on 61 repeated
+# investigations and 0 evidence writes. Stage 4 inverted: machine plans,
+# LLM answers one bounded card. These pin the queue's safety contracts.
+
+
+def _wq_loop():
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow as TR
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T7"], ws["U7"] = 4976.0, 4976.0     # red stale input
+    ws["T9"], ws["U9"] = 810.0, 810.0       # red stale input, decoy bait
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
+                                "header_row": 2}},
+            "check_rows": []}
+    items = [
+        _item(95, 1, "cash total", [60000.0, 58000.0]),
+        _item(95, 2, "cost total", [41000.0, 39000.0]),
+        _item(95, 3, "cash and equivalents", [3905.0, 4976.0]),
+        _item(95, 4, "megawatt capacity", [812000.0, 810.0]),  # decoy pair
+    ]
+    led = _ledger(items, face_pages=((95, "bs"),))
+    led._doc_periods = {DOC: "current"}
+    targets = [TR("M", 7, "cash and equivalents", 4976.0,
+                  prior2_value=5182.0),
+               TR("M", 9, "capacity", 810.0, prior2_value=805.0)]
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
+    loop.writer.log["flags"] = ["M!U7", "M!U9"]
+    return loop
+
+
+def test_wq_default_is_abstention():
+    # a garbage answer id can never execute — it falls to the default,
+    # the run finishes, and the stale cell stays red for the analyst
+    from pipeline.workqueue import run_queue
+    loop = _wq_loop()
+    s = run_queue(loop, None, lambda *a: None,
+                  answerer=lambda t, o, d: "serve:ZZZ")
+    assert "queue:" in s
+    assert loop.wb["M"]["U7"].value == 4976.0, "garbage answer executed"
+
+
+def test_wq_serve_lands_with_citation():
+    # the top candidate for the cash row is the printed 3,905 (prior
+    # 4,976 ties); serving it writes through t_set_input with the page
+    from pipeline.workqueue import run_queue
+    loop = _wq_loop()
+    def pick_serve(text, options, default):
+        return next((k for k in options if k.startswith("serve:")), default)
+    run_queue(loop, None, lambda *a: None, answerer=pick_serve)
+    assert loop.wb["M"]["U7"].value == 3905.0, loop.wb["M"]["U7"].value
+
+
+def test_wq_decoy_out_of_world_never_offered():
+    # red-team calibration: the 812,000 MW figure adjacent to prior 810
+    # is out of the row's world — it must not appear as an option at all
+    from pipeline.workqueue import candidates_for
+    loop = _wq_loop()
+    cands = candidates_for(loop, "M", 9)
+    assert all(abs(c["value"]) < 81000 for c in cands), cands
+
+
+def test_wq_llm_absent_means_machinery_baseline():
+    # no client, no answerer -> every card defaults; nothing written
+    from pipeline.workqueue import run_queue
+    loop = _wq_loop()
+    s = run_queue(loop, None, lambda *a: None)
+    assert loop.wb["M"]["U7"].value == 4976.0
+    assert "defaulted" in s
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
