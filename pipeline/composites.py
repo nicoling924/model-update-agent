@@ -131,6 +131,16 @@ def prove_cell(ledger, lits):
     if not combos:
         return None, "composition ambiguous on every common page"
     if len(combos) > 1:
+        # CORROBORATION RESOLVES (run-206: the true finance-cost pair
+        # 1,860+194 prints on the P&L face AND the CF note; the false
+        # 2,717+220 is one oldest-first five-year series read backwards
+        # — the majority of independent pages is the by-hand tiebreak)
+        ranked = sorted(combos.items(), key=lambda kv: -len(kv[1]))
+        if len(ranked[0][1]) >= 2 \
+                and len(ranked[0][1]) > len(ranked[1][1]):
+            vals, pages = ranked[0]
+            src = ", ".join(f"{d} p{p}" for d, p in sorted(pages)[:3])
+            return {lit: (v, src) for lit, v in zip(lits, vals)}, None
         return None, ("pages disagree on the combination: " + "; ".join(
             "+".join(f"{v:,.0f}" for v in k) for k in list(combos)[:3]))
     vals, pages = next(iter(combos.items()))

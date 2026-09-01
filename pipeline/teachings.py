@@ -216,3 +216,56 @@ def plug_meter(wb, spec, target_year, max_row=300):
             if wild:
                 out.append((sheet, r, now, was))
     return out
+
+
+def oneoff_no_propagate(wb, spec, target_year, writer, log):
+    """THE ONE-OFF NO-PROPAGATE LAW (roll-forward checklist; the
+    sanctioned narrow forecast edit under the mindmap's integrity
+    clause). A forecast cell that is a BARE LINK to the actual column
+    (=AI107), on a row whose prior year was ~nil while the actual is
+    material, drags a NEW one-off item into every forecast year — the
+    run-204/206 hedging cost leaked +352 of imbalance per year. The
+    link is replaced with 0 (orange, formula in the note) — the one
+    forecast edit the owner's law sanctions, because it restores the
+    analyst's intent (the row forecast nil before the one-off existed).
+    -> count."""
+    from openpyxl.comments import Comment
+    n = 0
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        pcol = prior_column(spec, sheet, target_year)
+        fcs = forecast_columns(spec, sheet, target_year)
+        if not tcol or not pcol or not fcs:
+            continue
+        ws = wb[sheet]
+        ev = Evaluator(wb)
+        for r in range(1, min(ws.max_row, 300) + 1):
+            av = ws[f"{tcol}{r}"].value
+            if not (isinstance(av, (int, float)) and abs(av) >= 50):
+                continue
+            try:
+                pv = ev.cell(sheet, f"{pcol}{r}")
+            except Exception:
+                continue
+            if not (isinstance(pv, (int, float)) and abs(pv) < 1):
+                continue                  # not a NEW one-off
+            for fc in fcs:
+                f = ws[f"{fc}{r}"].value
+                if isinstance(f, str) and re.match(
+                        r"^=\s*\+?\s*" + tcol + str(r) + r"\s*$",
+                        f.replace("$", "")):
+                    ws[f"{fc}{r}"].value = 0
+                    ws[f"{fc}{r}"].fill = writer.fills["orange"]
+                    ws[f"{fc}{r}"].comment = Comment(
+                        f"ONE-OFF NOT PROPAGATED: the actual {av:,.1f} "
+                        f"is new this year (prior ~0); this cell linked "
+                        f"it into the forecast ({f}). Set to 0 per the "
+                        "roll-forward law; restore the link if the item "
+                        "recurs.", "Model Update Agent")
+                    writer.log["flags"].append(f"{sheet}!{fc}{r}")
+                    n += 1
+                    log(f"[run]   one-off law: {sheet}!{fc}{r} link to "
+                        f"{tcol}{r} ({av:,.1f}, prior ~0) -> 0 (orange)")
+    return n

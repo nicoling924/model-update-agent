@@ -1886,6 +1886,62 @@ def test_204_teachings_twin_collapse_plugmeter():
     assert plug_meter(wb3, spec, 2025) == []
 
 
+def test_206_oneoff_no_propagate():
+    """Run-206: a new one-off actual (hedging -352, prior ~0) linked
+    into the forecast leaked +352/yr of imbalance forever. Bare links
+    to a new one-off zero out (orange); recurring rows stay linked."""
+    import openpyxl
+    from pipeline.teachings import oneoff_no_propagate
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T7"], ws["U7"], ws["V7"], ws["W7"] = None, -352.0, "=U7", "=V7"
+    ws["T8"], ws["U8"], ws["V8"] = -300.0, -310.0, "=U8"   # recurring: keep
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V", "2027": "W"}}}}
+    w = Writer(wb)
+    n = oneoff_no_propagate(wb, spec, 2025, w, lambda s: None)
+    assert n == 1, n
+    assert ws["V7"].value == 0 and ws["W7"].value == "=V7"
+    assert ws["V8"].value == "=U8"
+
+
+def test_206_vintage_guard_and_corroboration():
+    """Run-206: (a) a five-year series read backwards served the row's
+    own PRIOR2 (35,967, the 2023 value) — refused; (b) two pages
+    disagreeing on a composite's combination resolve by page majority
+    (the true finance-cost pair prints on the face AND the CF note)."""
+    from pipeline.stage2_join import join
+    from pipeline.targets import TargetRow
+    led = Ledger()
+    # oldest-first series: ... 35,967(2023) 40,860(2024) 41,321(2025)
+    led.add(Item(doc="AR", page=243, table_id=0, row_ord=0,
+                 label="Long-term loans and other borrowings",
+                 nums=[35967.0, 40860.0, 41321.0],
+                 source_line="Long-term loans 35,967 40,860 41,321"))
+    led.faces[("AR", 243)] = "bs"
+    t = TargetRow(sheet="R", row=24, label="Long term borrowing",
+                  prior_value=40860.0, prior2_value=35967.0)
+    served, _d = join(led, [t], log=[])
+    v = served.get(("R", 24), {}).get("value")
+    assert v != 35967.0, served.get(("R", 24))
+    # corroboration: majority-page combination wins
+    from pipeline.composites import prove_cell
+    led2 = Ledger()
+    for pg, cur in ((166, 1860.0), (214, 1860.0)):        # two true pages
+        led2.add(Item(doc="AR", page=pg, table_id=0, row_ord=0,
+                      label="Finance costs", nums=[cur, 2254.0],
+                      source_line="Finance costs"))
+        led2.faces[("AR", pg)] = "pl"
+    led2.add(Item(doc="AR", page=280, table_id=0, row_ord=0,
+                  label="Finance costs", nums=[2717.0, 2254.0],
+                  source_line="oldest-first series"))     # one false page
+    led2.faces[("AR", 280)] = "pl"
+    proof, why = prove_cell(led2, ["2254"])
+    assert proof and abs(proof["2254"][0] - 1860.0) < 1, (proof, why)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

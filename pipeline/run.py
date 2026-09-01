@@ -639,6 +639,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if tcol and pcol and sheet in wb.sheetnames:
             writer.format_rollover(sheet, pcol, tcol)
 
+    # the one-off no-propagate law (roll-forward checklist; the one
+    # sanctioned forecast edit — run-206's hedging leak, +352/yr) runs
+    # BEFORE any forecast plug is sized
+    from .teachings import oneoff_no_propagate
+    n_oo = oneoff_no_propagate(wb, spec_d, target_year, writer, log)
+    if n_oo:
+        log(f"[run] one-off law: {n_oo} forecast links to new one-off "
+            "actuals set to 0 (orange)")
+
     # -- FORECAST-YEAR BALANCE, LAST RESORT (owner ruling: balance is
     # for ALL years; plug only what genuine attribution could not place;
     # the loop had its place_flow chance above). Parse the check row's

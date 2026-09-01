@@ -263,6 +263,14 @@ def join(ledger, targets, log=None):
                 continue
             if not _in_world(prs[0][0], pv):
                 continue                   # per-share-next-to-total class
+            # THE VINTAGE GUARD (run-206: 'Long-term loans' served
+            # 35,967 = the row's own PRIOR2 off a five-year series read
+            # in the wrong direction). Last-last-year is never this year.
+            if isinstance(t.prior2_value, (int, float)) \
+                    and abs(abs(prs[0][0]) - abs(t.prior2_value)) \
+                    <= max(0.6, abs(t.prior2_value) * 5e-4) \
+                    and abs(t.prior2_value - pv) > row_tol(pv):
+                continue
             cands.append((prs[0][0], it, s))
         if not cands:
             continue                       # unbound -> Stage 3 (or tier 2)
@@ -577,6 +585,15 @@ def join_bound_tables(ledger, targets, served, log=None):
                 if owners:
                     continue      # segment-geometry guard: that "current"
                                   # is another row's prior
+                # THE VINTAGE GUARD (run-206: ROAFNA's long-term loans
+                # served 35,967 — the row's own PRIOR2, i.e. the value
+                # from two years ago, read off a five-year statistics
+                # series in the wrong direction). A candidate equal to
+                # the row's prior2 is last-last-year, never this year.
+                if isinstance(t.prior2_value, (int, float)) \
+                        and abs(abs(sv0) - abs(t.prior2_value)) \
+                        <= max(0.6, abs(t.prior2_value) * 5e-4):
+                    continue
                 cands.append((sv0, it, s))
         if not cands or len(cands) > MAX_CANDS:
             continue
