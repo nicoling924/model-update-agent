@@ -643,6 +643,17 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
         if rendered is None:
             item.state = "MOOT"
             moot += 1
+            if item.kind == "SERVE":
+                col = _tcol(loop, item.sheet)
+                in_flags = f"{item.sheet}!{col}{item.row}" in \
+                    loop.writer.log.get("flags", [])
+                why_moot = ("no candidates" if in_flags
+                            else "flag cleared")
+                log(f"[queue] MOOT SERVE {item.sheet}!{item.row} "
+                    f"({why_moot})")
+            else:
+                log(f"[queue] MOOT {item.kind} {item.sheet}!{item.row or ''}"
+                    f" {item.check or ''}")
             continue
         text, options, default = rendered
         ans, why = default, "default"
@@ -688,7 +699,8 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
             res = f"TOOL ERROR: {e}"
         item.state = "DONE"
         done += 1
-        log(f"[queue] {item.kind} -> {ans}: {res.splitlines()[0][:90]}")
+        log(f"[queue] {item.kind} {item.sheet}!{item.row or ''} -> {ans}: "
+            f"{res.splitlines()[0][:90]}")
         if item.kind == "COMPONENT" and res.startswith("WRITTEN"):
             # a landed component fix may reveal the NEXT receipt (the
             # 84,367-then-9,815 sequence): re-deal for the same check,
