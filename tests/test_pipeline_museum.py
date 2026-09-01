@@ -2272,35 +2272,44 @@ def test_wq_component_card_offers_the_receipts():
     assert tool == "set_input" and abs(args["value"] - 9815.0) < 1
 
 
-def test_plug_never_lands_on_a_proven_cell():
-    # run-213: the endgame plugged 1,421 into share capital 23,243 — a
-    # value the reconciliation had PROVEN from print. 2025 "balanced";
-    # every forecast year broke. Proven cells are not plug sites, and
-    # diagnose must not even OFFER them.
+def test_plug_experiment_referees_proven_sites():
+    # run-213: a plug into PROVEN share capital "balanced" 2025 and
+    # broke every forecast year. The owner's regression ruling
+    # (2026-09-01, runs 214-218 quarantined by the blanket proven-ban):
+    # balance is the hard objective and the loud plug its last resort —
+    # so a proven site takes a plug ONLY when the live experiment shows
+    # the forecast years unhurt, and it lands RED, never quietly.
     import openpyxl
     from pipeline.orchestrator import ObjectiveLoop
     from pipeline.writer import Writer
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "M"
-    ws["T2"], ws["U2"] = 2024, 2025
-    ws["T5"], ws["U5"] = 23243.0, 23243.0     # PROVEN share capital
-    ws["T6"], ws["U6"] = 1000.0, 1000.0       # unproven input
-    ws["T10"], ws["U10"] = "=T5+T6-24243", "=U5+U6-25664"  # check: -1,421
-    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["T5"], ws["U5"] = 23243.0, 23243.0     # PROVEN, rolls into 2026
+    ws["T6"], ws["U6"], ws["V6"] = 1000.0, 1000.0, 1000.0
+    ws["T8"], ws["U8"] = 500.0, 500.0         # PROVEN, does NOT roll
+    ws["U10"] = "=U5+U6+U8-26164"             # 2025 check: -1,421
+    ws["V10"] = "=U5+V6-24243"                # 2026 check reads U5: 0
+    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"},
                                 "header_row": 2}},
             "check_rows": [{"sheet": "M", "row": 10, "expect": 0}]}
     led = _ledger([], face_pages=((95, "bs"),))
     served = {("M", 5): {"value": 23243.0, "doc": "ar.pdf", "page": 26,
+                         "conf": 5, "note": "reconciliation"},
+              ("M", 8): {"value": 500.0, "doc": "ar.pdf", "page": 27,
                          "conf": 5, "note": "reconciliation"}}
     loop = ObjectiveLoop(wb, spec, 2025, led, [], served, Writer(wb), None)
-    r = loop.t_plug_residual({"check": "M!10", "into": "M!U5",
-                              "why": "absorb the residual"})
-    assert str(r).startswith("REFUSED") and "PROVEN" in str(r), r
-    assert wb["M"]["U5"].value == 23243.0
-    diag = loop.t_diagnose_balance({"check": "M!10"})
-    assert "M!U5" not in diag.split("eligible plug sites")[-1], \
-        "diagnose offered a proven cell as a plug site"
+    r1 = loop.t_plug_residual({"check": "M!10", "into": "M!U5",
+                               "why": "absorb the residual"})
+    assert str(r1).startswith("REVERTED") and "forecast" in str(r1), r1
+    assert wb["M"]["U5"].value == 23243.0, "damaging plug not reverted"
+    r2 = loop.t_plug_residual({"check": "M!10", "into": "M!U8",
+                               "why": "absorb the residual"})
+    assert "PLUGGED" in str(r2) and "PROVEN" in str(r2), r2
+    assert abs(wb["M"]["U8"].value - 1921.0) < 0.01, wb["M"]["U8"].value
+    assert "M!U8" in loop.writer.log["flags"], "proven plug not RED-flagged"
 
 
 def test_verdict_error_fixed_requires_the_error_gone():

@@ -550,13 +550,15 @@ class ObjectiveLoop:
                 continue
             t = self.targets.get((sh, int(mm.group(2))))
             cur = self.wb[sh][coord].value
-            if isinstance(cur, (int, float)) \
-                    and (sh, int(mm.group(2))) not in (self.served or {}):
-                # PROVEN SITES ARE NOT PLUG SITES (run-213 autopsy: the
-                # endgame plugged 1,421 into share capital 23,243 — a
-                # value the reconciliation had PROVEN from print — and
-                # every forecast year inherited the distortion)
-                sites.append((sh, coord, str(t.label)[:30] if t else "?", cur))
+            if isinstance(cur, (int, float)):
+                # unproven sites rank first; proven sites are the
+                # LAST-RESORT tier — the plug experiment (forecast
+                # probe) referees them, per the owner's balance ruling
+                pv_ok = (sh, int(mm.group(2))) not in (self.served or {})
+                sites.append((sh, coord,
+                              (str(t.label)[:30] if t else "?")
+                              + ("" if pv_ok else " [PROVEN—last resort]"),
+                              cur if pv_ok else cur))
             if isinstance(cur, str) and cur.startswith("="):
                 # a ref-less composite leaf: stillness is the signal —
                 # evaluating to its own prior = last year's actual never
@@ -614,7 +616,8 @@ class ObjectiveLoop:
                        "find_line the residual amount, or (worst case) "
                        "plug_residual with a named component")
         if guilty == 0 and sites:
-            best = sorted(sites, key=lambda s: -abs(s[3]))[:5]
+            best = sorted(sites, key=lambda s: ("[PROVEN" in s[2],
+                                                -abs(s[3])))[:5]
             out.append("  eligible plug sites (numeric inputs feeding this "
                        "check, largest first):")
             for sh, coord, lab, cur in best:
@@ -623,6 +626,23 @@ class ObjectiveLoop:
             out.append(f"  e.g. plug_residual {{\"check\": \"{sheet}!{row}\", "
                        f"\"into\": \"{sh}!{coord}\", \"why\": ...}}")
         return "\n".join(out)
+
+    def _forecast_check_residuals(self):
+        """Forecast-year residuals of every spec check row — the probe
+        baseline for the plug experiment."""
+        from .checks import forecast_columns
+        ev = Evaluator(self.wb)
+        out = {}
+        for c in (self.spec.get("check_rows") or []):
+            sh, r = c.get("sheet"), int(c.get("row"))
+            if sh not in self.wb.sheetnames:
+                continue
+            for col in forecast_columns(self.spec, sh, int(self.ty)):
+                try:
+                    out[f"{sh}!{col}{r}"] = ev.cell(sh, f"{col}{r}")
+                except Exception:
+                    out[f"{sh}!{col}{r}"] = None
+        return out
 
     def t_plug_residual(self, args):
         """THE WORST CASE, and it is loud (owner ruling): only after
@@ -650,15 +670,17 @@ class ObjectiveLoop:
         c_col = self._tcol(c_sheet)
         i_sheet, i_col, i_row = ci
         pe = (self.served or {}).get((i_sheet, i_row))
-        if isinstance(pe, dict):
-            # A PROVEN NUMBER IS NEVER PLUGGED (run-213: share capital
-            # 23,243, reconciliation-proven from print, absorbed a
-            # 1,421 plug — 2025 "balanced", every forecast year broke)
-            return (f"REFUSED: {i_sheet}!{i_col}{i_row} is PROVEN — "
-                    f"served {pe.get('value'):,.2f} from {pe.get('doc')} "
-                    f"p{pe.get('page')}. A proven number is never plugged; "
-                    "pick an UNPROVEN component (diagnose_balance lists "
-                    "them) or leave the check failing, flagged")
+        proven = isinstance(pe, dict)
+        # THE PROBE-TESTED PLUG (owner regression ruling 2026-09-01:
+        # run-213's share-capital plug was wrong because it BROKE THE
+        # FORECAST YEARS, not because the cell was proven — and the
+        # blanket proven-ban made balance unreachable on a model where
+        # every component is proven, quarantining runs 214-218 that the
+        # earlier era delivered. Balance is the hard objective; the loud
+        # plug is its sanctioned last resort. So: unproven sites first;
+        # a proven site MAY take the plug, but only if the EXPERIMENT
+        # below shows the forecast years do not get worse — and it
+        # lands RED with the provenance in the note, never quietly.)
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")
@@ -680,6 +702,7 @@ class ObjectiveLoop:
         wild = abs(residual) > 0.5 * max(abs(held), 1.0)
         wild_txt = (", WILD — swings the component by more than half; "
                     "a mapped sibling is probably wrong" if wild else "")
+        fc_before = self._forecast_check_residuals()
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", held - residual,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
@@ -703,6 +726,41 @@ class ObjectiveLoop:
             return (f"REVERTED: plugging {into} left the check at "
                     f"{after if after is not None else '?'} — the component "
                     "does not feed this check; pick one inside its chain")
+        # THE EXPERIMENT: a plug that repairs the actual year by breaking
+        # the forecast years is the run-213 share-capital disease — any
+        # site, proven or not. Measure, don't assume.
+        fc_after = self._forecast_check_residuals()
+        hurt = [(k, fc_before.get(k), v) for k, v in fc_after.items()
+                if isinstance(v, (int, float))
+                and isinstance(fc_before.get(k), (int, float))
+                and abs(v) > abs(fc_before[k]) + 1.0]
+        if hurt:
+            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
+                              prior_coord=f"{pcol}{i_row}" if pcol else None,
+                              trusted=True, force_lock=True,
+                              note="plug reverted: forecast damage")
+            worst = max(hurt, key=lambda h: abs(h[2]))
+            return (f"REVERTED: plugging {into} zeroes {check} but BREAKS "
+                    f"the forecast years ({len(hurt)} worsened, e.g. "
+                    f"{worst[0]}: {worst[1]:,.1f} -> {worst[2]:,.1f}) — the "
+                    "run-213 disease. This site rolls into the forecasts; "
+                    "pick a site the probe leaves clean")
+        if proven:
+            ref_i = f"{i_sheet}!{i_col}{i_row}"
+            self.writer.log["flags"].append(ref_i)
+            cell_i = self.wb[i_sheet][f"{i_col}{i_row}"]
+            cell_i.fill = self.writer.fills["red"]
+            from openpyxl.comments import Comment
+            cell_i.comment = Comment(
+                (f"PLUG OVER PROVEN VALUE — this cell was served "
+                 f"{pe.get('value'):,.2f} from {pe.get('doc')} "
+                 f"p{pe.get('page')} and then absorbed the {check} "
+                 f"residual {residual:,.2f} as the sanctioned last resort "
+                 f"(forecast probe clean). ANALYST MUST RULE. {why[:150]}"),
+                "Model Update Agent")
+            return (f"PLUGGED {into} OVER A PROVEN VALUE: {held:,.2f} -> "
+                    f"{held - residual:,.2f} (RED, forecast-probe clean, "
+                    f"in the report). Check {check} now zero.")
         return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
                 f"(orange-flagged, in the report). Check {check} now zero.")
 

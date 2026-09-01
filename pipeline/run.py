@@ -717,6 +717,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             wb, writer,
             (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
             _sheet, _c["row"], _cols, _assets, log)
+    # THE HOLD TUNER (owner regression ruling 2026-09-01): a FLAT
+    # forecast residual left after all repairs means an auto-probe hold
+    # is off by exactly that constant — tune it by experiment
+    from .teachings import tune_holds
+    n_tune = tune_holds(wb, spec_d, target_year, writer, log)
+    if n_tune:
+        err_guard("hold tuner")
+        collapse_guard("hold tuner")
     # -- FORECAST INVIOLABILITY (the by-hand teaching, owner 2026-09-01,
     # replacing the sign-absurd freeze writer that broke run 204's
     # balance): the analyst's forecast formulas are never hardcoded.

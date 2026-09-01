@@ -430,3 +430,69 @@ def auto_probe_holds(wb, spec, target_year, fc_base, writer, log,
         else:
             cell.value = old_f            # experiment failed: restore
     return n
+
+
+def tune_holds(wb, spec, target_year, writer, log):
+    """THE HOLD TUNER (owner regression ruling 2026-09-01): when, after
+    every repair stage, the forecast years of a check all fail by the
+    SAME small constant, an auto-probe hold is off by exactly that
+    constant — one more experiment (±constant on each held cell, kept
+    only if every forecast year then ties) closes all years at once.
+    Measure, never assume. -> tunes applied."""
+    from .checks import forecast_columns, year_columns as _yc
+
+    def _fc_resids():
+        out = []
+        ev = Evaluator(wb)
+        for c in (spec.get("check_rows") or []):
+            sh, r = c.get("sheet"), int(c.get("row"))
+            if sh not in wb.sheetnames:
+                continue
+            for col in forecast_columns(spec, sh, int(target_year)):
+                try:
+                    v = ev.cell(sh, f"{col}{r}")
+                except Exception:
+                    continue
+                if isinstance(v, (int, float)):
+                    out.append(v)
+        return out
+
+    held_refs = []
+    for entry in writer.log.get("frozen", []):
+        m = re.match(r"^([^!]+)!([A-Z]{1,3})(\d+): held", str(entry))
+        if m:
+            held_refs.append((m.group(1), m.group(2), int(m.group(3))))
+    if not held_refs:
+        return 0
+    resids = _fc_resids()
+    live = [v for v in resids if abs(v) > 1.0]
+    if not live or max(live) - min(live) > 2.0 or abs(live[0]) > 5000:
+        return 0
+    const = live[0]
+    n = 0
+    for sheet, col, row in held_refs:
+        cell = wb[sheet][f"{col}{row}"]
+        if not isinstance(cell.value, (int, float)):
+            continue
+        old = cell.value
+        for sgn in (1, -1):
+            cell.value = round(old + sgn * const, 6)
+            after = [v for v in _fc_resids() if abs(v) > 1.0]
+            if not after:
+                if cell.comment is not None:
+                    from openpyxl.comments import Comment
+                    cell.comment = Comment(
+                        str(cell.comment.text)[:280]
+                        + f" | HOLD TUNED by {sgn * const:+,.1f}: the flat "
+                        "forecast residual proved the held value off by "
+                        "this constant; all forecast years now tie.",
+                        "Model Update Agent")
+                log(f"[run] hold tuner: {sheet}!{col}{row} "
+                    f"{old:g} -> {cell.value:g} — flat forecast residual "
+                    f"{const:+,.1f} closed in every year")
+                n += 1
+                break
+            cell.value = old
+        if n:
+            break
+    return n
