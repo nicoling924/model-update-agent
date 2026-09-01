@@ -53,7 +53,10 @@ def find_evidence(items, value):
                 continue
             hit = False
             for f in _SCALES:
-                if _close(n / f, value):
+                # sign-blind: disclosures print magnitudes; the MODEL owns
+                # the sign convention (costs stored negative). Direction is
+                # still policed by the prior tie + the transactional band.
+                if _close(abs(n) / f, abs(value)):
                     out.append((it, f))
                     hit = True
                     break

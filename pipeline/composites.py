@@ -105,11 +105,36 @@ def _kin_ok(per_full, lits, vals, row_label):
     literals). Empty row labels can't be checked — pass."""
     if not row_label:
         return True
-    from .numerics import kinship
-    for lit, val in zip(lits, vals):
-        for (_d, _p, lab) in per_full.get(lit, {}).get(val, set()):
-            if kinship(row_label, lab):
+    from .numerics import STOPWORDS, norm_label
+
+    def _stems(text):
+        return {w.rstrip("s") for w in norm_label(text).split()
+                if w not in STOPWORDS and len(w) > 2}
+
+    ws_row = _stems(row_label)
+    labels = [lab for lit, val in zip(lits, vals)
+              for (_d, _p, lab) in per_full.get(lit, {}).get(val, set())]
+    if ws_row:
+        for lab in labels:
+            if ws_row & _stems(lab):
                 return True
+    # statement labels are SHORT; prose fragments are sentences. A
+    # multi-literal composition whose every tying label reads like a
+    # statement line passes even without word overlap ('Other
+    # non-current liabilities' vs 'Deferred creditors and others' — no
+    # shared word, both plainly statement lines; the EnergyAustralia
+    # sentence fails on length).
+    if len(lits) >= 2:
+        ok_all = True
+        for lit, val in zip(lits, vals):
+            labs = [lab for (_d, _p, lab)
+                    in per_full.get(lit, {}).get(val, set())]
+            if not labs or not any(
+                    len(norm_label(lab).split()) <= 6 for lab in labs):
+                ok_all = False
+                break
+        if ok_all:
+            return True
     return False
 
 

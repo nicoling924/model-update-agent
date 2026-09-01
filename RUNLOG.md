@@ -562,3 +562,36 @@ sign-flipped short-term -1,768), RE plug removed for the true items
 to print, CFO/CFF definition-bridged (interest classification, both
 years), 2026 NP 11,632 vs analyst 11,819, ZERO new eval errors, new
 executive _REPORT composed. Deliverable: CLP Model FY25 (Fable).xlsx.
+
+## 2026-09-01 (overnight) — THE FABLE-DRIVE: Fable 5 drives the agent's own tools (owner's 3-part directive, part 3)
+
+Fable 5 replayed the loop by hand through the REAL tool interface
+(scratchpad fable_run/drive.py, no LLM) on the deterministic dry state.
+RESULT with ~30 actions: balance 0 every year 2019-2030 (both checks),
+ALL keys exact to the by-hand answer key (rev/OP/NP/EPS/CFO/CFI/CFF/
+equity/recurring NP), CF statement marked via write_backout composites,
+Final sheet 0 diffs vs answer. The experiment's real product was the
+autopsy of every wrong deterministic serve met on the way. Root causes
+fixed (all generic, museum-pinned, 92 exhibits green):
+- TIME-SIGNATURE LAW (join): wide-row read-across only when the next
+  number continues the time series (ties prior2) or is the delta —
+  kills segment-axis column errors (CN got HK's 52,048).
+- EXACT-BEATS-CLOSE (join): a 0.5%-band tie is refused when the prior
+  is printed exactly elsewhere — kills definition mismatches (contracts
+  36,972 tying total revenue 37,097) while restatements still tie.
+- UNCHANGED-LAUNDERING GUARD (bound tables): a non-face serve equal to
+  the row's own prior marked stale cells served-clean — refused.
+- HEADER-SITE LAW: input-site redirects and the reconcile prior index
+  skip year-header rows (a '31 Dec 2024' date line wrote 31 into AI2).
+- INPUT-TWIN RESOLUTION (reconcile): multi-home priors resolve to the
+  single non-formula home (D&A living on Driver AND SOC now serves).
+- SIGN-BLIND EVIDENCE (writegate): printed 5,832 proves -5,832; the
+  model owns the sign convention.
+- provenance.json now persisted per run (who served every cell);
+  find_line accepts name/query/label; write_backout documented in the
+  prompt; scorecard no longer promises "auto-plug closes this" while
+  plugs are withheld.
+Post-fix dry run serves Aus 34,191 / MI -879 / PCS -199 correctly BY
+ITSELF; replayed drive on the new base: keys all match, tripwires
+collapsed from 5 chains to 2 singletons. Remaining answer-key diffs are
+segment-detail back-outs (the loop's red queue), not serve errors.

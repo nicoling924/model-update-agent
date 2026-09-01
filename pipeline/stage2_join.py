@@ -235,6 +235,20 @@ def join(ledger, targets, log=None):
         s = page_scales[(it.doc, it.page)]
         ns = [to_model_units(n, s) for n in it.nums]
         pool_pre.append((it, s, ns, _kin_pre(norm_label(it.label))))
+    # EXACT-BEATS-CLOSE (Fable-drive autopsy 2026-09-01): 'Revenue from
+    # contracts with customers' 36,972 tied total-revenue prior 37,097
+    # inside the 0.5% world band — a DEFINITION mismatch, not rounding.
+    # The 0.5% band exists for restated comparatives (run-112), whose old
+    # number appears NOWHERE exactly. So: a loose tie (off > 0.6) is legal
+    # only when the prior has NO exact home anywhere in the pool.
+    exact_pool = set()
+    for _it, _s, ns, _k in pool_pre:
+        for n in ns:
+            exact_pool.add(int(round(abs(n))))
+
+    def _exact_home(pv):
+        k = int(round(abs(pv)))
+        return any(kk in exact_pool for kk in (k - 1, k, k + 1))
 
     decisions = []
     served, prov = {}, {}
@@ -263,6 +277,30 @@ def join(ledger, targets, log=None):
                 continue
             if not _in_world(prs[0][0], pv):
                 continue                   # per-share-next-to-total class
+            # THE TIME-SIGNATURE LAW (Fable-drive autopsy 2026-09-01:
+            # CN revenue served 52,048 = the HONG KONG column — its prior
+            # 1,801 tied inside a WIDE segment row [52048, 1801, 37097,
+            # ...] whose axis is SEGMENTS, not years). A wide row (3+
+            # material numbers) is only a time series at the tie if the
+            # number AFTER the tying prior continues the series — it must
+            # tie the row's prior2. A wide row without that signature is
+            # segment-axis: adjacent read-across is a column error.
+            i_tie = prs[0][1] + 1
+            if abs(abs(ns[i_tie]) - abs(pv)) > 0.6 and _exact_home(pv):
+                continue    # exact-beats-close: the prior is printed
+                            # exactly elsewhere — this off-by-% line is a
+                            # different definition, not a rounded identity
+            if i_tie + 1 < len(ns):
+                nxt, p2 = ns[i_tie + 1], t.prior2_value
+                sig = (isinstance(p2, (int, float))
+                       and abs(abs(nxt) - abs(p2))
+                       <= max(0.6, abs(p2) * 5e-4))
+                # a change column ((cur, prior, delta)) is also a legal
+                # time shape: delta = cur - prior
+                delta = abs(nxt - (prs[0][0] - ns[i_tie])) <= 1.0 \
+                    or abs(nxt - abs(prs[0][0] - ns[i_tie])) <= 1.0
+                if not (sig or delta):
+                    continue
             # THE VINTAGE GUARD (run-206: 'Long-term loans' served
             # 35,967 = the row's own PRIOR2 off a five-year series read
             # in the wrong direction). Last-last-year is never this year.
@@ -593,6 +631,15 @@ def join_bound_tables(ledger, targets, served, log=None):
                 if isinstance(t.prior2_value, (int, float)) \
                         and abs(abs(sv0) - abs(t.prior2_value)) \
                         <= max(0.6, abs(t.prior2_value) * 5e-4):
+                    continue
+                # THE UNCHANGED-LAUNDERING GUARD (Fable-drive autopsy
+                # 2026-09-01: PCS costs served -136 = the row's own
+                # prior off a prior-vintage table printing 136 twice —
+                # numerically a no-op, but it marked a STALE cell as
+                # served-clean, hiding it from the red-staleness queue).
+                # A non-face table asserting "unchanged" proves nothing:
+                # only a face statement may confirm an unchanged value.
+                if abs(abs(sv0) - abs(pv)) <= tol:
                     continue
                 cands.append((sv0, it, s))
         if not cands or len(cands) > MAX_CANDS:

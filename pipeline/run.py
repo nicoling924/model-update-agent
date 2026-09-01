@@ -14,6 +14,7 @@ client=None runs every deterministic stage and skips the LLM ones (the
 dry-run path); the museum plus a dry run is the pre-flight bar before any
 dispatch.
 """
+import json
 import shutil
 from pathlib import Path
 
@@ -87,6 +88,11 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
         if not s_tcol:
             n_skip += 1
             continue
+        s_hdr = (spec_d.get("year_axis") or {}).get(s_sheet,
+                                                    {}).get("header_row")
+        if s_hdr and int(s_row) == int(s_hdr):
+            n_skip += 1     # a formula that reads the YEAR HEADER redirects
+            continue        # here — a header is never a data input site
         if site != (sheet, row) and s_pcol:
             row_pv = (priors or {}).get((sheet, row))
             site_pv = wb[s_sheet][f"{s_pcol}{s_row}"].value
@@ -254,9 +260,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- Stage 2 (pure code): statement faces, then bound non-statement
     # tables (the Driver/MD&A path — council two-level binding)
+    # THE RECONCILIATION STAGE (owner ruling 2026-09-01): whole
+    # statements walked line-by-line — the by-hand method as the serve
+    # engine. Its serves are authoritative; the scattered joins only
+    # fill what reconciliation left open.
+    from .reconcile import reconcile
+    recon_serves, recon_map = reconcile(wb, spec_d, target_year, ledger,
+                                        log)
     served, decisions = join(ledger, targets, run_log)
     extra, dec2 = join_bound_tables(ledger, targets, served, run_log)
     served.update(extra)
+    served.update(recon_serves)      # reconciliation wins conflicts
     decisions += dec2
     for ln in run_log[-4:]:
         log(f"[run] {ln}")
@@ -740,6 +754,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                                encoding="utf-8")
     targets_mod.save(targets, replay_dir / "targets.json")
     (replay_dir / "run_log.txt").write_text("\n".join(run_log), encoding="utf-8")
+    # provenance: who served every cell — the debugging map without which
+    # a bad serve (wrong column, wrong vintage) cannot be attributed
+    prov = {f"{sh}!{r}": {k: e.get(k) for k in
+                          ("value", "doc", "page", "line", "conf", "note")}
+            for (sh, r), e in served.items() if isinstance(e, dict)}
+    (replay_dir / "provenance.json").write_text(
+        json.dumps(prov, ensure_ascii=False, indent=1), encoding="utf-8")
 
     tag = "" if ok else " QUARANTINE"
     out_path = (company_dir / "model"

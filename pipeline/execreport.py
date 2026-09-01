@@ -73,6 +73,36 @@ def _colmaps(cols, primary):
     return cols, idx, primary
 
 
+
+_PRE_EV = {}
+
+
+def _pre_val(pre_wb, sheet, row, col):
+    """A pre-model cell VALUE — evaluated when it holds a formula (the
+    run-208 lesson: the mini P&L's OLD table was empty on every
+    manual-calc model because data_only loads cache nothing)."""
+    try:
+        v = pre_wb[sheet].cell(row=row, column=col).value
+    except Exception:
+        return None
+    if isinstance(v, (int, float)):
+        return v
+    if isinstance(v, str) and v.startswith("="):
+        key = id(pre_wb)
+        if key not in _PRE_EV:
+            try:
+                from .evaluator import Evaluator
+                _PRE_EV[key] = Evaluator(pre_wb)
+            except Exception:
+                return None
+        from openpyxl.utils import get_column_letter
+        try:
+            got = _PRE_EV[key].cell(sheet, f"{get_column_letter(col)}{row}")
+        except Exception:
+            return None
+        return got if isinstance(got, (int, float)) else None
+    return None
+
 def gather_facts(wb, pre_wb, cols=None, primary=None):
     """Everything Luna needs to compose, as plain data. Deterministic.
     Sheets and column letters come from the SPEC (CLP-1 pin: 'Model'
@@ -115,8 +145,8 @@ def gather_facts(wb, pre_wb, cols=None, primary=None):
         nci = idx[primary][2]
         for r in range(3, min(pm.max_row, MAX_ROW) + 1):
             lab = _label_of(pm, r)
-            e = pm.cell(row=r, column=tci).value
-            n = (pm.cell(row=r, column=nci).value if nci else None)
+            e = _pre_val(pre_wb, primary, r, tci)
+            n = (_pre_val(pre_wb, primary, r, nci) if nci else None)
             if lab and isinstance(e, (int, float)):
                 facts["estimates"].append(
                     [r, lab, round(e, 1),
@@ -474,8 +504,8 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
             for i, cl in enumerate(pcols):
                 ov = None
                 if pre_wb is not None and mini_sheet in pre_wb.sheetnames:
-                    ov = pre_wb[mini_sheet].cell(
-                        row=mr, column=column_index_from_string(cl)).value
+                    ov = _pre_val(pre_wb, mini_sheet, mr,
+                                  column_index_from_string(cl))
                 cell(r, OLD0 + i,
                      round(ov, 4) if isinstance(ov, (int, float)) else "",
                      SMALL, None, vfmt)
@@ -807,7 +837,7 @@ def collect_delta_flags(wb, pre_wb, mini_rows, cols=None, primary=None,
         deltas = {}
         for i in range(-1, horizon + 1):
             col = target_col + i
-            ov = pw.cell(row=row, column=col).value
+            ov = _pre_val(pre_wb, primary, row, col)
             nv = ws.cell(row=row, column=col).value
             if value_of is not None and not isinstance(nv, (int, float)):
                 try:

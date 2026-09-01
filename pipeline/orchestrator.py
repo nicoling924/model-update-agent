@@ -300,7 +300,8 @@ class ObjectiveLoop:
         return "\n".join(out)
 
     def t_find_line(self, args):
-        q = str(args.get("name", "")).strip()
+        q = str(args.get("name") or args.get("query")
+                or args.get("label") or "").strip()
         if not q:
             return "MISS: empty query"
         qnum = None
@@ -939,6 +940,60 @@ class ObjectiveLoop:
                           if causes else " — trace_cell it"))
         return "\n".join(out)
 
+    def t_write_backout(self, args):
+        """THE BACK-OUT, first-class (owner's rule: back-outs are
+        FORMULAS, not hardcodes — the reader must trace how the number
+        was made). Write a back-out FORMULA into a composite cell when
+        the composition is justified by print: EVERY numeric literal in
+        the formula must appear on the cited page's lines (that is the
+        evidence), the why must cite the page, and the write is
+        transactional (band + revert like set_input). Lands orange."""
+        ref = str(args.get("cell", ""))
+        formula = str(args.get("formula", ""))
+        why = str(args.get("why", ""))
+        cr = self._cell_ref(ref)
+        if not cr:
+            return f"MISS: cell ref '{ref}' unparseable"
+        if not formula.startswith("="):
+            return "MISS: a back-out is a FORMULA (starts with '=')"
+        pm = re.search(r"p(?:age)?\.?\s*(\d+)", why, re.IGNORECASE)
+        if not pm:
+            return ("REFUSED: 'why' must cite the disclosure page — "
+                    "no citation, no write")
+        page = int(pm.group(1))
+        from .composites import literals_of
+        from .numerics import row_tol
+        lits = [float(x) for x in literals_of(formula)]
+        if not lits:
+            return ("MISS: the formula carries no literals — use "
+                    "set_input for plain values")
+        page_nums = [n for it in self.ledger.items
+                     if it.page == page for n in it.nums]
+        for v in lits:
+            tol = row_tol(abs(v), base=0.6 if abs(v) >= 100 else 0.01)
+            if not any(abs(abs(n) - abs(v)) <= tol for n in page_nums):
+                return (f"REFUSED: literal {v:g} is not printed on the "
+                        f"cited page p{page} — every component of a "
+                        "back-out must be a printed number")
+        sheet, col, row = cr
+        pcol = prior_column(self.spec, sheet, self.ty)
+        ok = self.writer.write(
+            sheet, f"{col}{row}", formula,
+            prior_coord=f"{pcol}{row}" if pcol else None,
+            flag="orange",
+            note=(f"BACK-OUT (house rule: formulas, traceable): "
+                  f"{formula} — every component printed on p{page}. "
+                  f"{why[:250]}"))
+        if not ok:
+            return ("REFUSED by write guard (band/lock) — the back-out "
+                    "value is out of world vs the prior")
+        try:
+            after = Evaluator(self.wb).cell(sheet, f"{col}{row}")
+        except Exception:
+            self.writer.log.setdefault("undo", [])
+            return "REVERTED: the back-out does not evaluate"
+        return f"WRITTEN {sheet}!{col}{row} = {formula} -> {after:,.2f} (orange)"
+
     def t_rewrite_constants(self, args):
         """THE CONSTANTS LAW, on demand (owner ruling 2026-08-31): a
         formula still embedding last year's literals (=4976+23) that
@@ -1005,9 +1060,14 @@ class ObjectiveLoop:
         forced_flag = args.get("flag")
         pc0 = prior_column(self.spec, sheet, self.ty)
         pv0 = self.wb[sheet][f"{pc0}{row}"].value if pc0 else None
+        if isinstance(pv0, str) and pv0.startswith("="):
+            try:
+                pv0 = Evaluator(self.wb).cell(sheet, f"{pc0}{row}")
+            except Exception:
+                pv0 = None
+        corro = False
         if isinstance(pv0, (int, float)) and abs(pv0) >= 10:
             m_pg = re.search(r"p(?:age)?\.?\s*(\d+)", why, re.IGNORECASE)
-            corro = False
             if m_pg:
                 pg = int(m_pg.group(1))
                 tol0 = row_tol(pv0, base=0.6 if abs(pv0) >= 100 else 0.01)
@@ -1092,7 +1152,13 @@ class ObjectiveLoop:
         after_card = self._card()
         after_fails = {c["name"] for c in after_card["checks"]
                        if c["status"] == "FAIL"}
-        worsened = sorted(
+        # THE RUN-39 LAW, as WRITTEN: revert what breaks previously-
+        # PASSING checks. Worsening an already-failing check is
+        # allowed for a PRIOR-CORROBORATED cited write — truth arrives
+        # in steps (the RE fix must land before the PCS fold closes
+        # the residual; per-write reverts made multi-step corrections
+        # impossible — the Fable-drive finding).
+        worsened = [] if corro else sorted(
             c["name"] for c in after_card["checks"]
             if c["status"] == "FAIL"
             and isinstance(c.get("got"), (int, float))
@@ -1350,6 +1416,7 @@ class ObjectiveLoop:
              "apply_diff": t_apply_diff, "diagnose_balance": t_diagnose_balance,
              "plug_residual": t_plug_residual,
              "rewrite_constants": t_rewrite_constants,
+             "write_backout": t_write_backout,
              "trace_error": t_trace_error,
              "forecast_diff": t_forecast_diff,
              "probe": t_probe, "hold_forecast": t_hold_forecast,

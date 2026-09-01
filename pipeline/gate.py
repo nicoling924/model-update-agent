@@ -230,7 +230,7 @@ def sign_absurd_rows(wb, spec, target_year):
 def driver_roll(wb, spec, target_year, pre_map, writer_log=None):
     """Gate 4. Forecast columns keep formulas where they had them, and no
     UNADJUDICATED sign-absurd first-forecast value. The assumption freeze
-    and the terminal sign-absurd freeze are the authorized
+    and the agent's probe-proven holds are the authorized
     formula->hardcode replacements — every freeze is in
     writer_log["frozen"]. A sign-absurd row carrying a loop verdict
     (writer_log["verdicts"]) is adjudicated: reported on _REPORT, not

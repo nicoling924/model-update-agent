@@ -146,8 +146,10 @@ def summarize(card, target_year, flags=None, spec=None, wb=None):
         lines.append(f"  FAIL {c['name']}: "
                      + (f"{c['got']:,.0f} vs {c['expect']:,.0f}"
                         if isinstance(c["got"], (int, float)) else "n/a")
-                     + "  (auto-plug closes this at delivery — attribute "
-                       "what you can inside the window, then LEAVE it)")
+                     + "  (once the ACTUAL year ties, the delivery plug "
+                       "closes this — attribute what you can inside the "
+                       "window; plugs stay WITHHELD while the actual year "
+                       "is off)")
     if not ty_fails and flags:
         reds = []
         if wb is not None:

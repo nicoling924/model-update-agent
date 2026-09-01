@@ -2001,6 +2001,125 @@ def test_208_twin_backout():
     assert wb["S"]["U70"].value.startswith("=(176128)-("), wb["S"]["U70"].value
 
 
+# ── Exhibits: the Fable-drive autopsy (2026-09-01) ───────────────────────
+# Fable 5 drove the loop by hand on CLP FY25 and root-caused every wrong
+# deterministic serve it met. Each law below killed a real shipped poison.
+
+
+def test_fd_time_signature_refuses_segment_axis():
+    # CN revenue served 52,048 = the HONG KONG column: its prior 1,801
+    # tied inside the wide SEGMENT row [52048, 1801, 37097, 3, 90964]
+    # whose axis is segments, not years — read-across is a column error.
+    items = _anchors() + [
+        _item(95, 10, "revenue seg", [52048.0, 1801.0, 37097.0, 3.0,
+                                      90964.0])]
+    targets = _anchor_targets() + [
+        TargetRow("Model", 9, "revenue seg", 1801.0, prior2_value=1750.0)]
+    served, _ = join(_ledger(items), targets)
+    assert ("Model", 9) not in served, \
+        f"segment-axis read-across re-admitted: {served.get(('Model', 9))}"
+
+
+def test_fd_time_signature_allows_series_and_delta():
+    # a five-year statistics row IS a time series (next number ties
+    # prior2), and a (current, prior, change) row is a legal time shape
+    items = _anchors() + [
+        _item(95, 10, "series row", [1872.0, 1801.0, 1750.0, 1700.0]),
+        _item(95, 11, "change row", [34191.0, 37097.0, -2906.0, -7.8])]
+    targets = _anchor_targets() + [
+        TargetRow("Model", 9, "series row", 1801.0, prior2_value=1750.0),
+        TargetRow("Model", 10, "change row", 37097.0, prior2_value=33190.0)]
+    served, _ = join(_ledger(items), targets)
+    assert abs(served[("Model", 9)]["value"] - 1872.0) < 1e-9
+    assert abs(served[("Model", 10)]["value"] - 34191.0) < 1e-9
+
+
+def test_fd_exact_beats_close():
+    # 'Revenue from contracts with customers' 36,972 tied total-revenue
+    # prior 37,097 inside the 0.5% world band — a DEFINITION mismatch.
+    # The exact number is printed elsewhere, so the loose tie is refused;
+    # with no exact home anywhere (a restated comparative), it may serve.
+    contracts = _item(95, 10, "revenue total", [34066.0, 36972.0])
+    exact = _item(95, 11, "unrelated line", [37097.0, 12.0])
+    targets = _anchor_targets() + [
+        TargetRow("Model", 9, "revenue total", 37097.0,
+                  prior2_value=33190.0)]
+    served, _ = join(_ledger(_anchors() + [contracts, exact]), targets)
+    assert ("Model", 9) not in served, \
+        "definition-mismatch tie re-admitted despite an exact home"
+    served2, _ = join(_ledger(_anchors() + [contracts]), targets)
+    assert ("Model", 9) in served2, \
+        "restated-comparative loose tie starved (run-112 law broken)"
+
+
+def test_fd_unchanged_laundering_refused():
+    # bound tables: PCS costs served -136 = the row's own prior off a
+    # prior-vintage table — numerically a no-op that marked a STALE cell
+    # served-clean, hiding it from the red-staleness queue.
+    from pipeline.stage2_join import join_bound_tables
+    items = [
+        _item(60, 1, "alpha", [500.0, 480.0], table_id=3),
+        _item(60, 2, "beta", [700.0, 690.0], table_id=3),
+        _item(60, 3, "gamma", [900.0, 880.0], table_id=3),
+        _item(60, 4, "pcs holders", [136.0, 136.0], table_id=3)]
+    targets = [
+        TargetRow("M", 1, "alpha", 480.0), TargetRow("M", 2, "beta", 690.0),
+        TargetRow("M", 3, "gamma", 880.0),
+        TargetRow("M", 4, "pcs holders", 136.0, prior2_value=139.0)]
+    led = _ledger(items, face_pages=((95, "pl"),))
+    served, _ = join_bound_tables(led, targets, {})
+    assert ("M", 4) not in served, \
+        "unchanged-value laundering re-admitted from a non-face table"
+
+
+def test_fd_evidence_sign_blind():
+    # SoC depreciation -5,832 was refused because the ledger prints the
+    # magnitude 5,832 — the MODEL owns the sign convention.
+    from pipeline.writegate import find_evidence
+    row = _item(243, 5, "Depreciation", [5832.0, 5683.0])
+    assert find_evidence([row], -5832.0), \
+        "sign-blind evidence broken: printed 5,832 must prove -5,832"
+
+
+def test_fd_reconcile_header_and_input_twin():
+    # (a) the year-header row (prior = numeric 2024) must never enter the
+    # prior index — a '31 December 2024' date line served 31 into it;
+    # (b) a prior living on TWO sheets (formula twin + input twin)
+    # resolves to the single INPUT home instead of being skipped.
+    import openpyxl
+    from pipeline.reconcile import reconcile
+
+    class _L:
+        def __init__(self, items):
+            self.items = items
+
+        def prior_period_docs(self):
+            return set()
+
+        def join_pool(self):
+            return self.items
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["T2"], ws["U2"] = 2024, 2025          # header row: numeric years
+    ws["T3"], ws["T4"] = 58000.0, 39000.0    # scale anchors
+    ws["T7"], ws["U7"] = 5683.0, 4000.0      # input home
+    wb.create_sheet("D")
+    wb["D"]["T7"], wb["D"]["U7"] = "=S!T7", "=S!U7"   # formula twin
+    spec = {"year_axis": {
+        "S": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2},
+        "D": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    items = _anchors() + [_item(95, 5, "opening date", [31.0, 2024.0]),
+                          _item(95, 6, "depreciation", [5832.0, 5683.0])]
+    serves, _m = reconcile(wb, spec, 2025, _L(items), lambda s: None)
+    assert ("S", 2) not in serves and ("D", 2) not in serves, \
+        "date line served into the year-header row again"
+    assert ("S", 7) in serves and abs(serves[("S", 7)]["value"] - 5832) < 1, \
+        f"multi-home input twin unresolved: {sorted(serves)}"
+    assert ("D", 7) not in serves, "formula twin must not be written"
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

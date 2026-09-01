@@ -193,6 +193,12 @@ with both readings, never a silent choice.
   replaced by that line's current figure, composition preserved,
   orange. Refuses (with the evidence it found) unless every literal
   proves.
+- `write_backout {"cell": "Final!AI19", "formula": "=1595-12", "why":
+  "p214: ..."}` — the owner's back-out law as a first-class write: a
+  FORMULA whose every numeric literal is printed on the cited page (cell
+  references are free), for compositions the disclosure prints only in
+  parts. Orange, transactional. Use it instead of a hardcode whenever
+  the number is COMPUTED from printed components.
 - `plug_residual {"check": "Model!95", "into": "Sheet!U177", "why": "..."}`
   — worst case only; orange-flagged, reported, refused while guilty cells
   remain, auto-reverted if it does not zero the check.
@@ -322,7 +328,9 @@ it, follow the suspect component, then close it with `verdict`:
   (the row disappears from the list when it stops computing negative);
 - **JUSTIFIED** — the disclosure genuinely supports a negative (say
   why); the row then stands as the analyst's view;
-- **SUSPICIOUS** — unresolved after your pass; the terminal freeze
-  holds it at its pre-update value so nonsense never ships live.
+- **SUSPICIOUS** — unresolved after your pass; the row stays LIVE
+  (the analyst's formula is never frozen) and lands red on _REPORT
+  with the cause named. Prefer probing the actual-column cause
+  (`probe` / `hold_forecast`) over leaving a SUSPICIOUS.
 An UNEXAMINED tripwire refuses delivery — same law as unexamined reds.
 Tripwire work never counts against the forecast attribution window.
