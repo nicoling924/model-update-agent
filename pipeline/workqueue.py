@@ -105,8 +105,11 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     # audit: the whole SoC statement block was invisible to cards).
     # The face tag stays on every candidate; the writegate still
     # referees the answer.
+    bad = loop.ledger.noncurrent_docs()
+    pv_tabs = getattr(loop.ledger, "_pv_tables", set())
     pool = [it for it in loop.ledger.items
-            if it.joinable() and periods.get(it.doc) != "prior"]
+            if it.joinable() and it.doc not in bad
+            and (it.doc, it.page, it.table_id) not in pv_tabs]
     priors = [tt.prior_value for tt in loop.targets.values()
               if isinstance(tt.prior_value, (int, float))]
     scales = ratify_page_scales(pool, priors, [])
@@ -649,6 +652,17 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
                     loop.writer.log.get("flags", [])
                 why_moot = ("no candidates" if in_flags
                             else "flag cleared")
+                if in_flags:
+                    # zero candidates IS an examination (the move-on
+                    # law): document the look so the gate counts a
+                    # finding, not neglect
+                    loop.TOOLS["flag_cell"](loop, {
+                        "cell": f"{item.sheet}!{item.row}",
+                        "why": ("card rendered with ZERO candidates — "
+                                "no current-document line ties this "
+                                "row's prior at any scale; not "
+                                "disclosed by triangulation, held at "
+                                "prior for the analyst")})
                 log(f"[queue] MOOT SERVE {item.sheet}!{item.row} "
                     f"({why_moot})")
             else:

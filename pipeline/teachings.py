@@ -496,3 +496,191 @@ def tune_holds(wb, spec, target_year, writer, log):
         if n:
             break
     return n
+
+
+def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
+    """THE ROLL-BASE CONSISTENCY LAW (owner ruling 2026-09-01, the flat-
+    forecast-gap autopsy — and the mechanization of the standing
+    checklist line "roll-forward bases re-anchored to actual closings").
+
+    A quantity often has TWO homes at the anchor year: the actual
+    column's typed value (marked to disclosure) and the cells the
+    FORECAST formula rolls from. The model only works if they agree —
+    a correct hardcode over a stale roll base balances the actual year
+    while every forecast year is born broken by a constant.
+
+    The test is the model's own arithmetic: point the first-forecast
+    formula back one year (Excel copy-paste semantics) and evaluate.
+    If it does not reproduce the typed actual, the roll base is stale:
+    red-flag the base's stale INPUT cells (they join the work queue as
+    load-bearing) and report the row. Generic — no labels, no sheets,
+    no companies. -> mismatches found."""
+    from .writer import shift_formula_excel
+    from openpyxl.comments import Comment
+    ev = Evaluator(wb)
+    n = 0
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        fcs = forecast_columns(spec, sheet, target_year)
+        if not tcol or not fcs:
+            continue
+        from openpyxl.utils import column_index_from_string
+        offset = column_index_from_string(tcol) \
+            - column_index_from_string(fcs[0])
+        ws = wb[sheet]
+        for r in range(1, min(ws.max_row, 300) + 1):
+            h = ws[f"{tcol}{r}"].value
+            f = ws[f"{fcs[0]}{r}"].value
+            if not isinstance(h, (int, float)) or abs(h) < 50:
+                continue
+            if not (isinstance(f, str) and f.startswith("=")):
+                continue
+            refs = re.findall(r"[A-Z]{1,3}\d+", f.replace("$", ""))
+            if not refs or f"{tcol}{r}" in refs:
+                continue          # forecast reads the actual: consistent
+            # the one-offset shift is only valid when every referenced
+            # sheet shares this sheet's year axis
+            axis_ok = True
+            for ms in re.finditer(r"(?:'([^']+)'|([A-Za-z0-9_]"
+                                  r"[A-Za-z0-9 _]*))!", f):
+                sh2 = (ms.group(1) or ms.group(2)).strip()
+                if sh2 in wb.sheetnames and (
+                        year_columns(spec, sh2).get(str(target_year))
+                        != tcol
+                        or forecast_columns(spec, sh2, target_year)[:1]
+                        != fcs[:1]):
+                    axis_ok = False
+                    break
+            if not axis_ok:
+                continue
+            shifted = shift_formula_excel(f, offset)
+            try:
+                got = ev.cell_formula(sheet, shifted) \
+                    if hasattr(ev, "cell_formula") else None
+            except Exception:
+                got = None
+            if got is None:
+                # evaluate via a scratch cell, then restore
+                scratch = f"ZZ{r}"
+                old = ws[scratch].value
+                ws[scratch] = shifted
+                try:
+                    got = Evaluator(wb).cell(sheet, scratch)
+                except Exception:
+                    got = None
+                ws[scratch] = old
+            if not isinstance(got, (int, float)):
+                continue
+            gap = got - h
+            if abs(gap) <= max(tol_base, abs(h) * 5e-3):
+                continue
+            n += 1
+            cell = ws[f"{fcs[0]}{r}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = Comment(
+                (f"ROLL-BASE MISMATCH: this row's {target_year} actual is "
+                 f"typed as {h:,.1f}, but the model's own forecast "
+                 f"formula, pointed back one year, computes {got:,.1f} "
+                 f"(gap {gap:+,.1f}) — the cells it rolls from were not "
+                 "re-anchored to the actual closing. Fix the roll base, "
+                 "not this cell."), "Model Update Agent")
+            writer.log["flags"].append(f"{sheet}!{fcs[0]}{r}")
+            # the base's stale inputs join the red queue, load-bearing
+            for m in re.finditer(
+                    r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
+                    r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
+                sh2 = (m.group(1) or m.group(2) or sheet).strip()
+                if sh2 not in wb.sheetnames:
+                    continue
+                c2, r2 = m.group(3), int(m.group(4))
+                v2 = wb[sh2][f"{c2}{r2}"].value
+                pcol2 = prior_column(spec, sh2, target_year)
+                if not pcol2 or c2 != year_columns(
+                        spec, sh2).get(str(target_year)):
+                    continue
+                pv2 = wb[sh2][f"{pcol2}{r2}"].value
+                if isinstance(v2, (int, float)) \
+                        and isinstance(pv2, (int, float)) \
+                        and abs(v2 - pv2) <= row_tol(pv2) \
+                        and f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
+                    wb[sh2][f"{c2}{r2}"].fill = writer.fills["red"]
+                    wb[sh2][f"{c2}{r2}"].comment = Comment(
+                        (f"STALE ROLL BASE: still holds last year's "
+                         f"{pv2:,.1f} while the {sheet}!{r} roll it feeds "
+                         f"misses its typed actual by {gap:+,.1f}."),
+                        "Model Update Agent")
+                    writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+            # THE ROLL-BASE BACK-OUT (owner's ladder rule (a), applied
+            # generically: when the base has exactly ONE stale input and
+            # no disclosure serves it, the typed actual DEFINES it —
+            # derive it from the total by the model's own arithmetic,
+            # as a traceable formula). Solvability is tested by
+            # perturbation, never assumed: bump the unknown 1.0; only a
+            # unit-linear response solves exactly.
+            stale_inputs = []
+            seen_leaf = set()
+
+            def _walk(sh2, c2, r2, depth=0):
+                if depth > 5 or (sh2, c2, r2) in seen_leaf:
+                    return
+                seen_leaf.add((sh2, c2, r2))
+                if sh2 not in wb.sheetnames:
+                    return
+                v2 = wb[sh2][f"{c2}{r2}"].value
+                if isinstance(v2, str) and v2.startswith("="):
+                    for m2 in re.finditer(
+                            r"(?:'([^']+)'|([A-Za-z0-9_]"
+                            r"[A-Za-z0-9 _]*))?!?([A-Z]{1,3})(\d+)",
+                            v2.replace("$", "")):
+                        _walk((m2.group(1) or m2.group(2) or sh2).strip(),
+                              m2.group(3), int(m2.group(4)), depth + 1)
+                    return
+                if c2 != year_columns(spec, sh2).get(str(target_year)):
+                    return
+                pcol2 = prior_column(spec, sh2, target_year)
+                pv2 = wb[sh2][f"{pcol2}{r2}"].value if pcol2 else None
+                if isinstance(v2, (int, float)) \
+                        and isinstance(pv2, (int, float)) \
+                        and abs(v2 - pv2) <= row_tol(pv2):
+                    stale_inputs.append((sh2, c2, r2, v2))
+
+            for m in re.finditer(
+                    r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
+                    r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
+                _walk((m.group(1) or m.group(2) or sheet).strip(),
+                      m.group(3), int(m.group(4)))
+            if len(stale_inputs) == 1:
+                sh2, c2, r2, v2 = stale_inputs[0]
+                cellu = wb[sh2][f"{c2}{r2}"]
+                cellu.value = v2 + 1.0
+                # re-evaluate the shifted formula with the bump
+                scratch = f"ZZ{r}"
+                old_s = ws[scratch].value
+                ws[scratch] = shifted
+                try:
+                    got2 = Evaluator(wb).cell(sheet, scratch)
+                except Exception:
+                    got2 = None
+                ws[scratch] = old_s
+                cellu.value = v2
+                if isinstance(got2, (int, float)) \
+                        and abs((got2 - got) - 1.0) <= 1e-6:
+                    solved = v2 - gap
+                    ok = writer.write(
+                        sh2, f"{c2}{r2}", f"=({v2:g})+({-gap:g})",
+                        prior_coord=None, trusted=True, flag="orange",
+                        note=(f"ROLL-BASE BACK-OUT: {sheet}!{r}'s typed "
+                              f"{target_year} actual {h:,.1f} defines this "
+                              f"input (only stale unknown in the roll): "
+                              f"{v2:,.1f} + {-gap:,.1f} = {solved:,.1f}. "
+                              "True up when disclosed."))
+                    if ok:
+                        log(f"[run]   roll-base back-out: {sh2}!{c2}{r2} "
+                            f"= {v2:,.1f} + {-gap:,.1f} (defined by "
+                            f"{sheet}!{r}'s typed actual)")
+            log(f"[run] roll-base mismatch: {sheet}!{r} actual {h:,.1f} "
+                f"vs its own roll {got:,.1f} (gap {gap:+,.1f}) — base "
+                "inputs flagged for the queue")
+    return n

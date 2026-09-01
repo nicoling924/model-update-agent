@@ -281,9 +281,9 @@ class Ledger:
         joinable AND on a statement-face page (face authority is a pool
         property — parent pages were never admitted to the map) AND not
         from a prior-period document."""
-        prior_docs = self.prior_period_docs()
+        bad = self.noncurrent_docs()
         return [it for it in self.items
-                if it.joinable() and it.doc not in prior_docs
+                if it.joinable() and it.doc not in bad
                 and self.faces.get((it.doc, it.page)) in JOIN_FACES]
 
     def classify_doc_periods(self, priors, deep_priors=None):
@@ -361,12 +361,73 @@ class Ledger:
                 out[doc] = "prior"
             else:
                 out[doc] = "unknown"
+        # THE SLOT-SIDE VOTE (2026-09-01: the FY24 annual report scored
+        # 'unknown' on the deep-prior vote and its comparative tables
+        # poisoned candidates all night). The model KNOWS last year: in
+        # a prior-period document the FIRST number of a line ties the
+        # model's priors (their current year IS our prior); in a
+        # current-period document the SECOND does. Whichever side
+        # dominates names the vintage — language-free, filename-free.
+        # PRIOR-VINTAGE TABLES (2026-09-01: the current RA's own FY24
+        # comparative segment table fed junk compositions all night —
+        # current DOC, prior-year TABLE). Same slot-side law at table
+        # granularity: a table most of whose lines carry a model PRIOR
+        # as their FIRST number is printing last year, whatever document
+        # it lives in. Consumers exclude these from current-year
+        # evidence pools.
+        tie_all = make_ties(sorted(P)) if P else None
+        self._pv_tables = set()
+        if tie_all is not None:
+            from collections import defaultdict
+            per_table = defaultdict(lambda: [0, 0])
+            for it in self.items:
+                if len(it.nums) < 2 or it.table_id is None:
+                    continue
+                k = (it.doc, it.page, it.table_id)
+                per_table[k][1] += 1
+                if tie_all(it.nums[0]):
+                    per_table[k][0] += 1
+            for k, (nt, nl) in per_table.items():
+                if nt >= 4 and nt / nl >= 0.5:
+                    self._pv_tables.add(k)
+        if tie_all is not None:
+            for doc, k in list(out.items()):
+                if k != "unknown":
+                    continue
+                n1 = n2 = nl = 0
+                for it in self.items:
+                    if it.doc != doc or len(it.nums) < 2:
+                        continue
+                    nl += 1
+                    if tie_all(it.nums[0]):
+                        n1 += 1
+                    if tie_all(it.nums[1]):
+                        n2 += 1
+                if nl >= 20:
+                    f1, f2 = n1 / nl, n2 / nl
+                    if f1 >= 0.15 and f1 > 1.5 * f2:
+                        out[doc] = "prior"
+                    elif f2 >= 0.15 and f2 > 1.5 * f1:
+                        out[doc] = "current"
         self._doc_periods = out
         return out
 
     def prior_period_docs(self):
         return {d for d, k in (getattr(self, "_doc_periods", None) or {}).items()
                 if k == "prior"}
+
+    def noncurrent_docs(self):
+        """Docs that may NOT source current-year values: 'prior' ones,
+        plus 'unknown'-vintage ones whenever at least one doc PROVED
+        current (2026-09-01: the restated-comparative FY24 AR defeats
+        every numeric vintage vote — restatement kills its ties — and
+        its comparative tables poisoned candidates all night. Unknown
+        vintage is context, never evidence, once a proven-current doc
+        exists)."""
+        periods = getattr(self, "_doc_periods", None) or {}
+        if any(k == "current" for k in periods.values()):
+            return {d for d, k in periods.items() if k != "current"}
+        return self.prior_period_docs()
 
     # -- pinned-snapshot serialization ---------------------------------------
 

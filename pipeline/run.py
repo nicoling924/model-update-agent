@@ -568,6 +568,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     err_guard("twin re-anchor")
     collapse_guard("twin re-anchor")
 
+    # -- ROLL-BASE CONSISTENCY (owner ruling 2026-09-01): every typed
+    # actual whose forecast is computed must be REPRODUCED by its own
+    # roll formula pointed back one year — a right hardcode over a stale
+    # roll base balances the actual year and breaks every forecast year
+    # by a constant. Stale base inputs are flagged into the queue.
+    from .teachings import roll_base_mismatches
+    n_rb = roll_base_mismatches(wb, spec_d, target_year, writer, log)
+    if n_rb:
+        log(f"[run] roll-base consistency: {n_rb} rows roll from bases "
+            "that do not reproduce their typed actuals — base inputs "
+            "flagged for the queue")
+
     # -- THE MOVE-ON LAW (owner ruling 2026-08-31): code does the
     # exhaustive not-disclosed looking for every stale red; the loop's
     # queue shrinks to the rows where evidence actually exists.

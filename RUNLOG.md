@@ -761,3 +761,25 @@ live experiment shows zero forecast damage; lands RED). Everything
 else the era added is neutral-or-better: the queue itself took the
 machinery from keys 2/11 to 7/11 and closed 2025. Current head =
 best machinery state of any commit, ever.
+
+## 2026-09-01 (late) — GENERIC LAWS FROM THE 196/424 TRACE (no dispatches)
+
+Owner rulings applied: no patches, teach thinking, all offline (zero
+LLM cost). Root-caused via the asymmetry experiment (nudge each 2025
+input, see which move forecasts but not 2025) and fixed as laws:
+- ROLL-BASE CONSISTENCY: every typed actual must be reproduced by its
+  own forecast formula pointed back one year; stale base inputs
+  red-flag into the queue (found ROAFNA -1,190, India!7 -642 unaided).
+- UNCHANGED-COMPONENT + pair-outranks-identity + all-identity-refused
+  (composites): a literal printed this year with no YoY pair may stand.
+- NARROW-LINE LAW (composites): a composition component is a =<3-number
+  line; wide segment/series rows are never YoY sources.
+- CURRENT-DOC-ONLY POOLS: unknown-vintage docs (the restated FY24 AR
+  defeats every numeric vote) are context, never evidence, once any doc
+  proves current. PRIOR-VINTAGE TABLES (slot-side vote per table)
+  excluded everywhere.
+RESULT (all offline, scripted answerers): CF composite =2254-235-15 now
+rewrites to =1860-194-15 EXACT to the answer key; ceiling run: 2025
+balance CLOSED at 0, forecasts flat 424 (remaining roll bases whose
+values are unprinted — back-out/cards work), India flag budget 16%
+vs 15%. Museum 100 green throughout.
