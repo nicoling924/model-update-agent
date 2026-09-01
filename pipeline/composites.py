@@ -92,24 +92,43 @@ def candidates(ledger, lit):
                     if not (v / 5.0 <= cur <= v * 5.0):
                         continue
                     found.setdefault(round(cur, 2), set()).add(
-                        (it.doc, it.page))
+                        (it.doc, it.page, str(it.label)[:60]))
         return found
 
     return scan([1]) or scan([s for s in SCALES if s != 1])
 
 
-def prove_cell(ledger, lits):
+def _kin_ok(per_full, lits, vals, row_label):
+    """At least ONE tying line of the chosen combination must be kin to
+    the row's own label (run-208: 'Other assets' rewrote from an
+    EnergyAustralia prose sentence that coincidentally carried both
+    literals). Empty row labels can't be checked — pass."""
+    if not row_label:
+        return True
+    from .numerics import kinship
+    for lit, val in zip(lits, vals):
+        for (_d, _p, lab) in per_full.get(lit, {}).get(val, set()):
+            if kinship(row_label, lab):
+                return True
+    return False
+
+
+def prove_cell(ledger, lits, row_label=""):
     """The composition proof (the by-hand method, mechanized): the
     disclosure prints a statement as a PAGE, so a composition's members
-    live together — every literal must resolve on a COMMON page, and
-    every qualifying page must yield the SAME combination (the
-    announcement and the statements corroborating each other).
-    -> ({lit: (value, pages)}, None) or (None, why)."""
-    per = {}
+    live together — every literal must resolve on a COMMON page, every
+    qualifying page must yield the SAME combination (corroboration
+    resolves disagreements by page majority), and at least one tying
+    line must be KIN to the row's own label (prose-junk guard).
+    -> ({lit: (value, src)}, None) or (None, why)."""
+    per_full, per = {}, {}
     for lit in lits:
-        per[lit] = candidates(ledger, lit)
-        if not per[lit]:
+        got = candidates(ledger, lit)
+        if not got:
             return None, f"{lit}: no face line's comparative ties it"
+        per_full[lit] = got
+        per[lit] = {v: {(d, p) for (d, p, _l) in ps}
+                    for v, ps in got.items()}
     common = set.intersection(*(
         {p for ps in per[lit].values() for p in ps} for lit in lits))
     if not common:
@@ -130,20 +149,21 @@ def prove_cell(ledger, lits):
             combos.setdefault(tuple(vals), []).append(pg)
     if not combos:
         return None, "composition ambiguous on every common page"
-    if len(combos) > 1:
+    ranked = sorted(combos.items(), key=lambda kv: -len(kv[1]))
+    if len(ranked) > 1:
         # CORROBORATION RESOLVES (run-206: the true finance-cost pair
-        # 1,860+194 prints on the P&L face AND the CF note; the false
-        # 2,717+220 is one oldest-first five-year series read backwards
-        # — the majority of independent pages is the by-hand tiebreak)
-        ranked = sorted(combos.items(), key=lambda kv: -len(kv[1]))
-        if len(ranked[0][1]) >= 2 \
-                and len(ranked[0][1]) > len(ranked[1][1]):
-            vals, pages = ranked[0]
-            src = ", ".join(f"{d} p{p}" for d, p in sorted(pages)[:3])
-            return {lit: (v, src) for lit, v in zip(lits, vals)}, None
-        return None, ("pages disagree on the combination: " + "; ".join(
-            "+".join(f"{v:,.0f}" for v in k) for k in list(combos)[:3]))
-    vals, pages = next(iter(combos.items()))
+        # prints on the P&L face AND the CF note; the false one is a
+        # single oldest-first series read backwards)
+        if not (len(ranked[0][1]) >= 2
+                and len(ranked[0][1]) > len(ranked[1][1])):
+            return None, ("pages disagree on the combination: "
+                          + "; ".join("+".join(f"{v:,.0f}" for v in k)
+                                      for k in list(combos)[:3]))
+    vals, pages = ranked[0]
+    if not _kin_ok(per_full, lits, vals, row_label):
+        return None, ("no tying line is kin to the row's own label — "
+                      "probably a dense page's prose (run-208 lesson); "
+                      "cell untouched")
     src = ", ".join(f"{d} p{p}" for d, p in sorted(pages)[:3])
     return {lit: (v, src) for lit, v in zip(lits, vals)}, None
 
@@ -196,7 +216,13 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
                                "actual; cell untouched")
         lits = big + [x for x in lits if abs(float(x)) < VINTAGE_FLOOR
                       and candidates(ledger, x)]
-    proof, why = prove_cell(ledger, lits)
+    row_label = ""
+    for lc in ("A", "B", "C", "D", "E"):
+        lv = wb[sheet][f"{lc}{row}"].value
+        if isinstance(lv, str) and lv.strip():
+            row_label = lv.strip()
+            break
+    proof, why = prove_cell(ledger, lits, row_label=row_label)
     if proof is None:
         return False, (f"{sheet}!{tcol}{row} UNPROVEN — {why} "
                        "— cell untouched, stays red")

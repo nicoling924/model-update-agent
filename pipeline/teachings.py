@@ -101,6 +101,21 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
     # index: prior value -> rows holding it (from the pre file, evaluated
     # cheaply from raw cells; formulas use their cached value if any)
     homes = defaultdict(list)
+    ev = Evaluator(wb)
+
+    def _pval(sheet, pcol, r):
+        v = wb[sheet][f"{pcol}{r}"].value
+        if isinstance(v, (int, float)):
+            return v
+        if isinstance(v, str) and v.startswith("="):
+            try:
+                got = ev.cell(sheet, f"{pcol}{r}")
+            except Exception:
+                return None
+            if isinstance(got, (int, float)):
+                return got
+        return None
+
     for sheet in (spec.get("year_axis") or {}):
         if sheet not in wb.sheetnames:
             continue
@@ -109,11 +124,10 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
             continue
         ws = wb[sheet]
         for r in range(1, min(ws.max_row, 300) + 1):
-            pv = ws[f"{pcol}{r}"].value
+            pv = _pval(sheet, pcol, r)      # priors live behind formulas
             if isinstance(pv, (int, float)) and abs(pv) >= min_val:
                 homes[round(pv, 1)].append((sheet, r))
     n_rw = n_tw = 0
-    ev = Evaluator(wb)
     for ref in list(writer.log.get("written", [])):
         sh, _, coord = ref.partition("!")
         m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
@@ -124,10 +138,15 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
             continue
         row = int(m.group(2))
         pcol = prior_column(spec, sh, target_year)
-        pv = wb[sh][f"{pcol}{row}"].value if pcol else None
+        pv = _pval(sh, pcol, row) if pcol else None
         if not isinstance(pv, (int, float)) or abs(pv) < min_val:
             continue
         served = wb[sh][coord].value
+        if isinstance(served, str) and served.startswith("="):
+            try:
+                served = ev.cell(sh, coord)   # a constants-law REWRITE is
+            except Exception:                 # a serve too (run-208: the
+                continue                      # NFA twin never fired)
         if not isinstance(served, (int, float)) \
                 or abs(served - pv) <= row_tol(pv):
             continue                      # unchanged value teaches nothing
@@ -163,6 +182,47 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
                     continue
                 if isinstance(cv, (int, float)) \
                         and abs(cv - pv) <= row_tol(pv):
+                    # THE TWIN BACK-OUT (owner's back-out rule, taught):
+                    # the twin's own inputs are often unprovable
+                    # composites (gross PPE / accum dep) — anchor the
+                    # twin's NET to the served sibling with a VISIBLE
+                    # back-out formula (=176128-AI71), components
+                    # awaiting true-up. Only for simple 1-3 ref
+                    # same-column compositions.
+                    refs = re.findall(r"(?<![A-Za-z0-9_!])"
+                                      + tc2 + r"(\d{1,5})",
+                                      str(cur).replace("$", ""))
+                    if 2 <= len(refs) <= 3 and "!" not in str(cur):
+                        vals = []
+                        for rr in refs:
+                            try:
+                                vals.append((abs(ev.cell(sh2,
+                                            f"{tc2}{rr}")), rr))
+                            except Exception:
+                                vals.append((0.0, rr))
+                        _big, big_r = max(vals)
+                        others = [rr for rr in refs if rr != big_r]
+                        bo = (f"=({served:.6g})-("
+                              + "-".join(f"{tc2}{rr}" for rr in others)
+                              + ")") if others else f"={served:.6g}"
+                        # rewrite the LARGEST component so the twin's
+                        # net equals the served sibling
+                        ok2 = writer.write(
+                            sh2, f"{tc2}{big_r}",
+                            bo.replace("-(-", "-(0-").replace("-()", ""),
+                            prior_coord=None, trusted=True, flag="orange",
+                            note=(f"TWIN BACK-OUT: {sh2}!{tc2}{r2} must "
+                                  f"equal {ref}'s served {served:,.1f} "
+                                  "(same prior = same quantity); this "
+                                  "component is backed out so the net "
+                                  "ties — split awaiting true-up from "
+                                  "the detailed report."))
+                        if ok2:
+                            n_rw += 1
+                            log(f"[run]   twin back-out: {sh2}!{tc2}"
+                                f"{big_r} anchored so {sh2}!{tc2}{r2} "
+                                f"= {served:,.1f} (twin of {ref})")
+                            continue
                     from openpyxl.comments import Comment
                     cell.fill = writer.fills["red"]
                     cell.comment = Comment(
@@ -268,4 +328,105 @@ def oneoff_no_propagate(wb, spec, target_year, writer, log):
                     n += 1
                     log(f"[run]   one-off law: {sheet}!{fc}{r} link to "
                         f"{tcol}{r} ({av:,.1f}, prior ~0) -> 0 (orange)")
+    return n
+
+
+def auto_probe_holds(wb, spec, target_year, fc_base, writer, log,
+                     max_probes=24):
+    """THE MECHANIZED BISECT (owner ruling 2026-09-01: hypothesis ->
+    experiment -> proof -> sanctioned hold). For every first-forecast
+    cell that is a bare link into the actual column and now computes
+    away from the ANALYST'S OWN BASELINE (their pre-update forecast =
+    their intent), probe holding it at the baseline value; keep the
+    hold only when the model's total check residual PROVABLY drops.
+    Transactional, orange, reported — the code-driven twin of the
+    loop's hold_forecast. -> holds applied."""
+    from openpyxl.comments import Comment
+    from .checks import year_columns as _yc
+
+    def _mass():
+        m = 0.0
+        for c in (spec.get("check_rows") or []):
+            for y, ycol in _yc(spec, c["sheet"]).items():
+                try:
+                    v = Evaluator(wb).cell(c["sheet"],
+                                           f"{ycol}{int(c['row'])}")
+                except Exception:
+                    continue
+                if isinstance(v, (int, float)):
+                    m += abs(v)
+        return m
+
+    mass = _mass()
+    if mass <= 5:
+        return 0
+    cands = []
+    from .forecast_balance import cf_start_row
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        fcs = forecast_columns(spec, sheet, target_year)
+        if not tcol or not fcs:
+            continue
+        ws = wb[sheet]
+        cf0 = cf_start_row(ws)
+        if cf0 is None:
+            continue      # FLOW rows only: holding a BS carry row
+                          # "improves" checks by minting a fake
+                          # working-capital flow — a plug in disguise
+                          # (measured on run-208: AJ63/AJ88/AJ91 all
+                          # "helped" compensatingly)
+        ev = Evaluator(wb)
+        for r in range(cf0 + 1, min(ws.max_row, 300) + 1):
+            f = ws[f"{fcs[0]}{r}"].value
+            if not (isinstance(f, str) and re.match(
+                    r"^=\s*\+?\s*" + tcol + str(r) + r"\s*$",
+                    f.replace("$", ""))):
+                continue                  # bare link to the actual only
+            base_v = fc_base.get((sheet, r))
+            if base_v is None:
+                base_v = 0.0
+            try:
+                now = ev.cell(sheet, f"{fcs[0]}{r}")
+            except Exception:
+                continue
+            if not isinstance(now, (int, float)) \
+                    or abs(now - base_v) < 50:
+                continue                  # the roll changed nothing real
+            cands.append((abs(now - base_v), sheet, r, fcs[0], base_v, f))
+    n = 0
+    for _d, sheet, r, fc1, base_v, old_f in sorted(cands,
+                                                   reverse=True)[:max_probes]:
+        cell = wb[sheet][f"{fc1}{r}"]
+        cell.value = round(base_v, 6)
+        m2 = _mass()
+        # PROOF = the hold repaired more than its own one-year size
+        # (it was compounding through the years) — a hold that merely
+        # shuffles the imbalance moves the mass less than itself
+        if m2 <= mass - max(100.0, 1.5 * _d):
+            cell.fill = writer.fills["orange"]
+            cell.comment = Comment(
+                f"AUTO-PROBE HOLD: this forecast is a bare link to the "
+                f"actual column; the analyst's own pre-update forecast "
+                f"here was {base_v:,.1f} (their intent). Holding it "
+                f"there cut the model's total check residual "
+                f"{mass:,.1f} -> {m2:,.1f} — probe-proven roll "
+                f"artifact (was {old_f}). Owner's law: balance "
+                "outranks the freeze list.", "Model Update Agent")
+            writer.log["flags"].append(f"{sheet}!{fc1}{r}")
+            writer.log.setdefault("frozen", []).append(
+                f"{sheet}!{fc1}{r}: held at {base_v:g} — was {old_f} "
+                "(auto-probe, proven)")
+            writer.log.setdefault("verdicts", []).append(
+                f"{sheet}!{fc1}{r}: ERROR_FIXED — probe-proven roll "
+                f"artifact held at the analyst's baseline {base_v:g}; "
+                f"residual {mass:,.1f} -> {m2:,.1f}")
+            log(f"[run]   auto-probe: {sheet}!{fc1}{r} held at "
+                f"{base_v:g} (was {old_f}) — residual {mass:,.1f} -> "
+                f"{m2:,.1f}")
+            mass = m2
+            n += 1
+        else:
+            cell.value = old_f            # experiment failed: restore
     return n

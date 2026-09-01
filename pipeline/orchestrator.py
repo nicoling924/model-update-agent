@@ -1452,10 +1452,14 @@ def terminal_ladder(loop, log):
             m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not m or m.group(1) != loop._tcol(sh):
                 continue
+            if f"{sh}!{coord}" in loop.writer.locked:
+                continue      # run-208: locked high-confidence serves
+                              # blocked the ladder's first two tries and
+                              # the year was left failing — skip them
             v = loop.wb[sh][coord].value
             if isinstance(v, (int, float)):
                 sites.append((abs(v), sh, coord))
-        for _v, sh, coord in sorted(sites, reverse=True)[:3]:
+        for _v, sh, coord in sorted(sites, reverse=True)[:8]:
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
                  "why": ("terminal ladder: the loop ended with this "

@@ -642,11 +642,19 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # the one-off no-propagate law (roll-forward checklist; the one
     # sanctioned forecast edit — run-206's hedging leak, +352/yr) runs
     # BEFORE any forecast plug is sized
-    from .teachings import oneoff_no_propagate
+    from .teachings import auto_probe_holds, oneoff_no_propagate
     n_oo = oneoff_no_propagate(wb, spec_d, target_year, writer, log)
     if n_oo:
         log(f"[run] one-off law: {n_oo} forecast links to new one-off "
             "actuals set to 0 (orange)")
+    # the mechanized bisect (owner 2026-09-01): probe-proven holds at
+    # the analyst's own baseline — run-208's recurring hedging row had
+    # a 2024 value, so the static one-off test missed it; the analyst's
+    # pre-update FORECAST (0) is the true intent test
+    n_ap = auto_probe_holds(wb, spec_d, target_year, fc_base, writer, log)
+    if n_ap:
+        log(f"[run] auto-probe: {n_ap} probe-proven roll artifacts held "
+            "at the analyst's baseline (orange, reported)")
 
     # -- FORECAST-YEAR BALANCE, LAST RESORT (owner ruling: balance is
     # for ALL years; plug only what genuine attribution could not place;

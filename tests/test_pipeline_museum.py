@@ -1973,6 +1973,34 @@ def test_207_probe_and_hold_forecast():
     assert wb2["S"]["V7"].value == "=U7"
 
 
+def test_208_twin_backout():
+    """Run-208: the NFA lived in Final!65 (rewritten to actual) AND the
+    Driver roll base (stale composite) — the stale twin broke every
+    forecast year, and its inputs are unprovable from the RA. The twin
+    law: hardcode twins re-serve; composite-formula twins BACK OUT
+    (=(net)-(other ref)) per the owner's back-out rule."""
+    import openpyxl
+    from pipeline.teachings import twin_reanchor
+    from pipeline.writer import Writer
+    from pipeline.evaluator import Evaluator
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["A5"] = "Net fixed assets"
+    ws["T5"], ws["U5"] = "=T70+T71", 176128.0          # BS home: served
+    ws["T70"], ws["T71"] = 292564.0, -123849.0         # prior 168,715
+    ws["A9"] = "Net fixed assets roll"
+    ws["T9"], ws["U9"] = "=T70+T71", "=U70+U71"        # twin (roll base)
+    ws["U70"], ws["U71"] = "=292564+343", "=-123849-343"
+    w = Writer(wb)
+    w.log["written"].append("S!U5")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    n_rw, n_tw = twin_reanchor(wb, None, spec, 2025, w, lambda s: None)
+    assert n_rw == 1, (n_rw, n_tw)
+    assert abs(Evaluator(wb).cell("S", "U9") - 176128.0) < 1
+    assert wb["S"]["U70"].value.startswith("=(176128)-("), wb["S"]["U70"].value
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
