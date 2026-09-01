@@ -723,3 +723,13 @@ coincidence (343 'Cost').
 FIX: block-context kinship — the section headers above the row count
 as the row's identity. The receipt is now candidate A, warning-free.
 Museum 99 green. Redispatched.
+
+## 2026-09-01 — RUN 215 + LOAD-BEARING CARD PRIORITY
+
+Run 215: same honest -1,448 — the fuel-clause card never got DEALT: the
+serve cap ranks by |prior| and the 370-sized load-bearing cell lost its
+slot to big rows that feed nothing. FIX: tier law applied to cards —
+load-bearing rows (the lb trace) outrank size in SERVE priority.
+Verified offline: the AI7 card now deals, candidate A = -1,043
+(warning-free after block-context kinship), serve lands, residual moves
+by exactly 1,413. Museum 99 green. Redispatched.

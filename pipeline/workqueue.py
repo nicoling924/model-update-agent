@@ -297,8 +297,13 @@ def build_queue(loop):
         if isinstance(held, str) and held.startswith("="):
             continue
         pv, _t = _prior_of(loop, sheet, row)
+        lb = getattr(loop, "load_bearing", None) or set()
+        # LOAD-BEARING OUTRANKS SIZE (run-215: the fuel-clause cell —
+        # prior 370, feeding the balance check — lost its card slot to
+        # bigger rows that feed nothing; the tier law applied to cards)
         items.append(WorkItem("SERVE", sheet, row,
-                              priority=abs(pv or 0.0)))
+                              priority=(1e9 if (sheet, row) in lb else 0.0)
+                              + abs(pv or 0.0)))
     for g in loop._trip_groups():
         refs = [f"{s}!{c}{r}" for s, c, r, *_ in g]
         done = {v.split(":", 1)[0] for v in
