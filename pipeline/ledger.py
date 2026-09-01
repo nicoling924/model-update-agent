@@ -450,7 +450,8 @@ class Ledger:
         led.faces = {(d, p): f for d, p, f in obj.get("faces") or []}
         led.parent_pages = {(d, p) for d, p in obj.get("parent_pages") or []}
         for d in obj.get("items") or []:
-            led.items.append(Item(**d))
+            led.items.append(Item(**{k: v for k, v in d.items()
+                                     if k in Item.__dataclass_fields__}))
         return led
 
     def save(self, path):

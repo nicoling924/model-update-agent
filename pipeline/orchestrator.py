@@ -589,6 +589,28 @@ class ObjectiveLoop:
                 dv, it, _s = got
                 tol = max(0.6, abs(dv) * 5e-3)
                 if abs(cur - dv) > tol:
+                    # A GUILTY VERDICT MUST SURVIVE ITS OWN EXPERIMENT
+                    # (DFE Driver!139, 2026-09-02: two rows "guilty" of
+                    # the same junk 61.58 — applying either WORSENED
+                    # the check. Probe the diff before accusing.)
+                    sign = -1.0 if (cur < 0 < dv) else 1.0
+                    old_v = self.wb[sh][coord].value
+                    self.wb[sh][coord] = sign * dv
+                    try:
+                        after_p = Evaluator(self.wb).cell(
+                            sheet, f"{col}{row}")
+                    except Exception:
+                        after_p = None
+                    self.wb[sh][coord] = old_v
+                    if isinstance(after_p, (int, float)) \
+                            and abs(after_p) > abs(residual) + 1.0:
+                        out.append(
+                            f"  CONTRARY {sh}!{int(mm.group(2))} "
+                            f"'{str(t.label)[:30]}': the mapped "
+                            f"{dv:,.2f} WORSENS the check "
+                            f"({residual:,.1f} -> {after_p:,.1f}) — "
+                            "wrong map, not a fix; left alone")
+                        continue
                     guilty += 1
                     out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
                                f"'{str(t.label)[:30]}': model {cur:,.2f} vs "
@@ -695,16 +717,32 @@ class ObjectiveLoop:
                     "not a numeric input — plug into a numeric INPUT "
                     "component; diagnose_balance lists the eligible sites")
         pcol = prior_column(self.spec, i_sheet, self.ty)
-        # the sanctioned last resort bypasses the band (run-198: the
-        # band refused the delivering plug); a WILD plug still lands —
-        # the total must tie — but escalates RED with the question, per
-        # the owner's reclass ruling #3
-        wild = abs(residual) > 0.5 * max(abs(held), 1.0)
+        # THE COEFFICIENT PROBE (DFE Driver!139, 2026-09-02: a plug
+        # sized on the +1 assumption DOUBLED the residual — the site's
+        # true coefficient on the check was -1. Same law as the
+        # forecast plugs: measure the response, size by it.)
+        cell_pr = self.wb[i_sheet][f"{i_col}{i_row}"]
+        old_pr = cell_pr.value
+        cell_pr.value = held + 1.0
+        try:
+            probe_r = Evaluator(self.wb).cell(c_sheet, f"{c_col}{c_row}")
+        except Exception:
+            probe_r = None
+        cell_pr.value = old_pr
+        coeff = (probe_r - residual) if isinstance(probe_r, (int, float)) \
+            else None
+        if not isinstance(coeff, (int, float)) or abs(coeff) < 0.1:
+            return (f"MISS: {i_sheet}!{i_col}{i_row} does not move this "
+                    f"check (measured coefficient "
+                    f"{coeff if coeff is None else round(coeff, 3)}) — "
+                    "pick a component that feeds it")
+        residual_eff = residual / coeff
+        wild = abs(residual_eff) > 0.5 * max(abs(held), 1.0)
         wild_txt = (", WILD — swings the component by more than half; "
                     "a mapped sibling is probably wrong" if wild else "")
         fc_before = self._forecast_check_residuals()
         ok = self.writer.write(
-            i_sheet, f"{i_col}{i_row}", held - residual,
+            i_sheet, f"{i_col}{i_row}", held - residual_eff,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
             trusted=True,
             flag="red" if wild else "orange",
@@ -759,9 +797,9 @@ class ObjectiveLoop:
                  f"(forecast probe clean). ANALYST MUST RULE. {why[:150]}"),
                 "Model Update Agent")
             return (f"PLUGGED {into} OVER A PROVEN VALUE: {held:,.2f} -> "
-                    f"{held - residual:,.2f} (RED, forecast-probe clean, "
+                    f"{held - residual_eff:,.2f} (RED, forecast-probe clean, "
                     f"in the report). Check {check} now zero.")
-        return (f"PLUGGED {into}: {held:,.2f} -> {held - residual:,.2f} "
+        return (f"PLUGGED {into}: {held:,.2f} -> {held - residual_eff:,.2f} "
                 f"(orange-flagged, in the report). Check {check} now zero.")
 
     def t_trace_error(self, args):
@@ -1681,6 +1719,64 @@ def terminal_ladder(loop, log):
             log(f"[run] terminal ladder: {sheet}!{row} closed by "
                 "evidence diffs alone")
             continue
+        # THE PAIRED DIFF (DFE Driver!139, 2026-09-02: two GUILTY cells
+        # form a compensating pair — either lone write breaks the check
+        # and reverts; applied TOGETHER they close it. The analyst
+        # applies the batch, then judges. Transactional as a batch.)
+        gl = list(re.finditer(r"GUILTY (\S+)!(\d+)", diag))[:5]
+        if len(gl) >= 2:
+            batch, olds = [], []
+            for g in gl:
+                sh2, r2 = g.group(1), int(g.group(2))
+                t2 = loop.targets.get((sh2, r2))
+                got = loop._diff_value(t2) if t2 is not None else None
+                tc2 = loop._tcol(sh2)
+                if got is None or not tc2:
+                    continue
+                dv, it2, _s2 = got
+                cur2 = loop.wb[sh2][f"{tc2}{r2}"].value
+                if not isinstance(cur2, (int, float)):
+                    continue
+                sign = -1.0 if (isinstance(cur2, (int, float))
+                                and cur2 < 0 < dv) else 1.0
+                batch.append((sh2, f"{tc2}{r2}", sign * dv, it2))
+                olds.append((sh2, f"{tc2}{r2}", cur2))
+            if len(batch) >= 2:
+                before = abs(still[0][2])
+                for sh2, coord2, dv2, _it2 in batch:
+                    loop.wb[sh2][coord2] = dv2
+                after = None
+                try:
+                    after = Evaluator(loop.wb).cell(
+                        sheet, f"{loop._tcol(sheet)}{row}")
+                except Exception:
+                    pass
+                if isinstance(after, (int, float)) \
+                        and abs(after) < before - 1.0:
+                    from openpyxl.comments import Comment
+                    for sh2, coord2, dv2, it2 in batch:
+                        c2 = loop.wb[sh2][coord2]
+                        c2.fill = loop.writer.fills["orange"]
+                        c2.comment = Comment(
+                            (f"PAIRED DIFF (terminal): applied with its "
+                             f"partner(s) as one batch — {dv2:,.2f} from "
+                             f"{it2.doc} p{it2.page}; lone writes broke "
+                             f"the check, the batch closed it "
+                             f"{before:,.1f} -> {abs(after):,.1f}."),
+                            "Model Update Agent")
+                        loop.writer.log["flags"].append(f"{sh2}!{coord2}")
+                        loop.writer.log["written"].append(f"{sh2}!{coord2}")
+                    log(f"[run] terminal ladder: PAIRED DIFF closed "
+                        f"{sheet}!{row} {before:,.1f} -> {abs(after):,.1f} "
+                        f"({len(batch)} cells as one batch)")
+                    still = [x for x in loop._failing_target_checks()
+                             if (x[0], x[1]) == (sheet, row)]
+                    if not still:
+                        closed += 1
+                        continue
+                else:
+                    for sh2, coord2, old2 in olds:
+                        loop.wb[sh2][coord2] = old2
         tcol = loop._tcol(sheet)
         sites = []
         for (sh, coord) in dict.fromkeys(

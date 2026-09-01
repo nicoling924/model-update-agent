@@ -1612,10 +1612,11 @@ def test_199_terminal_ladder_delivers():
     n = terminal_ladder(lp, logs.append)
     assert n == 1, (n, logs)
     assert lp._failing_target_checks() == []
-    # largest site U4 was tried first, its plug REVERTED (moved the
-    # check the wrong way), and U2 landed — transactional to the end
-    assert wb["S"]["U4"].value == 171.0, wb["S"]["U4"].value
-    assert wb["S"]["U2"].value == 111.0, wb["S"]["U2"].value
+    # 2026-09-02 (coefficient probe): the largest site U4 now plugs
+    # CORRECTLY on its measured -1 coefficient (169 closes the check)
+    # instead of reverting on the old +1 assumption — first site wins
+    assert wb["S"]["U4"].value == 169.0, wb["S"]["U4"].value
+    assert wb["S"]["U2"].value == 109.0, wb["S"]["U2"].value
     assert any(v for v in lp.writer.log["written"]), "no write logged"
 
 

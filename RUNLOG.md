@@ -843,3 +843,23 @@ OFFLINE: CEILING gate green, keys 10/11 exact (miss = recurring-NP
 one-offs bridge, printed only on non-face pages, documented red — per
 owner ruling flag is the deliverable). FLOOR gate green, keys 9/11.
 Dispatching CLP (authorized run 1 of 2); DFE genericity test next.
+
+## 2026-09-02 (overnight) — THE GENERICITY TEST: BOTH MODELS GREEN
+
+DFE FY25 offline (pinned run-19 vision ledger — the new pinned-snapshot
+path, since DFE's statements are scans a client=None rebuild cannot
+read). DFE stressed the laws differently and each break became GENERIC:
+- PAIRED DIFF (terminal): compensating guilty cells apply as one
+  transactional batch (lone writes revert each other forever).
+- CONTRARY-EVIDENCE: a GUILTY verdict must survive its own experiment —
+  a mapped diff that WORSENS the check on probe is a wrong map, listed
+  as CONTRARY, never applied, never blocks plugs (two DFE rows both
+  "guilty" of the same junk 61.58).
+- COEFFICIENT PROBE in t_plug_residual (actual-year plugs): size by the
+  site's measured response, not the +1 assumption (a DFE plug doubled
+  the residual; museum 199 exhibit re-pinned to the better law — the
+  largest site now closes correctly instead of reverting).
+- Ledger.from_json schema-tolerant; pinned_ledger param on update().
+RESULT: DFE floor DELIVERED (gate green). CLP re-validated with the
+DFE-born laws: ceiling 10/11 green, floor 9/11 green — ONE codebase,
+zero company-shaped changes, both models green. Museum 103.

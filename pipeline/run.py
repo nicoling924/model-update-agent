@@ -114,7 +114,8 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
 
 
 def update(company_dir, period, target_year, client=None, loop_budget=60,
-           log=print, stage4_mode=None, stage4_answerer=None):
+           log=print, stage4_mode=None, stage4_answerer=None,
+           pinned_ledger=None):
     """One model update. Returns dict with paths + outcome.
 
     stage4_mode: 'queue' (default — the council's work-queue inversion:
@@ -263,7 +264,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     docs = _disclosures(company_dir, period)
     if not docs:
         raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
-    ledger = read_documents(docs, client=client, known_values=known, log=log)
+    if pinned_ledger:
+        # THE PINNED-SNAPSHOT PATH (operator council 2026-09-01): replay
+        # a prior run's evidence ledger — offline validation for models
+        # whose statements need vision (scanned pages read nothing in a
+        # client=None rebuild; the pinned ledger carries the checksummed
+        # transcriptions)
+        ledger = Ledger.from_json(Path(pinned_ledger).read_text())
+        log(f"[run] stage 1 PINNED: ledger replayed from {pinned_ledger} "
+            f"({len(ledger.items)} items)")
+    else:
+        ledger = read_documents(docs, client=client, known_values=known,
+                                log=log)
 
     # -- Stage 2 (pure code): statement faces, then bound non-statement
     # tables (the Driver/MD&A path — council two-level binding)
