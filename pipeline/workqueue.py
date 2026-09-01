@@ -163,7 +163,15 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
                              "prone; prefer derivation or leave red")
             from .numerics import kinship
             lab_m = str(getattr(t, "label", "") or "")
-            if lab_m and not kinship(lab_m, str(it.label)):
+            if lab_m and not kinship(lab_m, str(it.label)) \
+                    and not any(
+                        kinship(ctx, str(it.label))
+                        for ctx in _block_context(loop, sheet, row)):
+                # neither the row's own label NOR its section header
+                # is kin (run-214: 'Closing balance' under the 'Fuel
+                # Clause Recovery' header wrongly indicted the printed
+                # 'Fuel Clause Account' line and steered the answerer
+                # to a warning-free coincidence instead)
                 warns.append("label unrelated to the model row's — a "
                              "numeric coincidence unless the position "
                              "proves it")
@@ -240,6 +248,26 @@ def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
                               f"of the same-labelled row, {it_p.doc[:20]} "
                               f"p{it_p.page}")})
     return out[: k * 3]
+
+
+def _block_context(loop, sheet, row, span=8):
+    """The section headers above a model row — a generic 'Closing
+    balance' row means nothing without its block ('Fuel Clause
+    Recovery'). Read from the sheet's own label columns walking up."""
+    out = []
+    if sheet not in loop.wb.sheetnames:
+        return out
+    ws = loop.wb[sheet]
+    for r in range(row - 1, max(0, row - span), -1):
+        for col in ("A", "B", "C", "D"):
+            v = ws[f"{col}{r}"].value
+            if isinstance(v, str) and len(v.strip()) > 3 \
+                    and not v.startswith("="):
+                out.append(v.strip())
+                break
+        if len(out) >= 3:
+            break
+    return out
 
 
 def _red_cells(loop):

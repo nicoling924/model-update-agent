@@ -708,3 +708,18 @@ gate shows the TRUE residual (-1,448 = 1,043+343+35+27, three SoC
 account mis-mappings) instead of plug-balanced fiction. Deliver-refused
 -but-honest beats balanced-but-wrong (owner's no-wrong-unflagged rule);
 the receipts cards can now ask about the SoC leaves directly.
+
+## 2026-09-01 — RUN 214 + BLOCK-CONTEXT KINSHIP
+
+Run 214: fully honest state achieved — proven-plug law refused every
+cosmetic plug (share capital, RE, NFA all protected); Luna refused both
+plug cards; true residual exposed: Final -1,448 / ROAFNA -1,113.
+AUTOPSY: -1,448 closes to -35 with ONE receipt — SOC Accounts!AI7
+fuel-clause closing -1,043 (printed p37 'Fuel Clause Account (FCA)'
+[1043, -370], exact prior tie) — which the card RANKED FIRST but
+wrongly indicted "label unrelated" ('Closing balance' row under the
+'Fuel Clause Recovery' section header), steering Luna to a warning-free
+coincidence (343 'Cost').
+FIX: block-context kinship — the section headers above the row count
+as the row's identity. The receipt is now candidate A, warning-free.
+Museum 99 green. Redispatched.
