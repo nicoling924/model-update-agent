@@ -863,3 +863,17 @@ read). DFE stressed the laws differently and each break became GENERIC:
 RESULT: DFE floor DELIVERED (gate green). CLP re-validated with the
 DFE-born laws: ceiling 10/11 green, floor 9/11 green — ONE codebase,
 zero company-shaped changes, both models green. Museum 103.
+
+## 2026-09-02 (morning) — LIVE RESULTS: DFE DELIVERED, CLP 220 pre-law
+
+DFE FY25 LIVE (Luna + vision, current head): **DELIVERED** — all six
+check rows pass EVERY year, 22 red / 46 orange, all documented. The
+genericity thesis holds live: one codebase, two structurally different
+models (EN scheme-of-control multi-sheet vs CN scanned-statement),
+both delivered.
+CLP run 220 REFUSED (-1,063 / flat -316): it ran commit aa73644 —
+dispatched BEFORE the three DFE-born laws (paired diff, contrary-
+evidence, coefficient-probed plugs) which are exactly the closers its
+residuals needed. Current head is offline-green for CLP (ceiling 10/11,
+floor 9/11); one confirming CLP dispatch awaits the owner's go (the
+overnight 2-run authorization is spent).
