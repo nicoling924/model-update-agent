@@ -803,3 +803,16 @@ always-flag floor (no LLM: balance all years, keys 6/11, 108 red /
 47 orange, honest) and oracle ceiling (balance all years, one +10
 orange plug). Remaining ceiling->floor gap = the card answers: Luna's
 A/B is now a pure brain measurement, machinery fully proven.
+
+## 2026-09-02 — RUN 219: DELIVERED (the first machine delivery of CLP)
+
+Gate PASSED on GitHub with Luna. Balance ALL years 2019-2030 (Final +
+ROAFNA; ROAFNA 2024 -1,264 is the analyst's own pre-existing item,
+inherited & reported). Keys 6/11 exact vs the by-hand answer key
+(revenue/OP/NP/EPS/CFI/DPS); misses = recurring NP, CFO, CFF, equity,
+assets — all card-answer territory. 65 red / 40 orange, all documented.
+33 LLM calls (cents). Luna-on-cards A/B verdict: Luna ≈ the flag-
+default floor (its 15 adjudications added no keys over machinery) —
+the red-team fallback stands: route the ~10 judgment cards to a
+stronger engine, or the analyst rules them in Excel. Next: the
+genericity test (a drastically different model from another team).
