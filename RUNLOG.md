@@ -1128,3 +1128,31 @@ Replay 228: 12 rollover cards render on the live state with probed
 culprits (e.g. gas consumption: actual -11%, forecast +17% AGAINST;
 A recovers 35%, B 24%); delivered with defaults. The brain's answers
 are first exercised live.
+
+## 2026-09-03 — RUN 229: DELIVERED (head 37a7a63) — the reading step live
+
+First live exercise of the brain on the new cards. GOOD: all four
+documents identified (brain + printed agree), company = CLP Holdings
+Limited, statement pages 20/23 ratified, ZERO serves from the FY24 AR
+(45 in run 228), fuel clause 44.3 / FCA -1,043 right, 2026 OP 15,177
+vs key 15,550 (run 228: 4,867), 2026 rows off >5%: 96 (was 122),
+cells 71.6%. BAD: keys 4/9 — on two ROLLOVER cards Luna answered
+'revert' and the tool obeyed on PROVEN actuals (Final!AI76 bank loans
+9,673 = key; Final!AI21 net finance costs composite = key), dragging
+OP to 13,812. Design gap, mine: the card offered revert on every
+changed input. Also the key-row verifier dropped the brain's correct
+Final picks (formula rows cache no values) and a ROAFNA row surfaced
+as 'net profit' on the report.
+FIX (museum 109): PROVEN IS PROTECTED on rollover cards — a proven
+served input, or a constants composite whose every literal is a
+proven served figure, is shown ("✔ PROVEN — never reverted; the
+forecast's own driver/assumption is stale") but never offered; the
+tool refuses too. Proof status reads the cell's FILL (red = unproven;
+orange = derived, protected) — the writer's flag list mixes both
+colours and first hid the composite's protection. Formula rows count
+as numeric for key-row verification.
+Faithful replay of 229 on the fix: DELIVERED, no reverts, keys 7/9,
+2026 OP 15,661 vs key 15,550. OPEN: the finance-cost/cash chain
+forecast flips sign (2026 interest expense +4,198; NP 17.9k vs key
+11.6k) — the rollover cards flag it correctly; root cause is in the
+forecast's net-debt roll, not an actual — next autopsy.
