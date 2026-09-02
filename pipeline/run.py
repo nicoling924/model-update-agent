@@ -115,13 +115,14 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
 
 def update(company_dir, period, target_year, client=None, loop_budget=60,
            log=print, stage4_mode=None, stage4_answerer=None,
-           pinned_ledger=None):
+           pinned_ledger=None, pinned_served=None):
     """One model update. Returns dict with paths + outcome.
 
     stage4_mode: 'queue' (default — the council's work-queue inversion:
-    machine plans, LLM answers one card at a time, then a small residual
-    loop), 'queue-only' (no residual loop), 'loop' (the legacy free
-    agent — byte-identical run-210 behavior, the instant rollback).
+    machine plans, LLM answers one card at a time; no free loop),
+    'queue+loop' (adds a 10-action residual free loop — opt-in, run-224
+    showed it wedges), 'queue-only' (alias of 'queue'), 'loop' (the
+    legacy free agent — byte-identical run-210 behavior, the rollback).
     stage4_answerer: offline driver for the queue (tests/replays) —
     callable(text, options, default) -> answer id; runs without any LLM."""
     company_dir = Path(company_dir)
@@ -314,6 +315,33 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run] rolled {sheet}: {pcol}->{tcol}, {len(hard)} hardcode "
                 f"inputs, {nh} year headers rolled")
     prior_map = {t.key: t.prior_value for t in targets}
+    if pinned_served:
+        # THE PINNED-SERVES PATH (operator council 2026-09-01, built
+        # 2026-09-02): replay a live run's provenance — its stage-3
+        # LLM gap reads included — so an offline run reproduces the
+        # live state faithfully instead of the client=None subset
+        try:
+            prov = json.loads(Path(pinned_served).read_text())
+        except Exception:
+            prov = {}
+        n_pin = 0
+        for ref, e in prov.items():
+            sh_p, _, row_p = str(ref).partition("!")
+            try:
+                key_p = (sh_p, int(row_p))
+            except ValueError:
+                continue
+            if key_p in served or not isinstance(e, dict) \
+                    or not isinstance(e.get("value"), (int, float)):
+                continue
+            served[key_p] = {"value": e["value"], "status": "OK",
+                             "doc": e.get("doc"), "page": e.get("page"),
+                             "line": e.get("line"),
+                             "conf": e.get("conf") or 4,
+                             "note": "PINNED replay: " + str(e.get("note"))}
+            n_pin += 1
+        log(f"[run] served PINNED: {n_pin} live serves replayed from "
+            f"{pinned_served}")
     _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
 
     # -- Stage 3 (LLM, checksummed) — only what Stage 2 left
@@ -641,9 +669,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             from .workqueue import run_queue
             loop_summary = run_queue(loop, client, log,
                                      answerer=stage4_answerer)
-            if mode == "queue" and client is not None:
-                # the council's residual open loop: small, gated, only
-                # for what no card could close
+            if mode == "queue+loop" and client is not None:
+                # the residual free loop is OPT-IN only (run-224
+                # autopsy: with 10 free actions it plugged proven cells
+                # BEFORE the repair suite ran and wedged a state the
+                # queue-only path delivers — the red-team verdict,
+                # observed live). 'queue' == cards + machinery.
                 loop.budget = min(loop.budget, 10)
                 loop_summary += " | residual loop: " + loop.run()
                 log(f"[run] residual loop: {loop_summary[-120:]}")

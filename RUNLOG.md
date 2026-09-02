@@ -958,3 +958,17 @@ FIX (generic): the CLEAN-SLATE RULE — with the serves, every repair-
 suite write made after stage 4 is taken back too (reverse order, from
 the append-only ledger); the idempotent suite re-solves from a clean
 base. Museum 104; CLP ceiling 10/11 / floor 9/11 green; DFE green.
+
+## 2026-09-02 — RUN 224, SECOND AUTOPSY: THE FAITHFUL REPLAY
+
+Built the council's pinned-serves path (pinned_served=provenance.json:
+the live run's 201 stage-3 LLM serves replay offline). Faithful replay
+of run 224 — live ledger + live serves + its exact 32 card picks —
+DELIVERS offline, first gate, no loop needed. So the picks were not the
+wedge. The one live-only stage left: the RESIDUAL FREE LOOP (mode
+'queue' = cards + 10 free Luna actions). Its run-224 log: five plug
+attempts BEFORE the repair suite ran, one landing over a proven value
+(ROAFNA!AI29) — the red-team's random-walk verdict, observed live.
+RULING: 'queue' = cards + machinery, no free loop; 'queue+loop' is the
+explicit opt-in. The live path now equals the path that delivered the
+faithful replay. Museum 104.
