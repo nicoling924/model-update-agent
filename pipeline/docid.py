@@ -501,6 +501,26 @@ def identify_statement_pages(paths, ledger, client, priors, log):
                 del ledger.faces[(doc, pn)]
             ledger.parent_pages.add((doc, pn))
             adopted.append(f"p{pn}=parent-only (face removed)")
+        # THE BRAIN'S MAP IS THE AUTHORITY (run-229 autopsy): once the
+        # brain has named the primary statements and they ratified,
+        # caption-propagated face tags on OTHER pages of this document
+        # (a fixed-asset note tagged 'cf' by a caption three pages
+        # earlier) lose statement authority — kept only within one page
+        # of a named statement (a statement that runs over the page).
+        named = {pn for face in ("pl", "bs", "cf")
+                 for pn in (obj.get(face) or []) if (doc, pn) in ratified}
+        demoted = []
+        if named:
+            for (d, pn), face in list(ledger.faces.items()):
+                if d != doc or face not in ("pl", "bs", "cf"):
+                    continue
+                if pn in named or any(abs(pn - q) <= 1 for q in named):
+                    continue
+                del ledger.faces[(d, pn)]
+                demoted.append(pn)
+        if demoted:
+            adopted.append(f"{len(demoted)} caption-tagged page(s) demoted: "
+                           f"{sorted(demoted)[:8]}")
         out[doc] = {"adopted": adopted, "refused": refused,
                     "why": str(obj.get("why") or "")[:160]}
         log(f"[run] statement pages ({doc}): brain named {len(adopted)} "

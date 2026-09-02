@@ -1152,7 +1152,33 @@ orange = derived, protected) — the writer's flag list mixes both
 colours and first hid the composite's protection. Formula rows count
 as numeric for key-row verification.
 Faithful replay of 229 on the fix: DELIVERED, no reverts, keys 7/9,
-2026 OP 15,661 vs key 15,550. OPEN: the finance-cost/cash chain
-forecast flips sign (2026 interest expense +4,198; NP 17.9k vs key
-11.6k) — the rollover cards flag it correctly; root cause is in the
-forecast's net-debt roll, not an actual — next autopsy.
+2026 OP 15,661 vs key 15,550.
+THE CASH-CHAIN FLIP, root-caused: Aus!AI25 'Finance costs' (prior
+-471) was served -6,608 by RECONCILIATION from AR p186 'Net book value
+at 1 | 6,608 | 471 | 914 | 7,993' — a fixed-asset note row where 471
+sits mid-row by coincidence; the wrong actual pushed 6,541 into the
+model's 'Others' residual (Driver!112), which rolls into every
+forecast year (net financial costs +4.7k, NP 2026 +50%). Sized on
+229's own serves: reconciliation reads from WIDE rows (>=4 numbers)
+were wrong 20 of 27; narrow lines right 32 of 39. Also p186 carried a
+'cf' face from caption propagation, and the brain's page map only
+added pages, never demoted stray ones.
+TWO LAWS + ONE MORE (museum 109):
+- TIME-SIGNATURE LAW in reconciliation: a statement line is current |
+  prior (+ note ref) — a row with >=4 numbers is a note grid / five-
+  year table / segment matrix, never reconciled positionally.
+- THE BRAIN'S MAP IS THE AUTHORITY: once brain-named statement pages
+  ratify, caption-propagated pl/bs/cf tags elsewhere in that document
+  are demoted (kept within one page of a named statement).
+- SMALL-PRIOR LAW: with wide rows gone, priors -23/-12/-10 found
+  label-unrelated 'homes' ('Short-term deposits', 'Joint ventures',
+  'Meters'); a prior under 50 must have label kinship with the model
+  row; a material prior is its own identity.
+Replay 229 on all three: DELIVERED, keys 7/9, cells 72.8% (best on
+record), 2026 rows off >5%: 101 (228: 122), cash chain restored (2026
+cash 1,283 vs key 2,058; was -3,559). DFE floor DELIVERED (7 wide
+rows, 7 coincidences refused). OPEN: 2026 OP 18.3k vs key 15.6k — the
+SoC revenue/fuel-mix chain (HK Sales!AJ4 transfer-from-fuel-cost
+20.2k vs 16.0k; gas/coal forecast volumes) = the assumption-freeze
+question the owner must rule on; India!AI24 'confirmed unchanged' 105
+(material-size coincidence) noted.

@@ -85,6 +85,31 @@ def _resolve(rows, wb, spec, target_year):
     return inputs if len(inputs) == 1 else rows
 
 
+WIDE_ROW = 4        # numbers on a line at/above which it is not a statement line
+
+
+def is_statement_line(item):
+    """current | prior, optionally a note reference: at most 3 numbers."""
+    nums = item.nums if hasattr(item, "nums") else item.get("nums", [])
+    return len([n for n in nums if isinstance(n, (int, float))]) < WIDE_ROW
+
+
+SMALL_PRIOR = 50.0   # below this a prior ties by coincidence (the one-home bar)
+
+
+def small_prior_needs_kinship(pv, line_label, row_label):
+    """THE SMALL-PRIOR LAW for reconciliation (run-229 autopsy: with the
+    wide rows gone, priors of -23, 105, -12, -10 found 'homes' on
+    'Short-term deposits', 'India', 'Joint ventures', 'Meters' — label-
+    unrelated coincidences, all wrong). A material prior (>= 50) is its
+    own identity; a small one needs the line's label to be kin to the
+    model row's. Returns True when the pair is acceptable."""
+    from .numerics import kinship
+    if not isinstance(pv, (int, float)) or abs(pv) >= SMALL_PRIOR:
+        return True
+    return bool(kinship(str(line_label or ""), str(row_label or "")))
+
+
 def _pairs(ns, scale):
     """(current, prior) pairs from a printed line, positionally: the
     classic two-column statement puts current first. Note-column
@@ -129,6 +154,18 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         table_serves = {}      # (sheet,row) -> (value, item, kind)
         for it in items:
             mapping["lines"] += 1
+            if not is_statement_line(it):
+                # THE TIME-SIGNATURE LAW, applied to reconciliation
+                # (run-229 autopsy: wide-row serves were wrong 20 of 27
+                # — 'Net book value at 1 | 6,608 | 471 | 914 | 7,993'
+                # served Australia's finance costs -6,608 because 471
+                # sat mid-row by coincidence; narrow lines were right
+                # 32 of 39). A statement line is current | prior (plus
+                # a note ref); a wider row is a note grid, a five-year
+                # table or a segment matrix — never reconciled
+                # positionally.
+                mapping["wide_skipped"] = mapping.get("wide_skipped", 0) + 1
+                continue
             hit = None
             for cur, pv in _pairs(it.nums, s):
                 rows = _resolve(homes.get(round(pv, 1), []), wb, spec,
@@ -142,6 +179,10 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                     cur = -cur
                     pv = -pv
                 (sheet, r) = rows[0]
+                if not small_prior_needs_kinship(
+                        pv, it.label, wb[sheet].cell(r, 1).value):
+                    mapping["small_unkin"] = mapping.get("small_unkin", 0) + 1
+                    continue
                 tol = row_tol(by_row[(sheet, r)])
                 if abs(cur) > 30 * max(abs(pv), 1) \
                         or (abs(pv) > 30 and abs(cur) * 30 < abs(pv)):
@@ -211,7 +252,10 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                          + ("value CONFIRMED unchanged vs last year"
                             if kind == "confirmed" else
                             "current read from the same line"))}
-    log(f"[run] reconciliation: {mapping['tables']} tables walked, "
+    log(f"[run] reconciliation: {mapping.get('wide_skipped', 0)} wide rows "
+        f"skipped (not statement lines), {mapping.get('small_unkin', 0)} "
+        "small-prior coincidences refused (no label kinship); "
+        f"{mapping['tables']} tables walked, "
         f"{mapping['matched']} rows served ({mapping['confirmed']} "
         f"confirmed unchanged), {len(mapping['rejected_tables'])} tables "
         f"rejected by their own sums, "

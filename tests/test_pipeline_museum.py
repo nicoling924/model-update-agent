@@ -2657,6 +2657,35 @@ def test_reading_step_brain_judges_code_verifies():
     assert led.faces.get(("AR.pdf", 60)) == "pl", led.faces
     assert ("AR.pdf", 61) not in led.faces and any("p61=bs" in x for x in res["AR.pdf"]["refused"])
     assert ("AR.pdf", 62) not in led.faces and ("AR.pdf", 62) in led.parent_pages
+    # exhibit 1b — the brain's map is the authority: a caption-propagated
+    # face on a page far from any named statement is demoted (run-229:
+    # the fixed-asset note tagged 'cf'); a page adjacent to a named
+    # statement keeps its face (a statement running over the page)
+    led.faces[("AR.pdf", 70)] = "cf"
+    led.faces[("AR.pdf", 59)] = "pl"
+    s1.page_texts = lambda path, cache_dir=None: [(1, "Contents", "text")]
+    try:
+        identify_statement_pages(["AR.pdf"], led,
+                                 Stub({"pl": [60], "bs": [], "cf": [], "segment": [],
+                                       "parent_only": [], "why": "contents"}),
+                                 [118000.0, 45000.0, 30000.0], lambda s: None)
+    finally:
+        s1.page_texts = real
+    assert ("AR.pdf", 70) not in led.faces and led.faces.get(("AR.pdf", 59)) == "pl"
+    # exhibit 1c — reconciliation's time-signature law: a wide row is not
+    # a statement line
+    from pipeline.reconcile import is_statement_line, small_prior_needs_kinship
+    assert is_statement_line({"nums": [12.0, 6608.0, 471.0]})
+    assert not is_statement_line({"nums": [1.0, 6608.0, 471.0, 914.0, 7993.0]})
+    # exhibit 1d — the small-prior law: a small prior ties by coincidence
+    # unless the labels are kin; a material prior is its own identity
+    assert not small_prior_needs_kinship(-23.0, "Short-term deposits and restricted cash",
+                                         "- Decrease / (increase) in fuel clause account")
+    assert not small_prior_needs_kinship(-10.0, "Meters", "Operating expenditure")
+    assert small_prior_needs_kinship(105.0, "India", "One-off items")   # material: size decides
+    assert small_prior_needs_kinship(-471.0, "Net book value at", "Finance costs")  # size, not label
+    assert small_prior_needs_kinship(-12.0, "Finance costs", "Finance costs")
+    assert small_prior_needs_kinship(-23.0, "Fuel clause account", "Decrease / (increase) in fuel clause account")
     # without a brain, nothing changes (the floor)
     assert identify_statement_pages(["AR.pdf"], led, None, [], lambda s: None) == {}
 
