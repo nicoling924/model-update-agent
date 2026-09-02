@@ -899,3 +899,15 @@ with the note and their candidates.
 OFFLINE: Luna-sim (run-221's wrong pick) now DELIVERS via the loop
 ("2 stage-4 serves taken back, repairs re-run -> gate PASSED"); CLP
 ceiling 10/11 green, floor 9/11 green; DFE floor green; museum 103.
+
+## 2026-09-02 — RUN 222: CLP DELIVERED LIVE (gate-loop head 8265145)
+
+Luna + the full law stack, live on Actions: **DELIVERED**. Balance every
+year (ROAFNA 2024 -1,264 = the analyst's inherited standing item,
+reported not gated); keys 10/11 EXACT to the by-hand answer key
+(revenue, OP, NP, EPS, CFO, CFI, CFF, equity, assets, DPS; the one
+miss = recurring NP's one-offs bridge, printed only on non-face
+highlight pages, documented red); 60 red / 51 orange; 32 LLM calls,
+8 card adjudications; the first gate passed outright (no loop round
+needed). With DFE FY25 delivered live the night before, BOTH models
+now deliver live on one generic codebase — the department bar.
