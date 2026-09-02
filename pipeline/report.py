@@ -30,7 +30,7 @@ def _syn(sheet):
 
 
 def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
-                 gate_failures, loop_summary=""):
+                 gate_failures, loop_summary="", documents=None):
     if REPORT_SHEET in wb.sheetnames:
         del wb[REPORT_SHEET]
     ws = wb.create_sheet(REPORT_SHEET, 0)
@@ -62,6 +62,13 @@ def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
         ws[f"A{r}"] = f"Objective loop: {loop_summary}"[:250]
         r += 1
     r += 1
+
+    if documents:
+        head("DOCUMENTS RECEIVED — what the agent identified, and how each was used")
+        for line in documents:
+            ws[f"A{r}"] = str(line)[:250]
+            r += 1
+        r += 1
 
     notes = _cell_notes(wb, writer_log)
     head("1. FLAGGED RED (FFC7CE) — uncertain, review each")

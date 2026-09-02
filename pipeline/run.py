@@ -293,6 +293,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # and the join had served 45 rows from the prior-year AR (19 wrong)
     # because this verdict was first computed inside stage 3.
     ledger.classify_from_targets(targets)
+    # DOCUMENT IDENTIFICATION (owner ruling 2026-09-03): the agent first
+    # says what each document IS — brain card, printed period, numeric
+    # vote as backstop — and the verdict binds every serving stage. The
+    # folder is never the authority; the document is.
+    from .docid import identify_documents
+    _kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+             else "Q" if "Q" in str(period).upper() else "FY")
+    documents = identify_documents(docs, ledger, client, target_year, _kind, log)
     _ban = _vintage_ban(ledger)
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
@@ -980,7 +988,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- report + spec-tab memory + snapshots
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
-                            pre_estimates, failures, loop_summary)
+                            pre_estimates, failures, loop_summary,
+                            documents=[d["line"] for d in documents])
     spec_d.setdefault("_last_run", {})
     spec_d["_last_run"] = {"period": period, "served": len(served),
                            "flags": len(writer.log["flags"]),

@@ -2524,6 +2524,69 @@ def test_run228_vintage_law_decided_once_before_any_serve():
     assert led2._pv_tables == {("AR25.pdf", 7, 0)}
 
 
+def test_document_identification_owner_ruling_2026_09_03():
+    """Owner ruling (2026-09-03, run-228 autopsy): the agent must first
+    say what each document IS — never infer it from a folder or a count
+    of number matches. Printed-period reader = the offline floor; the
+    brain's card outranks it; disagreement -> UNKNOWN + flagged; the
+    numeric vote is only the backstop/tripwire."""
+    from pipeline.docid import (classify_identity, identify_documents,
+                                printed_identity)
+    from pipeline.ledger import Ledger, vintage_ban
+    # exhibit 1 — English annual report names itself on its first pages
+    p = printed_identity([(2, "2024 Annual Report Introduction Welcome to CLP's 2024 Annual Report."),
+                          (4, "Contents ... A Snapshot of CLP in 2024 ... Financial Highlights 7")])
+    assert p["year"] == 2024 and p["months"] == 12 and p["doc_type"] == "annual report", p
+    # exhibit 2 — a results announcement: "from 1 January 2025 to 31 December 2025"
+    p = printed_identity([(1, "Announcement of Annual Results from 1 January 2025 to "
+                              "31 December 2025, Dividend Declaration ... 2024: HK$10,949")])
+    assert (p["year"], p["month"], p["day"], p["months"]) == (2025, 12, 31, 12), p
+    # exhibit 3 — Chinese annual report + 报告期
+    p = printed_identity([(2, "东方电气股份有限公司2024年年度报告 重要提示"),
+                          (4, "报告期 指 2024年1月1日至2024年12月31日")])
+    assert (p["year"], p["months"], p["doc_type"]) == (2024, 12, "annual report"), p
+    # exhibit 4 — an interim: six months ended / 半年度报告
+    p = printed_identity([(1, "Interim Report 2025 — for the six months ended 30 June 2025")])
+    assert (p["year"], p["month"], p["months"]) == (2025, 6, 6), p
+    p = printed_identity([(2, "某某股份有限公司2025年半年度报告")])
+    assert (p["year"], p["months"], p["doc_type"]) == (2025, 6, "interim report"), p
+    # exhibit 5 — comparatives mentioned in the text do not steal the year
+    p = printed_identity([(3, "Welcome to CLP's 2025 Annual Report. Compared with 2024, "
+                              "the 2024 result and the 2024 dividend ...")])
+    assert p["year"] == 2025, p
+    # exhibit 6 — the mapping to the target period
+    assert classify_identity({"year": 2024, "months": 12}, 2025, "FY") == "prior"
+    assert classify_identity({"year": 2025, "months": 12}, 2025, "FY") == "current"
+    assert classify_identity({"year": 2025, "months": 6}, 2025, "FY") == "partial"
+    assert classify_identity({"year": 2025, "months": 6}, 2025, "1H") == "current"
+    assert classify_identity({"year": 2026, "months": 12}, 2025, "FY") == "future"
+    assert classify_identity({}, 2025, "FY") is None
+    # exhibit 7 — end to end on stubbed pages: the reading binds the ban,
+    # the numeric vote is only a backstop, and a contradiction flags
+    import pipeline.docid as docid
+    texts = {"AR24.pdf": [(2, "2024 Annual Report Welcome to CLP's 2024 Annual Report", "text")],
+             "AR25.pdf": [(3, "Welcome to CLP's 2025 Annual Report.", "text")],
+             "scan.pdf": [(1, "", "image")],
+             "odd.pdf": [(1, "Welcome to CLP's 2025 Annual Report.", "text")]}
+    import pipeline.stage1_read as s1
+    real = s1.page_texts
+    s1.page_texts = lambda path, cache_dir=None: texts[path]
+    try:
+        led = Ledger()
+        led._doc_periods = {"AR24.pdf": "unknown", "AR25.pdf": "current",
+                            "scan.pdf": "current", "odd.pdf": "prior"}
+        out = identify_documents(list(texts), led, None, 2025, "FY", lambda s: None)
+    finally:
+        s1.page_texts = real
+    v = {d["doc"]: d["verdict"] for d in out}
+    assert v["AR24.pdf"] == "prior", v          # the reading decides
+    assert v["AR25.pdf"] == "current", v
+    assert v["scan.pdf"] == "current", v        # no print -> numeric vote stands
+    assert v["odd.pdf"] == "unknown", v         # reading vs vote contradiction -> flagged
+    assert vintage_ban(led) == {"AR24.pdf", "odd.pdf"}, vintage_ban(led)
+    assert led.doc_meta["AR24.pdf"]["identity"]["verdict"] == "prior"
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

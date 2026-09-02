@@ -1031,3 +1031,47 @@ measured by scratch keys11.py (9 resolvable of the 11): replay-227
 Operational lesson: a "floor" run needs stage4_answerer=default — with
 client=None and no answerer stage 4 is SKIPPED entirely (cost one false
 alarm today).
+
+## 2026-09-02/03 — RUN 228 DELIVERED, AND THE FORECAST WAS NEVER MEASURED
+
+Run 228 (head 071373c) DELIVERED: balance all years, keys 7/9 measured,
+report OLD block filled, fuel-clause A written first gate. Then the
+owner's question "why is it not performing well" led to the finding of
+the day: the FORECAST YEARS were collapsed in EVERY run on record —
+2026 operating profit 4,867 (228), 2,492 (222), 623 (219), -1,648
+(206, Aug 31), -39,573 (offline at 9d0cff7) vs the by-hand key 15,550.
+Balance and keys passed because a wrong driver and a bent fuel-clause
+balance cancel. Nothing in the bar, the gate, or my grading looked at
+the forecast; the collapse guard logged "18 rows collapsed" in every
+log and the report's own sense check wrote "ERROR FOUND: collapsed
+forecast" in 228. Grading omission = mine.
+ROOT (chain): (1) on Aug 19 I placed the FY24 annual report in
+disclosures/FY25/ as the "last-year map"; (2) by design the agent read
+no titles/dates — vintage was a numeric vote; (3) the vote returned
+'unknown' for the FY24 AR (restated comparatives); (4) the serving
+stages asked the weak test (prior only) and ran before the vote — 45
+serves from the FY24 AR in 228, 124 in 210; the fuel-clause charge 2
+(FY24 AR p274, "read across") replaced 44.3 and drove SoC revenue.
+LAWS SHIPPED:
+- fd6cd4a THE VINTAGE LAW, decided once (classify_from_targets right
+  after stage 1; one strong test vintage_ban at all 11 sites; pinned
+  serves bound; verdicts serialized). Replay 228: 2026 OP 15,673 vs key
+  15,550; NP 12,418 vs 11,632. 9 forecast rows still collapse (cash
+  chain) — open.
+- DOCUMENT IDENTIFICATION (owner ruling 09-03: "the agent must be able
+  to identify the period of the report — not a folder, not a count"):
+  pipeline/docid.py — brain card per document (type, company, period
+  end, months, comparatives) > printed-period reader (EN/CN: year
+  ended / from-to / months ended / 年度报告 / 报告期 / 截至...止) >
+  numeric vote as backstop+tripwire (contradiction -> UNKNOWN, flagged).
+  Verdict binds every stage through the vintage register; _REPORT lists
+  "DOCUMENTS RECEIVED" with how each was used. All six local documents
+  (CLP x4, DFE x2 incl. both FY24 ARs) identify correctly offline;
+  replay 228 and DFE floor DELIVER. Museum 107.
+OWNER AUDIT ("other mechanical identity decisions?"): yes — company
+identity (unchecked), statement-face pages (caption word lists),
+model key rows / label dimensions (synonym lists). Plan: one brain
+"reading" step (what am I holding, which pages are the primary
+statements, which company) with numeric ratification of every claim.
+BAR CHANGE PENDING (owner): forecast health in the gate (collapse ->
+take-back loop) and on _REPORT page one.
