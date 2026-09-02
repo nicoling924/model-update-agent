@@ -943,3 +943,18 @@ Museum 104 (exhibit: the ledger survives guard pops). Luna-sim: red
 tier no help -> all tier takes back 2 serves (mass 21,859 -> 10,279) ->
 final repair -> gate PASSED. CLP ceiling 10/11 / floor 9/11 green; DFE
 floor green.
+
+## 2026-09-02 — RUN 224 AUTOPSY: THE CLEAN-SLATE RULE
+
+Run 224 (head c4aaa79, ledger fix aboard): the gate loop ENGAGED this
+time — red tier took back 4 serves (mass 21k -> 5,255, kept), all tier
+took back 2 more and got WORSE (5,255 -> 10,279), restored; final
+repair could not close: 2025 -1,413 (fuel clause back at prior — Luna
+picked C after D was refused; third wrong pick in three runs on the
+same card) + a +352/yr forecast ramp + one unexamined DRIVER ROLL.
+AUTOPSY: taking back the serves but KEEPING the anchors/plugs that
+were solved AGAINST them leaves a state worse than the floor.
+FIX (generic): the CLEAN-SLATE RULE — with the serves, every repair-
+suite write made after stage 4 is taken back too (reverse order, from
+the append-only ledger); the idempotent suite re-solves from a clean
+base. Museum 104; CLP ceiling 10/11 / floor 9/11 green; DFE green.

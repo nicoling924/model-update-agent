@@ -870,6 +870,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 continue
             snapshot = [(sh_u, coord_u, wb[sh_u][coord_u].value)
                         for sh_u, coord_u, _o, _w in reverts]
+            # THE CLEAN-SLATE RULE (run-224: taking back the serves but
+            # KEEPING the anchors and plugs that were solved AGAINST
+            # them left a state worse than the floor — 5,255 -> 10,279).
+            # Repairs are answers to the serves; when the serves go,
+            # every repair-suite write made after stage 4 goes too, in
+            # reverse order, and the idempotent suite re-solves from a
+            # clean base. Everything stays in the ledger and the log.
+            repairs = list(writer.log.get("writes_all", []))[undo_mark2:]
+            snap_rep = [(sh_r, co_r, wb[sh_r][co_r].value)
+                        for sh_r, co_r, _o, _n in repairs]
+            for sh_r, co_r, old_r, _n in reversed(repairs):
+                wb[sh_r][co_r] = old_r
             for sh_u, coord_u, old_u, _now in reverts:
                 wb[sh_u][coord_u] = old_u
             repair_round(f"gate-loop {tier}")
@@ -896,6 +908,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             else:
                 for sh_u, coord_u, was in snapshot:
                     wb[sh_u][coord_u] = was
+                for sh_r, co_r, was_r in snap_rep:
+                    wb[sh_r][co_r] = was_r
                 log(f"[run] gate loop ({tier} tier): taking back "
                     f"{len(reverts)} serves did not help "
                     f"({mass0:,.0f} -> {mass1:,.0f}) — restored")
