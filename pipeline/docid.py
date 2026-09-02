@@ -319,10 +319,275 @@ def identify_documents(paths, ledger, client, target_year, period_kind, log):
             label = _LABEL[read_v]
         line = f"{doc}: {dtype}{when} -> {label} [{basis}]"
         log(f"[run] document: {line}")
+        issuers = printed_issuers(pages[:FIRST_PAGES])
+        issuer = (brain or {}).get("company") or (issuers[0] if issuers else None)
+        if issuer:
+            line += f" | issuer: {issuer}"
         ledger.doc_meta.setdefault(doc, {})["identity"] = {
             "doc_type": dtype, "year": (ident or {}).get("year"),
             "months": (ident or {}).get("months"), "verdict": final,
-            "reading": read_v, "numeric": num_v, "basis": basis}
-        out.append({"doc": doc, "identity": ident, "verdict": final, "line": line})
+            "reading": read_v, "numeric": num_v, "basis": basis,
+            "issuer": issuer}
+        out.append({"doc": doc, "identity": ident, "verdict": final,
+                    "line": line, "printed_issuer": issuer, "issuers": issuers})
+    company = issuer_check(out, log)
+    for e in out:
+        verdicts[e["doc"]] = e["verdict"]
+        ledger.doc_meta[e["doc"]]["identity"]["verdict"] = e["verdict"]
+    if company:
+        log(f"[run] company per the documents: {company}")
     ledger._doc_periods = verdicts
     return out
+
+
+# -- the issuer: every current document must name the same company ---------
+_EN_ISSUER = re.compile(
+    r"([A-Z][A-Za-z&.,'\- ]{2,60}?\s+(?:Limited|Ltd\.?|Holdings(?:\s+Limited)?|"
+    r"Corporation|Corp\.?|Inc\.?|plc|PLC|Company\s+Limited|Group(?:\s+Limited)?))\b")
+_CN_ISSUER = re.compile(r"([一-鿿]{2,20}?(?:股份有限公司|有限公司|集团))")
+_STOP = {"the", "of", "and", "limited", "ltd", "holdings", "company", "group",
+         "corporation", "corp", "inc", "plc", "co"}
+
+
+def printed_issuers(pages):
+    """Every company name printed on the first pages, most-named first.
+    A cover names the exchange, the auditor and the issuer; which one is
+    the issuer is settled ACROSS documents (issuer_check), never here."""
+    c = Counter()
+    for _pn, text in pages[:FIRST_PAGES]:
+        t = text or ""
+        for m in _EN_ISSUER.finditer(t):
+            c[m.group(1).strip()] += 1
+        for m in _CN_ISSUER.finditer(t):
+            c[m.group(1)] += 1
+    return [n for n, _k in c.most_common()]
+
+
+def printed_issuer(pages):
+    """Most-named issuer on the first pages, or None."""
+    names = printed_issuers(pages)
+    return names[0] if names else None
+
+
+def _issuer_tokens(name):
+    s = str(name or "").lower()
+    cn = set(re.findall(r"[一-鿿]{2,}", s))
+    en = {w for w in re.findall(r"[a-z]{2,}", s) if w not in _STOP}
+    # Chinese names: compare on 2-character shingles so 东方电气 ~ 东方电气股份
+    sh = set()
+    for w in cn:
+        sh |= {w[i:i + 2] for i in range(len(w) - 1)}
+    return en | sh
+
+
+def same_issuer(a, b):
+    ta, tb = _issuer_tokens(a), _issuer_tokens(b)
+    if not ta or not tb:
+        return True          # nothing to compare — never a false alarm
+    return bool(ta & tb)
+
+
+def issuer_check(entries, log):
+    """entries: the identify_documents output (mutated in place).
+    Among CURRENT documents the majority issuer is the company; a current
+    document naming a different issuer is set UNKNOWN and flagged — a
+    wrong company's report must never serve a number."""
+    cur = [e for e in entries if e["verdict"] == "current"
+           and (e.get("issuers") or (e.get("identity") or {}).get("company"))]
+    if len(cur) < 2:
+        return None
+    # the company = the name (token group) named by the MOST documents; a
+    # document whose names ALL miss that group is another company's
+    groups = []          # [representative, set(doc)]
+    for e in cur:
+        names = list(e.get("issuers") or [])
+        b = (e.get("identity") or {}).get("company")
+        if b and e["identity"].get("source") == "brain":
+            names = [b] + names
+        for n in names:
+            for g in groups:
+                if same_issuer(g[0], n):
+                    g[1].add(e["doc"])
+                    break
+            else:
+                groups.append([n, {e["doc"]}])
+    groups.sort(key=lambda g: -len(g[1]))
+    company = groups[0][0]
+    for e in cur:
+        names = list(e.get("issuers") or [])
+        b = (e.get("identity") or {}).get("company")
+        if b:
+            names = [b] + names
+        if not any(same_issuer(company, n) for n in names):
+            e["verdict"] = "unknown"
+            e["line"] += (f" | ISSUER MISMATCH: names {names[:2]}, the other "
+                          f"documents name '{company}' — not used, review")
+            log(f"[run] document: {e['doc']}: ISSUER MISMATCH {names[:2]} vs "
+                f"'{company}' — set UNKNOWN, flagged")
+    return company
+
+
+# -- the primary statements: which pages are they? ------------------------
+_FACES_SYSTEM = """You are shown the first pages (cover, contents) of one financial filing, plus a list of
+candidate pages that a scanner flagged as statement-like. Name the pages of the CONSOLIDATED primary
+statements and the segment note. Answer ONLY with JSON:
+{"pl": [page numbers of the consolidated income statement / statement of profit or loss],
+ "bs": [pages of the consolidated balance sheet / statement of financial position],
+ "cf": [pages of the consolidated cash flow statement],
+ "segment": [pages of the segment information note],
+ "parent_only": [pages that are COMPANY-ONLY (parent) statements, not consolidated],
+ "why": "<one line: where the contents page says these are>"}
+Use the filing's own printed page numbers as they appear in the text. Empty lists are fine."""
+
+
+def _faces_validate(obj):
+    errs = []
+    if not isinstance(obj, dict):
+        return ["not an object"]
+    for k in ("pl", "bs", "cf", "segment", "parent_only"):
+        v = obj.get(k, [])
+        if not isinstance(v, list) or not all(isinstance(x, int) for x in v):
+            errs.append(f"{k} must be a list of integers")
+    return errs
+
+
+def identify_statement_pages(paths, ledger, client, priors, log):
+    """THE READING STEP for statement pages (owner ruling 2026-09-03): the
+    brain names the consolidated P&L / BS / CF / segment pages from the
+    contents; code RATIFIES each named page by its numbers (the page must
+    tie the model's prior year at a proven scale) before the face is
+    used; a named page that does not ratify is refused and logged; pages
+    the brain calls parent-only lose face authority. Without a brain the
+    deterministic caption tagger stands (the floor)."""
+    if client is None:
+        return {}
+    from .stage1_read import page_texts
+    from .stage2_join import ratify_page_scales
+    banned = set(getattr(ledger, "noncurrent_docs", lambda: set())())
+    out = {}
+    for path in paths:
+        doc = Path(path).name
+        if doc in banned:
+            continue
+        try:
+            pages = [(pn, t) for pn, t, c in page_texts(path) if c == "text"]
+        except Exception:
+            continue
+        cands = sorted(pn for (d, pn), f in ledger.faces.items() if d == doc)
+        body = [f"--- page {pn} ---\n{(t or '').strip()[:1500]}"
+                for pn, t in pages[:FIRST_PAGES]]
+        user = (f"Document: {doc}\nScanner's candidate statement pages: {cands}\n\n"
+                + "\n".join(body))[:12000]
+        try:
+            obj = client.json(_FACES_SYSTEM, user, _faces_validate, repair_retries=1)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        items = [it for it in ledger.items if it.doc == doc]
+        ratified = ratify_page_scales(items, priors)
+        adopted, refused = [], []
+        for face in ("pl", "bs", "cf", "segment"):
+            for pn in obj.get(face) or []:
+                if (doc, pn) in ratified or face == "segment":
+                    if (doc, pn) in ledger.parent_pages:
+                        ledger.parent_pages.discard((doc, pn))
+                    ledger.faces[(doc, pn)] = face
+                    adopted.append(f"p{pn}={face}")
+                else:
+                    refused.append(f"p{pn}={face} (numbers do not tie the prior year)")
+        for pn in obj.get("parent_only") or []:
+            if ledger.faces.get((doc, pn)) in ("pl", "bs", "cf"):
+                del ledger.faces[(doc, pn)]
+            ledger.parent_pages.add((doc, pn))
+            adopted.append(f"p{pn}=parent-only (face removed)")
+        out[doc] = {"adopted": adopted, "refused": refused,
+                    "why": str(obj.get("why") or "")[:160]}
+        log(f"[run] statement pages ({doc}): brain named {len(adopted)} "
+            f"ratified; {len(refused)} refused — {obj.get('why', '')!s:.100}"
+            + (f"; refused: {refused[:3]}" if refused else ""))
+    return out
+
+
+# -- the model's key rows: which rows are the headline outputs? ----------
+KEY_NAMES = ("revenue", "gross profit", "operating profit", "net profit",
+             "recurring net profit", "eps", "dps", "total assets",
+             "total equity", "operating cash flow", "investing cash flow",
+             "financing cash flow", "cash year end")
+
+_KEYS_SYSTEM = """You are shown the row labels of an equity analyst's financial model (one sheet at a time,
+"row: label"). Name the rows that carry the headline outputs. Answer ONLY with JSON:
+{"key_rows": [{"row": <int>, "name": <one of %s>}, ...],
+ "why": "<one line>"}
+Pick at most one row per name, the CONSOLIDATED / total line (not a segment), the reported
+figure unless the name says recurring. Omit names this sheet does not carry.""" % ", ".join(
+    f'"{n}"' for n in KEY_NAMES)
+
+
+def _keys_validate(obj):
+    if not isinstance(obj, dict) or not isinstance(obj.get("key_rows"), list):
+        return ["key_rows must be a list"]
+    errs = []
+    for e in obj["key_rows"]:
+        if not isinstance(e, dict) or not isinstance(e.get("row"), int) \
+                or e.get("name") not in KEY_NAMES:
+            errs.append(f"bad entry {e!r}: row int + name in the allowed list")
+    return errs
+
+
+def identify_key_rows(wb_values, spec, client, log, max_rows=260):
+    """THE READING STEP for the model (owner ruling 2026-09-03): the brain
+    reads each sheet's labels and names the headline rows; code VERIFIES
+    each named row carries numbers in the year axis before it replaces
+    the pattern-matched pick of the same name. Unverifiable picks are
+    logged and dropped. Without a brain the synonym patterns stand."""
+    if client is None:
+        return []
+    axis = spec.get("year_axis") or {}
+    found, dropped = [], []
+    for sheet, ax in axis.items():
+        if sheet not in wb_values.sheetnames:
+            continue
+        ws = wb_values[sheet]
+        cols = list((ax.get("columns") or ax.get("cols") or {}).values()) \
+            if isinstance(ax, dict) else []
+        if not cols:
+            cols = [c for c in ("B", "C", "D", "E", "F", "G", "H", "I", "J", "K")]
+        lines, numeric_rows = [], set()
+        for r in range(1, min(ws.max_row, max_rows) + 1):
+            lab = ws.cell(r, 1).value
+            if lab is None or not str(lab).strip():
+                continue
+            has_num = any(isinstance(ws[f"{c}{r}"].value, (int, float))
+                          for c in cols[:8])
+            if has_num:
+                numeric_rows.add(r)
+            lines.append(f"{r}: {str(lab).strip()[:60]}")
+        if len(lines) < 5:
+            continue
+        user = f"Sheet: {sheet}\n" + "\n".join(lines)
+        try:
+            obj = client.json(_KEYS_SYSTEM, user[:14000], _keys_validate,
+                              repair_retries=1)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        for e in obj.get("key_rows") or []:
+            if e["row"] in numeric_rows:
+                found.append({"name": e["name"], "sheet": sheet, "row": e["row"],
+                              "source": "brain"})
+            else:
+                dropped.append(f"{sheet}!{e['row']} as {e['name']} (no numbers on the row)")
+    if not found and not dropped:
+        return []
+    by_name = {}
+    for k in found:
+        by_name.setdefault(k["name"], k)      # first sheet wins per name
+    old = spec.get("key_rows") or []
+    kept = [k for k in old if k.get("name") not in by_name]
+    spec["key_rows"] = kept + list(by_name.values())
+    log(f"[run] key rows: brain named {len(by_name)} verified "
+        f"({', '.join(sorted(by_name))}); {len(kept)} pattern picks kept"
+        + (f"; dropped {dropped[:3]}" if dropped else ""))
+    return list(by_name.values())

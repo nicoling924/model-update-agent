@@ -1075,3 +1075,28 @@ model key rows / label dimensions (synonym lists). Plan: one brain
 statements, which company) with numeric ratification of every claim.
 BAR CHANGE PENDING (owner): forecast health in the gate (collapse ->
 take-back loop) and on _REPORT page one.
+
+## 2026-09-03 — THE READING STEP: brain judges, code verifies (owner ruling)
+
+Owner: "is there any other mechanism deciding what a thing is
+mechanically, without the brain? we can't work like that." Audit found
+three more; all four now follow one pattern — the brain answers a
+bounded card, code verifies the answer numerically, contradiction is
+flagged, and a deterministic reader is the offline floor:
+1. WHAT DOCUMENT (docid.identify_documents) — brain card > printed
+   period > numeric vote as tripwire.
+2. WHICH COMPANY (docid.issuer_check) — the issuer named by the most
+   current documents is the company; a current document naming
+   another issuer is set UNKNOWN and flagged. The floor considers every
+   name printed (an announcement's cover names the exchange first).
+3. WHICH PAGES ARE THE PRIMARY STATEMENTS (identify_statement_pages)
+   — brain names consolidated P&L/BS/CF/segment pages and parent-only
+   pages from the contents; a named page is adopted only if its
+   numbers ratify against the model's prior year (ratify_page_scales);
+   parent-only pages lose face authority. Caption tagger = the floor.
+4. WHICH ROWS ARE THE MODEL'S KEY OUTPUTS (identify_key_rows) — brain
+   reads each sheet's labels; a named row replaces the synonym-pattern
+   pick only if it carries numbers in the year axis.
+Legitimately mechanical (arithmetic a person also does): scale
+ratification, prior-identity triangulation, restatement diffs, balance
+and cash ties, vision checksum. Museum 108.

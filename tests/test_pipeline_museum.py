@@ -2585,6 +2585,108 @@ def test_document_identification_owner_ruling_2026_09_03():
     assert v["odd.pdf"] == "unknown", v         # reading vs vote contradiction -> flagged
     assert vintage_ban(led) == {"AR24.pdf", "odd.pdf"}, vintage_ban(led)
     assert led.doc_meta["AR24.pdf"]["identity"]["verdict"] == "prior"
+    # exhibit 8 — the issuer: a current document from ANOTHER company is
+    # set unknown and flagged; Chinese and English names compare on
+    # their own tokens, and an unreadable issuer never false-alarms
+    from pipeline.docid import printed_issuer, same_issuer
+    assert printed_issuer([(1, "CLP Holdings Limited (incorporated in Hong Kong) "
+                               "... CLP Holdings Limited ... Stock Code 00002")]) \
+        == "CLP Holdings Limited"
+    assert printed_issuer([(2, "东方电气股份有限公司2025年年度报告")]) == "东方电气股份有限公司"
+    assert same_issuer("CLP Holdings Limited", "CLP Power Hong Kong Limited")
+    assert not same_issuer("CLP Holdings Limited", "Dongfang Electric Corporation")
+    assert same_issuer("东方电气股份有限公司", "东方电气集团")
+    assert same_issuer(None, "anything")
+    texts = {"AR25.pdf": [(3, "Welcome to CLP's 2025 Annual Report. CLP Holdings Limited", "text")],
+             "RA25.pdf": [(1, "CLP Holdings Limited Announcement of Annual Results from "
+                              "1 January 2025 to 31 December 2025", "text")],
+             "wrong.pdf": [(2, "Dongfang Electric Corporation Limited 2025 Annual Report", "text")]}
+    s1.page_texts = lambda path, cache_dir=None: texts[path]
+    try:
+        led = Ledger()
+        led._doc_periods = {d: "current" for d in texts}
+        out = identify_documents(list(texts), led, None, 2025, "FY", lambda s: None)
+    finally:
+        s1.page_texts = real
+    v = {d["doc"]: d["verdict"] for d in out}
+    assert v == {"AR25.pdf": "current", "RA25.pdf": "current", "wrong.pdf": "unknown"}, v
+    assert "ISSUER MISMATCH" in next(d for d in out if d["doc"] == "wrong.pdf")["line"]
+    assert vintage_ban(led) == {"wrong.pdf"}
+
+
+def test_reading_step_brain_judges_code_verifies():
+    """Owner ruling (2026-09-03): every 'what is this' decision is the
+    brain's, with code verifying the answer numerically. Statement pages
+    and the model's key rows follow the document-identity pattern."""
+    from pipeline.docid import identify_key_rows, identify_statement_pages
+    from pipeline.ledger import Item, Ledger
+
+    class Stub:
+        def __init__(self, answer):
+            self.answer = answer
+        def json(self, system, user, validate, repair_retries=0, images=None):
+            assert not validate(self.answer), validate(self.answer)
+            return self.answer
+
+    # exhibit 1 — statement pages: a brain-named page is adopted ONLY when
+    # its numbers tie the model's prior year; an untied page is refused;
+    # a parent-only page loses its face
+    led = Ledger()
+    led.doc_meta["AR.pdf"] = {}
+    rows = [(60, "Revenue", [120000.0, 118000.0]), (60, "Costs", [-46000.0, -45000.0]),
+            (60, "Profit", [31000.0, 30000.0]), (60, "Tax", [-7000.0, -22000.0]),
+            (61, "Ratio", [5.0, 6.0]), (61, "Other", [7.0, 8.0]), (62, "Memo", [9.0])]
+    for i, (pn, lab, nums) in enumerate(rows):
+        led.items.append(Item(doc="AR.pdf", page=pn, table_id=0, row_ord=i,
+                              label=lab, nums=nums, stmt_face=None,
+                              unit_dim="unknown", scale_hint=None,
+                              source_line=lab + " " + " ".join(map(str, nums))))
+    led.faces[("AR.pdf", 62)] = "pl"           # the caption tagger's pick
+    import pipeline.stage1_read as s1
+    real = s1.page_texts
+    s1.page_texts = lambda path, cache_dir=None: [(1, "Contents ... Consolidated Income Statement 60", "text")]
+    try:
+        res = identify_statement_pages(["AR.pdf"], led,
+                                       Stub({"pl": [60], "bs": [61], "cf": [],
+                                             "segment": [], "parent_only": [62],
+                                             "why": "contents p1"}),
+                                       [118000.0, 45000.0, 30000.0, 22000.0],
+                                       lambda s: None)
+    finally:
+        s1.page_texts = real
+    assert led.faces.get(("AR.pdf", 60)) == "pl", led.faces
+    assert ("AR.pdf", 61) not in led.faces and any("p61=bs" in x for x in res["AR.pdf"]["refused"])
+    assert ("AR.pdf", 62) not in led.faces and ("AR.pdf", 62) in led.parent_pages
+    # without a brain, nothing changes (the floor)
+    assert identify_statement_pages(["AR.pdf"], led, None, [], lambda s: None) == {}
+
+    # exhibit 2 — key rows: a brain pick replaces the pattern pick of the
+    # same name only if the row carries numbers; a labels-only row is dropped
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Final"
+    rows = {7: ("Total revenue", 100.0), 15: ("Net operating income", 20.0),
+            27: ("Net profits (reported)", 12.0), 31: ("Recurring net profit", 13.0),
+            40: ("Memo: EPS commentary", None)}
+    for r, (lab, v) in rows.items():
+        ws.cell(r, 1, lab)
+        if v is not None:
+            ws.cell(r, 3, v)
+    spec = {"year_axis": {"Final": {"columns": {"2024": "C"}}},
+            "key_rows": [{"name": "net profit", "sheet": "Final", "row": 27},
+                         {"name": "revenue", "sheet": "Final", "row": 7}]}
+    picks = identify_key_rows(wb, spec, Stub({"key_rows": [
+        {"row": 31, "name": "recurring net profit"},
+        {"row": 15, "name": "operating profit"},
+        {"row": 40, "name": "eps"},
+        {"row": 27, "name": "net profit"}], "why": "labels"}), lambda s: None)
+    names = {k["name"]: k["row"] for k in spec["key_rows"]}
+    assert names["recurring net profit"] == 31 and names["operating profit"] == 15
+    assert names["net profit"] == 27 and names["revenue"] == 7      # pattern pick kept
+    assert "eps" not in names                                        # no numbers -> dropped
+    assert {p["name"] for p in picks} == {"recurring net profit", "operating profit", "net profit"}
+    assert identify_key_rows(wb, spec, None, lambda s: None) == []
 
 
 if __name__ == "__main__":

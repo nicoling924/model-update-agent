@@ -164,6 +164,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     wb = load(model_path)                       # formulas
     wb_values = load(model_path, data_only=True)  # cached values
+    # THE READING STEP for the model (owner ruling 2026-09-03): the brain
+    # names the headline rows; code verifies each carries numbers
+    from .docid import identify_key_rows
+    identify_key_rows(wb_values, spec_d, client, log)
     pre_map = formula_map(wb)
 
     # -- THE ERROR-BASELINE LAW (owner ruling 2026-08-31): count the
@@ -301,6 +305,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     _kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
              else "Q" if "Q" in str(period).upper() else "FY")
     documents = identify_documents(docs, ledger, client, target_year, _kind, log)
+    from .docid import identify_statement_pages
+    identify_statement_pages(docs, ledger, client, known, log)
     _ban = _vintage_ban(ledger)
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
