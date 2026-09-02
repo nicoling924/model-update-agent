@@ -2746,6 +2746,37 @@ def test_rollover_investigation_owner_teaching_2026_09_03():
     assert set(options) == {"revert:A", "revert:B", "justified", "not_sure"}
     # the probe left the model untouched
     assert ws["C2"].value == 2.0 and ws["C3"].value == 105.0
+    # exhibit 2b — PROVEN IS PROTECTED (run-229 autopsy): a proven actual
+    # is shown but never offered for reversion; an unproven one still is
+    cands = dossier(wb, spec, 2025, "M", 4, anoms[0]["old_f"], writes_all, leaves,
+                    served={("M", 2): {"note": "reconciliation: FY24 AR p274", "conf": 4},
+                            ("M", 3): {"note": "stage-3 read (no prior)", "conf": 3}})
+    assert cands[0]["coord"] == "C2" and cands[0]["proven"] is True
+    assert cands[1]["coord"] == "C3" and cands[1]["proven"] is False
+    text, options, default = render(anoms[0], cands)
+    assert "revert:A" not in options and "revert:B" in options, options
+    assert "PROVEN actual" in text and "never reverted" in text
+    # a RED-filled 'proven' entry is not proven (an orange one keeps its
+    # protection — the writer's flag list holds both colours, run 229)
+    from openpyxl.styles import PatternFill
+    ws["C2"].fill = PatternFill("solid", fgColor="FFC7CE")
+    cands = dossier(wb, spec, 2025, "M", 4, anoms[0]["old_f"], writes_all, leaves,
+                    served={("M", 2): {"note": "x", "conf": 4}})
+    assert cands[0]["proven"] is False
+    ws["C2"].fill = PatternFill("solid", fgColor="FFC000")
+    cands = dossier(wb, spec, 2025, "M", 4, anoms[0]["old_f"], writes_all, leaves,
+                    served={("M", 2): {"note": "x", "conf": 4}})
+    assert cands[0]["proven"] is True
+    ws["C2"].fill = PatternFill()
+    # exhibit 2c — a constants composite whose literals are all proven
+    # served figures is proven (run-229: '=+-1860+194' net finance costs)
+    from pipeline.rollover import input_is_proven
+    served = {("D", 103): {"value": -1860.0, "conf": 4, "note": "reconciliation: prior ties"},
+              ("D", 104): {"value": 194.0, "conf": 4, "note": "stage-2 join: prior ties"}}
+    assert input_is_proven(served, "F", "AI21", "=+-1860+194")
+    assert not input_is_proven(served, "F", "AI21", "=+-1860+999")
+    assert not input_is_proven(served, "F", "AI21", "=AI9-AI10")     # refs: not a composite
+    assert not input_is_proven(served, "F", "AI21", "=+-1860+194", flags=["F!AI21"])
     # exhibit 3 — the old collapse test never fired on run 228's -69%
     from pipeline.teachings import collapsed_forecasts
     assert collapsed_forecasts(wb, spec, 2025, {("M", 4): 4655.0}) == [] \

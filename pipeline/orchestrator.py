@@ -1433,6 +1433,14 @@ class ObjectiveLoop:
             return "MISS: no pre-update value on record"
         ref = f"{sheet}!{col}{row}"
         cur = self.wb[sheet][f"{col}{row}"].value
+        # PROVEN IS PROTECTED (run-229 autopsy): a proven actual is never
+        # reverted to an estimate to fix a downstream oddity
+        from .rollover import input_is_proven
+        if input_is_proven(self.served, sheet, f"{col}{row}", cur, (), self.wb):
+            return (f"REFUSED: {ref} is a PROVEN actual (its evidence ties the "
+                    "prior) — never reverted; if the forecast is wrong, its own "
+                    "driver or a frozen assumption is stale: flag the forecast "
+                    "(not_sure) for the analyst")
         ok = self.writer.write(sheet, f"{col}{row}", old, force_lock=True,
                                trusted=True, flag="red",
                                note=f"objective loop: {str(args.get('why'))[:280]}")

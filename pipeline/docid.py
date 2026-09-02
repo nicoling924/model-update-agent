@@ -558,8 +558,13 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260):
             lab = ws.cell(r, 1).value
             if lab is None or not str(lab).strip():
                 continue
+            # a manual-calc model caches nothing: a FORMULA row carries
+            # numbers as much as a typed one (run-229: the brain's correct
+            # picks Final!15/27/31 were dropped as "no numbers")
             has_num = any(isinstance(ws[f"{c}{r}"].value, (int, float))
-                          for c in cols[:8])
+                          or (isinstance(ws[f"{c}{r}"].value, str)
+                              and ws[f"{c}{r}"].value.startswith("="))
+                          for c in cols[:12])
             if has_num:
                 numeric_rows.add(r)
             lines.append(f"{r}: {str(lab).strip()[:60]}")

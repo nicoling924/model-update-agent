@@ -132,12 +132,63 @@ def rollover_anomalies(wb, spec, target_year, base, cap=12, key_rows=()):
     return out[:cap]
 
 
+def input_is_proven(served, sheet, coord, value, flags=(), wb=None):
+    """PROVEN IS PROTECTED, for any input cell:
+    - a served cell whose evidence tied the prior and landed clean; or
+    - a constants composite (=-1860+194) whose EVERY literal equals a
+      proven served figure (the machinery's rewrite from proven
+      components — run-229: net finance costs had no serve record of
+      its own and was reverted to last year's composite)."""
+    import re as _re
+    from .writegate import is_proven
+    ref = f"{sheet}!{coord}"
+    if ref in set(flags or ()):
+        return False
+    if wb is not None:
+        # RED = uncertain (unproven); ORANGE = derived from proven parts
+        # (run-229: the writer's flag list holds both colours — the
+        # orange composite read as 'flagged' and lost its protection)
+        try:
+            rgb = str(wb[sheet][coord].fill.fgColor.rgb or "")
+            if rgb.endswith("FFC7CE"):
+                return False
+        except Exception:
+            pass
+    try:
+        rr = int("".join(ch for ch in coord if ch.isdigit()))
+    except ValueError:
+        return False
+    e = (served or {}).get((sheet, rr))
+    if isinstance(e, dict) and is_proven(e):
+        return True
+    if isinstance(value, str) and value.startswith("=") \
+            and not _re.search(r"[A-Z]{1,3}\d+", value.replace("$", "")):
+        lits = [float(x) for x in _re.findall(r"\d+(?:\.\d+)?", value)]
+        if not lits:
+            return False
+        proven_vals = [abs(float(v["value"])) for v in (served or {}).values()
+                       if isinstance(v, dict) and is_proven(v)
+                       and isinstance(v.get("value"), (int, float))]
+        return all(any(abs(abs(l) - pv) <= max(0.6, pv * 1e-3) for pv in proven_vals)
+                   for l in lits)
+    return False
+
+
 def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
-            served=None, max_inputs=5):
+            served=None, max_inputs=5, flags=()):
     """The changed actual-year inputs this forecast consumes, each PROBED:
     put the analyst's pre-update value back and measure the share of the
-    swing that disappears. -> [dict(sheet, coord, old, cur, share, prov)]
-    sorted by share."""
+    swing that disappears. -> [dict(sheet, coord, old, cur, share, prov,
+    proven)] sorted by share.
+
+    PROVEN IS PROTECTED (run-229 autopsy: the brain answered 'revert' on
+    two proven actuals — bank loans 9,673 and net finance costs, both
+    exactly the by-hand key — and the tool obeyed, breaking OP/NP/EPS).
+    A proven actual (its evidence tied the prior, landed clean) is never
+    offered for reversion: if a proven actual drives a strange forecast,
+    the forecast's own driver or a frozen assumption is what is stale,
+    and that is the analyst's call. Only UNPROVEN inputs can be
+    reverted (= held at the analyst's value, red)."""
     fc = forecast_columns(spec, sheet, target_year)
     if not fc:
         return []
@@ -171,16 +222,16 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
         if isinstance(probe, (int, float)) and abs(old_f - new_f) > 1e-9:
             share = (probe - new_f) / (old_f - new_f)
         prov = ""
-        if served:
-            try:
-                rr = int("".join(ch for ch in c if ch.isdigit()))
-                e = served.get((s, rr))
-                if isinstance(e, dict):
-                    prov = (str(e.get("note") or e.get("line") or "")[:70])
-            except ValueError:
-                pass
+        try:
+            rr = int("".join(ch for ch in c if ch.isdigit()))
+        except ValueError:
+            rr = None
+        e = (served or {}).get((s, rr)) if rr is not None else None
+        if isinstance(e, dict):
+            prov = (str(e.get("note") or e.get("line") or "")[:70])
+        proven = input_is_proven(served, s, c, cur, (), wb)
         cands.append({"sheet": s, "coord": c, "old": old, "cur": cur,
-                      "share": share, "prov": prov})
+                      "share": share, "prov": prov, "proven": proven})
     cands.sort(key=lambda d: -d["share"])
     return cands[:max_inputs]
 
@@ -209,7 +260,13 @@ def render(anom, cands):
         L = letters[i]
         lines.append(f"    {L}: {c['sheet']}!{c['coord']} {_fmt(c['old'])} -> "
                      f"{_fmt(c['cur'])}  ⇒ recovers {c['share']:.0%} of the swing"
-                     + (f"  [{c['prov']}]" if c["prov"] else ""))
+                     + (f"  [{c['prov']}]" if c["prov"] else "")
+                     + ("  ✔ PROVEN actual (its evidence ties the prior) — never "
+                        "reverted; if the swing is wrong, the forecast's own "
+                        "driver/assumption is stale (flag it)"
+                        if c.get("proven") else "  (unproven — may be reverted)"))
+        if c.get("proven"):
+            continue
         options[f"revert:{L}"] = ("rollover_revert", {
             "cell": f"{c['sheet']}!{c['coord']}", "old": c["old"],
             "forecast": f"{anom['sheet']}!{anom['row']}",
@@ -222,7 +279,7 @@ def render(anom, cands):
                      "move comes from formulas or frozen assumptions)")
     lines.append("  answers: " + ", ".join(
         [f"revert:{letters[i]} (input wrong — restore the analyst's value, red-flag)"
-         for i in range(len(cands))]
+         for i in range(len(cands)) if not cands[i].get("proven")]
         + ["justified (the change is genuine — the disclosure supports it)",
            "not_sure (flag the forecast for the analyst)"]))
     fc_ref = f"{anom['sheet']}!{anom['row']}"
