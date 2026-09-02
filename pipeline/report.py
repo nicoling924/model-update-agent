@@ -30,7 +30,8 @@ def _syn(sheet):
 
 
 def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
-                 gate_failures, loop_summary="", documents=None):
+                 gate_failures, loop_summary="", documents=None,
+                 rollover=None):
     if REPORT_SHEET in wb.sheetnames:
         del wb[REPORT_SHEET]
     ws = wb.create_sheet(REPORT_SHEET, 0)
@@ -67,6 +68,28 @@ def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
         head("DOCUMENTS RECEIVED — what the agent identified, and how each was used")
         for line in documents:
             ws[f"A{r}"] = str(line)[:250]
+            r += 1
+        r += 1
+
+    if rollover:
+        head("ROLLOVER CHECK — did the update move the forecast in proportion "
+             "to the actual surprise? (owner teaching 2026-09-03)")
+        for col, txt in zip("ABCDEFGH", ("row", "line", "estimate (target yr)",
+                                         "actual", "old forecast (yr+1)",
+                                         "new forecast (yr+1)", "test", "verdict")):
+            ws[f"{col}{r}"] = txt
+            ws[f"{col}{r}"].font = _BOLD
+        r += 1
+        for ref, name, est_t, act_t, old_f, new_f, test, verdict in rollover:
+            sheet, coord = ref.split("!", 1)
+            ws[f"A{r}"] = ref
+            ws[f"A{r}"].hyperlink = f"#{_syn(sheet)}!{coord}"
+            ws[f"A{r}"].font = _LINK
+            ws[f"B{r}"] = str(name)[:40]
+            for col, v in zip("CDEF", (est_t, act_t, old_f, new_f)):
+                ws[f"{col}{r}"] = v if isinstance(v, (int, float)) else None
+            ws[f"G{r}"] = str(test)[:120]
+            ws[f"H{r}"] = str(verdict)[:80]
             r += 1
         r += 1
 

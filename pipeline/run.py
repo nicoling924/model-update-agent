@@ -186,6 +186,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     fc_base = forecast_baseline(wb, spec_d, target_year)
     log(f"[run] forecast baseline: {len(fc_base)} healthy first-forecast "
         "rows recorded (collapse guard armed)")
+    # THE ROLLOVER INVESTIGATION (owner teaching 2026-09-03): the
+    # analyst's own estimate for the target year AND their first
+    # forecast, per row, before any write — the proportionality test's
+    # baseline
+    from .rollover import estimate_baseline
+    est_base = estimate_baseline(wb, spec_d, target_year)
 
     def err_guard(stage, cap=60):
         """A stage that made cells stop computing gets its journaled
@@ -672,6 +678,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
         loop.load_bearing = lb           # tier law: the loop sees the wiring
+        loop.est_base = est_base         # rollover cards: the analyst's baseline
         # sense tripwires (owner ruling 2026-08-31): sign-flipped
         # forecasts are handed to the loop as mistake-detector items —
         # investigate once, verdict on _REPORT; the terminal freeze
@@ -993,9 +1000,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         log(f"[run]   move-on (reported, not refused): {line}")
 
     # -- report + spec-tab memory + snapshots
+    from .rollover import report_lines as _rollover_lines
+    try:
+        rollover = _rollover_lines(wb, spec_d, target_year, est_base,
+                                   spec_d.get("key_rows") or [],
+                                   writer.log.get("verdicts", []))
+    except Exception as e:              # the report never blocks delivery
+        rollover = []
+        log(f"[run] rollover report skipped: {e}")
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
                             pre_estimates, failures, loop_summary,
-                            documents=[d["line"] for d in documents])
+                            documents=[d["line"] for d in documents],
+                            rollover=rollover)
     spec_d.setdefault("_last_run", {})
     spec_d["_last_run"] = {"period": period, "served": len(served),
                            "flags": len(writer.log["flags"]),

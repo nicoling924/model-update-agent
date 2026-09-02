@@ -1100,3 +1100,31 @@ flagged, and a deterministic reader is the offline floor:
 Legitimately mechanical (arithmetic a person also does): scale
 ratification, prior-identity triangulation, restatement diffs, balance
 and cash ties, vision checksum. Museum 108.
+
+## 2026-09-03 — THE ROLLOVER INVESTIGATION (owner teaching, not a gate)
+
+Owner: "I taught this already" — the tripwire existed (sign-flip
+chains -> a verdict card) but was a DEAD END: Luna answered
+'suspicious' five times in run 228 and nothing followed; and the
+collapse test (near-zero / sign flip) never fired on a -69% move. The
+owner's rule: compare the actual surprise (2025A vs 2025E) with the
+forecast move (new 2026E vs old); a move against the surprise, far
+beyond it, a sign flip or a collapse means go back and investigate —
+sometimes it is genuine, so the agent must judge, not fail the run.
+BUILT (pipeline/rollover.py, museum 109):
+- estimate_baseline: the analyst's 2025E and 2026E per row, before any
+  write. strange(): the proportionality test (AGAINST THE ACTUAL, OUT
+  OF PROPORTION, SIGN FLIP, COLLAPSED).
+- dossier(): trace the forecast cell to the actual-year inputs this
+  update changed; PROBE each (restore the analyst's value, measure the
+  share of the swing recovered); provenance shown.
+- CARD ROLLOVER (queue order: after COMPONENT, before TRIPWIRE):
+  revert:X (restore + red-flag + ERROR_FIXED verdict), justified
+  (verdict with reason), not_sure (flag forecast, SUSPICIOUS). Default
+  = not_sure. Tools t_rollover_revert / t_rollover_flag.
+- _REPORT page one: ROLLOVER CHECK table (estimate, actual, old/new
+  forecast, test, verdict) for key rows + every strange row.
+Replay 228: 12 rollover cards render on the live state with probed
+culprits (e.g. gas consumption: actual -11%, forecast +17% AGAINST;
+A recovers 35%, B 24%); delivered with defaults. The brain's answers
+are first exercised live.

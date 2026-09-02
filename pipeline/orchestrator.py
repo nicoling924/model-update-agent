@@ -1418,6 +1418,55 @@ class ObjectiveLoop:
         return (f"; EVICTED unproven home(s) of {key:,.1f}: {out}"
                 if out else "")
 
+    def t_rollover_revert(self, args):
+        """ROLLOVER JUDGMENT (owner teaching 2026-09-03): the brain judged
+        a changed actual-year input WRONG because the probe showed it
+        drives an out-of-proportion forecast move. Restore the analyst's
+        pre-update value, red-flag the cell with the reasoning, record
+        the verdict on the forecast row."""
+        cr = self._cell_ref(str(args.get("cell", "")), default_tcol=False)
+        if not cr:
+            return "MISS: cell ref unparseable"
+        sheet, col, row = cr
+        old = args.get("old")
+        if old is None:
+            return "MISS: no pre-update value on record"
+        ref = f"{sheet}!{col}{row}"
+        cur = self.wb[sheet][f"{col}{row}"].value
+        ok = self.writer.write(sheet, f"{col}{row}", old, force_lock=True,
+                               trusted=True, flag="red",
+                               note=f"objective loop: {str(args.get('why'))[:280]}")
+        if not ok:
+            return f"REFUSED by write guard: {ref}"
+        self.served.pop((sheet, int(row)), None)
+        self.TOOLS["flag_cell"](self, {
+            "cell": f"{sheet}!{row}",
+            "why": (f"ROLLOVER: {str(args.get('why'))[:200]} — held at the "
+                    "analyst's pre-update value; analyst to confirm")})
+        fc = str(args.get("forecast") or "")
+        if fc:
+            self.TOOLS["verdict"](self, {
+                "items": [fc], "verdict": "ERROR_FIXED",
+                "why": (f"rollover card: {ref} {str(cur)[:16]} judged wrong "
+                        f"and restored to {str(old)[:16]} (red)")})
+        return f"REVERTED {ref}: {str(cur)[:16]} -> {str(old)[:16]} (red, analyst to confirm)"
+
+    def t_rollover_flag(self, args):
+        """ROLLOVER: cannot tell — flag the forecast row and record SUSPICIOUS."""
+        fc = str(args.get("forecast") or "")
+        cr = self._cell_ref(fc, default_tcol=False) if fc else None
+        if cr:
+            from .checks import forecast_columns
+            fcols = forecast_columns(self.spec, cr[0], self.ty)
+            if fcols:
+                self.TOOLS["flag_cell"](self, {
+                    "cell": f"{cr[0]}!{fcols[0]}{cr[2]}",
+                    "why": str(args.get("why") or "rollover check")[:200]})
+        self.TOOLS["verdict"](self, {
+            "items": [fc], "verdict": "SUSPICIOUS",
+            "why": "rollover card: strange move left for the analyst (cannot tell)"})
+        return f"FLAGGED {fc} for the analyst"
+
     def t_flag_cell(self, args):
         ref = str(args.get("cell", ""))
         cr = self._cell_ref(ref)
@@ -1694,6 +1743,8 @@ class ObjectiveLoop:
              "probe": t_probe, "hold_forecast": t_hold_forecast,
              "forecast_diff": t_forecast_diff,
              "set_input": t_set_input, "flag_cell": t_flag_cell,
+             "rollover_revert": t_rollover_revert,
+             "rollover_flag": t_rollover_flag,
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
              "finish": t_finish}

@@ -311,6 +311,18 @@ def build_queue(loop):
         items.append(WorkItem("SERVE", sheet, row,
                               priority=(1e9 if (sheet, row) in lb else 0.0)
                               + abs(pv or 0.0)))
+    # THE ROLLOVER INVESTIGATION (owner teaching 2026-09-03): strange
+    # first-forecast moves become cards with a probed dossier
+    est_base = getattr(loop, "est_base", None)
+    if est_base:
+        from .rollover import rollover_anomalies
+        done = {v.split(":", 1)[0] for v in loop.writer.log.get("verdicts", [])}
+        for a in rollover_anomalies(loop.wb, loop.spec, loop.ty, est_base,
+                                    key_rows=loop.spec.get("key_rows") or []):
+            if f"{a['sheet']}!{a['row']}" in done:
+                continue
+            items.append(WorkItem("ROLLOVER", a["sheet"], a["row"],
+                                  priority=(1e9 if a["key"] else 0.0) + a["size"]))
     for g in loop._trip_groups():
         refs = [f"{s}!{c}{r}" for s, c, r, *_ in g]
         done = {v.split(":", 1)[0] for v in
@@ -324,7 +336,7 @@ def build_queue(loop):
                               check=f"{sheet}!{row}", priority=abs(res)))
         items.append(WorkItem("PLUG", sheet, row,
                               check=f"{sheet}!{row}", priority=abs(res)))
-    order = {"SERVE": 0, "COMPONENT": 1, "TRIPWIRE": 2, "PLUG": 3}
+    order = {"SERVE": 0, "COMPONENT": 1, "ROLLOVER": 2, "TRIPWIRE": 3, "PLUG": 4}
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # the cap trims only the SERVE flood — check, tripwire and plug
     # items are few and load-bearing (a cap that silently dropped every
@@ -459,6 +471,19 @@ def render_card(loop, item):
         lines.append("  answers: " + ", ".join(options)
                      + "  (not_disclosed = leave red for the analyst)")
         return "\n".join(x for x in lines if x), options, "not_disclosed"
+    if item.kind == "ROLLOVER":
+        from .rollover import dossier, render, rollover_anomalies
+        est_base = getattr(loop, "est_base", None) or {}
+        anoms = [a for a in rollover_anomalies(loop.wb, loop.spec, loop.ty,
+                                               est_base, cap=60)
+                 if a["sheet"] == item.sheet and a["row"] == item.row]
+        if not anoms:
+            return None                   # no longer strange (repaired upstream)
+        a = anoms[0]
+        cands = dossier(loop.wb, loop.spec, loop.ty, item.sheet, item.row,
+                        a["old_f"], loop.writer.log.get("writes_all", []),
+                        loop._leaf_inputs, served=loop.served)
+        return render(a, cands)
     if item.kind == "TRIPWIRE":
         done = {v.split(":", 1)[0] for v in
                 loop.writer.log.get("verdicts", [])}

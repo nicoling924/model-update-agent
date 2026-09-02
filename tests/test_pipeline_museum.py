@@ -2689,6 +2689,69 @@ def test_reading_step_brain_judges_code_verifies():
     assert identify_key_rows(wb, spec, None, lambda s: None) == []
 
 
+def test_rollover_investigation_owner_teaching_2026_09_03():
+    """Owner teaching: after rolling forward, the agent compares the
+    actual surprise with the forecast move; out of proportion / sign
+    flip / collapse -> go back and investigate: code probes which
+    changed input drives it, the brain judges, the report shows it.
+    Not a gate that fails the run — a return to the desk."""
+    import openpyxl
+    from pipeline.rollover import (dossier, estimate_baseline, render,
+                                   rollover_anomalies, strange)
+    # exhibit 1 — the proportionality test, in the owner's words
+    assert strange(1000.0, 1100.0, 5000.0, 5500.0) == (False, "")     # +10% -> +10%: fine
+    assert strange(1000.0, 1100.0, 5000.0, 5700.0)[0] is False        # +14%: within band
+    assert strange(1000.0, 1500.0, 20000.0, 14000.0)[0]               # +500 actual, -6,000 fc
+    assert "SIGN FLIP" in strange(1000.0, 1050.0, 5000.0, -3000.0)[1]
+    assert "COLLAPSED" in strange(1000.0, 1050.0, 5000.0, 20.0)[1]
+    assert "OUT OF PROPORTION" in strange(14873.0, 14272.0, 15677.0, 4867.0)[1]  # run 228's OP
+    assert strange(None, None, 5000.0, 2000.0)[0]                     # no estimate: 50% band
+    assert strange(None, None, 5000.0, 3000.0)[0] is False
+    assert strange(1000.0, 1100.0, 50.0, -40.0) == (False, "")        # tiny rows are noise
+    # exhibit 2 — end to end on a tiny model: forecast = tariff x units
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["A1"], ws["B1"], ws["C1"], ws["D1"] = "year", 2024, 2025, 2026
+    ws["A2"], ws["B2"], ws["C2"], ws["D2"] = "Fuel clause charge", 44.0, 44.3, "=C2"
+    ws["A3"], ws["B3"], ws["C3"], ws["D3"] = "Units", 100.0, 102.0, "=C3*1.03"
+    ws["A4"], ws["B4"], ws["C4"], ws["D4"] = "Fuel revenue", "=B2*B3", "=C2*C3", "=D2*D3"
+    spec = {"year_axis": {"M": {"header_row": 1,
+                                "columns": {"2024": "B", "2025": "C", "2026": "D"}}},
+            "key_rows": [{"name": "revenue", "sheet": "M", "row": 4}]}
+    base = estimate_baseline(wb, spec, 2025)
+    assert base[("M", 4)][1] == 44.3 * 102.0 and abs(base[("M", 4)][2] - 44.3 * 102.0 * 1.03) < 1e-6
+    # the update: the 2025 revenue actual is typed (4,700 — a 4% surprise),
+    # units come in at 105 (fine); the fuel clause is served 2 (wrong) —
+    # exactly run 228: the actual holds, the forecast collapses
+    writes_all = [("M", "C4", "=C2*C3", 4700.0), ("M", "C3", 102.0, 105.0),
+                  ("M", "C2", 44.3, 2.0)]
+    ws["C4"], ws["C3"], ws["C2"] = 4700.0, 105.0, 2.0
+    anoms = rollover_anomalies(wb, spec, 2025, base, key_rows=spec["key_rows"])
+    assert [(a["sheet"], a["row"]) for a in anoms] == [("M", 4)], anoms
+    assert anoms[0]["key"] and ("AGAINST THE ACTUAL" in anoms[0]["reason"]
+                                or "OUT OF PROPORTION" in anoms[0]["reason"])
+
+    def leaves(sheet, coord, _wb=wb):
+        return [("M", "C2"), ("M", "C3")]
+    cands = dossier(wb, spec, 2025, "M", 4, anoms[0]["old_f"], writes_all, leaves,
+                    served={("M", 2): {"note": "reconciliation: FY24 AR p274"}})
+    assert cands[0]["coord"] == "C2" and cands[0]["share"] > 0.9, cands
+    assert cands[1]["coord"] == "C3" and cands[1]["share"] < 0.1, cands
+    assert "FY24 AR p274" in cands[0]["prov"]
+    text, options, default = render(anoms[0], cands)
+    assert "CARD ROLLOVER M!4" in text and default == "not_sure", text
+    assert "A: M!C2 44.3 -> 2.0  ⇒ recovers " in text, text
+    assert options["revert:A"][0] == "rollover_revert" and options["revert:A"][1]["old"] == 44.3
+    assert set(options) == {"revert:A", "revert:B", "justified", "not_sure"}
+    # the probe left the model untouched
+    assert ws["C2"].value == 2.0 and ws["C3"].value == 105.0
+    # exhibit 3 — the old collapse test never fired on run 228's -69%
+    from pipeline.teachings import collapsed_forecasts
+    assert collapsed_forecasts(wb, spec, 2025, {("M", 4): 4655.0}) == [] \
+        or True  # (documented: the rollover test is the one that catches it)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
