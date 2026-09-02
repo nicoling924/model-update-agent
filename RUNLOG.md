@@ -972,3 +972,24 @@ attempts BEFORE the repair suite ran, one landing over a proven value
 RULING: 'queue' = cards + machinery, no free loop; 'queue+loop' is the
 explicit opt-in. The live path now equals the path that delivered the
 faithful replay. Museum 104.
+
+## 2026-09-02 — RUN 225 AUTOPSY: THE ARITHMETIC ARBITER
+
+Run 225 (cards + machinery, no free loop): refused -1,063 / flat -316.
+FAITHFUL REPLAY (tools/replay_live.py: live ledger + live provenance
+serves + live card picks) REPRODUCES it exactly — the live run is now
+fully debuggable offline. Live-vs-replay cell diff: ONE cell.
+ROOT: the fuel-clause card is a genuine DEFINITIONAL FORK — p168 prints
+both 'Fuel clause account' [20, 370] (the BS receivable, same-sign
+exact prior tie) and [20, -1043]; p37 prints the FCA fund [1043, -370].
+Luna picked the BS line (B=20) four runs running; the model row is the
+fund balance (A=-1,043). No label settles it; the model's own checks
+do: A closes 1,413 of the failing residual, B 350, C 27, D worsens.
+LAW: THE ARITHMETIC ARBITER — SERVE cards probe every candidate against
+the failing checks and print the effect; the unique largest improvement
+is marked "IMPROVES MOST — best fit to the model's own checks"; the
+prompt teaches the cascade (best fit > exact tie > positional read).
+Cards also state "prior tie EXACT" explicitly (it was never said).
+Auto-serve re-audited and stays FORBIDDEN (the only tight-unique card
+on the live state was wrong). Museum 104; CLP ceiling 10/11 / floor
+9/11 green; DFE green.

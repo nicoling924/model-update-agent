@@ -51,9 +51,12 @@ _SYSTEM = (
     "lines from the disclosure with the machine's own warnings. Reply "
     "with JSON {\"answer\": \"<one of the listed answer ids>\", \"why\": "
     "\"<one sentence>\"}. Rules: a warned candidate needs a reason to "
-    "trust it; when unsure, answer the abstaining option — a red flag "
-    "is a correct deliverable, a wrong number is the one unforgivable "
-    "failure.")
+    "trust it; when two candidates both look plausible, the one marked "
+    "IMPROVES MOST is the model's own arithmetic telling you which "
+    "definition this row carries — prefer it; an EXACT prior "
+    "tie outranks a positional read; when unsure, answer the abstaining "
+    "option — a red flag is a correct deliverable, a wrong number is the "
+    "one unforgivable failure.")
 
 
 @dataclass
@@ -386,18 +389,67 @@ def render_card(loop, item):
         pv, t = _prior_of(loop, sheet, row)
         held = loop.wb[sheet][f"{col}{row}"].value
         lab = str(t.label)[:40] if t is not None else "?"
+        # THE ARITHMETIC ARBITER (runs 221-225: two printed lines both
+        # tied the fuel-clause prior — the BS receivable 20 and the
+        # scheme fund balance -1,043 — a definitional fork no label can
+        # settle. The model's own checks can: probe each candidate and
+        # print what it does to the failing checks. The COMPONENT cards
+        # already do this; SERVE cards now do too.)
+        fails = loop._failing_target_checks()
+        probe = {}
+        if fails and len(cands) <= 4 and isinstance(held, (int, float)):
+            cell_p = loop.wb[sheet][f"{col}{row}"]
+            base = sum(abs(r) for _s, _r, r in fails)
+            for c in cands:
+                cell_p.value = c["value"]
+                try:
+                    after = sum(abs(r) for _s, _r, r
+                                in loop._failing_target_checks())
+                except Exception:
+                    after = None
+                if isinstance(after, (int, float)):
+                    probe[round(c["value"], 1)] = (base, after)
+            cell_p.value = held
         lines = [f"CARD SERVE {sheet}!{col}{row} '{lab}'",
                  f"  holds: {held!r} (RED: stale/unproven)",
                  f"  prior year: {pv:,.2f}" if pv is not None else "",
                  "  candidates (machine-extracted; warnings are the "
                  "machine's own doubts):"]
         options = {}
+        best_fit = None
+        if probe:
+            gains = {k: b0 - a0 for k, (b0, a0) in probe.items()}
+            top = max(gains.values())
+            if top > 1 and sum(1 for g in gains.values()
+                               if g > top - 1) == 1:
+                best_fit = max(gains, key=gains.get)
         for j, c in enumerate(cands):
             cid = chr(ord("A") + j)
             w = ("  ⚠ " + "; ⚠ ".join(c["warnings"])) if c["warnings"] else ""
             b = f"  [{c['basis']}]" if c.get("basis") else ""
+            # THE STRONGEST FACT, SAID OUT LOUD (runs 221-225: the
+            # fuel-clause card's right candidate tied the row's prior
+            # EXACTLY and Luna passed it over three times — the card
+            # never stated the tie, only the absence of warnings)
+            to = c.get("tie_off")
+            tie = ("  ✔ prior tie EXACT (this line's comparative = the "
+                   "model's prior)" if isinstance(to, (int, float))
+                   and to <= 0.6 else
+                   (f"  ~ prior tie loose (off {to:,.1f})"
+                    if isinstance(to, (int, float)) else ""))
+            pr = probe.get(round(c["value"], 1))
+            arb = ""
+            if pr:
+                b0, a0 = pr
+                arb = (f"  ⇒ failing checks {b0:,.0f} -> {a0:,.0f} "
+                       + ("(IMPROVES MOST — best fit to the model's own "
+                          "checks)" if best_fit is not None
+                          and round(c["value"], 1) == best_fit else
+                          "(improves)" if a0 < b0 - 1 else
+                          "(worsens)" if a0 > b0 + 1 else "(no effect)"))
             lines.append(f"    {cid}: {c['value']:,.2f} — {c['doc'][:24]} "
-                         f"p{c['page']} [{c['face']}] '{c['line'][:44]}'{b}{w}")
+                         f"p{c['page']} [{c['face']}] '{c['line'][:44]}'"
+                         f"{b}{tie}{arb}{w}")
             options[f"serve:{cid}"] = ("set_input", {
                 "cell": f"{sheet}!{col}{row}", "value": c["value"],
                 "why": f"p{c['page']}: '{c['line'][:40]}' ({c['doc'][:28]}) "
