@@ -928,3 +928,18 @@ rows -> snapshot + mini P&L, every flag -> attention) so offline/dry
 deliveries carry the same OLD-vs-NEW table. RESULT: OLD block filled
 (revenue old 90,417 vs actual 88,018; OP 14,873 vs 14,272; NP 11,115
 vs 10,468 ...); CLP floor green, DFE floor green, museum 103.
+
+## 2026-09-02 — RUN 223 AUTOPSY: THE GUARDS ATE THE JOURNAL
+
+Run 223 (head a96e0cd, report fix aboard): refused with the 220/221
+signature and NO gate-loop tier line. AUTOPSY: the gate loop's take-back
+read the undo journal — which the error/collapse guards POP while
+unwinding. Live, the collapse guard popped through the stage-4 serves
+(offline the guards had nothing to pop, so the Luna-sim passed). The
+take-back saw an empty slice and silently did nothing.
+FIX (generic): an append-only write ledger (writer.log["writes_all"])
+that no guard consumes; the gate loop watermarks and reads THAT.
+Museum 104 (exhibit: the ledger survives guard pops). Luna-sim: red
+tier no help -> all tier takes back 2 serves (mass 21,859 -> 10,279) ->
+final repair -> gate PASSED. CLP ceiling 10/11 / floor 9/11 green; DFE
+floor green.

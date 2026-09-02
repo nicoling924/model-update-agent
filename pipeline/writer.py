@@ -230,6 +230,12 @@ class Writer:
             return False
         # undo journal (error-baseline law): every write is reversible
         self.log.setdefault("undo", []).append((sheet, coord, cell.value))
+        # append-only write ledger (gate loop, 2026-09-02): the guards
+        # POP the undo journal while unwinding, so a take-back that
+        # reads it after the guards sees nothing — this one is never
+        # consumed
+        self.log.setdefault("writes_all", []).append(
+            (sheet, coord, cell.value, value))
         cell.value = value
         if prior_coord is not None:      # inherit the prior actual's look
             prior = ws[prior_coord]

@@ -2416,6 +2416,30 @@ def test_recompose_sign_from_this_years_print():
     assert abs(got - (900 - 300 - 500)) < 0.01, wb["M"]["U7"].value
 
 
+
+
+def test_writes_ledger_survives_guard_pops():
+    # run-223: the error/collapse guards POP the undo journal while
+    # unwinding; the gate loop's take-back read the same journal after
+    # the guards and saw nothing. The append-only writes_all ledger is
+    # never consumed.
+    import openpyxl
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["T7"], ws["U7"] = 100.0, 100.0
+    w = Writer(wb)
+    assert w.write("M", "U7", 120.0, prior_coord="T7", trusted=True)
+    assert w.write("M", "U7", 130.0, prior_coord="T7", trusted=True)
+    # a guard unwinds by popping the undo journal
+    while w.log["undo"]:
+        w.log["undo"].pop()
+    assert len(w.log["writes_all"]) == 2, w.log["writes_all"]
+    sh, coord, old, new = w.log["writes_all"][0]
+    assert (sh, coord, old, new) == ("M", "U7", 100.0, 120.0)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

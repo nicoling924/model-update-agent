@@ -603,7 +603,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- Stage 4: the work queue (machine plans, LLM answers cards) or
     # the legacy free loop, then the gate
-    undo_mark = len(writer.log.get("undo", []))
+    undo_mark = len(writer.log.get("writes_all", []))
     import os as _os
     mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
     loop_summary = ""
@@ -647,7 +647,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 loop.budget = min(loop.budget, 10)
                 loop_summary += " | residual loop: " + loop.run()
                 log(f"[run] residual loop: {loop_summary[-120:]}")
-        undo_mark2 = len(writer.log.get("undo", []))   # end of stage-4 serves
+        undo_mark2 = len(writer.log.get("writes_all", []))   # end of stage-4 serves
         # the referee's last rung (owner: back out, mark, still deliver)
         from .orchestrator import terminal_ladder
         n_tl = terminal_ladder(loop, log)
@@ -834,7 +834,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # must not worsen the total check residual or it is undone.
     if not ok and (client is not None or stage4_answerer is not None):
         red_set = set(writer.log.get("flags", []))
-        undo = list(writer.log.get("undo", []))[undo_mark:undo_mark2]
+        # the append-only ledger, not the undo journal: the guards POP
+        # undo while unwinding (run-223: the take-back saw an empty slice)
+        undo = [(sh_, co_, old_) for sh_, co_, old_, _new in
+                list(writer.log.get("writes_all", []))[undo_mark:undo_mark2]]
         from .checks import year_columns as _yc2
         import re as _re2
 
