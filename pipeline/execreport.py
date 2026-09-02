@@ -422,6 +422,38 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
     r += 1
     gap(14)
 
+    # THE READING STEP + THE ROLLOVER CHECK (owner rulings 2026-09-03):
+    # what the agent was holding, and whether the update moved the
+    # forecast in proportion — on page one, before any number
+    docs = summary.get("documents") or []
+    if docs:
+        sect("0 · Documents received   (what the agent identified, and how each was used)")
+        for line in docs:
+            cell(r, 1, str(line)[:220], SMALL)
+            r += 1
+        gap(10)
+    roll = summary.get("rollover") or []
+    if roll:
+        sect("0 · Rollover check   (did the forecast move in proportion to the actual surprise?)")
+        hdr = ["row", "line", "estimate (target yr)", "actual", "old fcst (yr+1)",
+               "new fcst (yr+1)", "test", "verdict"]
+        for i, h in enumerate(hdr):
+            cell(r, i + 1, h, GREY, None, None, THIN)
+        r += 1
+        for ref, name, est_t, act_t, old_f, new_f, test, verdict in roll:
+            sh, co = str(ref).split("!", 1)
+            c0 = cell(r, 1, str(ref), SMALL)
+            c0.hyperlink = f"#'{sh}'!{co}"
+            cell(r, 2, str(name)[:30], SMALL)
+            for i, v in enumerate((est_t, act_t, old_f, new_f)):
+                cell(r, 3 + i, v if isinstance(v, (int, float)) else None,
+                     SMALL, None, "#,##0")
+            strange_row = not str(test).startswith("in proportion")
+            cell(r, 7, str(test)[:110], SMALL, TINT_R if strange_row else None)
+            cell(r, 8, str(verdict)[:60], SMALL)
+            r += 1
+        gap(10)
+
     sect("1 · Key number snapshot   (RMB mn)")
     hdr = ["", "FY prior A", "FY actual A", "YoY", "Your estimate",
            "A vs E", "Next yr before", "Next yr after"]
@@ -978,7 +1010,7 @@ def _deterministic_summary(wb, facts, primary):
 
 
 def report_only(company_dir, model_path, pre_path, client, out_path=None,
-                target_year=None):
+                target_year=None, extra=None):
     import openpyxl
     wb = openpyxl.load_workbook(model_path)
     # THE OLD-ESTIMATE SNAPSHOT (owner 2026-09-02: the _REPORT's OLD
@@ -1023,6 +1055,8 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
                                                   ensure_ascii=False))
             kept, refusals, corrections = referee(summary, wb)
     summary["bridges"] = kept
+    for k, v in (extra or {}).items():     # documents received, rollover check
+        summary[k] = v
     mini_rows = summary.get("mini_pl", {}).get("rows", [])
     value_of = None
     try:

@@ -1049,7 +1049,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             from .execreport import report_only
             rep = report_only(str(company_dir), str(out_path),
                               str(archive), client, str(out_path),
-                              target_year=target_year)
+                              target_year=target_year,
+                              extra={"documents": [d["line"] for d in documents],
+                                     "rollover": rollover})
             log(f"[run] executive report: {rep['bridges']} bridges, "
                 f"{rep['refused']} refused, "
                 f"{len(rep.get('corrections', []))} corrected, sense "
