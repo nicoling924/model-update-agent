@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
+from .ledger import vintage_ban as _vintage_ban
 
 MAX_CARDS = 60
 CALL_CAP = 40
@@ -649,7 +650,7 @@ def _residual_hypotheses(loop, residual):
     residual are named ON the plug card — the analyst's first question."""
     if not residual:
         return ""
-    prior_docs = loop.ledger.prior_period_docs()
+    prior_docs = _vintage_ban(loop.ledger)
     hits = []
     for it in loop.ledger.items:
         if it.doc in prior_docs:

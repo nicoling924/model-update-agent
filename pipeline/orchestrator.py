@@ -29,6 +29,7 @@ from pathlib import Path
 from .checks import prior_column, scorecard, summarize, year_columns
 from .evaluator import Evaluator
 from .numerics import SCALES, line_numbers, row_tol, to_model_units
+from .ledger import vintage_ban as _vintage_ban
 
 MAX_ACTIONS = 60
 MAX_HISTORY_SHOWN = 30
@@ -311,7 +312,7 @@ class ObjectiveLoop:
             except (TypeError, ValueError):
                 return "MISS: page must be a number"
             dq = str(args.get("doc") or "").lower()
-            prior_docs = self.ledger.prior_period_docs()
+            prior_docs = _vintage_ban(self.ledger)
             items = [it for it in self.ledger.items
                      if it.page == pn and (not dq or dq in it.doc.lower())]
             if not items:
@@ -338,7 +339,7 @@ class ObjectiveLoop:
             qnum = float(q.replace(",", ""))
         except ValueError:
             pass
-        prior_docs = self.ledger.prior_period_docs()
+        prior_docs = _vintage_ban(self.ledger)
         hits = []
         for it in self.ledger.items:
             if q.lower() in it.label.lower() or q.lower() in it.source_line.lower():
@@ -395,7 +396,7 @@ class ObjectiveLoop:
 
     def t_statement_diff(self, args):
         stmt = str(args.get("stmt", "bs"))
-        prior_docs = self.ledger.prior_period_docs()
+        prior_docs = _vintage_ban(self.ledger)
         pages = [(d, p) for (d, p), f in self.ledger.faces.items()
                  if f == stmt and d not in prior_docs]
         if not pages:

@@ -54,6 +54,7 @@ from dataclasses import dataclass, asdict, field
 
 from .numerics import (CJK_STRUCTURAL, STOPWORDS, norm_label, row_tol,
                        to_model_units, SCALES)
+from .ledger import vintage_ban as _vintage_ban
 
 
 def _words(norm):
@@ -501,7 +502,7 @@ def join_bound_tables(ledger, targets, served, log=None):
     the loop own them).
     """
     log = log if log is not None else []
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     face_pages = {k for k, f in ledger.faces.items() if f in ("pl", "bs", "cf")}
     by_table = defaultdict(list)
     for it in ledger.items:

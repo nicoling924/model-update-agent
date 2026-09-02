@@ -416,6 +416,19 @@ class Ledger:
         return {d for d, k in (getattr(self, "_doc_periods", None) or {}).items()
                 if k == "prior"}
 
+    def classify_from_targets(self, targets):
+        """THE VINTAGE LAW, decided ONCE (run-228 autopsy: reconciliation
+        and the join served 45 rows from the prior-year annual report —
+        19 wrong, incl. the fuel-clause charge that collapsed every
+        forecast year — because the vintage vote first ran inside stage
+        3, after they had served, and they asked the weak test).
+        Call right after stage 1, before any stage serves."""
+        priors = [t.prior_value for t in targets
+                  if isinstance(t.prior_value, (int, float))]
+        deep = [t.prior2_value for t in targets
+                if isinstance(getattr(t, "prior2_value", None), (int, float))]
+        return self.classify_doc_periods(priors, deep)
+
     def noncurrent_docs(self):
         """Docs that may NOT source current-year values: 'prior' ones,
         plus 'unknown'-vintage ones whenever at least one doc PROVED
@@ -437,6 +450,11 @@ class Ledger:
             "doc_meta": self.doc_meta,
             "faces": [[d, p, f] for (d, p), f in sorted(self.faces.items())],
             "parent_pages": [[d, p] for d, p in sorted(self.parent_pages)],
+            # the vintage verdicts travel with the pin (run-228 autopsy:
+            # a replay without them re-served from the prior-year AR)
+            "doc_periods": getattr(self, "_doc_periods", None),
+            "pv_tables": sorted(list(k) for k in
+                                (getattr(self, "_pv_tables", None) or ())),
             "items": [asdict(it) for it in self.items],
         }, ensure_ascii=False, indent=1)
 
@@ -449,6 +467,9 @@ class Ledger:
         led.doc_meta = obj.get("doc_meta") or {}
         led.faces = {(d, p): f for d, p, f in obj.get("faces") or []}
         led.parent_pages = {(d, p) for d, p in obj.get("parent_pages") or []}
+        if obj.get("doc_periods"):
+            led._doc_periods = dict(obj["doc_periods"])
+            led._pv_tables = {tuple(k) for k in obj.get("pv_tables") or []}
         for d in obj.get("items") or []:
             led.items.append(Item(**{k: v for k, v in d.items()
                                      if k in Item.__dataclass_fields__}))
@@ -463,3 +484,13 @@ class Ledger:
     def load(cls, path):
         from pathlib import Path
         return cls.from_json(Path(path).read_text(encoding="utf-8"))
+
+
+def vintage_ban(ledger):
+    """The ONE test every current-serving stage asks: which documents may
+    not source a current-year value. Strong form (prior + unknown once a
+    document proved current); falls back to the weak form for ledgers
+    that only know 'prior' (museum fakes)."""
+    f = getattr(ledger, "noncurrent_docs", None) \
+        or getattr(ledger, "prior_period_docs", None)
+    return set(f()) if f else set()

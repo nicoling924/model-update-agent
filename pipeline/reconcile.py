@@ -29,6 +29,7 @@ from collections import defaultdict
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
+from .ledger import vintage_ban as _vintage_ban
 
 CONF_RECON = 4   # trusted, NOT locked — a new stage earns locks later
 UNCHANGED_CONF = 4
@@ -102,7 +103,7 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     "rejected_tables": [...], "unmatched_lines": [...],
     "unserved_rows_hint": n}."""
     homes, by_row = _model_prior_index(wb, spec, target_year)
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     from .stage2_join import ratify_page_scales
     pool = ledger.join_pool()
     priors = list(by_row.values())

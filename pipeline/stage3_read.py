@@ -32,6 +32,7 @@ from collections import Counter, defaultdict
 
 from .numerics import SCALES, parse_number, row_tol, to_model_units
 from .stage2_join import ratify_page_scales
+from .ledger import vintage_ban as _vintage_ban
 
 MAX_ROWS_PER_CALL = 70
 MAX_IMAGES_PER_CALL = 5
@@ -131,7 +132,7 @@ def row_homes(ledger, targets):
     homes = defaultdict(set)
     if not sorted_abs:
         return homes
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     for it in ledger.items:
         if it.disputed or it.doc in prior_docs:
             continue
@@ -199,7 +200,7 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
     deep = [t.prior2_value for t in targets
             if isinstance(t.prior2_value, (int, float))]
     ledger.classify_doc_periods(priors, deep)
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     homes = row_homes(ledger, targets)
     block_scales = ratify_page_scales(ledger.join_pool(), priors)
     text_by_page = defaultdict(list)

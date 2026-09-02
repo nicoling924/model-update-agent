@@ -31,6 +31,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from pipeline.ledger import vintage_ban as _vintage_ban  # noqa: E402
 
 
 def _build_pool(company_dir, period, target_year, log=None):
@@ -100,7 +101,7 @@ def _build_pool(company_dir, period, target_year, log=None):
 def _section_health(ledger):
     from updater.closure import _sections, _solve, normalized_rows
     from updater.ledger import JOIN_FACES
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     groups = {}
     for it in ledger.items:
         if (it.doc in prior_docs or it.table_id is None
@@ -144,7 +145,7 @@ def _channels(ledger, targets, served):
                  "prior": t.prior_value} for t in open_rows]
     pm = prior_map_hints(ledger, rows_fmt)
     cs = current_sightings(ledger, rows_fmt)
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     out = {}
     for t in open_rows:
         pv, ch = t.prior_value, set()

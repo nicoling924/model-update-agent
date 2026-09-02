@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
+from .ledger import vintage_ban as _vintage_ban
 
 TOL_REL = 0.002          # 0.2% — keys tie the print or get backed out
 TOL_ABS = 1.0
@@ -57,7 +58,7 @@ def _printed(ledger, v):
     # CURRENT-document FACE pages only, tight tolerance — a loose
     # whole-ledger search excused every wrong key via coincidental ties
     # in the prior-year AR (measured on run-203's file)
-    prior_docs = ledger.prior_period_docs()
+    prior_docs = _vintage_ban(ledger)
     tol = max(0.6, abs(v) * 1e-4)
     for it in ledger.items:
         if it.doc in prior_docs or (it.doc, it.page) not in ledger.faces:

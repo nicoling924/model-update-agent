@@ -2481,6 +2481,49 @@ def test_run227_claim_needs_a_home_and_proof_outranks_arrival():
     assert v == "REFUSE"
 
 
+def test_run228_vintage_law_decided_once_before_any_serve():
+    """Run-228 autopsy (2026-09-02): reconciliation + join served 45 rows
+    from the prior-year annual report (19 wrong — the fuel-clause charge
+    2 vs 44.3 collapsed every forecast year while balance still held).
+    Cause: the vintage vote first ran inside stage 3, and the early
+    stages asked the WEAK test (prior only), which is empty when a
+    restated prior-year AR votes 'unknown'. Law: ONE strong test
+    (vintage_ban), decided once before any stage serves, binding
+    pinned serves too."""
+    import inspect
+    from pipeline import run as run_mod, reconcile, stage2_join, stage3_read
+    from pipeline.ledger import Ledger, vintage_ban
+    led = Ledger()
+    led._doc_periods = {"AR25.pdf": "current", "RA25.pdf": "current",
+                        "AR24.pdf": "unknown"}
+    # exhibit 1 — the strong test bans the unknown once a doc proved current
+    assert vintage_ban(led) == {"AR24.pdf"}
+    assert led.prior_period_docs() == set()      # the weak test saw nothing
+    # exhibit 2 — with no proven-current doc, only 'prior' is banned
+    led._doc_periods = {"A.pdf": "unknown", "B.pdf": "prior"}
+    assert vintage_ban(led) == {"B.pdf"}
+    # exhibit 3 — a museum fake that only knows the weak test still works
+    class Fake:
+        def prior_period_docs(self):
+            return {"old.pdf"}
+    assert vintage_ban(Fake()) == {"old.pdf"}
+    # exhibit 4 — every serving stage asks the ONE test, none the weak one
+    for mod in (reconcile, stage2_join, stage3_read):
+        src = inspect.getsource(mod)
+        assert ".prior_period_docs()" not in src, mod.__name__
+        assert "_vintage_ban(" in src, mod.__name__
+    # exhibit 5 — the verdict is decided before reconciliation serves
+    src = inspect.getsource(run_mod.update)
+    assert src.index("classify_from_targets") < src.index("reconcile(wb")
+    # exhibit 6 — the verdict travels with a pinned ledger
+    led = Ledger()
+    led._doc_periods = {"AR25.pdf": "current", "AR24.pdf": "unknown"}
+    led._pv_tables = {("AR25.pdf", 7, 0)}
+    led2 = Ledger.from_json(led.to_json())
+    assert vintage_ban(led2) == {"AR24.pdf"}
+    assert led2._pv_tables == {("AR25.pdf", 7, 0)}
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

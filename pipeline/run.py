@@ -22,7 +22,7 @@ from . import gate as gate_mod
 from . import report as report_mod
 from . import spec as spec_mod
 from . import targets as targets_mod
-from .ledger import Ledger
+from .ledger import Ledger, vintage_ban as _vintage_ban
 from .orchestrator import ObjectiveLoop
 from .stage1_read import read_documents
 from .stage2_join import decisions_to_json, join, join_bound_tables
@@ -286,6 +286,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     else:
         ledger = read_documents(docs, client=client, known_values=known,
                                 log=log)
+    # THE VINTAGE LAW (run-228 autopsy): each document's vintage is
+    # decided ONCE, here, before any stage serves. A document is
+    # evidence for the periods it proves; 'unknown' is context, never a
+    # current value, once a document has proved current. Reconciliation
+    # and the join had served 45 rows from the prior-year AR (19 wrong)
+    # because this verdict was first computed inside stage 3.
+    ledger.classify_from_targets(targets)
+    _ban = _vintage_ban(ledger)
+    if _ban:
+        log(f"[run] vintage law: {len(_ban)} document(s) may not source "
+            f"current-year values: {sorted(_ban)}")
 
     # -- Stage 2 (pure code): statement faces, then bound non-statement
     # tables (the Driver/MD&A path — council two-level binding)
@@ -340,6 +351,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if key_p in served or not isinstance(e, dict) \
                     or not isinstance(e.get("value"), (int, float)):
                 continue
+            if e.get("doc") and e.get("doc") in _ban:
+                continue        # the vintage law binds pinned serves too
             served[key_p] = {"value": e["value"], "status": "OK",
                              "doc": e.get("doc"), "page": e.get("page"),
                              "line": e.get("line"),
@@ -512,7 +525,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # ties is PROVEN zero this period (cancelled treasury shares).
     from .stage2_join import ratify_page_scales
     from .writegate import nil_current_zero
-    banned_docs = set(ledger.prior_period_docs()) \
+    banned_docs = set(_vintage_ban(ledger)) \
         if hasattr(ledger, "prior_period_docs") else set()
     # the face register = pages stage-2 RATIFIED as statement faces (the
     # served-pages shortcut was too narrow: with a rich AR present, an
