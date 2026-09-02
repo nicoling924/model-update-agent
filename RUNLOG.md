@@ -877,3 +877,25 @@ evidence, coefficient-probed plugs) which are exactly the closers its
 residuals needed. Current head is offline-green for CLP (ceiling 10/11,
 floor 9/11); one confirming CLP dispatch awaits the owner's go (the
 overnight 2-run authorization is spent).
+
+## 2026-09-02 — THE GATE LOOP (owner ruling: the gate feeds back, never just fails)
+
+Run 221 (current head, live): refused with run-220's signature — Luna
+picked candidate B on the fuel-clause card again; the all-flag floor
+delivers, so a confidently-wrong serve is strictly worse than
+abstention, and the plugs rightly refused to paper over it. The owner's
+architectural reading: the gate was a JUDGE; an analyst's workflow is a
+LOOP — unbalanced after update -> go back, take the wrong entry out,
+redo the repair, check again.
+BUILT: the closer suite refactored into repair_round() (roll-base
+re-anchor, forecast plugs, sign-flip terminal, final closer — all
+idempotent) + gate_once(); on refusal the failure feeds back: stage-4
+serves (journal-watermarked either side of stage 4, so repair writes
+are never mistaken for Luna's) are taken back in tiers — red first,
+then all — the repair suite re-runs on the corrected state, the gate
+judges again; a round that does not reduce total check residual is
+undone; one last repair-only round; bounded. Taken-back cells stay RED
+with the note and their candidates.
+OFFLINE: Luna-sim (run-221's wrong pick) now DELIVERS via the loop
+("2 stage-4 serves taken back, repairs re-run -> gate PASSED"); CLP
+ceiling 10/11 green, floor 9/11 green; DFE floor green; museum 103.

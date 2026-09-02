@@ -600,6 +600,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- Stage 4: the work queue (machine plans, LLM answers cards) or
     # the legacy free loop, then the gate
+    undo_mark = len(writer.log.get("undo", []))
     import os as _os
     mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
     loop_summary = ""
@@ -643,6 +644,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 loop.budget = min(loop.budget, 10)
                 loop_summary += " | residual loop: " + loop.run()
                 log(f"[run] residual loop: {loop_summary[-120:]}")
+        undo_mark2 = len(writer.log.get("undo", []))   # end of stage-4 serves
         # the referee's last rung (owner: back out, mark, still deliver)
         from .orchestrator import terminal_ladder
         n_tl = terminal_ladder(loop, log)
@@ -722,82 +724,185 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # red-if-large test.
     from .checks import forecast_columns as _fcols
     from .evaluator import Evaluator as _Ev
-    # ROLL-BASE CONSISTENCY, second pass (the law is idempotent; loop
-    # and queue writes can shift a base AFTER the first anchor solved —
-    # re-measure, re-solve)
     from .teachings import roll_base_mismatches as _rbm2
-    n_rb2 = _rbm2(wb, spec_d, target_year, writer, log)
-    if n_rb2:
-        err_guard("roll-base 2")
-        collapse_guard("roll-base 2")
     from .forecast_balance import last_resort_plug
-    for _c in (spec_d.get("check_rows") or []):
-        _sheet = _c.get("sheet")
-        if _sheet not in wb.sheetnames:
-            continue
-        _cols = _fcols(spec_d, _sheet, target_year)
-        _tcol = year_columns(spec_d, _sheet).get(str(target_year))
-        if not _cols or not _tcol:
-            continue
-        _assets = None
-        _cf = wb[_sheet][f"{_tcol}{_c['row']}"].value
-        if isinstance(_cf, str):
-            _m = __import__("re").search(r"[A-Z]{1,3}(\d+)", _cf)
-            if _m:
-                _assets = int(_m.group(1))
-        plugged = last_resort_plug(
-            wb, writer,
-            (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
-            _sheet, _c["row"], _cols, _assets, log)
-    # -- FORECAST INVIOLABILITY (the by-hand teaching, owner 2026-09-01,
-    # replacing the sign-absurd freeze writer that broke run 204's
-    # balance): the analyst's forecast formulas are never hardcoded.
-    # A sign-flip still unresolved after the loop is a red REPORTED
-    # question naming where the cause lives — the actual column.
     from openpyxl.comments import Comment as _Cmt
-    verdicted = {v.split(":", 1)[0]
-                 for v in writer.log.get("verdicts", [])}
-    n_sa = 0
-    for (s_sh, s_c, s_r, s_fv, s_pv, s_tv) in gate_mod.sign_absurd_rows(
-            wb, spec_d, target_year):
-        key = f"{s_sh}!{s_c}{s_r}"
-        if key in verdicted:
-            continue
-        cell = wb[s_sh][f"{s_c}{s_r}"]
-        cell.fill = writer.fills["red"]
-        cell.comment = _Cmt(
-            f"SIGN-FLIP UNRESOLVED: this forecast computes {s_fv:,.1f} "
-            f"where both actual years are positive ({s_pv:,.1f} -> "
-            f"{s_tv:,.1f}). The formula is the analyst's and stays LIVE "
-            "— the cause is an actual-column input it consumes. "
-            "ANALYST REVIEW.", "Model Update Agent")
-        writer.log["flags"].append(key)
-        writer.log.setdefault("verdicts", []).append(
-            f"{key}: SUSPICIOUS — sign-flip unresolved; the cause is in "
-            "the actual column (formula left live, red)")
-        n_sa += 1
-    if n_sa:
-        log(f"[run] sign-flip terminal: {n_sa} unresolved forecasts left "
-            "LIVE, red, reported (never frozen — the run-204 lesson)")
-    err_guard("plugs + terminal")
-    collapse_guard("plugs + terminal")
 
-    # THE FINAL CLOSER (2026-09-02: keytie back-outs and roll-base
-    # anchors run AFTER the terminal ladder and can re-open an actual-
-    # year check by a residue — the closer is idempotent, so it runs
-    # once more just before the gate; probe-tested, proven-protected)
-    if client is not None or stage4_answerer is not None:
-        n_tl2 = terminal_ladder(loop, log)
-        if n_tl2:
-            log(f"[run] terminal ladder (final): {n_tl2} late-shifted "
-                "actual-year checks re-closed")
-            err_guard("terminal final")
-            collapse_guard("terminal final")
+    def repair_round(tag):
+        """THE REPAIR SUITE — everything that closes checks after the
+        actual column is marked: roll-base re-anchoring, forecast plugs,
+        the sign-flip terminal, the final closer. Idempotent by design
+        (anchors re-solve, plugs re-measure, verdicts skip the done),
+        so the gate loop can run it again on a corrected state."""
+        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log)
+        if n_rb2:
+            err_guard(f"roll-base {tag}")
+            collapse_guard(f"roll-base {tag}")
+        for _c in (spec_d.get("check_rows") or []):
+            _sheet = _c.get("sheet")
+            if _sheet not in wb.sheetnames:
+                continue
+            _cols = _fcols(spec_d, _sheet, target_year)
+            _tcol = year_columns(spec_d, _sheet).get(str(target_year))
+            if not _cols or not _tcol:
+                continue
+            _assets = None
+            _cf = wb[_sheet][f"{_tcol}{_c['row']}"].value
+            if isinstance(_cf, str):
+                _m = __import__("re").search(r"[A-Z]{1,3}(\d+)", _cf)
+                if _m:
+                    _assets = int(_m.group(1))
+            last_resort_plug(
+                wb, writer,
+                (lambda: (lambda s, cd, e=_Ev(wb): e.cell(s, cd))),
+                _sheet, _c["row"], _cols, _assets, log)
+        # FORECAST INVIOLABILITY: unresolved sign-flips stay LIVE, red,
+        # reported (never frozen — the run-204 lesson)
+        verdicted = {v.split(":", 1)[0]
+                     for v in writer.log.get("verdicts", [])}
+        n_sa = 0
+        for (s_sh, s_c, s_r, s_fv, s_pv, s_tv) in gate_mod.sign_absurd_rows(
+                wb, spec_d, target_year):
+            key = f"{s_sh}!{s_c}{s_r}"
+            if key in verdicted:
+                continue
+            cell = wb[s_sh][f"{s_c}{s_r}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = _Cmt(
+                f"SIGN-FLIP UNRESOLVED: this forecast computes {s_fv:,.1f} "
+                f"where both actual years are positive ({s_pv:,.1f} -> "
+                f"{s_tv:,.1f}). The formula is the analyst's and stays LIVE "
+                "— the cause is an actual-column input it consumes. "
+                "ANALYST REVIEW.", "Model Update Agent")
+            writer.log["flags"].append(key)
+            writer.log.setdefault("verdicts", []).append(
+                f"{key}: SUSPICIOUS — sign-flip unresolved; the cause is in "
+                "the actual column (formula left live, red)")
+            n_sa += 1
+        if n_sa:
+            log(f"[run] sign-flip terminal: {n_sa} unresolved forecasts left "
+                "LIVE, red, reported (never frozen — the run-204 lesson)")
+        err_guard(f"plugs + terminal {tag}")
+        collapse_guard(f"plugs + terminal {tag}")
+        # THE FINAL CLOSER: keytie back-outs and anchors can re-open an
+        # actual-year check by a residue — close once more before judging
+        if client is not None or stage4_answerer is not None:
+            n_tl2 = terminal_ladder(loop, log)
+            if n_tl2:
+                log(f"[run] terminal ladder ({tag}): {n_tl2} late-shifted "
+                    "actual-year checks re-closed")
+                err_guard(f"terminal {tag}")
+                collapse_guard(f"terminal {tag}")
 
-    ok, failures, card = gate_mod.deliver_or_refuse(
-        wb, spec_d, target_year, pre_map, writer.log, served=served,
-        pre_values_wb=wb_values, load_bearing=lb,
-        pre_formulas_path=str(archive), error_baseline=err_base)
+    def gate_once():
+        return gate_mod.deliver_or_refuse(
+            wb, spec_d, target_year, pre_map, writer.log, served=served,
+            pre_values_wb=wb_values, load_bearing=lb,
+            pre_formulas_path=str(archive), error_baseline=err_base)
+
+    def check_mass():
+        ev_m = _Ev(wb)
+        m = 0.0
+        for c in (spec_d.get("check_rows") or []):
+            sh = c.get("sheet")
+            if sh not in wb.sheetnames:
+                continue
+            for _y, col in year_columns(spec_d, sh).items():
+                try:
+                    v = ev_m.cell(sh, f"{col}{int(c['row'])}")
+                except Exception:
+                    continue
+                if isinstance(v, (int, float)):
+                    m += abs(v)
+        return m
+
+    repair_round("first")
+    ok, failures, card = gate_once()
+
+    # THE GATE LOOP (owner ruling 2026-09-02: "the gate found it didn't
+    # balance -> the agent takes back the action and revises where it
+    # went wrong" — trial and error IS the analyst's workflow; a judge
+    # that only refuses makes the agent give up). On refusal, the
+    # failure feeds back: take back the run's own stage-4 serves in
+    # tiers (the uncorroborated reds first, then all of them — the
+    # all-flag floor is a proven-deliverable state), RE-RUN the repair
+    # suite on the corrected state (anchors and plugs were solved
+    # against the wrong values), and judge again. Bounded; each round
+    # must not worsen the total check residual or it is undone.
+    if not ok and (client is not None or stage4_answerer is not None):
+        red_set = set(writer.log.get("flags", []))
+        undo = list(writer.log.get("undo", []))[undo_mark:undo_mark2]
+        from .checks import year_columns as _yc2
+        import re as _re2
+
+        def _stage4_writes(only_red):
+            out, seen_rv = [], set()
+            for sh_u, coord_u, old_u in undo:
+                ref_u = f"{sh_u}!{coord_u}"
+                if ref_u in seen_rv:
+                    continue
+                if only_red and ref_u not in red_set:
+                    continue
+                m_u = _re2.match(r"^([A-Z]{1,3})(\d+)$", coord_u)
+                if not m_u or m_u.group(1) != _yc2(spec_d, sh_u).get(
+                        str(target_year)):
+                    continue
+                seen_rv.add(ref_u)
+                out.append((sh_u, coord_u, old_u,
+                            wb[sh_u][coord_u].value))
+            return out
+
+        mass0 = check_mass()
+        reverted_all = []
+        for tier, only_red in (("red", True), ("all", False)):
+            if ok:
+                break
+            reverts = [r for r in _stage4_writes(only_red=only_red)
+                       if (r[0], r[1]) not in {(x[0], x[1])
+                                               for x in reverted_all}]
+            if not reverts:
+                continue
+            snapshot = [(sh_u, coord_u, wb[sh_u][coord_u].value)
+                        for sh_u, coord_u, _o, _w in reverts]
+            for sh_u, coord_u, old_u, _now in reverts:
+                wb[sh_u][coord_u] = old_u
+            repair_round(f"gate-loop {tier}")
+            ok2, failures2, card2 = gate_once()
+            mass1 = check_mass()
+            if ok2 or mass1 < mass0 - 1.0:
+                ok, failures, card = ok2, failures2, card2
+                mass0 = mass1
+                reverted_all += reverts
+                for sh_u, coord_u, old_u, was in reverts:
+                    c_u = wb[sh_u][coord_u]
+                    c_u.fill = writer.fills["red"]
+                    c_u.comment = _Cmt(
+                        (f"GATE LOOP: the run's answer here ({was!r}) was "
+                         "taken back — with it the model could not "
+                         "balance; the repair re-ran without it. "
+                         "Candidates remain for the analyst."),
+                        "Model Update Agent")
+                    if f"{sh_u}!{coord_u}" not in writer.log["flags"]:
+                        writer.log["flags"].append(f"{sh_u}!{coord_u}")
+                log(f"[run] gate loop ({tier} tier): {len(reverts)} "
+                    f"stage-4 serves taken back, repairs re-run -> "
+                    f"{'gate PASSED' if ok else f'residual mass {mass1:,.0f}, still refused'}")
+            else:
+                for sh_u, coord_u, was in snapshot:
+                    wb[sh_u][coord_u] = was
+                log(f"[run] gate loop ({tier} tier): taking back "
+                    f"{len(reverts)} serves did not help "
+                    f"({mass0:,.0f} -> {mass1:,.0f}) — restored")
+        if not ok:
+            # one more repair-only round on the best state: anchors and
+            # plugs re-solved once more may finish what the take-backs
+            # opened (bounded: this is the last)
+            repair_round("gate-loop final")
+            ok3, failures3, card3 = gate_once()
+            if ok3 or check_mass() < mass0 - 1.0:
+                ok, failures, card = ok3, failures3, card3
+                log(f"[run] gate loop (final repair): "
+                    f"{'gate PASSED' if ok else 'improved, still refused'}")
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
     for line in card.get("moveon_reported", []):
