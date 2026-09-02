@@ -183,7 +183,23 @@ def snapshot_estimates(wb_values, spec, target_year):
         if not tcol or sheet not in wb_values.sheetnames:
             continue
         v = wb_values[sheet][f"{tcol}{int(k['row'])}"].value
+        if isinstance(v, str) and v.startswith("="):
+            # a manual-calc model caches nothing: the pre-update
+            # estimate lives behind its formula — evaluate it (the
+            # snapshot is taken BEFORE any write, so this IS the old
+            # estimate)
+            try:
+                from .evaluator import Evaluator
+                ev = _SNAP_EV.get(id(wb_values))
+                if ev is None:
+                    ev = _SNAP_EV[id(wb_values)] = Evaluator(wb_values)
+                v = ev.cell(sheet, f"{tcol}{int(k['row'])}")
+            except Exception:
+                v = None
         out.append((k.get("name", f"{sheet}!{k['row']}"),
                     f"{sheet}!{tcol}{k['row']}",
                     v if isinstance(v, (int, float)) else None))
     return out
+
+
+_SNAP_EV = {}

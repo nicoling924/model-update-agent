@@ -926,11 +926,67 @@ def _cols_from_spec(wb, company_dir, target_year):
     return None, None
 
 
+def _deterministic_summary(wb, facts, primary):
+    """The summary a brain would compose, reduced to what code KNOWS:
+    the spec's key rows as the snapshot and the mini P&L (kind from the
+    label: per-share / margin / value), every flag as attention. Valid
+    under _validate so render() draws the same tables."""
+    try:
+        from .spec import read_spec_tab
+        spec = read_spec_tab(wb)
+    except Exception:
+        spec = {}
+    keys = [k for k in (spec.get("key_rows") or [])
+            if k.get("sheet") == primary and isinstance(k.get("row"), int)]
+    if len(keys) < 4:
+        # fall back to the largest labelled rows of the primary sheet
+        rows = sorted(facts.get("model_rows", []),
+                      key=lambda x: -abs(x[3] or x[2] or 0))[:6]
+        keys = [{"sheet": primary, "row": r, "name": lab}
+                for r, lab, _t, _u in rows]
+
+    def _kind(name):
+        n = str(name or "").lower()
+        if any(w in n for w in ("eps", "dps", "per share", "每股")):
+            return "pershare"
+        if any(w in n for w in ("margin", "%", "率")):
+            return "margin"
+        return "value"
+    mini = [{"row": int(k["row"]), "label": str(k.get("name") or
+                                                k.get("label") or
+                                                f"row {k['row']}")[:40],
+             "kind": _kind(k.get("name") or k.get("label"))}
+            for k in keys]
+    att = {"plugs": [], "red": [], "orange": []}
+    for sheet, coord, colour, note in facts.get("flags", []):
+        bucket = ("plugs" if "PLUG" in str(note).upper()
+                  else "red" if colour == "red" else "orange")
+        att[bucket].append({"sheet": sheet, "cell": coord,
+                            "note": str(note)[:200]})
+    return {
+        "banner": "Deterministic report — facts rendered by code, no "
+                  "LLM prose (offline / dry run)",
+        "coverage": f"{len(facts.get('model_rows', []))} primary rows, "
+                    f"{len(facts.get('flags', []))} flags",
+        "snapshot": [{"title": "Key rows", "rows": [
+            {"row": m["row"], "label": m["label"]} for m in mini]}],
+        "mini_pl": {"sheet": primary, "rows": mini},
+        "bridges": [],
+        "attention": att,
+        "skipped_note": "",
+    }
+
+
 def report_only(company_dir, model_path, pre_path, client, out_path=None,
                 target_year=None):
     import openpyxl
     wb = openpyxl.load_workbook(model_path)
-    pre_wb = (openpyxl.load_workbook(pre_path, data_only=True)
+    # THE OLD-ESTIMATE SNAPSHOT (owner 2026-09-02: the _REPORT's OLD
+    # block was empty): the archive IS the pre-update model, so timing
+    # is right — but a data_only load of a manual-calc model caches
+    # NOTHING; load the FORMULAS so _pre_val can evaluate them (the
+    # no-cached-values disease, once more)
+    pre_wb = (openpyxl.load_workbook(pre_path, data_only=False)
               if pre_path else None)
     if target_year is None:
         # report-only reruns: the workbook's own spec tab remembers the
@@ -948,14 +1004,24 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     cols, primary = _cols_from_spec(wb, company_dir, target_year)
     headers_fixed = rollforward_headers(wb, cols, primary)
     facts = gather_facts(wb, pre_wb, cols, primary)
-    summary = compose(client, facts)
-    kept, refusals, corrections = referee(summary, wb)
-    tries = 0
-    while refusals and tries < 3:      # the referee teaches; Luna retries
-        tries += 1
-        summary = compose(client, facts,
-                          feedback=json.dumps(refusals, ensure_ascii=False))
+    if client is None:
+        # NO-CLIENT PATH (owner 2026-09-02: the OLD-estimate block must
+        # exist on every delivered file, LLM or not): the deterministic
+        # parts of the report — snapshot rows, the mini P&L old-vs-new
+        # table, every flag — are code's to render; only the composed
+        # prose and the sense check need a brain.
+        summary = _deterministic_summary(wb, facts, primary)
+        kept, refusals, corrections = summary["bridges"], [], []
+    else:
+        summary = compose(client, facts)
         kept, refusals, corrections = referee(summary, wb)
+        tries = 0
+        while refusals and tries < 3:  # the referee teaches; Luna retries
+            tries += 1
+            summary = compose(client, facts,
+                              feedback=json.dumps(refusals,
+                                                  ensure_ascii=False))
+            kept, refusals, corrections = referee(summary, wb)
     summary["bridges"] = kept
     mini_rows = summary.get("mini_pl", {}).get("rows", [])
     value_of = None
@@ -967,7 +1033,12 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
         pass                        # cached values remain the fallback
     dflags = collect_delta_flags(wb, pre_wb, mini_rows, cols, primary,
                                  value_of=value_of)
-    if dflags:
+    if dflags and client is None:
+        summary["sense"] = {}
+        summary["skipped_note"] = (str(summary.get("skipped_note", ""))
+                                   + "  ·  sense check needs a brain: "
+                                   "not run (no LLM)").strip()
+    elif dflags:
         try:
             summary["sense"] = sense_check(client, dflags, facts)
         except Exception as ex:           # a failed second look is

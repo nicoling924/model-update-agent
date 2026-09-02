@@ -254,7 +254,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run]   collapse guard [{stage}]: {len(cur)} forecast "
                 "rows collapsed vs the analyst's baseline — red-flagged, "
                 "loop must trace the actual-column cause")
-    pre_estimates = report_mod.snapshot_estimates(wb_values, spec_d, target_year)
+    # the OLD estimates: snapshot from the FORMULAS workbook (a
+    # manual-calc model's data_only load caches nothing) — this line
+    # runs before any write, so what it evaluates IS the old estimate
+    pre_estimates = report_mod.snapshot_estimates(wb, spec_d, target_year)
 
     # -- census + Stage 1
     targets = targets_mod.from_workbook(wb_values, spec_d, target_year,
@@ -941,7 +944,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # -- the executive _REPORT (owner's locked design): Luna composes,
     # the code renders and referees; includes the sense-check second
     # look. Regenerated on the delivered file; never fatal to the run.
-    if client is not None:
+    # Without a client the deterministic parts still render (owner
+    # 2026-09-02: the OLD-estimate block belongs on every delivery).
+    if True:
         try:
             from .execreport import report_only
             rep = report_only(str(company_dir), str(out_path),

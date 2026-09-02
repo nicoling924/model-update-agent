@@ -911,3 +911,20 @@ highlight pages, documented red); 60 red / 51 orange; 32 LLM calls,
 8 card adjudications; the first gate passed outright (no loop round
 needed). With DFE FY25 delivered live the night before, BOTH models
 now deliver live on one generic codebase — the department bar.
+
+## 2026-09-02 — THE OLD-ESTIMATE BLOCK (owner: "paste the old estimate before the update")
+
+Owner's read of run 222's _REPORT: WHAT'S CHANGED / OLD columns mostly
+empty. AUTOPSY: timing was already right (the archive IS the pre-update
+model, copied before any write) — the values were lost to the
+no-cached-values disease once more: report_only loaded the archive
+data_only=True, and a manual-calc model caches nothing, so every
+formula estimate read as empty (only the one hardcode survived).
+FIX: (1) report_only loads the archive WITH formulas so _pre_val
+evaluates the old estimates; (2) snapshot_estimates evaluates formulas
+from the formulas workbook, taken before any write; (3) the executive
+report renders WITHOUT a client too — _deterministic_summary (spec key
+rows -> snapshot + mini P&L, every flag -> attention) so offline/dry
+deliveries carry the same OLD-vs-NEW table. RESULT: OLD block filled
+(revenue old 90,417 vs actual 88,018; OP 14,873 vs 14,272; NP 11,115
+vs 10,468 ...); CLP floor green, DFE floor green, museum 103.
