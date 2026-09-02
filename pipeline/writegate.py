@@ -69,12 +69,49 @@ def ties_prior(item, scale, prior):
     """Does this evidence row also carry the cell's prior-year value?"""
     if not isinstance(prior, (int, float)) or abs(prior) < 1:
         return False
-    return any(isinstance(n, (int, float)) and _close(n / scale, abs(prior))
+    # sign-blind like find_evidence (run-227 autopsy: the fund balance
+    # prints -370 where the model stores 370 — the row IS the tie; the
+    # MODEL owns the sign convention)
+    return any(isinstance(n, (int, float))
+               and _close(abs(n) / scale, abs(prior))
                for n in _nums(item))
 
 
 def _claim_key(item, value):
     return round(abs(value), 1)
+
+
+def _homed(entry):
+    """A CLAIM NEEDS A HOME (run-227 autopsy): a served figure counts as
+    claimed only if it actually landed in a model cell. A serve skipped
+    as a derived row (its formula computes it) never took the number —
+    it must not lock the figure away from the cell that needs it."""
+    return (isinstance(entry, dict)
+            and isinstance(entry.get("value"), (int, float))
+            and entry.get("homed", True) is not False)
+
+
+def is_proven(entry):
+    """A claim is PROVEN when its evidence tied the prior and it landed
+    clean (stage-2 identity joins, proven loop writes). A no-prior read,
+    a red-flagged landing, or a low-confidence serve is UNPROVEN."""
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("flag") == "red":
+        return False
+    text = f"{entry.get('note') or ''} {entry.get('line') or ''}"
+    if "UNPROVEN" in text or "no prior" in text.lower():
+        return False
+    return int(entry.get("conf") or 0) >= 4
+
+
+def claim_holders(served):
+    """|value| -> [(cell, entry)] for HOMED claims only."""
+    out = {}
+    for cell, e in served.items():
+        if _homed(e):
+            out.setdefault(round(abs(e["value"]), 1), []).append((cell, e))
+    return out
 
 
 def claimed_keys(served):
@@ -88,14 +125,19 @@ def claimed_keys(served):
     safer than a silent double-count."""
     out = set()
     for e in served.values():
-        if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
+        if _homed(e):
             out.add(round(abs(e["value"]), 1))
     return out
 
 
-def judge_write(value, prior, was_served, evidence, claimed):
+def judge_write(value, prior, was_served, evidence, claimed, holders=None):
     """Returns (verdict, reason, forced_flag).
-    verdict: ALLOW | ALLOW_FLAGGED | REFUSE."""
+    verdict: ALLOW | ALLOW_FLAGGED | REFUSE | EVICT.
+
+    EVICT (run-227 autopsy — PROOF OUTRANKS ARRIVAL): the write is
+    proven (its row ties the prior) but the figure's only home(s) are
+    UNPROVEN claims. The caller reverts and red-flags those holders,
+    then lands this write clean. A PROVEN holder still blocks."""
     if not evidence:
         return ("REFUSE",
                 "the value appears NOWHERE in the extraction ledger — a "
@@ -109,6 +151,13 @@ def judge_write(value, prior, was_served, evidence, claimed):
     if tied_free:
         return ("ALLOW", "proven — the evidence row ties the prior", None)
     if tied:
+        if holders is not None and material:
+            hs = holders.get(_claim_key(None, value), [])
+            if hs and not any(is_proven(e) for _c, e in hs):
+                return ("EVICT",
+                        "proven — the evidence row ties the prior; the "
+                        "figure's current home is UNPROVEN and yields "
+                        "(proof outranks arrival)", None)
         return ("REFUSE",
                 "the only evidence row whose comparative ties this prior "
                 "already serves another cell — one row, one claim", None)

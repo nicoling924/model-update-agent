@@ -72,6 +72,10 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
         site = (sheet, row)
         value = entry["value"]
         held = wb[sheet][f"{tcol}{row}"].value
+        # A CLAIM NEEDS A HOME (run-227 autopsy): an entry that never
+        # lands in a cell must not hold the figure in the one-home
+        # register — mark it un-homed on every skip path
+        entry["homed"] = False
         if isinstance(held, str) and held.startswith("=") and pcol:
             site = resolve_input_site(wb, sheet, row, pcol) or (None, None)
             if site == (None, None):
@@ -107,6 +111,8 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
             trusted=int(entry.get("conf") or 0) >= 4)
         if ok:
             n_written += 1
+            entry["homed"] = True
+            entry["home"] = (s_sheet, f"{s_tcol}{s_row}")
             if int(entry.get("conf") or 0) >= 5:
                 writer.lock(s_sheet, f"{s_tcol}{s_row}")
     log(f"[run] wrote {n_written} served values "

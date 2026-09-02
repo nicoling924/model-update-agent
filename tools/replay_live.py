@@ -27,7 +27,8 @@ def picks_from_log(path):
     picks = {}
     if not path:
         return picks
-    pat = re.compile(r"\[queue\] (SERVE|COMPONENT|TRIPWIRE|PLUG) (\S+) -> "
+    # sheet names may carry spaces ('SOC Accounts!7') — match lazily to ' -> '
+    pat = re.compile(r"\[queue\] (SERVE|COMPONENT|TRIPWIRE|PLUG) (.+?) -> "
                      r"(serve:[A-D]|fix:\d|plug:\d|error_fixed|justified|"
                      r"suspicious|refuse_flag|not_disclosed)")
     for ln in Path(path).read_text(errors="ignore").splitlines():
@@ -43,8 +44,8 @@ def make_answerer(picks):
 
     def answer(text, options, default):
         head = text.splitlines()[0]
-        mm = re.match(r"CARD (SERVE|COMPONENT|PLUG|TRIPWIRE)\s+(?:check\s+)?(\S+)",
-                      head)
+        mm = re.match(r"CARD (SERVE|COMPONENT|PLUG|TRIPWIRE)\s+(?:check\s+)?"
+                      r"(.+?!\S+)", head)
         if not mm:
             return default
         kind, ref = mm.group(1), mm.group(2)

@@ -993,3 +993,41 @@ Cards also state "prior tie EXACT" explicitly (it was never said).
 Auto-serve re-audited and stays FORBIDDEN (the only tight-unique card
 on the live state was wrong). Museum 104; CLP ceiling 10/11 / floor
 9/11 green; DFE green.
+
+## 2026-09-02 — RUN 227 AUTOPSY: A CLAIM NEEDS A HOME
+
+Run 227 (head 666cbff, arbiter live): refused, same signature (-1,063 /
+-316). THE ARBITER WORKED — Luna picked A (-1,043) on the fuel-clause
+card for the first time in five runs — and the WRITE GUARD refused it;
+the re-ask fell back to B (20). Faithful replay reproduced the exact
+refusal text: "every ledger row carrying this value already serves
+another cell — one row, one claim". The holder: Final!72 'Fuel clause
+account' (BS) — a stage-3 no-prior read of a FORMULA row that
+_write_served correctly SKIPPED as derived. The number never landed in
+the model; the claim register still counted it. A phantom claim by an
+unproven read blocked a proven serve (exact prior tie, best fit).
+Second defect found on the way: ties_prior was sign-sensitive on the
+printed number while find_evidence was sign-blind — the FCA fund row
+[1043, -370] did not "tie" prior 370, so even a free claim would have
+landed red instead of clean.
+THREE LAWS (writegate/run/orchestrator, museum 105):
+- A CLAIM NEEDS A HOME — _write_served marks every entry homed/unhomed;
+  only homed figures sit in the one-home register.
+- TIES ARE SIGN-BLIND — like the evidence finder; the model owns signs.
+- PROOF OUTRANKS ARRIVAL — judge_write returns EVICT when a proven,
+  prior-tied write meets a figure whose only homes are UNPROVEN; the
+  loop reverts those homes to their pre-serve value, red-flags them
+  ("re-homed to X"), releases the claim, lands the proven write clean.
+  A PROVEN holder still blocks. Loop serves now record conf 4 when
+  proven, 3 when red, plus their home coordinate.
+Also: tools/replay_live.py lost card picks for sheet names with spaces
+('SOC Accounts!7') — fixed; the replay is now faithful for every card.
+PROOF: faithful replay of 227 -> DELIVERED (SOC Accounts!AI7 = -1,043
+WRITTEN, first gate); CLP floor DELIVERED; DFE floor DELIVERED; A/B of
+the ceiling script on pre-fix vs fixed code: identical keys (the low
+ceiling score is the rebuilt oracle script, not the laws). Keys are now
+measured by scratch keys11.py (9 resolvable of the 11): replay-227
+7/9 vs run-222 delivered 6/9 (total assets now exact).
+Operational lesson: a "floor" run needs stage4_answerer=default — with
+client=None and no answerer stage 4 is SKIPPED entirely (cost one false
+alarm today).

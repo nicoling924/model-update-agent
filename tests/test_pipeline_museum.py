@@ -2440,6 +2440,47 @@ def test_writes_ledger_survives_guard_pops():
     assert (sh, coord, old, new) == ("M", "U7", 100.0, 120.0)
 
 
+def test_run227_claim_needs_a_home_and_proof_outranks_arrival():
+    """Run-227 autopsy (2026-09-02): Luna picked the proven fund balance
+    (-1,043, exact prior tie, best fit to the checks) and the one-home
+    register refused it — the figure was 'claimed' by a stage-3 no-prior
+    read of a FORMULA row that never landed in the model. Three laws:
+    a claim needs a home; ties are sign-blind; proof outranks arrival."""
+    from pipeline.writegate import (claim_holders, claimed_keys,
+                                    find_evidence, is_proven, judge_write,
+                                    ties_prior)
+    # exhibit 1 — a phantom claim (serve skipped as a derived row) holds
+    # nothing; the same entry, once homed, does
+    served = {("Final", 72): {"value": -1043.0, "conf": 3, "homed": False,
+                              "note": "stage-3 read (no prior)"}}
+    assert claimed_keys(served) == set()
+    served[("Final", 72)]["homed"] = True
+    assert claimed_keys(served) == {1043.0}
+    # exhibit 2 — the fund-balance row prints -370 where the model stores
+    # 370: the tie is sign-blind, like find_evidence
+    fca = {"doc": "pres", "page": 37, "nums": [1043.0, -370.0]}
+    assert ties_prior(fca, 1.0, 370.0)
+    # exhibit 3 — proof outranks arrival: an UNPROVEN homed claim yields
+    # to a proven, prior-tied write
+    ev = find_evidence([fca], -1043.0)
+    assert ev
+    assert not is_proven(served[("Final", 72)])
+    v, why, _f = judge_write(-1043.0, 370.0, False, ev,
+                             claimed_keys(served), claim_holders(served))
+    assert v == "EVICT", (v, why)
+    # exhibit 4 — a PROVEN holder still blocks: one row, one claim
+    served[("Final", 72)].update(conf=4, note="stage-2 join: prior ties")
+    assert is_proven(served[("Final", 72)])
+    v, why, _f = judge_write(-1043.0, 370.0, False, ev,
+                             claimed_keys(served), claim_holders(served))
+    assert v == "REFUSE" and "one row, one claim" in why
+    # exhibit 5 — without the holders view (legacy callers) the verdict
+    # is unchanged: REFUSE
+    served[("Final", 72)].update(conf=3, note="stage-3 read (no prior)")
+    v, why, _f = judge_write(-1043.0, 370.0, False, ev, claimed_keys(served))
+    assert v == "REFUSE"
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

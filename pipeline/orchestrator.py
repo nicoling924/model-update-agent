@@ -1290,15 +1290,26 @@ class ObjectiveLoop:
         pcol = prior_column(self.spec, sheet, self.ty)
         # THE EVIDENCE LAW (run-7 autopsy): no write without a ledger row;
         # proven cells are protected; unproven values land red, never clean.
-        from .writegate import claimed_keys, find_evidence, judge_write
+        from .writegate import (claimed_keys, claim_holders, find_evidence,
+                                judge_write)
         pv_cell = (self.wb[sheet][f"{pcol}{row}"].value if pcol else None)
         evidence = find_evidence(self.ledger.items, value)
+        holders = claim_holders(self.served)
         verdict, law_reason, forced_flag = judge_write(
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
-            claimed_keys(self.served))
+            claimed_keys(self.served), holders)
         if verdict == "REFUSE":
             return "REFUSED by the evidence law: " + law_reason
+        evicted = ""
+        if verdict == "EVICT":
+            # PROOF OUTRANKS ARRIVAL (run-227 autopsy): the unproven
+            # holder(s) of this figure are reverted and red-flagged —
+            # loud, never a silent double count — then the proven write
+            # lands clean
+            evicted = self._evict_claim(round(abs(value), 1), holders, ref)
+            verdict = "ALLOW"
+        proven = verdict == "ALLOW"
         flag = "red" if (forced_flag == "red" or args.get("flag")) else None
         if forced_flag == "red":
             why = "UNPROVEN (no prior tie) — " + why
@@ -1346,12 +1357,65 @@ class ObjectiveLoop:
                     f"{broke[:4]} — the target cell is wrong, not the value; "
                     "trace_cell / statement_diff to find the right row")
         self.served[(sheet, row)] = {"value": value, "status": "OK",
-                                     "conf": 3, "page": None,
+                                     "conf": 4 if proven else 3,
+                                     "flag": flag,
+                                     "homed": True,
+                                     "home": (sheet, f"{col}{row}"),
+                                     "page": None,
                                      "line": why[:60],
                                      "note": f"objective loop: {why[:120]}"}
         fixed = sorted(before_fails - after_fails)
-        return ("WRITTEN" + redirected
+        return ("WRITTEN" + redirected + evicted
                 + (f"; checks now passing: {fixed[:4]}" if fixed else ""))
+
+    def _evict_claim(self, key, holders, new_ref):
+        """PROOF OUTRANKS ARRIVAL (run-227 autopsy): revert every UNPROVEN
+        home of `key` to what the cell held before its serve, red-flag it
+        with the re-homing note, and release the claim. Returns a log
+        fragment. A home whose pre-serve value cannot be found in the
+        writes ledger is flagged but left in place (loud, never silent)."""
+        from .writegate import is_proven
+        out = []
+        for cell, entry in holders.get(key, []):
+            if is_proven(entry):
+                continue
+            s, r = cell
+            home = entry.get("home")
+            if not home:
+                tcol = self._tcol(s)
+                home = (s, f"{tcol}{r}") if tcol else None
+            reverted = False
+            if home:
+                h_sheet, h_coord = home
+                found = False
+                old = None
+                for w_sheet, w_coord, w_old, _w_new in self.writer.log.get(
+                        "writes_all", []):
+                    if w_sheet == h_sheet and w_coord == h_coord:
+                        old, found = w_old, True   # FIRST write = pre-serve
+                        break
+                if found:
+                    self.writer.write(h_sheet, h_coord, old,
+                                      force_lock=True, trusted=True,
+                                      note=("objective loop: EVICTED — "
+                                            f"figure {key:,.1f} re-homed "
+                                            f"to {new_ref} (proven: its "
+                                            "row ties the prior); this "
+                                            "unproven read reverted"))
+                    reverted = True
+            self.TOOLS["flag_cell"](self, {
+                "cell": f"{s}!{r}",
+                "why": (f"EVICTED: figure {key:,.1f} re-homed to {new_ref} "
+                        "(proven — its evidence row ties the prior); this "
+                        "cell's unproven claim "
+                        + ("reverted to its pre-serve value"
+                           if reverted else "left in place — no pre-serve "
+                           "value on record")
+                        + " — analyst to confirm")})
+            self.served.pop(cell, None)
+            out.append(f"{s}!{r}" + ("" if reverted else " (not reverted)"))
+        return (f"; EVICTED unproven home(s) of {key:,.1f}: {out}"
+                if out else "")
 
     def t_flag_cell(self, args):
         ref = str(args.get("cell", ""))
