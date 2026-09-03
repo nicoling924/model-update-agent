@@ -1212,3 +1212,27 @@ BUILT (museum 110):
 Proofs: replay 229 DELIVERED (rule 2 armed on eps/revenue/equity
 before stage 4; re-armed after key tie), keys 7/9 (checker's 9),
 rows-off 101; DFE floor DELIVERED.
+
+## 2026-09-04 — RUN 230: REFUSED (head 9b200d8) — three causes, one cell each
+
+Refused by rule 2 ("KEY investing cash flow was proven -14,328, now
+-16,216 — printed nowhere") after the balance gate failed (mass
+15,481). Faithful replay reproduces it. Causes:
+1. THE CALL BUDGET: Luna answered 24 serve cards (229: 11); the 40-call
+   cap was spent before the equity-fold COMPONENT card (Final!99) was
+   dealt — it ran "(default)", never asked; balance failed at 3,872
+   (the PCS fold). FIX: load-bearing COMPONENT cards are ordered before
+   the serve flood; CALL_CAP 40 -> 60.
+2. THE TAKE-BACK LOST THE KEY TIE: the clean-slate loop reverted every
+   repair write incl. the key tie's CFI back-out, and repair_round never
+   re-tied — rule 2 then refused, correctly. FIX: key_tie runs inside
+   repair_round (idempotent) on every gate-loop round.
+3. KEY ROWS AGAIN: the brain named Final!20 (EBIT) as 'operating
+   profit'; the verifier used the data_only workbook (formula rows read
+   as empty) and had no numeric check. FIX: formulas workbook + a named
+   row's PRIOR must tie the pinned panel's prior for that key.
+Replay 230 on the fixes with the live picks (fold card still
+'not_disclosed' = never asked live): keys 7/9 (OP/NP now proven-
+printed after the key tie), balance still 3,872 (the fold). With the
+fold receipt answered as in run 229 (the answer the live run was never
+able to ask for): DELIVERED, first gate, keys 7/9. Museum 110.

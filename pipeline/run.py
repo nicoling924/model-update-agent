@@ -167,7 +167,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # THE READING STEP for the model (owner ruling 2026-09-03): the brain
     # names the headline rows; code verifies each carries numbers
     from .docid import identify_key_rows
-    identify_key_rows(wb_values, spec_d, client, log)
+    identify_key_rows(wb, spec_d, client, log,
+                      panel_path=company_dir / "replay" / str(period) / "key_panel.json",
+                      target_year=target_year)
     pre_map = formula_map(wb)
 
     # -- THE ERROR-BASELINE LAW (owner ruling 2026-08-31): count the
@@ -827,6 +829,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         the sign-flip terminal, the final closer. Idempotent by design
         (anchors re-solve, plugs re-measure, verdicts skip the done),
         so the gate loop can run it again on a corrected state."""
+        # RULE 2 inside the suite (run-230: the clean-slate take-back
+        # removed the key tie's CFI back-out and nothing re-tied it —
+        # rule 2 then refused, correctly). The key tie is idempotent.
+        if tag != "first":
+            from .keytie import key_tie as _kt_again
+            _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
+                      ledger=ledger)
         n_rb2 = _rbm2(wb, spec_d, target_year, writer, log)
         if n_rb2:
             err_guard(f"roll-base {tag}")

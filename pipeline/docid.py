@@ -555,7 +555,8 @@ def _keys_validate(obj):
     return errs
 
 
-def identify_key_rows(wb_values, spec, client, log, max_rows=260):
+def identify_key_rows(wb_values, spec, client, log, max_rows=260,
+                      panel_path=None, target_year=None):
     """THE READING STEP for the model (owner ruling 2026-09-03): the brain
     reads each sheet's labels and names the headline rows; code VERIFIES
     each named row carries numbers in the year axis before it replaces
@@ -564,6 +565,33 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260):
     if client is None:
         return []
     axis = spec.get("year_axis") or {}
+    panel = {}
+    if panel_path is not None:
+        try:
+            import json as _json
+            panel = _json.loads(Path(panel_path).read_text())
+        except Exception:
+            panel = {}
+    from .checks import prior_column as _pcol
+
+    def _prior_ties(sheet, row, name):
+        """Numeric verification (run-230: the brain named EBIT as
+        'operating profit'): when the pinned panel knows the key's PRIOR,
+        the named row's prior-year value must tie it."""
+        want = (panel.get(name) or {}).get("prior")
+        if not isinstance(want, (int, float)) or target_year is None:
+            return True
+        pc = _pcol(spec, sheet, target_year)
+        if not pc:
+            return True
+        v = wb_values[sheet][f"{pc}{row}"].value
+        if isinstance(v, str) and v.startswith("="):
+            try:
+                from .evaluator import Evaluator
+                v = Evaluator(wb_values).cell(sheet, f"{pc}{row}")
+            except Exception:
+                return False
+        return isinstance(v, (int, float)) and abs(v - want) <= max(1.0, abs(want) * 0.002)
     found, dropped = [], []
     for sheet, ax in axis.items():
         if sheet not in wb_values.sheetnames:
@@ -599,11 +627,14 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260):
         if not isinstance(obj, dict):
             continue
         for e in obj.get("key_rows") or []:
-            if e["row"] in numeric_rows:
+            if e["row"] not in numeric_rows:
+                dropped.append(f"{sheet}!{e['row']} as {e['name']} (no numbers on the row)")
+            elif not _prior_ties(sheet, e["row"], e["name"]):
+                dropped.append(f"{sheet}!{e['row']} as {e['name']} (its prior-year value "
+                               "does not tie the pinned prior for that key)")
+            else:
                 found.append({"name": e["name"], "sheet": sheet, "row": e["row"],
                               "source": "brain"})
-            else:
-                dropped.append(f"{sheet}!{e['row']} as {e['name']} (no numbers on the row)")
     if not found and not dropped:
         return []
     by_name = {}

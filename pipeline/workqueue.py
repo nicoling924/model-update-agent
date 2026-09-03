@@ -41,7 +41,7 @@ from .numerics import row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
 
 MAX_CARDS = 60
-CALL_CAP = 40
+CALL_CAP = 60
 DEADLINE_S = 1200
 MAX_CANDS = 4
 
@@ -336,7 +336,9 @@ def build_queue(loop):
                               check=f"{sheet}!{row}", priority=abs(res)))
         items.append(WorkItem("PLUG", sheet, row,
                               check=f"{sheet}!{row}", priority=abs(res)))
-    order = {"SERVE": 0, "COMPONENT": 1, "ROLLOVER": 2, "TRIPWIRE": 3, "PLUG": 4}
+    # LOAD-BEARING FIRST (run-230: 24 serve cards spent the call budget,
+    # the equity-fold COMPONENT card was drained unasked, balance failed)
+    order = {"COMPONENT": 0, "SERVE": 1, "ROLLOVER": 2, "TRIPWIRE": 3, "PLUG": 4}
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # the cap trims only the SERVE flood — check, tripwire and plug
     # items are few and load-bearing (a cap that silently dropped every

@@ -2716,6 +2716,31 @@ def test_reading_step_brain_judges_code_verifies():
     assert "eps" not in names                                        # no numbers -> dropped
     assert {p["name"] for p in picks} == {"recurring net profit", "operating profit", "net profit"}
     assert identify_key_rows(wb, spec, None, lambda s: None) == []
+    # exhibit 2b — numeric verification against the pinned panel (run-230:
+    # the brain named EBIT as 'operating profit'): a named row whose
+    # prior-year value does not tie the panel's prior is dropped
+    import json, tempfile
+    ws.cell(20, 1, "EBIT"); ws.cell(20, 3, 24.0)          # prior 24 (col C = 2024)
+    spec2 = {"year_axis": {"Final": {"columns": {"2024": "C", "2025": "D"}}},
+             "key_rows": [{"name": "operating profit", "sheet": "Final", "row": 15}]}
+    with tempfile.TemporaryDirectory() as d:
+        pp = f"{d}/key_panel.json"
+        json.dump({"operating profit": {"print": 21.0, "prior": 20.0}}, open(pp, "w"))
+        picks2 = identify_key_rows(wb, spec2, Stub({"key_rows": [
+            {"row": 20, "name": "operating profit"}], "why": "EBIT"}), lambda s: None,
+            panel_path=pp, target_year=2025)
+        assert picks2 == [] and {k["row"] for k in spec2["key_rows"] if k["name"] == "operating profit"} == {15}
+        picks3 = identify_key_rows(wb, spec2, Stub({"key_rows": [
+            {"row": 15, "name": "operating profit"}], "why": "NOI"}), lambda s: None,
+            panel_path=pp, target_year=2025)
+        assert [k["row"] for k in picks3] == [15]
+    # exhibit 2c — load-bearing cards before the serve flood (run-230: the
+    # equity-fold COMPONENT card was drained unasked behind 24 serves)
+    import inspect
+    from pipeline import workqueue as wq
+    src = inspect.getsource(wq.build_queue)
+    assert '"COMPONENT": 0' in src and '"SERVE": 1' in src
+    assert wq.CALL_CAP >= 60
 
 
 def test_rollover_investigation_owner_teaching_2026_09_03():
