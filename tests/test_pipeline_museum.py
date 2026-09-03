@@ -2948,6 +2948,74 @@ def test_rule2_keys_at_the_gate_owner_2026_09_03():
         assert "_key_violations(wb, spec_d, target_year" in src
 
 
+def test_printed_subtotal_law_owner_2026_09_04():
+    """Owner (2026-09-04, run 231 delivered with total assets +661 while
+    balanced): current / non-current / total assets, liabilities and
+    equity are printed — the agent finds the number or backs out to the
+    printed subtotal. Every same-column subtotal row whose printed
+    counterpart is identified on a face (comparative ties the model's
+    prior, label kin) ties or gets an orange back-out; tied subtotals
+    enter rule 2's register."""
+    import openpyxl
+    from pipeline.keytie import printed_subtotals, subtotal_tie
+    from pipeline.ledger import Item, Ledger
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "F"
+    ws["A1"], ws["B1"], ws["C1"] = "year", 2024, 2025
+    ws["A57"], ws["B57"], ws["C57"] = "Cash", 100.0, 120.0
+    ws["A60"], ws["B60"], ws["C60"] = "Accounts receivable", "=200+80", "=200+80"   # held at last year's split
+    ws["A64"], ws["B64"], ws["C64"] = "Total current assets", "=SUM(B57:B63)", "=SUM(C57:C63)"
+    ws["A70"], ws["B70"], ws["C70"] = "Other assets", 7620.0, "=8000+400"
+    ws["A75"], ws["B75"], ws["C75"] = "Total assets", "=B64+B70", "=C64+C70"
+    ws["A98"], ws["B98"], ws["C98"] = "Total liabilities and shareholders' equity", "=B75", "=C75"
+    spec = {"year_axis": {"F": {"header_row": 1, "columns": {"2024": "B", "2025": "C"}}},
+            "check_rows": [], "key_rows": []}
+    led = Ledger()
+    led._doc_periods = {"RA.pdf": "current"}
+    led.faces[("RA.pdf", 24)] = "bs"
+    for i, (lab, nums) in enumerate((("Cash and cash equivalents", [120.0, 100.0]),
+                                     ("Trade and other receivables", [330.0, 280.0]),
+                                     ("Total current assets", [430.0, 380.0]),
+                                     # a five-year summary: leading pair = current | prior
+                                     ("Total assets", [9000.0, 8000.0, 7000.0, 6500.0, 6000.0]))):
+        led.items.append(Item(doc="RA.pdf", page=24, table_id=0, row_ord=i, label=lab, nums=nums,
+                              stmt_face="bs", unit_dim="unknown", scale_hint=None,
+                              source_line=lab + " " + " ".join(map(str, nums))))
+    subs = printed_subtotals(wb, spec, 2025, led, priors=[100.0, 280.0, 380.0, 8000.0])
+    # L+E ties the same prior (assets = L+E) but its nouns differ: not pinned to 'Total assets'
+    assert [(d["sheet"], d["row"], d["print"]) for d in subs] == [("F", 64, 430.0), ("F", 75, 9000.0)], subs
+    from pipeline.keytie import subtotal_kin
+    assert not subtotal_kin("Total assets", "Total liabilities and shareholders' equity")
+    assert subtotal_kin("Total current assets", "Total current assets")
+    assert not subtotal_kin("Total assets", "Total current assets")
+    assert subtotal_kin("Total equity", "Total shareholders' equity")
+    w = Writer(wb)
+    # only an UNRESOLVED (red) component may absorb; an unflagged one is left alone
+    tied = subtotal_tie(wb, spec, 2025, w, led, lambda s: None, priors=[100.0, 280.0, 380.0, 8000.0])
+    assert ws["C60"].value == "=200+80" and "printed subtotal 'Total current assets'" not in tied
+    from openpyxl.styles import PatternFill
+    ws["C60"].fill = PatternFill("solid", fgColor="FFC7CE")
+    ws["C70"].fill = PatternFill("solid", fgColor="FFC7CE")
+    tied = subtotal_tie(wb, spec, 2025, w, led, lambda s: None, priors=[100.0, 280.0, 380.0, 8000.0])
+    from pipeline.evaluator import Evaluator
+    assert abs(Evaluator(wb).cell("F", "C64") - 430.0) < 0.01
+    assert abs(Evaluator(wb).cell("F", "C75") - 9000.0) < 0.01     # via the five-year table
+    assert str(ws["C60"].value).startswith("=(200+80)") and "30" in str(ws["C60"].value)
+    assert "printed subtotal 'Total current assets'" in tied
+    # bounded: a subtotal off by more than 10% is flagged, never absorbed
+    ws["C57"] = 900.0                     # total current assets now far above the print 430
+    logs = []
+    subtotal_tie(wb, spec, 2025, w, led, logs.append, priors=[100.0, 280.0, 380.0, 8000.0])
+    assert any("beyond the back-out bound" in x for x in logs), logs
+    ws["C57"] = 120.0
+    # idempotent: a second pass backs out nothing more
+    before = ws["C60"].value
+    subtotal_tie(wb, spec, 2025, w, led, lambda s: None, priors=[100.0, 280.0, 380.0, 8000.0])
+    assert ws["C60"].value == before
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

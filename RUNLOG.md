@@ -1265,3 +1265,24 @@ values after the loop. 2026: OP 15,419 vs key 15,550; NP 11,199 vs
 one: 37 strange rows, 10 with verdicts (12-card cap), 25 flagged
 only. Flags red 114 / orange 93; cells 70.0%. Statement pages: 8/11
 AR pages ratified via the page-space law.
+Owner: "total assets is off by 661 yet it balances?" Both sides off by
+the same 661: receivables +1,134 and investment securities -622 held
+at last year's split (red, composition ambiguous), NFA +149 (a
+different printed split); minority interests +1,446 (the brain served
+the printed NCI, a wider definition) and deferred creditors -785
+(held). Balance compares totals; rule 2 never guarded total assets
+because it was never proven-printed (CLP's HK-format BS prints no
+'Total assets'; only the five-year table does).
+THE PRINTED-SUBTOTAL LAW — built, museum-tested (111), NOT WIRED:
+keytie.printed_subtotals / subtotal_tie pin every same-column
+subtotal row to a face line (comparative ties the prior; noun-level
+label kinship; leading pair of a multi-year table allowed) and back
+the delta out into an UNRESOLVED (red) component, bounded at 10%,
+transactional vs the checks. On run 231's replay, inside the gate
+loop, it compounded wraps across rounds (AI60 -1,134 then -2,205),
+landed a back-out on SOC Accounts!AI9, and left equity wrong ->
+refused. Unwired; the stable head delivers. Wiring = its own session:
+run it ONCE after the loop settles (not per round), never absorb
+across sheets, and re-snapshot rule 2 after.
+Kept: keytie._leaves expands SUM ranges (the range's interior rows
+were invisible to every back-out search).

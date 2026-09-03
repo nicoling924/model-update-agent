@@ -37,8 +37,20 @@ def _leaves(wb, sheet, coord, depth=0, seen=None):
     if not (isinstance(v, str) and v.startswith("=")):
         return [(sheet, coord)]
     out = []
+    txt = v.replace("$", "")
+    # SUM(C57:C63) names every row of the range, not just its ends
+    # (run-231 autopsy: the receivables row inside a subtotal's range
+    # was invisible to the back-out search)
     for m in re.finditer(r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
-                         r"([A-Z]{1,3})(\d+)", v.replace("$", "")):
+                         r"([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)", txt):
+        sh = (m.group(1) or m.group(2) or sheet).strip()
+        if sh in wb.sheetnames and m.group(3) == m.group(5):
+            r1, r2 = int(m.group(4)), int(m.group(6))
+            for rr in range(min(r1, r2), max(r1, r2) + 1):
+                out += _leaves(wb, sh, f"{m.group(3)}{rr}", depth + 1, seen)
+    txt = re.sub(r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", " ", txt)
+    for m in re.finditer(r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
+                         r"([A-Z]{1,3})(\d+)", txt):
         sh = (m.group(1) or m.group(2) or sheet).strip()
         if sh in wb.sheetnames:
             out += _leaves(wb, sh, f"{m.group(3)}{m.group(4)}",
@@ -119,21 +131,26 @@ def _bridge_rows(wb, spec, target_year, sheet, key_coord, pcol,
     return None
 
 
-def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
-    """-> number of keys backed out to tie. Runs after the loop."""
-    panel_path = Path(panel_path)
-    if not panel_path.exists():
-        return 0
-    try:
-        panel = json.loads(panel_path.read_text())
-    except Exception:
-        return 0
+def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
+            panel=None, keys=None, max_delta_frac=None, absorbers="any"):
+    """-> number of keys backed out to tie. Runs after the loop.
+    panel / keys: an in-memory panel and key list override the pinned
+    file (the printed-subtotal tie passes the statements' own totals)."""
+    if panel is None:
+        panel_path = Path(panel_path)
+        if not panel_path.exists():
+            return 0
+        try:
+            panel = json.loads(panel_path.read_text())
+        except Exception:
+            return 0
+    key_rows = keys if keys is not None else (spec.get("key_rows") or [])
 
     def _key_state():
         """Every panel key's (name, got, want, ok) right now."""
         out = []
         ev = Evaluator(wb)
-        for kk in (spec.get("key_rows") or []):
+        for kk in key_rows:
             nm, sh2, r2 = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
             w2 = (panel.get(nm) or {}).get("print")
             tc2 = year_columns(spec, sh2).get(str(target_year)) \
@@ -150,7 +167,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
         return out
 
     n = 0
-    for k in (spec.get("key_rows") or []):
+    for k in key_rows:
         name, sheet, row = k.get("name"), k.get("sheet"), int(k.get("row"))
         want = (panel.get(name) or {}).get("print")
         if not isinstance(want, (int, float)) or sheet not in wb.sheetnames:
@@ -167,6 +184,23 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
             continue
         delta = got - want
         if abs(delta) <= max(TOL_ABS, abs(want) * TOL_REL):
+            continue
+        if max_delta_frac is not None and abs(delta) > max_delta_frac * max(abs(want), 1.0):
+            # THE BOUNDED BACK-OUT (run-231: a subtotal tie on a transient
+            # gate-loop state wrapped a 93,455 delta into one component):
+            # a subtotal off by more than the bound is not a back-out
+            # case — it is flagged, never absorbed
+            from openpyxl.comments import Comment
+            cell = wb[sheet][f"{tcol}{row}"]
+            cell.fill = writer.fills["red"]
+            cell.comment = Comment(
+                f"SUBTOTAL OFF: computes {got:,.2f} vs printed {want:,.2f} "
+                f"({delta:+,.2f}) — beyond the back-out bound; ANALYST.",
+                "Model Update Agent")
+            if f"{sheet}!{tcol}{row}" not in writer.log["flags"]:
+                writer.log["flags"].append(f"{sheet}!{tcol}{row}")
+            log(f"[run] key tie: '{name}' off {delta:+,.2f} — beyond the "
+                "back-out bound, flagged")
             continue
         # THE PRIOR-DELTA PROTOCOL (owner ruling 2026-08-31): the PRIOR
         # year proves the definition. Model prior == printed prior ->
@@ -240,6 +274,17 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
             f = wb[sh][coord].value
             if not (isinstance(f, str) and f.startswith("=")):
                 continue
+            if _SUBTOTAL.match(f.replace("$", "")):
+                continue      # a subtotal row is never the absorber (run-231)
+            if absorbers == "unproven":
+                # the owner's rule: back out only the numbers the run
+                # could NOT find — a red (unresolved) component
+                try:
+                    rgb = str(wb[sh][coord].fill.fgColor.rgb or "")
+                except Exception:
+                    rgb = ""
+                if not rgb.endswith("FFC7CE"):
+                    continue
             pc = prior_column(spec, sh, target_year)
             pv = wb[sh][f"{pc}{m.group(2)}"].value if pc else None
             try:
@@ -367,3 +412,180 @@ def key_violations(wb, spec, target_year, ledger, panel_path, snapshot):
             continue
         out.append((nm, ref, then, float(now)))
     return out
+
+
+
+# -- THE PRINTED-SUBTOTAL LAW (owner, 2026-09-04): every subtotal the
+# statements print — total current assets, non-current assets, total
+# assets, total liabilities, equity — either ties or is backed out ------
+_SUBTOTAL = re.compile(r"^=\s*(?:SUM\(([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)\)"
+                       r"|\+?([A-Z]{1,3}\d+(?:\s*[+]\s*[A-Z]{1,3}\d+)+))\s*$")
+
+
+_GENERIC = {"total", "net", "and", "of", "the", "other", "others", "less", "sub",
+            "subtotal", "amount", "amounts", "at", "end", "year", "for", "to", "in"}
+# the nouns that decide identity; qualifiers (shareholders', group,
+# consolidated) do not
+_NOUNS = {"assets", "asset", "liabilities", "liability", "equity", "current",
+          "noncurrent", "non", "income", "revenue", "cash", "profit", "loss",
+          "borrowings", "debt", "receivables", "payables", "expenses", "costs",
+          "earnings", "dividends"}
+
+
+def subtotal_kin(a, b):
+    """Two subtotal labels name the SAME thing only when their financial
+    nouns agree (run-231: 'Total liabilities and shareholders' equity'
+    pinned itself to the five-year 'Total assets' line on the word
+    'total' alone — assets = L+E made the prior tie, the label did the
+    rest; the back-out then broke the balance)."""
+    from .numerics import norm_label
+    ta = set(norm_label(a).split()) - _GENERIC
+    tb = set(norm_label(b).split()) - _GENERIC
+    if not ta or not tb:
+        return False
+    na, nb = ta & _NOUNS, tb & _NOUNS
+    if na or nb:
+        return na == nb
+    return bool(ta & tb)
+
+
+def printed_subtotals(wb, spec, target_year, ledger, max_row=300, priors=None):
+    """Model subtotal rows (=SUM(range) / =A+B+C of same-column cells)
+    whose PRINTED counterpart is identifiable on a current statement
+    face: the face line's comparative ties the model's prior AND its
+    label is kin to the row's. -> [{"name","sheet","row","print","prior"}].
+    The prior-identity tie is the proof; the label is the tiebreak."""
+    from .numerics import kinship, to_model_units
+    from .stage2_join import ratify_page_scales
+    if ledger is None:
+        return []
+    banned = _vintage_ban(ledger)
+    faces = {(d, p): f for (d, p), f in ledger.faces.items() if f in ("pl", "bs", "cf")}
+    # statement lines (2-3 numbers) AND multi-year summaries (up to 6:
+    # CLP's HK-format balance sheet prints no 'Total assets' line — the
+    # only printed total is the five-year table 238,644 | 233,713 | ...;
+    # for a series the leading pair is current | prior)
+    pool = [it for it in ledger.items
+            if it.doc not in banned and (it.doc, it.page) in faces
+            and 2 <= len([n for n in it.nums if isinstance(n, (int, float))]) <= 6]
+    priors_all = []
+    ev = Evaluator(wb)
+    rows = []
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        pcol = prior_column(spec, sheet, target_year)
+        if not tcol or not pcol:
+            continue
+        ws = wb[sheet]
+        for r in range(1, min(ws.max_row, max_row) + 1):
+            f = ws[f"{tcol}{r}"].value
+            if not (isinstance(f, str) and _SUBTOTAL.match(f.replace("$", ""))):
+                continue
+            if tcol not in f:
+                continue                  # not a same-column subtotal
+            lab = ws.cell(r, 1).value
+            if not lab:
+                continue
+            try:
+                pv = ev.cell(sheet, f"{pcol}{r}")
+            except Exception:
+                continue
+            if not isinstance(pv, (int, float)) or abs(pv) < 100:
+                continue
+            priors_all.append(pv)
+            rows.append((sheet, r, str(lab), pv))
+    if not rows:
+        return []
+    scales = ratify_page_scales(pool, list(priors or []) + priors_all)
+    out = []
+    for sheet, r, lab, pv in rows:
+        hits = []
+        for it in pool:
+            sc = scales.get((it.doc, it.page))
+            if not sc:
+                # an unratified page still proves itself for THIS row when
+                # a raw number ties the prior exactly (model units)
+                if any(abs(abs(n) - abs(pv)) <= 0.6 for n in it.nums
+                       if isinstance(n, (int, float))):
+                    sc = 1.0
+                else:
+                    continue
+            ns = [to_model_units(n, sc) for n in it.nums if isinstance(n, (int, float))]
+            # comparative = the second of the (current, prior) pair; a note
+            # ref may lead. In a multi-year series only the LEADING pair
+            # is current | prior (the time-signature law: later slots
+            # are older years)
+            lead = 2 if len(ns) > 3 else len(ns) - 1
+            for i in range(min(lead, len(ns) - 1)):
+                cur, comp = ns[i], ns[i + 1]
+                if i == 1 and abs(ns[0]) >= 100:
+                    break          # a leading big number is current, not a note ref
+                if abs(abs(comp) - abs(pv)) <= max(0.6, abs(pv) * 5e-4) \
+                        and subtotal_kin(str(it.label or ""), lab):
+                    sign = 1 if pv >= 0 else -1
+                    hits.append(sign * abs(cur) if comp * pv >= 0 else -sign * abs(cur))
+                    break
+        if not hits:
+            continue
+        vals = sorted(hits)
+        want = vals[len(vals) // 2]
+        if any(abs(v - want) > max(1.0, abs(want) * 2e-3) for v in vals):
+            continue                      # the faces disagree — no pin
+        out.append({"name": f"printed subtotal '{lab.strip()[:30]}'", "sheet": sheet,
+                    "row": r, "print": float(want), "prior": float(pv)})
+    return out
+
+
+def subtotal_tie(wb, spec, target_year, writer, ledger, log, priors=None):
+    """Tie every printed subtotal (back-out into an unresolved component,
+    orange, traceable) and return the tied rows for rule 2's register."""
+    subs = printed_subtotals(wb, spec, target_year, ledger, priors=priors)
+    if not subs:
+        return {}
+    panel = {d["name"]: {"print": d["print"], "prior": d["prior"]} for d in subs}
+    keys = [{"name": d["name"], "sheet": d["sheet"], "row": d["row"]} for d in subs]
+
+    def _mass():
+        ev_m = Evaluator(wb)
+        m = 0.0
+        for c in (spec.get("check_rows") or []):
+            sh = c.get("sheet")
+            if sh not in wb.sheetnames:
+                continue
+            for _y, col in year_columns(spec, sh).items():
+                try:
+                    v = ev_m.cell(sh, f"{col}{int(c['row'])}")
+                except Exception:
+                    continue
+                if isinstance(v, (int, float)):
+                    m += abs(v)
+        return m
+    mass0 = _mass()
+    n0 = len(writer.log.get("writes_all", []))
+    n = key_tie(wb, spec, target_year, writer, None, log, ledger=ledger,
+                panel=panel, keys=keys, max_delta_frac=0.10,
+                absorbers="unproven")
+    if n and _mass() > mass0 + 1.0:
+        # TRANSACTIONAL (run-231: a subtotal back-out broke the balance):
+        # a tie that worsens the model's own checks is undone
+        for sh_w, co_w, old_w, _new in reversed(writer.log.get("writes_all", [])[n0:]):
+            wb[sh_w][co_w] = old_w
+        log(f"[run] printed subtotals: {n} back-out(s) UNDONE — they worsened "
+            f"the model's checks ({mass0:,.0f} -> {_mass():,.0f} before undo)")
+        n = 0
+    ev = Evaluator(wb)
+    tied = {}
+    for d in subs:
+        tc = year_columns(spec, d["sheet"]).get(str(target_year))
+        try:
+            v = ev.cell(d["sheet"], f"{tc}{d['row']}")
+        except Exception:
+            continue
+        if isinstance(v, (int, float)) and abs(v - d["print"]) <= max(TOL_ABS, abs(d["print"]) * TOL_REL):
+            tied[d["name"]] = (f"{d['sheet']}!{tc}{d['row']}", float(v),
+                               f"printed subtotal {d['print']:,.1f}")
+    log(f"[run] printed subtotals: {len(subs)} identified on the faces, "
+        f"{len(tied)} tie ({n} backed out)")
+    return tied

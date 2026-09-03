@@ -778,6 +778,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log, ledger=ledger)
         err_guard("key tie")
         collapse_guard("key tie")
+        # THE PRINTED-SUBTOTAL LAW (owner 2026-09-04): current assets,
+        # non-current assets, total assets, liabilities, equity — every
+        # subtotal the statements print ties or is backed out (orange)
+        # (built and museum-tested; NOT wired yet — inside the gate loop it
+        # compounded wraps across rounds and landed a back-out on another
+        # sheet on run 231's replay. Wiring is its own session.)
+        # from .keytie import subtotal_tie as _subtotal_tie
+        # keys_before.update(_subtotal_tie(wb, spec_d, target_year, writer,
+        #                                  ledger, log, priors=known))
         # RULE 2, re-armed: keys the key tie just proved must also hold
         # through the repair suite and the gate loop
         _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path)
