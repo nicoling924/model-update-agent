@@ -1182,3 +1182,33 @@ SoC revenue/fuel-mix chain (HK Sales!AJ4 transfer-from-fuel-cost
 20.2k vs 16.0k; gas/coal forecast volumes) = the assumption-freeze
 question the owner must rule on; India!AI24 'confirmed unchanged' 105
 (material-size coincidence) noted.
+
+## 2026-09-03 — RULE 2 AT THE GATE + THE RESIDUAL DISCOUNT (owner)
+
+Owner: "rule 1 is balance, rule 2 is the keys — why did it fail rule
+2? attention span?" Not attention: the keys were RIGHT before stage 4
+(bank loans 9,673, net finance costs composite — both the key's
+values), two late rollover 'revert' answers overwrote them, and the
+gate checks balance only — rule 2 was enforced mid-run (key tie) and
+never verified at delivery. Also the key tie in 229 aimed at the wrong
+rows (the key-row verifier bug, fixed) so it could not rescue OP/NP.
+Delivered file: keys 5/11; the fixed replay: 9/11 (misses: recurring
+NP one-offs bridge; CFF off by 9).
+BUILT (museum 110):
+- RULE 2 AT THE GATE (keytie.key_snapshot / key_violations): every
+  key proven-printed before stage 4 (pinned print, or a figure on a
+  current statement face) — re-armed after the key tie — must still be
+  so at the gate; a proven key moved to a value printed nowhere REFUSES
+  the run and feeds the same take-back loop as balance (its distance
+  counts in check_mass). A move to ANOTHER printed figure is a
+  definition question (never refused); a never-proven key is flagged,
+  never gated.
+- THE RESIDUAL DISCOUNT (rollover.dossier): the model's residual rows
+  (=total - SUM, 'Others') absorb anything and roll forward, so
+  reverting almost ANY input "recovered the swing". The probe now runs
+  twice — as is, and with every residual row frozen at its current
+  value; the frozen share ranks and the card says "recovery through a
+  residual is not evidence".
+Proofs: replay 229 DELIVERED (rule 2 armed on eps/revenue/equity
+before stage 4; re-armed after key tie), keys 7/9 (checker's 9),
+rows-off 101; DFE floor DELIVERED.

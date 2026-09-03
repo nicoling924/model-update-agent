@@ -295,3 +295,75 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None):
                 "Model Update Agent")
             writer.log["flags"].append(f"{sheet}!{tcol}{row}")
     return n
+
+
+# -- RULE 2 AT THE GATE (owner, 2026-09-03): a key that was tied to the
+# print must still be tied when the run delivers ------------------------
+def _panel(panel_path):
+    try:
+        return json.loads(Path(panel_path).read_text())
+    except Exception:
+        return {}
+
+
+def key_snapshot(wb, spec, target_year, ledger, panel_path):
+    """Every key row whose value is PROVEN-PRINTED right now: equal to
+    the pinned print, or itself a printed figure on a current statement
+    face. -> {name: (ref, value, basis)}. Taken before stage 4, so a
+    later write that moves a proven key off the print is caught."""
+    panel = _panel(panel_path)
+    ev = Evaluator(wb)
+    out = {}
+    for kk in (spec.get("key_rows") or []):
+        nm, sh, r = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
+        tc = year_columns(spec, sh).get(str(target_year)) if sh in wb.sheetnames else None
+        if not tc:
+            continue
+        try:
+            v = ev.cell(sh, f"{tc}{r}")
+        except Exception:
+            continue
+        if not isinstance(v, (int, float)) or abs(v) < 1:
+            continue
+        want = (panel.get(nm) or {}).get("print")
+        basis = None
+        if isinstance(want, (int, float)) and abs(v - want) <= max(TOL_ABS, abs(want) * TOL_REL):
+            basis = f"pinned print {want:,.2f}"
+        else:
+            where = _printed(ledger, v)
+            if where:
+                basis = f"printed on {where}"
+        if basis:
+            out[nm] = (f"{sh}!{tc}{r}", float(v), basis)
+    return out
+
+
+def key_violations(wb, spec, target_year, ledger, panel_path, snapshot):
+    """Keys that were proven-printed at the snapshot and now hold a
+    DIFFERENT value that is printed nowhere. -> [(name, ref, then, now)].
+    A key that moved to another printed figure is a definition
+    question, not a violation; a key never proven is flagged elsewhere,
+    never gated here."""
+    if not snapshot:
+        return []
+    panel = _panel(panel_path)
+    ev = Evaluator(wb)
+    out = []
+    for nm, (ref, then, _basis) in snapshot.items():
+        sh, coord = ref.split("!", 1)
+        try:
+            now = ev.cell(sh, coord)
+        except Exception:
+            continue
+        if not isinstance(now, (int, float)):
+            out.append((nm, ref, then, None))
+            continue
+        if abs(now - then) <= max(TOL_ABS, abs(then) * TOL_REL):
+            continue
+        want = (panel.get(nm) or {}).get("print")
+        if isinstance(want, (int, float)) and abs(now - want) <= max(TOL_ABS, abs(want) * TOL_REL):
+            continue
+        if _printed(ledger, now):
+            continue
+        out.append((nm, ref, then, float(now)))
+    return out

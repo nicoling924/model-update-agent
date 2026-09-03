@@ -204,6 +204,25 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
         s, c, old = w[0], w[1], w[2]
         first_old.setdefault((s, c), old)
     leaves = set(leaf_fn(sheet, target))
+    # THE RESIDUAL DISCOUNT (run-229 autopsy): the model's own residual
+    # rows (=total - SUM(parts), 'Others') absorb whatever does not add
+    # up, and the forecast copies the residual forward — so reverting
+    # almost ANY input "recovers the swing" through them. The probe is
+    # therefore run twice: as is, and with every residual row frozen at
+    # its current value; the second share is the honest one and ranks.
+    residuals = residual_cells(wb, spec, target_year)
+    # the residuals' CURRENT values (before any probe): what they hold
+    # with the update's inputs in place — frozen there during probe 2
+    res_now = {}
+    for (rs, rc) in residuals:
+        if (rs, rc) == (sheet, target):
+            continue
+        try:
+            val = Evaluator(wb).cell(rs, rc)
+        except Exception:
+            continue
+        if isinstance(val, (int, float)):
+            res_now[(rs, rc)] = val
     cands = []
     for (s, c) in leaves:
         if (s, c) not in first_old:
@@ -216,11 +235,26 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
             probe = Evaluator(wb).cell(sheet, target)
         except Exception:
             probe = None
+        frozen = []
+        try:
+            for (rs, rc), val in res_now.items():
+                if (rs, rc) == (s, c):
+                    continue
+                frozen.append((rs, rc, wb[rs][rc].value))
+                wb[rs][rc].value = val
+            try:
+                probe_x = Evaluator(wb).cell(sheet, target) if frozen else probe
+            except Exception:
+                probe_x = None
         finally:
+            for rs, rc, f in frozen:
+                wb[rs][rc].value = f
             wb[s][c].value = cur
-        share = 0.0
+        share = share_x = 0.0
         if isinstance(probe, (int, float)) and abs(old_f - new_f) > 1e-9:
             share = (probe - new_f) / (old_f - new_f)
+        if isinstance(probe_x, (int, float)) and abs(old_f - new_f) > 1e-9:
+            share_x = (probe_x - new_f) / (old_f - new_f)
         prov = ""
         try:
             rr = int("".join(ch for ch in c if ch.isdigit()))
@@ -231,9 +265,31 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
             prov = (str(e.get("note") or e.get("line") or "")[:70])
         proven = input_is_proven(served, s, c, cur, (), wb)
         cands.append({"sheet": s, "coord": c, "old": old, "cur": cur,
-                      "share": share, "prov": prov, "proven": proven})
-    cands.sort(key=lambda d: -d["share"])
+                      "share": share, "share_x": share_x,
+                      "via_residual": bool(residuals) and abs(share - share_x) > 0.15,
+                      "prov": prov, "proven": proven})
+    cands.sort(key=lambda d: (-d["share_x"], -d["share"]))
     return cands[:max_inputs]
+
+
+def residual_cells(wb, spec, target_year, max_row=300):
+    """The model's own residual rows in the target column (=A-B-C...,
+    =X-SUM(...)): the plug-meter pattern. -> [(sheet, coord)]."""
+    import re as _re
+    pat = _re.compile(r"^=\+?[A-Z]{1,3}\d+\s*-")
+    out = []
+    for sheet in (spec.get("year_axis") or {}):
+        if sheet not in wb.sheetnames:
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        if not tcol:
+            continue
+        ws = wb[sheet]
+        for r in range(1, min(ws.max_row, max_row) + 1):
+            f = ws[f"{tcol}{r}"].value
+            if isinstance(f, str) and pat.match(f.replace(" ", "")):
+                out.append((sheet, f"{tcol}{r}"))
+    return out
 
 
 def _fmt(v):
@@ -260,6 +316,9 @@ def render(anom, cands):
         L = letters[i]
         lines.append(f"    {L}: {c['sheet']}!{c['coord']} {_fmt(c['old'])} -> "
                      f"{_fmt(c['cur'])}  ⇒ recovers {c['share']:.0%} of the swing"
+                     + (f" ({c.get('share_x', c['share']):.0%} with the model's residual "
+                        "rows frozen — recovery through a residual is not evidence)"
+                        if c.get("via_residual") else "")
                      + (f"  [{c['prov']}]" if c["prov"] else "")
                      + ("  ✔ PROVEN actual (its evidence ties the prior) — never "
                         "reverted; if the swing is wrong, the forecast's own "

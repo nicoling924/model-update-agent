@@ -671,6 +671,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # -- Stage 4: the work queue (machine plans, LLM answers cards) or
     # the legacy free loop, then the gate
     undo_mark = len(writer.log.get("writes_all", []))
+    # RULE 2 AT THE GATE (owner, 2026-09-03: "why didn't it fill the 2025
+    # keys correctly? rule 1 is balance, rule 2 is the keys"): the keys
+    # that are proven-printed HERE — before any brain answer — must
+    # still be so at delivery. Run 229 had them right at this point and
+    # two late reverts broke four of them; the gate never looked.
+    from .keytie import key_snapshot as _key_snapshot
+    _panel_path = company_dir / "replay" / str(period) / "key_panel.json"
+    keys_before = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path)
+    if keys_before:
+        log(f"[run] rule 2 armed: {len(keys_before)} key(s) proven-printed "
+            f"before stage 4 ({', '.join(sorted(keys_before))})")
     import os as _os
     mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
     loop_summary = ""
@@ -765,6 +776,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log, ledger=ledger)
         err_guard("key tie")
         collapse_guard("key tie")
+        # RULE 2, re-armed: keys the key tie just proved must also hold
+        # through the repair suite and the gate loop
+        _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path)
+        _new_keys = sorted(set(_more) - set(keys_before))
+        keys_before.update(_more)
+        if _new_keys:
+            log(f"[run] rule 2 re-armed after key tie: +{len(_new_keys)} "
+                f"({', '.join(_new_keys)})")
     else:
         log("[run] stage 4 loop skipped: no client (dry run)")
 
@@ -868,15 +887,30 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 err_guard(f"terminal {tag}")
                 collapse_guard(f"terminal {tag}")
 
+    from .keytie import key_violations as _key_violations
+
     def gate_once():
-        return gate_mod.deliver_or_refuse(
+        ok_g, fails_g, card_g = gate_mod.deliver_or_refuse(
             wb, spec_d, target_year, pre_map, writer.log, served=served,
             pre_values_wb=wb_values, load_bearing=lb,
             pre_formulas_path=str(archive), error_baseline=err_base)
+        # RULE 2: a proven-printed key that moved off the print refuses
+        # the run exactly like an unbalanced check does — and feeds the
+        # same take-back loop
+        for nm, ref, then, now in _key_violations(wb, spec_d, target_year,
+                                                  ledger, _panel_path, keys_before):
+            fails_g.append(f"KEY {nm} at {ref}: was proven-printed "
+                           f"{then:,.1f}, now {now if now is None else f'{now:,.1f}'}"
+                           " — printed nowhere (rule 2)")
+            ok_g = False
+        return ok_g, fails_g, card_g
 
     def check_mass():
         ev_m = _Ev(wb)
         m = 0.0
+        for _nm, _ref, then, now in _key_violations(wb, spec_d, target_year,
+                                                    ledger, _panel_path, keys_before):
+            m += abs((now if isinstance(now, (int, float)) else 0.0) - then)
         for c in (spec_d.get("check_rows") or []):
             sh = c.get("sheet")
             if sh not in wb.sheetnames:

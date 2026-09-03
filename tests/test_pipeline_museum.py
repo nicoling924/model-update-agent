@@ -2806,10 +2806,101 @@ def test_rollover_investigation_owner_teaching_2026_09_03():
     assert not input_is_proven(served, "F", "AI21", "=+-1860+999")
     assert not input_is_proven(served, "F", "AI21", "=AI9-AI10")     # refs: not a composite
     assert not input_is_proven(served, "F", "AI21", "=+-1860+194", flags=["F!AI21"])
+    # exhibit 2d — THE RESIDUAL DISCOUNT (run-229: net financial costs =
+    # segments + an 'Others' residual that rolls forward; reverting the
+    # total's composite "recovered the swing" through the residual while
+    # the real culprit was a segment driver). Two inputs changed: the
+    # typed total (right or wrong, it only feeds the residual) and the
+    # segment driver (wrong). Raw shares blame the total; with the
+    # residual frozen the driver ranks first and the total is discounted.
+    wb2 = openpyxl.Workbook()
+    w = wb2.active
+    w.title = "R"
+    w["A1"], w["B1"], w["C1"], w["D1"] = "year", 2024, 2025, 2026
+    w["A2"], w["B2"], w["C2"], w["D2"] = "Total (typed)", 1000.0, 1000.0, "=D3+D4"
+    w["A3"], w["B3"], w["C3"], w["D3"] = "Segment driver", 400.0, 400.0, "=C3*1.02"
+    w["A4"], w["B4"], w["C4"], w["D4"] = "Others (residual)", "=B2-B3", "=C2-C3", "=C4"
+    spec2 = {"year_axis": {"R": {"header_row": 1, "columns": {"2024": "B", "2025": "C", "2026": "D"}}}}
+    from pipeline.rollover import residual_cells
+    assert residual_cells(wb2, spec2, 2025) == [("R", "C4")]
+    base2 = estimate_baseline(wb2, spec2, 2025)
+    old_f2 = base2[("R", 2)][2]                      # 408 + 600 = 1,008
+    writes2 = [("R", "C2", 1000.0, 1300.0), ("R", "C3", 400.0, 900.0)]
+    w["C2"], w["C3"] = 1300.0, 900.0                 # new forecast: 918 + 400 = 1,318
+    cands2 = dossier(wb2, spec2, 2025, "R", 2, old_f2, writes2,
+                     lambda s, c: [("R", "C2"), ("R", "C3")], served={})
+    byc = {c["coord"]: c for c in cands2}
+    assert byc["C2"]["share"] > 0.9 and byc["C2"]["share_x"] < 0.05 and byc["C2"]["via_residual"], byc
+    assert byc["C3"]["share"] < 0.1 and byc["C3"]["share_x"] > 0.9, byc
+    assert cands2[0]["coord"] == "C3", [c["coord"] for c in cands2]   # the driver ranks first
+    text2, _o, _d = render({"sheet": "R", "row": 2, "label": "Total", "est_t": 1000.0,
+                            "act_t": 1300.0, "old_f": old_f2, "new_f": 1318.0,
+                            "reason": "OUT OF PROPORTION"}, cands2)
+    assert "residual rows frozen" in text2
+    assert w["C2"].value == 1300.0 and w["C3"].value == 900.0 and w["C4"].value == "=C2-C3"
     # exhibit 3 — the old collapse test never fired on run 228's -69%
     from pipeline.teachings import collapsed_forecasts
     assert collapsed_forecasts(wb, spec, 2025, {("M", 4): 4655.0}) == [] \
         or True  # (documented: the rollover test is the one that catches it)
+
+
+def test_rule2_keys_at_the_gate_owner_2026_09_03():
+    """Owner (2026-09-03): rule 1 is balance, rule 2 is the keys — run
+    229 had the keys right before stage 4, two late reverts broke four,
+    and the gate never looked. A key proven-printed before stage 4 that
+    moves to a value printed nowhere refuses the run (and feeds the
+    take-back loop); a move to ANOTHER printed figure is a definition
+    question, never a refusal; a key never proven is never gated."""
+    import json, tempfile
+    import openpyxl
+    from pipeline.keytie import key_snapshot, key_violations
+    from pipeline.ledger import Item, Ledger
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "F"
+    ws["A1"], ws["B1"], ws["C1"] = "year", 2024, 2025
+    ws["A7"], ws["B7"], ws["C7"] = "Revenue", 90964.0, 88018.0
+    ws["A15"], ws["B15"], ws["C15"] = "Operating profit", 14903.0, 14272.0
+    ws["A31"], ws["B31"], ws["C31"] = "Recurring NP", 12000.0, 10374.0
+    spec = {"year_axis": {"F": {"header_row": 1, "columns": {"2024": "B", "2025": "C"}}},
+            "key_rows": [{"name": "revenue", "sheet": "F", "row": 7},
+                         {"name": "operating profit", "sheet": "F", "row": 15},
+                         {"name": "recurring net profit", "sheet": "F", "row": 31}]}
+    led = Ledger()
+    led._doc_periods = {"RA.pdf": "current"}
+    led.faces[("RA.pdf", 23)] = "pl"
+    led.items.append(Item(doc="RA.pdf", page=23, table_id=0, row_ord=1, label="Revenue",
+                          nums=[88018.0, 90964.0], stmt_face="pl", unit_dim="unknown",
+                          scale_hint=None, source_line="Revenue 88,018 90,964"))
+    led.items.append(Item(doc="RA.pdf", page=23, table_id=0, row_ord=2, label="Operating profit",
+                          nums=[14272.0, 14903.0], stmt_face="pl", unit_dim="unknown",
+                          scale_hint=None, source_line="Operating profit 14,272 14,903"))
+    led.items.append(Item(doc="RA.pdf", page=23, table_id=0, row_ord=3, label="Operating earnings",
+                          nums=[13812.0, 13000.0], stmt_face="pl", unit_dim="unknown",
+                          scale_hint=None, source_line="Operating earnings 13,812 13,000"))
+    with tempfile.TemporaryDirectory() as d:
+        panel = f"{d}/key_panel.json"
+        json.dump({"revenue": {"print": 88018.0}}, open(panel, "w"))
+        snap = key_snapshot(wb, spec, 2025, led, panel)
+        assert set(snap) == {"revenue", "operating profit"}, snap   # recurring NP: never proven
+        assert "pinned print" in snap["revenue"][2] and "printed on RA.pdf p23" in snap["operating profit"][2]
+        assert key_violations(wb, spec, 2025, led, panel, snap) == []
+        # a late write moves OP to a value printed nowhere -> violation
+        ws["C15"] = 13500.0
+        v = key_violations(wb, spec, 2025, led, panel, snap)
+        assert [(x[0], x[2], x[3]) for x in v] == [("operating profit", 14272.0, 13500.0)], v
+        # a move to ANOTHER printed figure (a definition) is not a violation
+        ws["C15"] = 13812.0
+        assert key_violations(wb, spec, 2025, led, panel, snap) == []
+        # the never-proven key may change freely
+        ws["C31"] = 9561.0
+        assert key_violations(wb, spec, 2025, led, panel, snap) == []
+        # the gate wiring: run.update snapshots before stage 4 and gate_once asks
+        import inspect
+        from pipeline import run as run_mod
+        src = inspect.getsource(run_mod.update)
+        assert src.index("keys_before = _key_snapshot") < src.index("ObjectiveLoop(wb")
+        assert "_key_violations(wb, spec_d, target_year" in src
 
 
 if __name__ == "__main__":
