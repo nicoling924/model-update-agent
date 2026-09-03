@@ -1236,3 +1236,19 @@ Replay 230 on the fixes with the live picks (fold card still
 printed after the key tie), balance still 3,872 (the fold). With the
 fold receipt answered as in run 229 (the answer the live run was never
 able to ask for): DELIVERED, first gate, keys 7/9. Museum 110.
+Owner: "why only 7/9 with the correct stuff?" Full 11 keys on the fold
+replay: 8/11 — recurring NP (one-offs bridge, known), CFO 21,859 vs
+22,848 and CFF -5,401 vs -9,803 (NEW vs 229). Cause: the cash-flow
+composites (AI118/119/135/136) stayed at last year's literals /
+were half-rewritten because the constants law found "no face line"
+— the 230 ledger had only 9 face pages in the AR (229: 55). THE
+PAGE-SPACE BUG (mine, from 09-03's "brain's map is the authority"):
+the brain names PRINTED page numbers; the code took them as PDF
+indices, "ratified" note pages that happen to tie priors, and
+demoted the real P&L/BS/CF pages. FIX (museum 110): a named page is
+adopted only if its OWN ROWS identify that statement
+(face_from_row_labels) AND it ratifies; printed numbers are
+translated to PDF pages via the footer; demotion never touches a
+page whose rows identify a statement. The 230 ledger was pinned
+after demotion, so the faithful replay cannot show this fix — the
+next live run does.

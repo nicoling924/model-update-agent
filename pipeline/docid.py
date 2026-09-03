@@ -487,15 +487,52 @@ def identify_statement_pages(paths, ledger, client, priors, log):
         items = [it for it in ledger.items if it.doc == doc]
         ratified = ratify_page_scales(items, priors)
         adopted, refused = [], []
-        for face in ("pl", "bs", "cf", "segment"):
+        # THE PAGE-SPACE LAW (run-230 autopsy): the brain names PRINTED
+        # page numbers; the ledger counts PDF pages. A named page is
+        # accepted only where its OWN ROWS identify that statement
+        # (face_from_row_labels) AND its numbers ratify; when the PDF
+        # page of that number fails, the printed number is looked up
+        # in page footers and the self-identifying page wins. Note
+        # pages ratify too — ratification alone adopted the wrong pages
+        # and demoted the real statements in run 230.
+        from .ledger import face_from_row_labels
+        labels_by_page = {}
+        for it in items:
+            labels_by_page.setdefault(it.page, []).append(str(it.label or ""))
+        text_by_page = {pn: (t or "") for pn, t in pages}
+
+        def self_face(pn):
+            labs = labels_by_page.get(pn) or []
+            return face_from_row_labels(labs) if labs else None
+
+        def resolve(pn, face):
+            """-> the PDF page that carries `face` for printed/PDF number pn, or None."""
+            if self_face(pn) == face and (doc, pn) in ratified:
+                return pn
+            tok = re.compile(rf"(?m)^\s*{pn}\s*$|\bpage\s+{pn}\b", re.I)
+            for q, t in text_by_page.items():
+                if q != pn and tok.search(t) and self_face(q) == face and (doc, q) in ratified:
+                    return q
+            return None
+
+        confirmed = set()
+        for face in ("pl", "bs", "cf"):
             for pn in obj.get(face) or []:
-                if (doc, pn) in ratified or face == "segment":
-                    if (doc, pn) in ledger.parent_pages:
-                        ledger.parent_pages.discard((doc, pn))
-                    ledger.faces[(doc, pn)] = face
-                    adopted.append(f"p{pn}={face}")
-                else:
-                    refused.append(f"p{pn}={face} (numbers do not tie the prior year)")
+                q = resolve(pn, face)
+                if q is None:
+                    refused.append(f"p{pn}={face} (no page with that number both "
+                                   "reads as that statement by its rows and ties the prior year)")
+                    continue
+                if (doc, q) in ledger.parent_pages:
+                    ledger.parent_pages.discard((doc, q))
+                ledger.faces[(doc, q)] = face
+                confirmed.add(q)
+                adopted.append(f"p{pn}->pdf{q}={face}" if q != pn else f"p{q}={face}")
+        for pn in obj.get("segment") or []:
+            q = pn if pn in labels_by_page else None
+            if q is not None:
+                ledger.faces.setdefault((doc, q), "segment")
+                adopted.append(f"p{q}=segment")
         for pn in obj.get("parent_only") or []:
             if ledger.faces.get((doc, pn)) in ("pl", "bs", "cf"):
                 del ledger.faces[(doc, pn)]
@@ -507,8 +544,7 @@ def identify_statement_pages(paths, ledger, client, priors, log):
         # (a fixed-asset note tagged 'cf' by a caption three pages
         # earlier) lose statement authority — kept only within one page
         # of a named statement (a statement that runs over the page).
-        named = {pn for face in ("pl", "bs", "cf")
-                 for pn in (obj.get(face) or []) if (doc, pn) in ratified}
+        named = confirmed
         demoted = []
         if named:
             for (d, pn), face in list(ledger.faces.items()):
@@ -516,6 +552,8 @@ def identify_statement_pages(paths, ledger, client, priors, log):
                     continue
                 if pn in named or any(abs(pn - q) <= 1 for q in named):
                     continue
+                if self_face(pn) is not None:
+                    continue        # its own rows say it is a statement page
                 del ledger.faces[(d, pn)]
                 demoted.append(pn)
         if demoted:

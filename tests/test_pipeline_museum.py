@@ -2634,8 +2634,12 @@ def test_reading_step_brain_judges_code_verifies():
     led = Ledger()
     led.doc_meta["AR.pdf"] = {}
     rows = [(60, "Revenue", [120000.0, 118000.0]), (60, "Costs", [-46000.0, -45000.0]),
-            (60, "Profit", [31000.0, 30000.0]), (60, "Tax", [-7000.0, -22000.0]),
-            (61, "Ratio", [5.0, 6.0]), (61, "Other", [7.0, 8.0]), (62, "Memo", [9.0])]
+            (60, "Profit before tax", [31000.0, 30000.0]), (60, "Profit for the year", [24000.0, 22000.0]),
+            (61, "Ratio", [5.0, 6.0]), (61, "Other", [7.0, 8.0]), (62, "Memo", [9.0]),
+            # a NOTE page that also ties priors (45,000 / 30,000) but whose rows
+            # do not read as a statement — run-230's trap
+            (75, "Net book value at", [1.0, 45000.0, 30000.0, 914.0]),
+            (75, "Additions", [2.0, 118000.0, 22000.0, 500.0])]
     for i, (pn, lab, nums) in enumerate(rows):
         led.items.append(Item(doc="AR.pdf", page=pn, table_id=0, row_ord=i,
                               label=lab, nums=nums, stmt_face=None,
@@ -2644,25 +2648,40 @@ def test_reading_step_brain_judges_code_verifies():
     led.faces[("AR.pdf", 62)] = "pl"           # the caption tagger's pick
     import pipeline.stage1_read as s1
     real = s1.page_texts
-    s1.page_texts = lambda path, cache_dir=None: [(1, "Contents ... Consolidated Income Statement 60", "text")]
+    # the brain names PRINTED page numbers: printed 130 is PDF page 60
+    # (its footer says 130); PDF page 75 is a note that ratifies but is
+    # not a statement by its rows
+    s1.page_texts = lambda path, cache_dir=None: [
+        (1, "Contents ... Consolidated Income Statement 130", "text"),
+        (60, "Revenue 120,000 118,000 ... Profit for the year\n130", "text"),
+        (75, "Note 12 Property, plant and equipment\n145", "text")]
     try:
         res = identify_statement_pages(["AR.pdf"], led,
-                                       Stub({"pl": [60], "bs": [61], "cf": [],
+                                       Stub({"pl": [130], "bs": [61, 75], "cf": [],
                                              "segment": [], "parent_only": [62],
                                              "why": "contents p1"}),
                                        [118000.0, 45000.0, 30000.0, 22000.0],
                                        lambda s: None)
     finally:
         s1.page_texts = real
-    assert led.faces.get(("AR.pdf", 60)) == "pl", led.faces
+    assert led.faces.get(("AR.pdf", 60)) == "pl", led.faces          # printed 130 -> pdf 60
+    assert any("p130->pdf60=pl" in x for x in res["AR.pdf"]["adopted"]), res
     assert ("AR.pdf", 61) not in led.faces and any("p61=bs" in x for x in res["AR.pdf"]["refused"])
+    assert ("AR.pdf", 75) not in led.faces and any("p75=bs" in x for x in res["AR.pdf"]["refused"])
     assert ("AR.pdf", 62) not in led.faces and ("AR.pdf", 62) in led.parent_pages
     # exhibit 1b — the brain's map is the authority: a caption-propagated
     # face on a page far from any named statement is demoted (run-229:
     # the fixed-asset note tagged 'cf'); a page adjacent to a named
     # statement keeps its face (a statement running over the page)
-    led.faces[("AR.pdf", 70)] = "cf"
-    led.faces[("AR.pdf", 59)] = "pl"
+    led.faces[("AR.pdf", 70)] = "cf"          # caption-propagated, no statement rows
+    led.faces[("AR.pdf", 59)] = "pl"          # adjacent to the confirmed statement
+    led.faces[("AR.pdf", 90)] = "cf"          # a real CF page far away: self-identifies
+    led.items.append(Item(doc="AR.pdf", page=90, table_id=0, row_ord=1,
+                          label="Net cash from operating activities", nums=[9000.0, 8000.0],
+                          stmt_face=None, unit_dim="unknown", scale_hint=None, source_line=""))
+    led.items.append(Item(doc="AR.pdf", page=90, table_id=0, row_ord=2,
+                          label="Net cash used in investing activities", nums=[-3000.0, -2500.0],
+                          stmt_face=None, unit_dim="unknown", scale_hint=None, source_line=""))
     s1.page_texts = lambda path, cache_dir=None: [(1, "Contents", "text")]
     try:
         identify_statement_pages(["AR.pdf"], led,
@@ -2672,6 +2691,7 @@ def test_reading_step_brain_judges_code_verifies():
     finally:
         s1.page_texts = real
     assert ("AR.pdf", 70) not in led.faces and led.faces.get(("AR.pdf", 59)) == "pl"
+    assert led.faces.get(("AR.pdf", 90)) == "cf"      # never demote a self-identifying statement
     # exhibit 1c — reconciliation's time-signature law: a wide row is not
     # a statement line
     from pipeline.reconcile import is_statement_line, small_prior_needs_kinship
