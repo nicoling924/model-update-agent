@@ -1252,3 +1252,16 @@ translated to PDF pages via the footer; demotion never touches a
 page whose rows identify a statement. The 230 ledger was pinned
 after demotion, so the faithful replay cannot show this fix — the
 next live run does.
+
+## 2026-09-04 — RUN 231: DELIVERED (head cbfec1b) — keys 9/11 live
+
+Gate loop needed two tiers + final repair, then PASSED. 53 LLM calls,
+0 drained (the fold card was asked and answered fix:0). Rule 2 armed
+on 4 keys pre-stage-4, +3 after key tie. KEYS 9/11 LIVE (misses:
+recurring NP one-offs bridge; total assets +661). Two rollover
+reverts (Final!AI57 cash composite, Aus!AI14) both ended at the key's
+values after the loop. 2026: OP 15,419 vs key 15,550; NP 11,199 vs
+11,632; cash -3,612 vs 2,058 (cash chain still open). Rollover page
+one: 37 strange rows, 10 with verdicts (12-card cap), 25 flagged
+only. Flags red 114 / orange 93; cells 70.0%. Statement pages: 8/11
+AR pages ratified via the page-space law.
