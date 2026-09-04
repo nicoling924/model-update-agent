@@ -560,3 +560,9 @@ key_rows:
 - sheet: Final
   row: 129
   name: investing cash flow
+- sheet: Final
+  row: 75
+  name: total assets
+- sheet: Final
+  row: 98
+  name: total liabilities and equity

@@ -773,6 +773,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # must tie its pinned printed value; the unresolvable component
         # is backed out (orange, traceable) so the key ties exactly.
         from .keytie import key_tie
+        # THE OWNER'S RULE (2026-09-04): a key that is off is backed out
+        # into a number the run could NOT find (a red component), within
+        # a bound — never into a proven line like cash (the total-assets
+        # tie on run 231's replay wrapped cash, then NFA, round after
+        # round, and refused)
         key_tie(wb, spec_d, target_year, writer,
                 company_dir / "replay" / str(period) / "key_panel.json",
                 log, ledger=ledger)

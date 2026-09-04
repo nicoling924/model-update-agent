@@ -166,6 +166,14 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                             abs(g2 - w2) <= max(TOL_ABS, abs(w2) * TOL_REL)))
         return out
 
+    # a key row is never another key's absorber (run-231 replay: the
+    # total-assets tie wrapped CASH, itself a key, round after round)
+    key_cells = set()
+    for kk in key_rows:
+        tc_k = year_columns(spec, kk.get("sheet")).get(str(target_year)) \
+            if kk.get("sheet") in wb.sheetnames else None
+        if tc_k:
+            key_cells.add((kk.get("sheet"), f"{tc_k}{int(kk.get('row'))}"))
     n = 0
     for k in key_rows:
         name, sheet, row = k.get("name"), k.get("sheet"), int(k.get("row"))
@@ -276,6 +284,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 continue
             if _SUBTOTAL.match(f.replace("$", "")):
                 continue      # a subtotal row is never the absorber (run-231)
+            if (sh, coord) in key_cells:
+                continue      # never absorb into another key's row
             if absorbers == "unproven":
                 # the owner's rule: back out only the numbers the run
                 # could NOT find — a red (unresolved) component
@@ -294,8 +304,16 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if not isinstance(cv, (int, float)):
                 continue
             type_violation = isinstance(pv, (int, float))
-            cands.append((0 if type_violation else 1, -abs(cv), sh, coord, f))
-        for _t, _sz, sh, coord, f in sorted(cands)[:4]:
+            # THE OWNER'S RULE (2026-09-04): back out into the numbers the
+            # run could NOT find — a red (unresolved) component absorbs
+            # first; then the estimate-in-actual class; then by size
+            try:
+                red = str(wb[sh][coord].fill.fgColor.rgb or "").endswith("FFC7CE")
+            except Exception:
+                red = False
+            cands.append((0 if red else 1, 0 if type_violation else 1,
+                          -abs(cv), sh, coord, f))
+        for _r, _t, _sz, sh, coord, f in sorted(cands)[:6]:
             # probe: wrap the component so it absorbs the delta
             new_f = f"=({f[1:]})-({delta:.6g})"
             old = wb[sh][coord].value

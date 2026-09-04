@@ -317,7 +317,7 @@ def build_queue(loop):
     if est_base:
         from .rollover import rollover_anomalies
         done = {v.split(":", 1)[0] for v in loop.writer.log.get("verdicts", [])}
-        for a in rollover_anomalies(loop.wb, loop.spec, loop.ty, est_base,
+        for a in rollover_anomalies(loop.wb, loop.spec, loop.ty, est_base, cap=30,
                                     key_rows=loop.spec.get("key_rows") or []):
             if f"{a['sheet']}!{a['row']}" in done:
                 continue
@@ -336,9 +336,13 @@ def build_queue(loop):
                               check=f"{sheet}!{row}", priority=abs(res)))
         items.append(WorkItem("PLUG", sheet, row,
                               check=f"{sheet}!{row}", priority=abs(res)))
-    # LOAD-BEARING FIRST (run-230: 24 serve cards spent the call budget,
-    # the equity-fold COMPONENT card was drained unasked, balance failed)
-    order = {"COMPONENT": 0, "SERVE": 1, "ROLLOVER": 2, "TRIPWIRE": 3, "PLUG": 4}
+    # THE ANALYST'S ORDER (owner 2026-09-04): mark the actuals, sanity-
+    # check the rollover (a strange forecast usually means a wrong
+    # actual-year input), THEN close the balance on the corrected inputs.
+    # The balance cards (COMPONENT/PLUG) keep a RESERVED share of the
+    # call budget so the serve/rollover flood can never starve them
+    # (run 230's failure mode).
+    order = {"SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4}
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # the cap trims only the SERVE flood — check, tripwire and plug
     # items are few and load-bearing (a cap that silently dropped every
@@ -701,6 +705,14 @@ def _llm_answer(loop, client, text, options, log):
     return obj.get("answer"), str(obj.get("why", ""))[:120]
 
 
+def reserve_for_balance(queue):
+    """Calls held back for the balance cards: two per COMPONENT (the
+    re-ask) and one per PLUG — the serve/rollover flood may not spend
+    them."""
+    return sum(2 if w.kind == "COMPONENT" else 1 for w in queue
+               if w.kind in ("COMPONENT", "PLUG"))
+
+
 def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
               call_cap=CALL_CAP):
     """The inverted stage 4. `answerer(text, options, default) -> answer
@@ -708,6 +720,7 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
     t0 = time.monotonic()
     n_auto = phase0(loop, log)
     queue = build_queue(loop)
+    reserved = reserve_for_balance(queue)
     # plugs are dealt strictly LAST — a re-dealt COMPONENT card (next
     # receipt after a landed fix) must always outrank the plug decision
     work = [w for w in queue if w.kind != "PLUG"]
@@ -752,7 +765,9 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
             continue
         text, options, default = rendered
         ans, why = default, "default"
-        drain = (breaker >= 3 or calls >= call_cap
+        cap_here = call_cap if item.kind in ("COMPONENT", "PLUG") \
+            else max(0, call_cap - reserved)
+        drain = (breaker >= 3 or calls >= cap_here
                  or time.monotonic() - t0 > deadline_s)
         if not drain:
             try:

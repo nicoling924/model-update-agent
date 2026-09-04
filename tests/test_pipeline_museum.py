@@ -2754,13 +2754,18 @@ def test_reading_step_brain_judges_code_verifies():
             {"row": 15, "name": "operating profit"}], "why": "NOI"}), lambda s: None,
             panel_path=pp, target_year=2025)
         assert [k["row"] for k in picks3] == [15]
-    # exhibit 2c — load-bearing cards before the serve flood (run-230: the
-    # equity-fold COMPONENT card was drained unasked behind 24 serves)
+    # exhibit 2c — THE ANALYST'S ORDER (owner 2026-09-04): actuals ->
+    # rollover check -> balance cards -> plugs, with the balance cards'
+    # calls RESERVED so the flood can never starve them (run 230)
     import inspect
     from pipeline import workqueue as wq
     src = inspect.getsource(wq.build_queue)
-    assert '"COMPONENT": 0' in src and '"SERVE": 1' in src
+    assert '"SERVE": 0' in src and '"ROLLOVER": 1' in src and '"COMPONENT": 2' in src
     assert wq.CALL_CAP >= 60
+    q = [wq.WorkItem("SERVE", "F", 1), wq.WorkItem("COMPONENT", "F", 99, check="F!99"),
+         wq.WorkItem("PLUG", "F", 99, check="F!99"), wq.WorkItem("ROLLOVER", "F", 5)]
+    assert wq.reserve_for_balance(q) == 3
+    assert "cap_here = call_cap if item.kind in (\"COMPONENT\", \"PLUG\")" in inspect.getsource(wq.run_queue)
 
 
 def test_rollover_investigation_owner_teaching_2026_09_03():

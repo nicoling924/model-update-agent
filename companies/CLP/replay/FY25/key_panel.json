@@ -30,5 +30,17 @@
   "operating profit": {
     "print": 14272.0,
     "prior": 14903.0
+  },
+  "total assets": {
+    "print": 238644.0,
+    "prior": 233713.0
+  },
+  "total equity": {
+    "print": 107610.0,
+    "prior": 104055.0
+  },
+  "total liabilities and equity": {
+    "print": 238644.0,
+    "prior": 233713.0
   }
 }

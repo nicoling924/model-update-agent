@@ -1286,3 +1286,23 @@ run it ONCE after the loop settles (not per round), never absorb
 across sheets, and re-snapshot rule 2 after.
 Kept: keytie._leaves expands SUM ranges (the range's interior rows
 were invisible to every back-out search).
+
+## 2026-09-04 — OWNER RULINGS: BS totals are keys; the analyst's order
+
+1. TOTAL ASSETS and TOTAL LIABILITIES+EQUITY are KEYS (pinned in
+   key_panel.json from the five-year table 238,644 | 233,713; key rows
+   in spec.yaml). First attempt (unresolved-only absorbers for ALL
+   keys) regressed OP/NP/CFO/CFI ties (their absorbers are orange, not
+   red) -> reverted. What holds: red components absorb FIRST, a key
+   row is never another key's absorber (the total-assets tie had
+   wrapped CASH round after round), SUM ranges expanded. Result on the
+   231 replay: assets tie via AI60 (receivables -1,732 orange), the
+   balance check then EXPOSED the liabilities side off by 785 (the
+   two-sided error had hidden it); L+E as a key backs the 785 into the
+   red deferred-creditors line (= the by-hand 8,363). Keys 9/11 on both
+   231 and 229 replays (misses: recurring NP bridge; CFF off by 9).
+2. THE ANALYST'S ORDER in the queue: SERVE -> ROLLOVER -> COMPONENT ->
+   TRIPWIRE -> PLUG, with the balance cards' calls RESERVED
+   (reserve_for_balance) so the flood can never starve them; rollover
+   cap 12 -> 30, key rows first.
+Museum 111; DFE floor delivers.
