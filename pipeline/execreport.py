@@ -354,6 +354,27 @@ def referee(summary, wb):
 NUM, SGN, PCT = '#,##0.0', '+#,##0.0;-#,##0.0', '0.0%'
 
 
+_MINI_ALIASES = (
+    ({"revenue", "turnover", "sales"}, {"revenue", "turnover", "sales", "income"}),
+    ({"ebit", "operating profit", "operating income", "net operating income"},
+     {"ebit", "operating profit", "operating income", "net operating income"}),
+    ({"net profit", "net income", "profit attributable", "earnings"},
+     {"net profit", "net income", "profit attributable", "earnings", "net profits"}),
+    ({"gross profit", "gross margin", "gpm"}, {"gross profit", "gross margin", "gpm"}),
+    ({"net margin", "npm"}, {"net margin", "npm"}),
+    ({"eps"}, {"eps", "earnings per share"}),
+    ({"dps"}, {"dps", "dividend per share", "dividends per share"}),
+)
+
+
+def _mini_alias(claim, label):
+    c, l = claim.lower(), label.lower()
+    for a, b in _MINI_ALIASES:
+        if any(x in c for x in a) and any(y in l for y in b):
+            return True
+    return False
+
+
 def render(wb, summary, pre_wb=None, cols=None, primary=None):
     """The owner's v3 layout, exactly. Deterministic."""
     from openpyxl.styles import Border, Font, PatternFill, Side
@@ -432,28 +453,9 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
             cell(r, 1, str(line)[:220], SMALL)
             r += 1
         gap(10)
-    roll = summary.get("rollover") or []
-    if roll:
-        sect("0 · Rollover check   (did the forecast move in proportion to the actual surprise?)")
-        hdr = ["row", "line", "estimate (target yr)", "actual", "old fcst (yr+1)",
-               "new fcst (yr+1)", "test", "verdict"]
-        for i, h in enumerate(hdr):
-            cell(r, i + 1, h, GREY, None, None, THIN)
-        r += 1
-        for ref, name, est_t, act_t, old_f, new_f, test, verdict in roll:
-            sh, co = str(ref).split("!", 1)
-            c0 = cell(r, 1, str(ref), SMALL)
-            c0.hyperlink = f"#'{sh}'!{co}"
-            cell(r, 2, str(name)[:30], SMALL)
-            for i, v in enumerate((est_t, act_t, old_f, new_f)):
-                cell(r, 3 + i, v if isinstance(v, (int, float)) else None,
-                     SMALL, None, "#,##0")
-            strange_row = not str(test).startswith("in proportion")
-            cell(r, 7, str(test)[:110], SMALL, TINT_R if strange_row else None)
-            cell(r, 8, str(verdict)[:60], SMALL)
-            r += 1
-        gap(10)
-
+    # (owner 2026-09-04: no rollover table on the page — the mini P&L
+    # old-vs-new already shows the forecast path; the check's verdicts
+    # live in the flags and the log)
     sect("1 · Key number snapshot   (RMB mn)")
     hdr = ["", "FY prior A", "FY actual A", "YoY", "Your estimate",
            "A vs E", "Next yr before", "Next yr after"]
@@ -491,13 +493,27 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
     # (boss feedback 2026-08-30: an update that quietly bent the
     # out-years must show up immediately)
     mini = summary.get("mini_pl", {}).get("rows", [])
+    mini_sheet = str(summary.get("mini_pl", {}).get("sheet", primary))
+    if mini_sheet not in wb.sheetnames:
+        mini_sheet = primary
+    # CODE VERIFIES THE BRAIN'S ROWS (owner 2026-09-04: 'gross margin'
+    # was linked to 'Net operating income'): a mini-P&L row is kept only
+    # when its label is kin to the model's own label on that row
+    from .numerics import kinship as _kin
+    kept = []
+    for it in mini:
+        try:
+            lab = wb[mini_sheet].cell(row=int(it.get("row")), column=1).value
+        except Exception:
+            lab = None
+        claim = str(it.get("label", ""))
+        if lab is None or _kin(claim, str(lab)) or _mini_alias(claim, str(lab)):
+            kept.append(it)
+    mini = kept
     if mini:
         from openpyxl.utils import (column_index_from_string,
                                     get_column_letter)
         sect("2 · Mini P&L — old vs new   (FY-1 to FY+3, model grain)")
-        mini_sheet = str(summary.get("mini_pl", {}).get("sheet", primary))
-        if mini_sheet not in wb.sheetnames:
-            mini_sheet = primary
         _, mtl, _ = LET(mini_sheet)
         tci = column_index_from_string(mtl)
         pcols = [get_column_letter(tci - 1 + i) for i in range(5)]
@@ -605,23 +621,8 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
              GREY, None, SGN)
         r += 1
         gap(10)
-    sense = summary.get("sense", {})
-    if sense.get("verdicts"):
-        sect("Sense check — the agent's second look at its own changes")
-        for v in sense["verdicts"]:
-            verdict = str(v.get("verdict", ""))
-            tint = (TINT_R if verdict == "ERROR FOUND"
-                    else TINT_O if verdict == "SUSPICIOUS" else None)
-            cell(r, 1, "⚠ %s  %s" % (str(v.get("label", ""))[:30],
-                                      str(v.get("period", ""))[:12]),
-                 SMALL, tint)
-            cell(r, 2, verdict, BOLD if tint else SMALL, tint)
-            cell(r, 4, str(v.get("reason", ""))[:90], SMALL, tint)
-            cell(r, 11, " ".join(str(c) for c in
-                                 (v.get("cells") or [])[:4])[:60],
-                 GREY, tint)
-            r += 1
-        gap(14)
+    # (owner 2026-09-04: the sense check is the agent's own note, not
+    # the executive's — never rendered; its verdicts stay in the log)
     for note in (summary.get("skipped_note"), summary.get("company_note")):
         if note:
             cell(r, 1, str(note)[:200], GREYI)
@@ -634,20 +635,58 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
              ("red", "Red — unsure, your ruling", TINT_R),
              ("orange", "Orange — derived, not read", TINT_O)]
     attention = summary.get("attention", {})
+    # THE ONE-MINUTE PAGE (owner 2026-09-04: "less cluttered, only what
+    # matters to the analyst"): every plug and every red ruling on the
+    # page (reds capped, load-bearing first as listed); the orange
+    # derivations as ONE line with their count; the complete list on a
+    # _FLAGS sheet the analyst opens when they want the detail
+    RED_CAP = 30
+    flags_ws = wb.create_sheet("_FLAGS") if "_FLAGS" not in wb.sheetnames \
+        else wb["_FLAGS"]
+    for row_ in flags_ws.iter_rows():
+        for c_ in row_:
+            c_.value = None
+    fr = 1
+    flags_ws.cell(row=fr, column=1, value="Every flagged cell (plugs, red rulings, orange derivations)").font = BOLD
+    fr += 2
     for key, header, fill in tiers:
-        items = attention.get(key, [])
+        items = [it for it in attention.get(key, []) if isinstance(it, dict)]
         if not items:
             continue
+        # the complete tier goes to _FLAGS
+        flags_ws.cell(row=fr, column=1, value=header).font = BOLD
+        fr += 1
+        for it in items:
+            sheet, addr = str(it.get("sheet", "")), str(it.get("cell", ""))
+            if sheet not in wb.sheetnames or not re.match(r"^[A-Z]{1,3}[0-9]{1,4}$", addr):
+                continue
+            q = ("'%s'" % sheet if re.search(r"[^A-Za-z0-9]", sheet) else sheet)
+            a_ = flags_ws.cell(row=fr, column=1, value='=HYPERLINK("#\'%s\'!%s","%s!%s")' % (sheet, addr, sheet, addr))
+            a_.font = SMALL
+            flags_ws.cell(row=fr, column=2, value="=%s!%s" % (q, addr)).number_format = NUM
+            flags_ws.cell(row=fr, column=3, value=str(it.get("note", ""))[:200]).font = SMALL
+            fr += 1
+        fr += 1
+        # the page: plugs in full, reds capped, orange as a count
         cell(r, 1, header, BOLD, fill)
         band(r, fill, 20)
         r += 1
+        if key == "orange":
+            cell(r, 1, f"{len(items)} derived cells (orange) — listed on the _FLAGS sheet; "
+                       "each carries its method note in the model", SMALL)
+            r += 1
+            gap(8)
+            continue
+        shown = 0
         for it in items:
-            if not isinstance(it, dict):
-                continue
             sheet, addr = str(it.get("sheet", "")), str(it.get("cell", ""))
             if sheet not in wb.sheetnames or not re.match(
                     r"^[A-Z]{1,3}[0-9]{1,4}$", addr):
                 continue
+            if key == "red" and shown >= RED_CAP:
+                cell(r, 1, f"… {len(items) - shown} more red cells on the _FLAGS sheet", GREYI)
+                r += 1
+                break
             q = ("'%s'" % sheet if re.search(r"[^A-Za-z0-9]", sheet)
                  else sheet)
             cell(r, 1, '=HYPERLINK("#\'%s\'!%s","%s!%s")'
@@ -655,7 +694,10 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
             cell(r, 2, "=%s!%s" % (q, addr), SMALL, None, NUM)
             cell(r, 3, str(it.get("note", ""))[:90], SMALL)
             r += 1
+            shown += 1
         gap(8)
+    flags_ws.column_dimensions["A"].width = 26
+    flags_ws.column_dimensions["C"].width = 110
     if summary.get("other_note"):
         cell(r, 1, str(summary["other_note"])[:200], GREYI)
         r += 1
@@ -958,6 +1000,24 @@ def _cols_from_spec(wb, company_dir, target_year):
     return None, None
 
 
+_MINI_ORDER = ("revenue", "gross profit", "gross margin", "operating profit",
+               "net profit", "recurring net profit", "net margin", "eps", "dps")
+
+
+def _order_mini(mini):
+    """The mini P&L is a P&L path, in order: revenue -> profits ->
+    per-share. Balance-sheet and cash-flow keys belong to the snapshot,
+    not here (owner 2026-09-04)."""
+    def rank(m):
+        lab = str(m.get("label", "")).lower()
+        for i, nm in enumerate(_MINI_ORDER):
+            if nm in lab:
+                return i
+        return None
+    out = [(rank(m), m) for m in mini]
+    return [m for k, m in sorted((x for x in out if x[0] is not None), key=lambda x: x[0])]
+
+
 def _deterministic_summary(wb, facts, primary):
     """The summary a brain would compose, reduced to what code KNOWS:
     the spec's key rows as the snapshot and the mini P&L (kind from the
@@ -995,6 +1055,7 @@ def _deterministic_summary(wb, facts, primary):
                   else "red" if colour == "red" else "orange")
         att[bucket].append({"sheet": sheet, "cell": coord,
                             "note": str(note)[:200]})
+    mini = _order_mini(mini)
     return {
         "banner": "Deterministic report — facts rendered by code, no "
                   "LLM prose (offline / dry run)",
@@ -1067,19 +1128,9 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
         pass                        # cached values remain the fallback
     dflags = collect_delta_flags(wb, pre_wb, mini_rows, cols, primary,
                                  value_of=value_of)
-    if dflags and client is None:
-        summary["sense"] = {}
-        summary["skipped_note"] = (str(summary.get("skipped_note", ""))
-                                   + "  ·  sense check needs a brain: "
-                                   "not run (no LLM)").strip()
-    elif dflags:
-        try:
-            summary["sense"] = sense_check(client, dflags, facts)
-        except Exception as ex:           # a failed second look is
-            summary["sense"] = {}         # reported, never fatal
-            summary["skipped_note"] = (str(summary.get(
-                "skipped_note", "")) + "  ·  sense check FAILED: "
-                + str(ex)[:80]).strip()
+    # the sense check is the agent's own note (owner 2026-09-04): not
+    # rendered and not run — the rollover cards carry that judgment
+    summary["sense"] = {}
     if refusals:                       # surviving refusals: honest note
         summary["skipped_note"] = (
             (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
@@ -1202,8 +1253,8 @@ def _selftest():
     rows2 = render(wb, good, pre_wb=pre)
     flat2 = "|".join(str(c.value) for row in wb["_REPORT"].iter_rows()
                      for c in row if c.value is not None)
-    assert "second look" in flat2 and "ERROR FOUND" in flat2
-    assert "JUSTIFIED" in flat2 and rows2 > rows
+    assert "second look" not in flat2 and "Sense check" not in flat2
+    assert "JUSTIFIED" not in flat2 and rows2 == rows   # never on the page
     hb = openpyxl.Workbook()
     hw = hb.active; hw.title = "Model"
     hw.cell(row=1, column=20, value="2024-12-31")

@@ -1319,3 +1319,16 @@ recurring NP the known bridge miss. 2026: OP 17,772, NP 13,325, cash
 4 justified, 2 reverted (ROAFNA!AI54, Aus!AI14 = the by-hand value),
 14 flagged, 28 beyond the 30-card cap. Flags red 92 / orange 94;
 cells 70.7%.
+
+## 2026-09-04 — THE ONE-MINUTE PAGE (owner's report rulings)
+
+Owner on the 232 report: no sense check (the agent's own note), no
+rollover table (the mini P&L old-vs-new is the forecast review), and
+'gross margin' was linked to Net operating income. Done: sense check
+not rendered and not run; rollover block removed from the page (its
+verdicts stay in the flags/log); mini-P&L rows are kept only when the
+brain's label is kin to the model's own row label (code verifies),
+and the deterministic path orders them as a P&L path (revenue ->
+profits -> per-share, no BS/CF rows). 'Needs your attention': plugs in
+full, reds capped at 30, orange as one count line; the complete flag
+list moved to a _FLAGS sheet. Run 232's page: 227 rows -> 70.
