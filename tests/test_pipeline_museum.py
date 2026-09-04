@@ -2754,6 +2754,21 @@ def test_reading_step_brain_judges_code_verifies():
             {"row": 15, "name": "operating profit"}], "why": "NOI"}), lambda s: None,
             panel_path=pp, target_year=2025)
         assert [k["row"] for k in picks3] == [15]
+        # a verified pick on the primary sheet is not displaced by a brain
+        # pick of the same name on ANOTHER sheet (run 232: Driver!28)
+        ws2 = wb.create_sheet("Driver")
+        ws2.cell(28, 1, "Operating Income before JCEs"); ws2.cell(28, 3, 20.0); ws2.cell(28, 4, 21.0)
+        spec3 = {"year_axis": {"Final": {"columns": {"2024": "C", "2025": "D"}},
+                               "Driver": {"columns": {"2024": "C", "2025": "D"}}},
+                 "key_rows": [{"name": "operating profit", "sheet": "Final", "row": 15}]}
+        ws.cell(15, 3, 20.0)                      # Final!15 prior ties the panel too
+        class Stub2:
+            def json(self, system, user, validate, repair_retries=0, images=None):
+                if user.startswith("Sheet: Driver"):
+                    return {"key_rows": [{"row": 28, "name": "operating profit"}], "why": "d"}
+                return {"key_rows": [], "why": "f"}
+        identify_key_rows(wb, spec3, Stub2(), lambda s: None, panel_path=pp, target_year=2025)
+        assert [(k["sheet"], k["row"]) for k in spec3["key_rows"] if k["name"] == "operating profit"] == [("Final", 15)]
     # exhibit 2c — THE ANALYST'S ORDER (owner 2026-09-04): actuals ->
     # rollover check -> balance cards -> plugs, with the balance cards'
     # calls RESERVED so the flood can never starve them (run 230)

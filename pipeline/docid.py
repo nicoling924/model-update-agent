@@ -679,6 +679,20 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
     for k in found:
         by_name.setdefault(k["name"], k)      # first sheet wins per name
     old = spec.get("key_rows") or []
+    # A VERIFIED EXISTING PICK IS NOT DISPLACED by a brain pick from another
+    # sheet (run 232: 'operating profit' moved from Final!15 to Driver!28 —
+    # both tie the pinned prior, but the report reads the primary sheet)
+    keep_old = {}
+    for k in old:
+        nm = k.get("name")
+        b = by_name.get(nm)
+        if b and b["sheet"] != k.get("sheet") and k.get("sheet") in wb_values.sheetnames \
+                and _prior_ties(k["sheet"], int(k["row"]), nm):
+            keep_old[nm] = k
+    for nm in keep_old:
+        dropped.append(f"{by_name[nm]['sheet']}!{by_name[nm]['row']} as {nm} "
+                       f"(the existing {keep_old[nm]['sheet']}!{keep_old[nm]['row']} verifies and stays)")
+        by_name.pop(nm)
     kept = [k for k in old if k.get("name") not in by_name]
     spec["key_rows"] = kept + list(by_name.values())
     log(f"[run] key rows: brain named {len(by_name)} verified "

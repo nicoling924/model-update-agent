@@ -1055,14 +1055,28 @@ def _deterministic_summary(wb, facts, primary):
                   else "red" if colour == "red" else "orange")
         att[bucket].append({"sheet": sheet, "cell": coord,
                             "note": str(note)[:200]})
+    # the SNAPSHOT carries every key number, grouped; the MINI P&L is the
+    # P&L path only (owner 2026-09-04: "why are the other key numbers
+    # gone?" — the P&L filter had been applied to the snapshot too)
+    def _group(label):
+        n = str(label).lower()
+        if any(w in n for w in ("cash flow", "cash", "operating activities", "investing", "financing")):
+            return "Cash flow"
+        if any(w in n for w in ("asset", "liabilit", "equity", "debt", "borrowing")):
+            return "Balance sheet"
+        return "P&L"
+    snapshot = []
+    for g in ("P&L", "Balance sheet", "Cash flow"):
+        rows_g = [{"row": m["row"], "label": m["label"]} for m in mini if _group(m["label"]) == g]
+        if rows_g:
+            snapshot.append({"title": g, "rows": rows_g})
     mini = _order_mini(mini)
     return {
         "banner": "Deterministic report — facts rendered by code, no "
                   "LLM prose (offline / dry run)",
         "coverage": f"{len(facts.get('model_rows', []))} primary rows, "
                     f"{len(facts.get('flags', []))} flags",
-        "snapshot": [{"title": "Key rows", "rows": [
-            {"row": m["row"], "label": m["label"]} for m in mini]}],
+        "snapshot": snapshot,
         "mini_pl": {"sheet": primary, "rows": mini},
         "bridges": [],
         "attention": att,
