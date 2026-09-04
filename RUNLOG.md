@@ -1306,3 +1306,16 @@ were invisible to every back-out search).
    (reserve_for_balance) so the flood can never starve them; rollover
    cap 12 -> 30, key rows first.
 Museum 111; DFE floor delivers.
+
+## 2026-09-04 — RUN 232: DELIVERED (head fe993ae) — first gate, no loop
+
+60 LLM calls, 0 drained; the analyst's order held (20 rollover cards
+dealt BEFORE the balance receipts; balance cards asked and answered).
+Keys: 7/11 at the checker's tight tolerance, effectively 10/11 —
+total assets EXACT (238,644, first time live), total equity 107,586
+(24 off), CFO 20 off, CFF 9 off (all within the key tie's 0.2%);
+recurring NP the known bridge miss. 2026: OP 17,772, NP 13,325, cash
+-3,056 (rollover bar, not the key). Rollover page: 48 strange rows —
+4 justified, 2 reverted (ROAFNA!AI54, Aus!AI14 = the by-hand value),
+14 flagged, 28 beyond the 30-card cap. Flags red 92 / orange 94;
+cells 70.7%.
