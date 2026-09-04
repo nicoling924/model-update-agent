@@ -1332,3 +1332,23 @@ and the deterministic path orders them as a P&L path (revenue ->
 profits -> per-share, no BS/CF rows). 'Needs your attention': plugs in
 full, reds capped at 30, orange as one count line; the complete flag
 list moved to a _FLAGS sheet. Run 232's page: 227 rows -> 70.
+
+## 2026-09-04 — RUN 232 CASH AUTOPSY (owner: "it had the right answer, why give up?")
+
+Cash 2025: the constants law rewrote =4976+23 -> =3905+23 (the BS face
+p168, correct). Then phase0's red-composite rewrite re-mapped the
+literal 3,905 from the cash MOVEMENT row on p17 ('Cash and cash
+equivalents 4,976 | 787 | 3,905' — opening, movement, closing) into
+=787+23 = 810; 2026 cash then -3,056; the rollover card for cash was
+answered 'justified' by the brain. Two defects:
+1. phase0 chose its cells from the writer's FLAG LIST, which still held
+   the cell from the stale sweep although a proven law had painted it
+   ORANGE. Law: a cell painted orange by a proven law is not red (the
+   colour is the truth; the list is history).
+2. composites: a literal that already prints as THIS YEAR's figure on
+   a statement face must never be re-mapped. Law (already_current):
+   the faces vote — 'current' only if a statement line prints it first
+   with a different comparative and NO line prints it as a
+   comparative (a movement row prints last year's cash first, so 4,976
+   stays re-mappable while 3,905 is protected).
+Museum 112.

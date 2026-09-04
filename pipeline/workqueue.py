@@ -285,8 +285,20 @@ def _red_cells(loop):
         if not m:
             continue
         sheet, col, row = m.group(1), m.group(2), int(m.group(3))
-        if col == _tcol(loop, sheet):
-            out.append((sheet, row))
+        if col != _tcol(loop, sheet) or sheet not in loop.wb.sheetnames:
+            continue
+        # THE CELL'S COLOUR IS THE TRUTH (run-232 cash autopsy): the flag
+        # list keeps a cell the stale sweep flagged even after a proven
+        # law rewrote it ORANGE; phase0 then rewrote the correct cash
+        # composite (=3905+23) from a movement row and left 810. Only a
+        # cell still painted RED is red.
+        try:
+            rgb = str(loop.wb[sheet][f"{col}{row}"].fill.fgColor.rgb or "")
+        except Exception:
+            rgb = ""
+        if rgb.endswith("FFC000"):
+            continue                      # painted ORANGE by a proven law: not red
+        out.append((sheet, row))
     return out
 
 

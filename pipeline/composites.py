@@ -65,7 +65,48 @@ def literals_of(formula):
     return out
 
 
-def candidates(ledger, lit):
+def already_current(ledger, lit, row_label=""):
+    """THE ALREADY-CURRENT GUARD (run-232 cash autopsy): a literal that
+    prints as THIS YEAR's figure on a current statement face — the
+    first number of a (current, prior) line whose prior differs — is
+    already updated. Re-mapping it because it also appears as a
+    comparative elsewhere (the cash MOVEMENT row 'opening 4,976 |
+    -787 | closing 3,905' paired 3,905 with 787) rewrote a correct
+    =3905+23 into =787+23. -> (doc, page, label) or None."""
+    v = abs(float(lit))
+    if v < 100:
+        return None
+    from .numerics import kinship
+    prior_docs = ledger.noncurrent_docs()
+    pv_tabs = getattr(ledger, "_pv_tables", set())
+    tol = row_tol(v, base=0.6)
+    # the faces vote: the literal is 'current' only if some statement
+    # line prints it FIRST (with a different comparative) and NO
+    # statement line prints it as a COMPARATIVE — a movement row
+    # (opening 4,976 | -787 | closing 3,905) prints last year's cash
+    # first, so 4,976 is contested and stays re-mappable
+    first, second = None, 0
+    for it in ledger.items:
+        if ledger.faces.get((it.doc, it.page)) not in ("pl", "bs", "cf") \
+                or it.doc in prior_docs or not it.joinable() \
+                or (it.doc, it.page, it.table_id) in pv_tabs:
+            continue
+        ns = [float(n) for n in it.nums if isinstance(n, (int, float))]
+        if len(ns) >= 2 and 0 < ns[0] <= 120 and float(ns[0]).is_integer() \
+                and min(abs(x) for x in ns[1:]) > 2 * ns[0]:
+            ns = ns[1:]
+        if len(ns) < 2 or len(ns) > 3:
+            continue                      # statement lines only
+        if row_label and not kinship(str(it.label or ""), row_label):
+            continue
+        if abs(abs(ns[1]) - v) <= tol:
+            second += 1
+        elif abs(abs(ns[0]) - v) <= tol and first is None:
+            first = (it.doc, it.page, str(it.label)[:40])
+    return first if (first and second == 0) else None
+
+
+def candidates(ledger, lit, row_label=""):
     """One literal -> {current_value: set of (doc, page)}. A candidate
     is a face line where the literal sits in the COMPARATIVE position
     (nums[i+1]) and the adjacent current figure keeps the literal's
@@ -74,6 +115,8 @@ def candidates(ledger, lit):
     nothing (run-198 offline proof: the all-scales union manufactured
     ties)."""
     v = abs(float(lit))
+    if already_current(ledger, lit, row_label):
+        return {}
     prior_docs = ledger.noncurrent_docs()
     tol = row_tol(v, base=0.6 if v >= 100 else 0.01)
 
@@ -176,6 +219,10 @@ def prove_cell(ledger, lits, row_label=""):
     -> ({lit: (value, src)}, None) or (None, why)."""
     per_full, per, per_pair, ident = {}, {}, {}, {}
     for lit in lits:
+        ac = already_current(ledger, lit, row_label)
+        if ac:
+            return None, (f"{lit}: already this year's printed figure "
+                          f"({ac[0]} p{ac[1]} '{ac[2]}') — nothing to rewrite")
         got = candidates(ledger, lit)
         candidates_pair = {v: set(ps) for v, ps in got.items()}
         # THE UNCHANGED-COMPONENT OPTION (the -35 autopsy 2026-09-01:

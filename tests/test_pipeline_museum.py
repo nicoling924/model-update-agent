@@ -3036,6 +3036,36 @@ def test_printed_subtotal_law_owner_2026_09_04():
     assert ws["C60"].value == before
 
 
+def test_run232_cash_already_current_and_red_is_a_colour():
+    """Run-232 cash autopsy: the constants law had rewritten cash to
+    =3905+23 (the balance-sheet figure); phase0 then re-mapped the
+    literal 3,905 from the cash MOVEMENT row (opening 4,976 | -787 |
+    closing 3,905) into =787+23, and the brain 'justified' the collapse.
+    Two laws: a literal that already prints as this year's figure on a
+    statement face is never re-mapped; and a cell is red only while it
+    is painted red (the flag list is history)."""
+    from pipeline.composites import already_current, prove_cell
+    from pipeline.ledger import Item, Ledger
+    led = Ledger()
+    led._doc_periods = {"AR.pdf": "current"}
+    led.faces[("AR.pdf", 168)] = "bs"
+    led.faces[("AR.pdf", 17)] = "bs"
+    led.items.append(Item(doc="AR.pdf", page=168, table_id=0, row_ord=1,
+                          label="Cash and cash equivalents", nums=[21.0, 3905.0, 4976.0],
+                          stmt_face="bs", unit_dim="unknown", scale_hint=None, source_line=""))
+    led.items.append(Item(doc="AR.pdf", page=17, table_id=0, row_ord=1,
+                          label="Cash and cash equivalents", nums=[4976.0, 787.0, 3905.0],
+                          stmt_face="bs", unit_dim="unknown", scale_hint=None, source_line=""))
+    assert already_current(led, 3905.0, "Cash and equivalents")[1] == 168
+    assert already_current(led, 4976.0, "Cash and equivalents") is None   # last year's figure
+    mapped, why = prove_cell(led, [3905.0, 23.0], row_label="Cash and equivalents")
+    assert mapped is None and "already this year's printed figure" in why, why
+    # the red test reads the cell's colour, not the flag list
+    import inspect
+    from pipeline import workqueue as wq
+    assert 'rgb.endswith("FFC000")' in inspect.getsource(wq._red_cells)
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
