@@ -500,7 +500,7 @@ def render_card(loop, item):
         a = anoms[0]
         cands = dossier(loop.wb, loop.spec, loop.ty, item.sheet, item.row,
                         a["old_f"], loop.writer.log.get("writes_all", []),
-                        loop._leaf_inputs, served=loop.served,
+                        loop._leaf_inputs_ranges, served=loop.served,
                         flags=loop.writer.log.get("flags", []))
         return render(a, cands)
     if item.kind == "TRIPWIRE":

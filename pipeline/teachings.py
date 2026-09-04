@@ -154,12 +154,50 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
                  if t != (sh, row)]
         if not twins or len(twins) > TWIN_MAX_HOMES:
             continue
+        from .numerics import kinship as _kin
+        lab_src = str(wb[sh].cell(row, 1).value or "")
         for (sh2, r2) in twins:
             tc2 = year_columns(spec, sh2).get(str(target_year))
             if not tc2:
                 continue
             cell = wb[sh2][f"{tc2}{r2}"]
             cur = cell.value
+            # TWINS ARE KIN OR LINKED (run-232 cash autopsy): Australia's
+            # amortisation (-425) and a SoC transfer line (-425) shared
+            # last year's value by coincidence; the sweep re-anchored the
+            # amortisation to the transfer's 386 — undoing the brain's
+            # correct revert. Same prior is not same quantity: the labels
+            # must be kin, or one formula must reference the other.
+            lab_tw = str(wb[sh2].cell(r2, 1).value or "")
+            linked = (isinstance(cur, str) and coord in str(cur)) or \
+                (isinstance(wb[sh][coord].value, str)
+                 and f"{tc2}{r2}" in str(wb[sh][coord].value))
+            # labels in DIFFERENT scripts (an English model over a
+            # Chinese filing: 'Cash - year end' vs '现金的期末余额') cannot
+            # be compared by words — there the prior identity stands
+            # when the value is distinctive (large), as it always did
+            import re as _re
+            cjk = lambda t: bool(_re.search(r"[一-鿿]", t))
+            comparable = (cjk(lab_src) == cjk(lab_tw))
+            if not linked and lab_src.strip() and lab_tw.strip() \
+                    and comparable and not _kin(lab_src, lab_tw):
+                log(f"[run]   twin re-anchor: {sh2}!{tc2}{r2} shares the prior "
+                    f"{pv:,.1f} with {ref} but is not kin ('{lab_tw[:24]}' vs "
+                    f"'{lab_src[:24]}') — a coincidence, left alone")
+                continue
+            if not linked and not comparable and abs(pv) < 10 * min_val:
+                log(f"[run]   twin re-anchor: {sh2}!{tc2}{r2} shares the prior "
+                    f"{pv:,.1f} with {ref} across scripts and the value is not "
+                    "distinctive enough to prove the same quantity — left alone")
+                continue
+            # a RED cell is an analyst hold or the brain's revert — never
+            # re-anchored by a sweep
+            try:
+                rgb = str(cell.fill.fgColor.rgb or "")
+            except Exception:
+                rgb = ""
+            if rgb.endswith("FFC7CE"):
+                continue
             if isinstance(cur, (int, float)) \
                     and abs(cur - pv) <= row_tol(pv):
                 ok = writer.write(

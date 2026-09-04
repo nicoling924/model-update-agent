@@ -1352,3 +1352,31 @@ answered 'justified' by the brain. Two defects:
    comparative (a movement row prints last year's cash first, so 4,976
    stays re-mappable while 3,905 is protected).
 Museum 112.
+Part 2 — why cash stayed negative after the fix (2026 cash -3,184):
+D&A 2026 collapsed to -4.1k (key -9.7k) because the model's residual
+'Others' (Driver!19 = total D&A - segments) absorbed 4,636 and rolled
+forward. Three inputs fed it: (a) Aus!AI14 amortisation 386 (key
+-425) — the brain's revert to -425 was UNDONE by the twin re-anchor
+(SOC!AI23 'Transfer to development fund' shares last year's -425 by
+coincidence); (b) CN!AI9 D&A -5,727 (key -915) — the bound-table join
+paired Hong Kong's number as 'current' against China's prior in the
+SEGMENT MATRIX (p178: HK | CN | AU | IN | total); (c) India 0.
+LAWS (museum 115):
+- TWINS ARE KIN OR LINKED: same prior is not same quantity; labels must
+  be kin or a formula must link them; a red cell is never re-anchored;
+  cross-script twins (EN model over a CN filing) keep the prior-identity
+  rule for distinctive values (>= 10x the twin floor).
+- APPEARED FROM ZERO: a forecast that was ~0 and now >= 1,000 is strange
+  (the residual's card now fires).
+- THE SEGMENT-MATRIX LAW: a table whose rows sum across to their last
+  number lists one period per row — never bound as a YoY table
+  (tolerance capped at 50 so phone numbers cannot 'sum').
+- The rollover dossier walks SUM ranges row by row (the ladder keeps
+  the classic walk — expanding it there changed plug choices and blew
+  the cash chain on a trial).
+- Faithful replays pin only the brain's serves; deterministic serves
+  recompute under the current laws (else a replay cannot show a law).
+Replay 232 now: CN!AI9 held -840 red (no longer -5,727), 'Others' -251,
+D&A 2026 -8,991 (key -9,730), cash 2025 3,928, 2026 -652 (was -3,184),
+2027 -6,714 (key 648) — the remaining gap is the fuel-clause/fuel-mix
+forecast chain (assumption freeze ruling). DFE floor delivers.

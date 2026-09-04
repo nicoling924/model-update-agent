@@ -375,6 +375,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 continue
             if e.get("doc") and e.get("doc") in _ban:
                 continue        # the vintage law binds pinned serves too
+            if str(e.get("note") or "").startswith(("stage-2", "reconciliation")):
+                continue        # deterministic serves recompute under the
+                                # CURRENT laws; only the brain's reads are pinned
             served[key_p] = {"value": e["value"], "status": "OK",
                              "doc": e.get("doc"), "page": e.get("page"),
                              "line": e.get("line"),

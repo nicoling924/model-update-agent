@@ -482,6 +482,26 @@ def join(ledger, targets, log=None):
     return served, decisions
 
 
+def is_segment_matrix(items, min_rows=2):
+    """Rows whose LAST number equals the sum of the preceding numbers
+    (within tolerance) print one period across segments; >= min_rows
+    such rows make the table a segment matrix."""
+    n = 0
+    for it in items:
+        ns = [float(x) for x in it.nums if isinstance(x, (int, float))]
+        if len(ns) >= 4 and 0 < ns[0] <= 120 and float(ns[0]).is_integer() \
+                and min(abs(x) for x in ns[1:]) > 2 * ns[0]:
+            ns = ns[1:]                       # note reference
+        if len(ns) < 4:
+            continue
+        body, total = ns[:-1], ns[-1]
+        if abs(total) >= 100 and abs(sum(body) - total) <= max(1.0, min(50.0, abs(total) * 2e-3)):
+            n += 1
+            if n >= min_rows:
+                return True
+    return False
+
+
 def join_bound_tables(ledger, targets, served, log=None):
     """Stage 2.5 — the Driver/MD&A path: TWO-LEVEL binding (council law:
     bind tables before rows; never a left-neighbour, never a loose label).
@@ -544,6 +564,17 @@ def join_bound_tables(ledger, targets, served, log=None):
     bound = defaultdict(dict)    # sheet -> {table key: (scale, offset)}
     for key, items in by_table.items():
         if len(items) < BIND_MIN_PRIORS:
+            continue
+        if is_segment_matrix(items):
+            # THE SEGMENT-MATRIX LAW (run-232 D&A autopsy): a table whose
+            # rows sum across to their last number lists ONE period per
+            # row with segments as columns ('D&A: HK -5,727 | CN -840 |
+            # AU -2,658 | IN -51 | total -9,276'). Its numbers are never
+            # (current, prior) pairs — the join served Hong Kong's D&A
+            # into China's row. Such tables are read by the cards and
+            # the reconciliation of the segment note, never bound here.
+            log.append(f"stage-2.5: {key[0]} p{key[1]} t{key[2]} is a segment "
+                       "matrix (rows sum across) — not a year-on-year table, not bound")
             continue
         for sheet, ts in by_sheet_t.items():
             best, best_n, best_slots = None, 0, []

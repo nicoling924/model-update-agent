@@ -69,7 +69,17 @@ def estimate_baseline(pre_wb, spec, target_year, max_row=300):
 
 def strange(est_t, act_t, old_f, new_f):
     """The owner's proportionality test. -> (is_strange, reason)."""
-    if old_f is None or new_f is None or abs(old_f) < MIN_SIZE:
+    if old_f is None or new_f is None:
+        return False, ""
+    if abs(old_f) < MIN_SIZE:
+        # APPEARED FROM ZERO (run-232 D&A autopsy): the analyst's residual
+        # 'Others' forecast 0; after the update it forecast 4,636 — a
+        # wrong China D&A absorbed by the residual and rolled into every
+        # year. The most suspicious move of all was invisible to a
+        # percentage test.
+        if abs(new_f) >= 10 * MIN_SIZE:
+            return True, (f"APPEARED FROM ZERO: old forecast {old_f:,.0f} -> "
+                          f"new {new_f:,.0f}")
         return False, ""
     fmove = (new_f - old_f) / abs(old_f)
     if new_f * old_f < 0 and abs(new_f) > 0.2 * abs(old_f):

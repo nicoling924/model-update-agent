@@ -490,7 +490,11 @@ class ObjectiveLoop:
         from .stage2_join import unique_evidence_value
         return unique_evidence_value(self.ledger, list(self.targets.values()), t)
 
-    def _leaf_inputs(self, sheet, coord, depth=0, seen=None):
+    def _leaf_inputs_ranges(self, sheet, coord):
+        """The range-aware walk (every row of a SUM range is a leaf)."""
+        return self._leaf_inputs(sheet, coord, ranges=True)
+
+    def _leaf_inputs(self, sheet, coord, depth=0, seen=None, ranges=False):
         """The leaf INPUT cells under a target-year formula cell: follow
         references recursively; a numeric hardcode is a leaf. Bounded."""
         seen = seen if seen is not None else set()
@@ -503,12 +507,28 @@ class ObjectiveLoop:
         if not isinstance(v, str) or not v.startswith("="):
             return []
         out = []
+        txt = v.replace("$", "")
+        if ranges:
+            # SUM(AI14:AI18) names every row of the range (run-232 D&A
+            # autopsy: China's D&A inside the range was invisible to the
+            # rollover dossier). Range-aware walking is for the DOSSIER
+            # only — the terminal ladder's plug candidates keep the
+            # classic walk (expanding ranges there changed the ladder's
+            # choices and blew the cash chain on the 232 replay).
+            for sh2, sh3, c2, r2, c3, r3 in re.findall(
+                    r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)",
+                    txt):
+                sh = (sh2 or sh3 or sheet).strip()
+                if sh in self.wb.sheetnames and c2 == c3:
+                    for rr in range(min(int(r2), int(r3)), max(int(r2), int(r3)) + 1):
+                        out += self._leaf_inputs(sh, f"{c2}{rr}", depth + 1, seen, ranges=True)
+            txt = re.sub(r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", " ", txt)
         for sh2, sh3, c2, r2 in re.findall(
                 r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?([A-Z]{1,3})(\d+)",
-                v.replace("$", "")):
+                txt):
             sh = (sh2 or sh3 or sheet).strip()
             if sh in self.wb.sheetnames:
-                out += self._leaf_inputs(sh, f"{c2}{r2}", depth + 1, seen)
+                out += self._leaf_inputs(sh, f"{c2}{r2}", depth + 1, seen, ranges=ranges)
         if not out:
             # a formula with no cell references (=4976+23) IS a leaf —
             # the constants-composite class was invisible to this walk

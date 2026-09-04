@@ -2802,6 +2802,8 @@ def test_rollover_investigation_owner_teaching_2026_09_03():
     assert strange(None, None, 5000.0, 2000.0)[0]                     # no estimate: 50% band
     assert strange(None, None, 5000.0, 3000.0)[0] is False
     assert strange(1000.0, 1100.0, 50.0, -40.0) == (False, "")        # tiny rows are noise
+    assert "APPEARED FROM ZERO" in strange(0.0, 4636.0, 0.0, 4636.0)[1]  # run 232's 'Others' residual
+    assert strange(0.0, 120.0, 0.0, 120.0) == (False, "")               # small appearances are noise
     # exhibit 2 — end to end on a tiny model: forecast = tariff x units
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -3064,6 +3066,88 @@ def test_run232_cash_already_current_and_red_is_a_colour():
     import inspect
     from pipeline import workqueue as wq
     assert 'rgb.endswith("FFC000")' in inspect.getsource(wq._red_cells)
+
+
+def test_twins_are_kin_or_linked_run232():
+    """Run-232 cash autopsy: the twin re-anchor treated Australia's
+    amortisation (-425) and a SoC transfer line (-425) as one quantity
+    and overwrote the brain's correct revert. Same prior is not same
+    quantity: twins must be kin by label or linked by formula; a red
+    (held) cell is never re-anchored."""
+    import openpyxl
+    from openpyxl.styles import PatternFill
+    from pipeline.teachings import twin_reanchor
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["A1"], ws["B1"], ws["C1"] = "year", 2024, 2025
+    ws["A5"], ws["B5"], ws["C5"] = "Transfer to development fund", -425.0, 386.0
+    ws["A9"], ws["B9"], ws["C9"] = "Amortisation", -425.0, -425.0       # stale, unrelated
+    ws["A12"], ws["B12"], ws["C12"] = "Transfer to development fund (HK)", -425.0, -425.0   # kin: re-anchor
+    ws["A15"], ws["B15"], ws["C15"] = "Transfer to development fund (Group)", -425.0, -425.0
+    ws["C15"].fill = PatternFill("solid", fgColor="FFC7CE")               # red: held
+    spec = {"year_axis": {"M": {"header_row": 1, "columns": {"2024": "B", "2025": "C"}}}}
+    w = Writer(wb)
+    w.log["written"] = ["M!C5"]
+    logs = []
+    twin_reanchor(wb, wb, spec, 2025, w, logs.append, min_val=100)
+    assert ws["C9"].value == -425.0, ws["C9"].value          # coincidence: left alone
+    assert any("not kin" in x for x in logs), logs
+    assert ws["C12"].value == 386.0                         # kin: re-anchored
+    assert ws["C15"].value == -425.0                        # red: never touched
+    # cross-script twins (an English model over a Chinese filing) cannot be
+    # compared by words: a large, distinctive prior still proves the twin
+    ws["A20"], ws["B20"], ws["C20"] = "Cash - year end", 22502.9, 24000.0
+    ws["A22"], ws["B22"], ws["C22"] = "现金的期末余额", 22502.9, 22502.9
+    ws["A24"], ws["B24"], ws["C24"] = "小额", -425.0, -425.0          # small, cross-script: not proven
+    w.log["written"] = ["M!C20", "M!C5"]
+    twin_reanchor(wb, wb, spec, 2025, w, logs.append, min_val=100)
+    assert ws["C22"].value == 24000.0, ws["C22"].value
+    assert ws["C24"].value == -425.0
+
+
+def test_segment_matrix_is_never_a_yoy_table_run232():
+    """Run-232 D&A autopsy: the segment note lists one period per row
+    with segments as columns (HK | CN | AU | IN | total); the bound-table
+    join paired Hong Kong's -5,727 as 'current' against China's prior
+    -840 beside it. Rows that sum across to their last number are a
+    segment matrix — never a year-on-year table."""
+    from pipeline.stage2_join import is_segment_matrix
+    class It:
+        def __init__(self, nums):
+            self.nums = nums
+    seg = [It([-5727.0, -840.0, -2658.0, -51.0, -9276.0]),
+           It([49134.0, 5445.0, 34191.0, 642.0, 89412.0]),
+           It([12.0, 3.0, 4.0, 5.0, 24.0])]
+    assert is_segment_matrix(seg)
+    yoy = [It([88018.0, 90964.0]), It([14272.0, 14903.0]), It([21.0, 3905.0, 4976.0])]
+    assert not is_segment_matrix(yoy)
+    five_year = [It([238644.0, 233713.0, 229051.0, 236026.0, 239809.0])]
+    assert not is_segment_matrix(five_year)
+
+
+def test_leaf_walk_expands_sum_ranges_run232():
+    """Run-232 D&A autopsy: the residual 'Others' = AI20 - SUM(AI14:AI18);
+    the leaf walker read the range's ends only, so China's D&A (AI16)
+    never appeared on the rollover card. Every row of a range is a leaf."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "D"
+    for r, v in ((14, 10.0), (15, 20.0), (16, 30.0), (17, 40.0), (18, 50.0)):
+        ws[f"AI{r}"] = v
+    ws["AI20"] = 200.0
+    ws["AI19"] = "=AI20-SUM(AI14:AI18)"
+    class Fake:
+        _leaf_inputs = ObjectiveLoop._leaf_inputs
+        _leaf_inputs_ranges = ObjectiveLoop._leaf_inputs_ranges
+    f = Fake()
+    f.wb = wb
+    leaves = set(f._leaf_inputs_ranges("D", "AI19"))
+    assert set(f._leaf_inputs("D", "AI19")) == {("D", "AI20"), ("D", "AI14"), ("D", "AI18")}  # classic walk unchanged
+    assert leaves == {("D", "AI20"), ("D", "AI14"), ("D", "AI15"), ("D", "AI16"), ("D", "AI17"), ("D", "AI18")}, leaves
 
 
 if __name__ == "__main__":
