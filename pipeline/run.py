@@ -156,6 +156,37 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"{len(spec_d['key_rows'])} key rows); review lands in _SPEC tab")
     spec_mod.extend_axis(spec_d, target_year)   # roll the axis to the
                                                 # target year where needed
+    # AN INTERIM PERIOD BINDS THE INTERIM PANEL (owner 2026-09-07: the
+    # agent identifies the model's structure itself). A spec written for
+    # annual updates maps the annual columns; a half-year or quarterly
+    # update must land in the sheet's interim panel instead — the same
+    # discovery that reads a spec-less model finds it (a run of
+    # '1H2024, 1H2025' / '2024-06-30' marks). A sheet with no interim
+    # panel has no home for interim figures and is left out of this run.
+    _kind0 = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+              else "Q" if "Q" in str(period).upper() else "FY")
+    if _kind0 != "FY":
+        from .discover import find_year_axis as _fya
+        _wb0 = load(_model_path(company_dir, spec_d))
+        _axis = {}
+        for _sh in list((spec_d.get("year_axis") or {}).keys()):
+            if _sh not in _wb0.sheetnames:
+                continue
+            _ax = _fya(_wb0[_sh], _kind0)
+            if _ax and str(target_year) in _ax and str(target_year - 1) in _ax:
+                _axis[_sh] = dict(spec_d["year_axis"][_sh], columns=_ax)
+                log(f"[run] interim panel: {_sh} {_kind0} columns "
+                    f"{target_year - 1}={_ax[str(target_year - 1)]}, "
+                    f"{target_year}={_ax[str(target_year)]}")
+            else:
+                log(f"[run] interim panel: {_sh} has no {_kind0} panel — "
+                    "left out of this run (no home for interim figures)")
+        if not _axis:
+            raise RuntimeError(
+                f"no sheet in the model carries a {_kind0} panel for "
+                f"{target_year} — an interim update has nowhere to land; "
+                "the analyst decides where interim figures go")
+        spec_d["year_axis"] = _axis
     model_path = _model_path(company_dir, spec_d)
     archive = company_dir / "model-archive" / f"{model_path.stem}_{period}_pre{model_path.suffix}"
     archive.parent.mkdir(exist_ok=True)
