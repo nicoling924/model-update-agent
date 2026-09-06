@@ -244,7 +244,10 @@ class Writer:
         if flag in self.fills:
             cell.fill = self.fills[flag]
             self.log["flags"].append(ref)
-        if note:
+        # notes only on highlighted cells (owner ruling, run 233): a plain
+        # updated input carries no note — its provenance lives in the run
+        # log and provenance.json, not in the analyst's face
+        if note and flag in self.fills:
             cell.comment = Comment(str(note)[:700], AUTHOR)
         got = ws[coord].value
         if got != value:

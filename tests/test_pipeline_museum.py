@@ -3171,6 +3171,70 @@ def test_leaf_walk_expands_sum_ranges_run232():
     assert leaves == {("D", "AI20"), ("D", "AI14"), ("D", "AI15"), ("D", "AI16"), ("D", "AI17"), ("D", "AI18")}, leaves
 
 
+def test_notes_for_the_analyst_owner_rulings_2026_09_07():
+    """Run 233 review: 144 agent notes on plain inputs and long
+    machine-speak on the flagged ones. Rules: notes only on highlighted
+    cells; short plain words; the analyst's own notes untouched."""
+    from openpyxl import Workbook
+    from openpyxl.comments import Comment
+    from openpyxl.styles import PatternFill
+    from pipeline.notes import plain_note, hygiene, AUTHOR
+    # exhibit 1 — the rewrites read like a colleague's margin note
+    assert plain_note("tier-3 back-out: not load-bearing for the key rows; held at the "
+                      "group's growth — true up when segment detail is disclosed") \
+        == "Backed out: not found in the documents; held at the group's growth rate. True up when disclosed."
+    assert plain_note("QUEUE-DOCUMENTED: zero candidates — no current-document line ties "
+                      "this row's prior at any scale; held at prior") \
+        == "Not found in the documents. Kept last period's figure."
+    s = plain_note("COMPOSITE REWRITE (constants law): was =+-2254+235 = stale prior; "
+                   "2254->1860 (CLP 2025 Result announcement.pdf p23); 235->194 "
+                   "(CLP 2025 Result announcement.pdf p23)")
+    assert s == "Backed out from the disclosure (results announcement p23): 2254→1860, 235→194.", s
+    s = plain_note("ROLL-BASE MISMATCH: this row's 2025 actual is typed as -74,206.0, but "
+                   "the model's own forecast formula, pointed back one year, computes "
+                   "-73,746.0 (gap +460.0) — the cells it rolls from were not re-anchored.")
+    assert s.startswith("Forecast base is off this year's actual by +460.0"), s
+    s = plain_note("RECOMPOSED (new-ingredient law): was =504+582+67; the old recipe's "
+                   "comparatives map one span of e_2025 Annual Report.pdf p214. NEW items joined: x")
+    assert "annual report p214" in s, s
+    s = plain_note("objective loop: p37: 'Fuel Clause Account (FCA)' (CLP 2025 Annual Results Pres) — card-adjudicated")
+    assert s == "Updated per the disclosure (results presentation p37). Please confirm.", s
+    assert len(plain_note("PLUG OVER PROVEN VALUE — this cell was served 147,397.00 and then "
+                          "absorbed the ROAFNA!31 residual -20.00 as the sanctioned last resort. "
+                          "ANALYST MUST RULE. terminal ladder: the loop ended with this check failing")) < 80
+    for jargon in ("tier-3", "stage-2", "QUEUE", "ANALYST REVIEW", "auto-disproven"):
+        for src in ("tier-3 back-out: x", "stage-2.5 bound-table join: table proven by >=3 sibling prior ties",
+                    "QUEUE-DOCUMENTED: y", "KEY-TIE back-out: 'eps' computed 1 vs disclosed 2 ANALYST REVIEW."):
+            assert jargon not in plain_note(src), (jargon, plain_note(src))
+    # exhibit 2 — hygiene: plain cell stripped, flagged cell shortened,
+    # the analyst's note untouched, _sheets untouched
+    wb = Workbook(); ws = wb.active; ws.title = "Final"
+    ws["B2"] = 5; ws["B2"].comment = Comment("stage-3 read: comparative ties the model's prior", AUTHOR)
+    ws["B3"] = 6; ws["B3"].fill = PatternFill("solid", fgColor="FFC7CE")
+    ws["B3"].comment = Comment("QUEUE-DOCUMENTED: zero candidates — held at prior", AUTHOR)
+    ws["B4"] = 7; ws["B4"].fill = PatternFill("solid", fgColor="FFC000")
+    ws["B4"].comment = Comment("tier-3 back-out: not load-bearing; held at the group's growth", AUTHOR)
+    ws["B5"] = 8; ws["B5"].comment = Comment("Eason Tang: UBS 2025E", "Eason Tang")
+    fs = wb.create_sheet("_FLAGS"); fs["A1"] = "x"; fs["A1"].comment = Comment("stage-3 read: keep", AUTHOR)
+    n = hygiene(wb)
+    assert n == {"stripped": 1, "rewritten": 2}, n
+    assert ws["B2"].comment is None
+    assert ws["B3"].comment.text == "Not found in the documents. Kept last period's figure."
+    assert ws["B4"].comment.text.startswith("Backed out:")
+    assert ws["B5"].comment.text == "Eason Tang: UBS 2025E"
+    assert fs["A1"].comment.text == "stage-3 read: keep"
+    # exhibit 3 — the writer itself: a note lands only with a flag
+    from pipeline.writer import Writer
+    wb2 = Workbook(); w2 = wb2.active; w2.title = "Final"
+    w2["A1"] = "row"; w2["B1"] = 100; w2["C1"] = 90
+    wr = Writer(wb2)
+    assert wr.write("Final", "C1", 105, prior_coord="B1", note="stage-3 read: ties")
+    assert w2["C1"].comment is None
+    assert wr.write("Final", "C1", 106, prior_coord="B1", note="tier-3 back-out: held", flag="orange")
+    assert w2["C1"].comment is not None
+    print("PASS test_notes_for_the_analyst_owner_rulings_2026_09_07")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

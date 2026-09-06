@@ -1157,6 +1157,14 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     except Exception:
         summary["units"] = ""
     render(wb, summary, pre_wb=pre_wb, cols=cols, primary=primary)
+    # notes for the analyst (owner rulings, run 233): none on plain
+    # cells, short plain words on flagged ones — the last step before
+    # the file is written, after every law has read what it needed
+    try:
+        from .notes import hygiene as _note_hygiene
+        _note_hygiene(wb, log=print)
+    except Exception as _e:
+        print(f"[run] note hygiene skipped: {_e}")
     out = Path(out_path) if out_path else Path(model_path).with_name(
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)

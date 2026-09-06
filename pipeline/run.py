@@ -215,8 +215,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log(f"[run]   error guard [{stage}]: REVERTED {sh}!{coord} "
                     f"({str(prev)[:24]!r} -> restored {str(old)[:24]!r}) — "
                     "the write made cells stop computing (auto-disproven)")
-                writer.log["flags"] = [x for x in writer.log["flags"]
-                                       if x != f"{sh}!{coord}"]
+                # the restored prior is unconfirmed: RED, plain note
+                from openpyxl.comments import Comment as _Cm
+                _cell = wb[sh][coord]
+                _cell.fill = writer.fills["red"]
+                _cell.comment = _Cm(
+                    "Not confirmed in the documents. Kept last period's "
+                    "figure — please check.", "Model Update Agent")
+                if f"{sh}!{coord}" not in writer.log["flags"]:
+                    writer.log["flags"].append(f"{sh}!{coord}")
                 cur = now
             else:
                 wb[sh][coord] = prev      # innocent write: keep it
@@ -250,8 +257,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     f"{sh}!{coord} (zero -> restored {str(old)[:22]!r}) — "
                     "the zero killed a healthy forecast row "
                     "(auto-disproven)")
-                writer.log["flags"] = [x for x in writer.log["flags"]
-                                       if x != f"{sh}!{coord}"]
+                # a value the run could NOT confirm is uncertain by
+                # definition: the restored prior stays RED with a plain
+                # note (run 233: the basic tariff was zeroed, restored to
+                # last year's 95.8 and left unflagged with a 'proven
+                # zero' note — the one miss the owner found unflagged)
+                _cell = wb[sh][coord]
+                _cell.fill = writer.fills["red"]
+                _cell.comment = Comment(
+                    "Not confirmed in the documents. Kept last period's "
+                    "figure — please check.", "Model Update Agent")
+                if f"{sh}!{coord}" not in writer.log["flags"]:
+                    writer.log["flags"].append(f"{sh}!{coord}")
                 cur = now
             else:
                 wb[sh][coord] = prev

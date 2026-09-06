@@ -1408,3 +1408,23 @@ Replay note: the replay's rollover card SET differs from live (30 vs 23
 cards on different rows) because the pinned serves land in one pass and
 the collapse guard fires differently (ROAFNA!AI71 restored to -1050 in
 the replay; live's 0 matches the key). End states differ in 3 cells only.
+
+## Run 233 review (owner, 2026-09-07) — notes for the analyst; the unflagged tariff
+Owner: "quite good"; misses mostly flagged; ONE unflagged — the 2025
+basic tariff (HK Sales!AI13) held at last year's 95.8 (key 98.0) with
+no flag. Cause: the dash-nil sweep zeroed it from a stray '–', the
+collapse guard restored the prior (auto-disproven) and REMOVED the flag,
+leaving a 'proven zero' note on an unconfirmed prior. LAW: a guard's
+restore is unconfirmed by definition — RED with a plain note.
+Owner's note rulings: (1) notes ONLY on highlighted cells (144 agent
+notes sat on plain inputs); (2) short, plain words — no 'tier-3',
+'QUEUE-DOCUMENTED', 'stage-2.5 bound-table join'. Built pipeline/notes.py
+(plain_note templates + hygiene pass at delivery, analyst notes and
+_sheets untouched); writer.write attaches a note only with a flag.
+Replay 233: 0 agent notes on plain cells, 145 flagged notes ≤ 98 chars,
+tariff red 'Not found in the documents. Kept last period's figure.',
+cash =3905+23 orange, snapshot label 'HK$ millions'. Museum 116.
+Roll-base explained to the owner: the forecast's own roll (opening +
+movements) re-applied to last year should reproduce this year's actual;
+a gap means an input the roll uses was not updated — fix the input,
+not the actual.
