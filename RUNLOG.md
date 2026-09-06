@@ -1540,3 +1540,14 @@ shifts between borrowing/repayment and investment lines). Also adopted
 p5=pl (the highlights table reads as a P&L by its rows) — watch for
 one-home conflicts. 2026 forecast unchanged: the reclassification
 mapping (see the RECLASS proposal) drives the NP gap.
+
+## Run 237 — 2026-09-08 small hours, head 50a0fa7 — DFE 1H25 DELIVERED (1 LLM call)
+The interim comparative law live: 106 served (was 82), 63 stale -> 62
+held at growth (orange), 1 red. Half-year balance sheet now read: total
+assets 156,365.5, cash 31,258.7, inventory 27,286.8; P&L revenue 38,151,
+net profit 2,061; closing cash 26,341.8 — all the printed figures.
+Total liabilities still held at growth (its year-end comparative did
+not tie — one row, open). Caveat for the analyst: the _REPORT snapshot
+of an interim run still links the ANNUAL key rows (Model!U4...) which
+this run did not touch — the report should follow the run's own axis
+(not fixed tonight; note for the deduction pass).
