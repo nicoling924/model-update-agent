@@ -1551,3 +1551,14 @@ not tie — one row, open). Caveat for the analyst: the _REPORT snapshot
 of an interim run still links the ANNUAL key rows (Model!U4...) which
 this run did not touch — the report should follow the run's own axis
 (not fixed tonight; note for the deduction pass).
+
+## Run 238 — 2026-09-08, head 23c21fc — DFE FY25 DELIVERED, cash-flow face still lost
+Same keys as 235 (CFI/CFF red). The self-proving adoption adopted only
+p5=pl: stage 1 had ALREADY tagged PDF p101 'cf' (vision, 22 anchors at
+1e6, face from rows), so the adoption skipped it — and the brain's
+'parent_only' list, given in PRINTED page numbers, then DELETED that
+face (the parent-company statements follow the consolidated ones two
+pages later). LAW (f552568): a page that ratifies against the model's
+priors keeps its face whatever the brain called it — a parent-company
+statement cannot tie consolidated priors. Museum 121. Run 239 = the
+rerun on f552568.
