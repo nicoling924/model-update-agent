@@ -1451,3 +1451,23 @@ Replay 233: AJ column = 30 blue, 0 red/orange; AI = 65 red / 46 orange;
 HK Sales!AI17 +0.2, India!AI8 -232), 9 rows all-proven -> watch list;
 no 2024A-formula -> 2025A-hardcode structure change (0 before, 0 after).
 Cash 2025 3,928; forecast cash still the fuel-chain ruling. Museum 118.
+
+## Run 234 — 2026-09-07 night, head 1d762c6 — DELIVERED (first gate, 60 LLM calls)
+The owner's final CLP check. Balance every year. Panel keys: revenue, NP,
+EPS, OP (14,272 print), CFI, total assets, total equity, L+E exact (the
+three 'not located' keys are model-definition composites: cash +23, CFO,
+CFF). Cash 2025 = 3,928 (orange, 'Backed out from the disclosure (annual
+report p168): 4976→3905'); the rollover card for Driver!100 answered
+not_sure — the proven composite was not offered. Basic tariff held at
+95.8 and RED ('Not found in the documents. Kept last period's figure').
+Today's rules live: AI column 63 red / 51 orange; AJ column 30 blue and
+NO red/orange; 0 agent notes on plain cells, longest note 131 chars;
+0 rows where a 2024A formula became a 2025A hardcode; report label
+'HK$ millions'; 30 forecast rows on the _FLAGS watch list. Roll-base
+back-outs fired on SOC Accounts!AI40, HK Sales!AI17, Final!AI87
+(re-solved across repair rounds; ends =((0)+(-11))-(774) after the L+E
+key tie), ROAFNA!AI18. Forecast: 89/217 rows off vs the by-hand key —
+the fuel chain (owner: leave it to the agent, no ruling); cash 2026
+2,556 vs key 5,277 (positive, no longer collapsed). Recurring NP still
+10,374 vs 10,909 (one-offs bridge). Verdict vs the owner's three
+objectives + today's rules: MET. Next: DFE FY25 on the same head.
