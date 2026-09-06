@@ -355,7 +355,7 @@ def oneoff_no_propagate(wb, spec, target_year, writer, log):
                         r"^=\s*\+?\s*" + tcol + str(r) + r"\s*$",
                         f.replace("$", "")):
                     ws[f"{fc}{r}"].value = 0
-                    ws[f"{fc}{r}"].fill = writer.fills["orange"]
+                    ws[f"{fc}{r}"].fill = writer.fills["blue"]
                     ws[f"{fc}{r}"].comment = Comment(
                         f"ONE-OFF NOT PROPAGATED: the actual {av:,.1f} "
                         f"is new this year (prior ~0); this cell linked "
@@ -443,7 +443,7 @@ def auto_probe_holds(wb, spec, target_year, fc_base, writer, log,
         # (it was compounding through the years) — a hold that merely
         # shuffles the imbalance moves the mass less than itself
         if m2 <= mass - max(100.0, 1.5 * _d):
-            cell.fill = writer.fills["orange"]
+            cell.fill = writer.fills["blue"]
             cell.comment = Comment(
                 f"AUTO-PROBE HOLD: this forecast is a bare link to the "
                 f"actual column; the analyst's own pre-update forecast "
@@ -553,7 +553,8 @@ def _fc_resids_of(wb, spec, target_year):
     return out
 
 
-def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
+def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
+                         served=None):
     """THE ROLL-BASE CONSISTENCY LAW (owner ruling 2026-09-01, the flat-
     forecast-gap autopsy — and the mechanization of the standing
     checklist line "roll-forward bases re-anchored to actual closings").
@@ -572,6 +573,7 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
     no companies. -> mismatches found."""
     from .writer import shift_formula_excel
     from openpyxl.comments import Comment
+    from openpyxl.styles import PatternFill
     ev = Evaluator(wb)
     n = 0
     for sheet in (spec.get("year_axis") or {}):
@@ -632,19 +634,16 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
             if abs(gap) <= max(tol_base, abs(h) * 5e-3):
                 continue
             n += 1
+            # the forecast cell is never painted (owner 2026-09-07: "the
+            # formula is correct — why is it red?"): the row goes on the
+            # watch list; the cause is flagged in the actual column below
             cell = ws[f"{fcs[0]}{r}"]
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
-                (f"ROLL-BASE MISMATCH: this row's {target_year} actual is "
-                 f"typed as {h:,.1f}, but the model's own forecast "
-                 f"formula, pointed back one year, computes {got:,.1f} "
-                 f"(gap {gap:+,.1f}) — the cells it rolls from were not "
-                 "re-anchored to the actual closing. Fix the roll base, "
-                 "not this cell."), "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{fcs[0]}{r}")
+            writer.watch(sheet, f"{fcs[0]}{r}",
+                         f"rolls {got:,.0f} from its inputs vs the typed "
+                         f"actual {h:,.0f} (gap {gap:+,.0f})")
             # the base's stale inputs join the red queue, load-bearing
             for m in re.finditer(
-                    r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
+                    r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
                     r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
                 sh2 = (m.group(1) or m.group(2) or sheet).strip()
                 if sh2 not in wb.sheetnames:
@@ -667,18 +666,22 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
                          f"misses its typed actual by {gap:+,.1f}."),
                         "Model Update Agent")
                     writer.log["flags"].append(f"{sh2}!{c2}{r2}")
-            # THE ROLL-BASE BACK-OUT (owner's ladder rule (a), applied
-            # generically: when the base has exactly ONE stale input and
-            # no disclosure serves it, the typed actual DEFINES it —
-            # derive it from the total by the model's own arithmetic,
-            # as a traceable formula). Solvability is tested by
-            # perturbation, never assumed: bump the unknown 1.0; only a
-            # unit-linear response solves exactly.
-            stale_inputs = []
+            # THE INPUT BACK-OUT (owner ruling 2026-09-07): THE STRUCTURE
+            # IS THE MODEL'S. A formula cell is never overwritten to close
+            # a roll gap — the fix is always an INPUT of that formula.
+            # The roll's leaf inputs (typed cells in the actual column)
+            # are ranked by confidence; the LEAST confident one is backed
+            # out, as a traceable formula, so the roll reproduces the
+            # typed actual ("3 inputs, 2 confident -> back out the 3rd").
+            # A tie at the bottom is flagged, never guessed; all-proven is
+            # a definition question for the analyst. Solvability is tested
+            # by perturbation (bump 1.0; only a unit-linear response
+            # solves exactly), never assumed.
+            leaves = []
             seen_leaf = set()
 
             def _walk(sh2, c2, r2, depth=0):
-                if depth > 5 or (sh2, c2, r2) in seen_leaf:
+                if depth > 6 or (sh2, c2, r2) in seen_leaf:
                     return
                 seen_leaf.add((sh2, c2, r2))
                 if sh2 not in wb.sheetnames:
@@ -686,31 +689,52 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
                 v2 = wb[sh2][f"{c2}{r2}"].value
                 if isinstance(v2, str) and v2.startswith("="):
                     for m2 in re.finditer(
-                            r"(?:'([^']+)'|([A-Za-z0-9_]"
-                            r"[A-Za-z0-9 _]*))?!?([A-Z]{1,3})(\d+)",
+                            r"(?:(?:'([^']+)'|([A-Za-z0-9_]"
+                            r"[A-Za-z0-9 _]*))!)?([A-Z]{1,3})(\d+)",
                             v2.replace("$", "")):
                         _walk((m2.group(1) or m2.group(2) or sh2).strip(),
                               m2.group(3), int(m2.group(4)), depth + 1)
                     return
                 if c2 != year_columns(spec, sh2).get(str(target_year)):
                     return
+                if not isinstance(v2, (int, float)):
+                    return
                 pcol2 = prior_column(spec, sh2, target_year)
                 pv2 = wb[sh2][f"{pcol2}{r2}"].value if pcol2 else None
-                if isinstance(v2, (int, float)) \
-                        and isinstance(pv2, (int, float)) \
-                        and abs(v2 - pv2) <= row_tol(pv2):
-                    stale_inputs.append((sh2, c2, r2, v2))
+                leaves.append((sh2, c2, r2, v2, pv2))
 
             for m in re.finditer(
-                    r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
+                    r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
                     r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
                 _walk((m.group(1) or m.group(2) or sheet).strip(),
                       m.group(3), int(m.group(4)))
-            if len(stale_inputs) == 1:
-                sh2, c2, r2, v2 = stale_inputs[0]
+
+            def _conf(leaf):
+                """0 = held at prior / red (unconfirmed); 1 = plain
+                unproven; 2 = orange back-out; 3 = proven."""
+                sh2, c2, r2, v2, pv2 = leaf
+                try:
+                    rgb = str(wb[sh2][f"{c2}{r2}"].fill.fgColor.rgb or "")
+                except Exception:
+                    rgb = ""
+                if rgb.endswith("FFC7CE"):
+                    return 0
+                from .rollover import input_is_proven
+                if input_is_proven(served, sh2, f"{c2}{r2}", v2, (), wb):
+                    return 3              # proven (a confirmed-unchanged
+                                          # value is proven, not stale)
+                if isinstance(pv2, (int, float)) \
+                        and abs(v2 - pv2) <= row_tol(pv2):
+                    return 0
+                if rgb.endswith("FFC000"):
+                    return 2
+                return 1
+
+            def _coeff(leaf):
+                """d(roll)/d(input) by a unit bump; None if not evaluable."""
+                sh2, c2, r2, v2, _pv2 = leaf
                 cellu = wb[sh2][f"{c2}{r2}"]
                 cellu.value = v2 + 1.0
-                # re-evaluate the shifted formula with the bump
                 scratch = f"ZZ{r}"
                 old_s = ws[scratch].value
                 ws[scratch] = shifted
@@ -720,103 +744,94 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0):
                     got2 = None
                 ws[scratch] = old_s
                 cellu.value = v2
-                if isinstance(got2, (int, float)) \
-                        and abs((got2 - got) - 1.0) <= 1e-6:
-                    solved = v2 - gap
-                    ok = writer.write(
-                        sh2, f"{c2}{r2}", f"=({v2:g})+({-gap:g})",
-                        prior_coord=None, trusted=True, flag="orange",
-                        note=(f"ROLL-BASE BACK-OUT: {sheet}!{r}'s typed "
-                              f"{target_year} actual {h:,.1f} defines this "
-                              f"input (only stale unknown in the roll): "
-                              f"{v2:,.1f} + {-gap:,.1f} = {solved:,.1f}. "
-                              "True up when disclosed."))
-                    if ok:
-                        log(f"[run]   roll-base back-out: {sh2}!{c2}{r2} "
-                            f"= {v2:,.1f} + {-gap:,.1f} (defined by "
-                            f"{sheet}!{r}'s typed actual)")
-            if not stale_inputs:
-                # NOTHING is stale — every component served/computed,
-                # yet the roll misses the typed actual: the model's own
-                # arithmetic lacks a flow this year (the by-hand SoC
-                # fund verdict, mechanized). Anchor the roll's largest
-                # unit-coefficient TERM to make the base reproduce the
-                # typed actual — traceable back-out, orange, component
-                # question left for the analyst. Solvability by
-                # perturbation, never assumed.
-                terms = []
-                for m in re.finditer(
-                        r"(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))?!?"
-                        r"([A-Z]{1,3})(\d+)", shifted.replace("$", "")):
-                    sh2 = (m.group(1) or m.group(2) or sheet).strip()
-                    c2, r2 = m.group(3), int(m.group(4))
-                    if sh2 not in wb.sheetnames:
-                        continue
-                    if c2 != year_columns(spec, sh2).get(str(target_year)):
-                        continue
-                    v2 = wb[sh2][f"{c2}{r2}"].value
-                    if not (isinstance(v2, str) and v2.startswith("=")):
-                        continue          # typed inputs were queue work
-                    try:
-                        e2 = Evaluator(wb).cell(sh2, f"{c2}{r2}")
-                    except Exception:
-                        continue
-                    if isinstance(e2, (int, float)):
-                        terms.append((abs(e2), sh2, c2, r2, e2, v2))
-                fired = False
-                for _a, sh2, c2, r2, e2, old_f in sorted(terms,
-                                                         reverse=True):
+                if not isinstance(got2, (int, float)):
+                    return None
+                return got2 - got
+
+            # an input the roll does not actually respond to (a dead
+            # branch, a zero weight) is not a candidate
+            live = []
+            for lf in leaves:
+                cf = _coeff(lf)
+                if isinstance(cf, (int, float)) and abs(cf) > 1e-9:
+                    live.append((lf, cf))
+            backed = False
+            if live:
+                ranked = sorted(live, key=lambda x: _conf(x[0]))
+                low = _conf(ranked[0][0])
+                cands = [x for x in live if _conf(x[0]) == low]
+                if low >= 3:
+                    log(f"[run]   roll-base: {sheet}!{r} — every input of "
+                        "the roll is proven, yet the roll misses the typed "
+                        "actual: a flow is missing from the model's own "
+                        "arithmetic — definition question for the analyst "
+                        "(no formula touched)")
+                elif len(cands) == 1:
+                    (sh2, c2, r2, v2, _pv2), coeff = cands[0]
+                    # linear in the input? a second bump must give the
+                    # same slope; then adj = -gap / slope solves exactly
                     cellu = wb[sh2][f"{c2}{r2}"]
-                    cellu.value = e2 + 1.0
+                    cellu.value = v2 + 2.0
                     scratch = f"ZZ{r}"
                     old_s = ws[scratch].value
                     ws[scratch] = shifted
                     try:
-                        got2 = Evaluator(wb).cell(sheet, scratch)
+                        got3 = Evaluator(wb).cell(sheet, scratch)
                     except Exception:
-                        got2 = None
+                        got3 = None
                     ws[scratch] = old_s
-                    cellu.value = old_f
-                    if not isinstance(got2, (int, float)):
-                        continue
-                    coeff = got2 - got
-                    if abs(abs(coeff) - 1.0) > 1e-6:
-                        continue
-                    adj = -gap if coeff > 0 else gap
-                    fc0 = [abs(x) for x in _fc_resids_of(wb, spec,
-                                                         target_year)
-                           if abs(x) > 1.0]
-                    if not fc0:
-                        break     # no forecast check failing: anchor
-                                  # nothing, the mismatch stays a flag
-                    ok = writer.write(
-                        sh2, f"{c2}{r2}", f"=({e2:g})+({adj:g})",
-                        prior_coord=None, trusted=True, flag="orange",
-                        note=(f"ROLL-BASE ANCHOR: {sheet}!{r}'s typed "
-                              f"{target_year} actual is {h:,.1f} but the "
-                              f"model's own arithmetic computes "
-                              f"{got:,.1f} — a component flow is missing "
-                              f"this year. Anchored {e2:,.1f} + "
-                              f"{adj:+,.1f} so the roll reproduces the "
-                              "disclosed closing; ANALYST to reconcile "
-                              "the components. True up when disclosed."))
-                    if ok:
-                        fc1 = [abs(x) for x in _fc_resids_of(
-                            wb, spec, target_year) if abs(x) > 1.0]
-                        if sum(fc1) > sum(fc0) - abs(gap) * 0.5:
-                            # the experiment failed: this anchor did not
-                            # repair the forecasts — undo it
-                            cellu2 = wb[sh2][f"{c2}{r2}"]
-                            cellu2.value = old_f
-                            continue
-                        fired = True
-                        log(f"[run]   roll-base anchor: {sh2}!{c2}{r2} "
-                            f"= {e2:,.1f} {adj:+,.1f} (so {sheet}!{r} "
-                            "rolls from its typed actual; forecast "
-                            f"residual mass {sum(fc0):,.0f} -> "
-                            f"{sum(fc1):,.0f})")
-                        break
+                    cellu.value = v2
+                    linear = isinstance(got3, (int, float)) \
+                        and abs((got3 - got) - 2.0 * coeff) <= 1e-6 * max(1.0, abs(coeff))
+                    if linear:
+                        adj = -gap / coeff
+                        adj = round(adj, 6)
+                        ok = writer.write(
+                            sh2, f"{c2}{r2}", f"=({v2:g})+({adj:g})",
+                            prior_coord=None, trusted=True, flag="orange",
+                            note=(f"Backed out ({adj:+,.1f}) so {sheet}!{r} "
+                                  f"reproduces the disclosed {h:,.0f}: the "
+                                  "least confident input of that roll. "
+                                  "True up when disclosed."))
+                        if ok:
+                            backed = True
+                            log(f"[run]   roll-base back-out: {sh2}!{c2}{r2} "
+                                f"= {v2:,.1f} {adj:+,.1f} (least confident "
+                                f"input; {sheet}!{r} now rolls from its "
+                                "typed actual)")
+                    if not backed:
+                        cellu.fill = writer.fills["red"]
+                        cellu.comment = Comment(
+                            (f"Least confident input of the {sheet}!{r} roll "
+                             f"(gap {gap:+,.0f}); not backed out because the "
+                             "roll is not linear in it — please check."),
+                            "Model Update Agent")
+                        if f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
+                            writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+                else:
+                    names = ", ".join(f"{x[0][0]}!{x[0][1]}{x[0][2]}" for x in cands[:6])
+                    log(f"[run]   roll-base: {sheet}!{r} — {len(cands)} inputs "
+                        f"tied at confidence {low} ({names}); flagged, none guessed")
+                    for (sh2, c2, r2, _v2, _pv2), _cf in cands:
+                        cellu = wb[sh2][f"{c2}{r2}"]
+                        cellu.fill = writer.fills["red"]
+                        cellu.comment = Comment(
+                            (f"One of {len(cands)} equally uncertain inputs "
+                             f"of the {sheet}!{r} roll is off by "
+                             f"{gap:+,.0f}; could not tell which — please "
+                             "check."), "Model Update Agent")
+                        if f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
+                            writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+            if backed:
+                # the gap is closed at its cause: the forecast row leaves
+                # the watch list (owner, run 233: "the formula is correct
+                # — why is it red?")
+                _ref = f"{sheet}!{fcs[0]}{r}"
+                writer.log["forecast_watch"] = [
+                    x for x in writer.log.get("forecast_watch", [])
+                    if x[0] != _ref]
             log(f"[run] roll-base mismatch: {sheet}!{r} actual {h:,.1f} "
-                f"vs its own roll {got:,.1f} (gap {gap:+,.1f}) — base "
-                "inputs flagged for the queue")
+                f"vs its own roll {got:,.1f} (gap {gap:+,.1f}) — "
+                + ("least confident input backed out; forecast unflagged" if backed
+                   else "inputs flagged for the analyst; no formula touched"))
     return n

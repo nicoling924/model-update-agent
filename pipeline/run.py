@@ -277,15 +277,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             fc1 = _fc(spec_d, sh, target_year)
             if not fc1:
                 continue
-            cell = wb[sh][f"{fc1[0]}{r}"]
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
-                f"COLLAPSED FORECAST: the analyst's model computed "
-                f"{was:,.1f} here; after the update it computes {now:,.1f}."
-                " An actual-column input this row consumes changed "
-                "drastically — verify that input (forecast_diff names "
-                "candidates).", "Model Update Agent")
-            writer.log["flags"].append(f"{sh}!{fc1[0]}{r}")
+            # a forecast cell is never painted (owner 2026-09-07): the
+            # row goes on the watch list; the loop traces the cause in
+            # the actual column and flags THAT
+            writer.watch(sh, f"{fc1[0]}{r}",
+                         f"forecast moved from {was:,.0f} to {now:,.0f} "
+                         "after the update")
         if cur:
             log(f"[run]   collapse guard [{stage}]: {len(cur)} forecast "
                 "rows collapsed vs the analyst's baseline — red-flagged, "
@@ -356,6 +353,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- the owner's column convention, then guarded writes
     writer = Writer(wb)
+    # the forecast columns per sheet: a law that finds a forecast cell
+    # strange watch-lists it instead of painting it (owner 2026-09-07)
+    from .checks import forecast_columns as _fcols0
+    writer.forecast_cols = {
+        sh: set(_fcols0(spec_d, sh, target_year) or ())
+        for sh in (spec_d.get("year_axis") or {}) if sh in wb.sheetnames}
     from .checks import prior_column, year_columns
     hardcode_census = {}          # sheet -> rows that arrived as hardcodes
     for sheet in (spec_d.get("year_axis") or {}):
@@ -678,7 +681,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # roll base balances the actual year and breaks every forecast year
     # by a constant. Stale base inputs are flagged into the queue.
     from .teachings import roll_base_mismatches
-    n_rb = roll_base_mismatches(wb, spec_d, target_year, writer, log)
+    n_rb = roll_base_mismatches(wb, spec_d, target_year, writer, log,
+                                served=served)
     if n_rb:
         log(f"[run] roll-base consistency: {n_rb} rows roll from bases "
             "that do not reproduce their typed actuals — base inputs "
@@ -870,7 +874,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             from .keytie import key_tie as _kt_again
             _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
                       ledger=ledger)
-        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log)
+        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
         if n_rb2:
             err_guard(f"roll-base {tag}")
             collapse_guard(f"roll-base {tag}")
@@ -902,15 +906,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             key = f"{s_sh}!{s_c}{s_r}"
             if key in verdicted:
                 continue
-            cell = wb[s_sh][f"{s_c}{s_r}"]
-            cell.fill = writer.fills["red"]
-            cell.comment = _Cmt(
-                f"SIGN-FLIP UNRESOLVED: this forecast computes {s_fv:,.1f} "
-                f"where both actual years are positive ({s_pv:,.1f} -> "
-                f"{s_tv:,.1f}). The formula is the analyst's and stays LIVE "
-                "— the cause is an actual-column input it consumes. "
-                "ANALYST REVIEW.", "Model Update Agent")
-            writer.log["flags"].append(key)
+            # never painted (owner 2026-09-07): watch-listed, the formula
+            # stays live, the cause is in the actual column
+            writer.watch(s_sh, f"{s_c}{s_r}",
+                         f"forecast flips sign: computes {s_fv:,.0f} where "
+                         f"both actual years are positive ({s_pv:,.0f} -> "
+                         f"{s_tv:,.0f})")
             writer.log.setdefault("verdicts", []).append(
                 f"{key}: SUSPICIOUS — sign-flip unresolved; the cause is in "
                 "the actual column (formula left live, red)")
@@ -1040,13 +1041,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 mass0 = mass1
                 reverted_all += reverts
                 for sh_u, coord_u, old_u, was in reverts:
+                    if writer.in_forecast(sh_u, coord_u):
+                        writer.watch(sh_u, coord_u,
+                                     f"the run's answer ({was!r}) was taken "
+                                     "back so the model could balance")
+                        continue
                     c_u = wb[sh_u][coord_u]
                     c_u.fill = writer.fills["red"]
                     c_u.comment = _Cmt(
-                        (f"GATE LOOP: the run's answer here ({was!r}) was "
-                         "taken back — with it the model could not "
-                         "balance; the repair re-ran without it. "
-                         "Candidates remain for the analyst."),
+                        (f"Taken back: the run's answer here ({was!r}) "
+                         "stopped the model balancing; kept last period's "
+                         "figure — please check."),
                         "Model Update Agent")
                     if f"{sh_u}!{coord_u}" not in writer.log["flags"]:
                         writer.log["flags"].append(f"{sh_u}!{coord_u}")
@@ -1128,7 +1133,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                               str(archive), client, str(out_path),
                               target_year=target_year,
                               extra={"documents": [d["line"] for d in documents],
-                                     "rollover": rollover})
+                                     "rollover": rollover,
+                                     "forecast_watch": list(
+                                         writer.log.get("forecast_watch", []))})
             log(f"[run] executive report: {rep['bridges']} bridges, "
                 f"{rep['refused']} refused, "
                 f"{len(rep.get('corrections', []))} corrected, sense "

@@ -19,6 +19,7 @@ import re
 AUTHOR = "Model Update Agent"
 RED = "FFC7CE"
 ORANGE = "FFC000"
+BLUE = "BDD7EE"      # frozen / held forecast input (the forecast-year colour)
 MAX_LEN = 160
 
 _SRC = re.compile(r"([A-Za-z0-9_][^()/:;]*?\.pdf)\S*\s+p(\d+)")
@@ -91,8 +92,9 @@ def plain_note(text):
     if low.startswith(("queue-documented", "card rendered with zero candidates",
                        "card-adjudicated not proven", "stale input")):
         return "Not found in the documents. Kept last period's figure."
-    if low.startswith("guard revert") or low.startswith("not confirmed"):
-        return _cut(t)
+    if low.startswith(("guard revert", "not confirmed", "backed out",
+                       "least confident", "one of ")):
+        return _cut(t)                     # already written for the analyst
     if low.startswith("embedded hardcode"):
         m = re.search(r"constant\(s\) ([\d.,\s]+?) from", t)
         consts = m.group(1).strip() if m else "last period's constants"
@@ -133,7 +135,11 @@ def plain_note(text):
         if len(ns) == 2:
             return _cut(f"The model's own residual moved from {_fmt(ns[0])} to {_fmt(ns[1])}. Check the inputs feeding its total.")
         return "The model's own residual moved sharply. Check the inputs feeding its total."
-    if low.startswith(("plug over proven value", "plug:", "plug ")):
+    if low.startswith("plug:"):
+        return _cut(t)                     # written for the analyst already
+    if low.startswith("one-off not propagated"):
+        return "Held at zero: last year's one-off is not carried into the forecast."
+    if low.startswith(("plug over proven value", "plug ")):
         m = re.search(r"residual ([\-\d,\.]+)", t)
         amt = f" {m.group(1)}" if m else ""
         return _cut(f"Plug: absorbed{amt} to close the check. Please rule.")
@@ -181,7 +187,7 @@ def hygiene(wb, author=AUTHOR, log=None):
                 if cm is None or (cm.author or "") != author:
                     continue
                 code = _fill_code(cell)
-                if code not in (RED, ORANGE):
+                if code not in (RED, ORANGE, BLUE):
                     cell.comment = None
                     stripped += 1
                     continue

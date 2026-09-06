@@ -251,21 +251,23 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                 big = abs(gap) > PLUG_RED_SHARE * ta
             except Exception:
                 pass
+        # a forecast plug is BLUE (the one forecast-year colour, owner
+        # 2026-09-07); a large one is also put on the watch list
         if writer.write(sheet, f"{col}{row}", value,
-                        prior_coord=None, trusted=True, flag="orange",
-                        note=(f"LAST-RESORT PLUG: {-gap:+,.1f} could not "
-                              "be attributed to any balance-sheet "
-                              "movement — analyst ruling needed; unwind "
-                              "when re-forecasting")):
+                        prior_coord=None, trusted=True, flag="blue",
+                        note=(f"Plug: {-gap:+,.1f} inserted so the forecast "
+                              "balances; not attributable to any balance-"
+                              "sheet movement. Unwind when re-forecasting.")):
             if big:
                 cell = ws.cell(row=row,
                                column=column_index_from_string(col))
-                cell.fill = writer.fills["red"]
                 cell.comment = Comment(
-                    f"LAST-RESORT PLUG {-gap:+,.1f} is LARGE (>10% of "
-                    "the year's asset base move) — a big plug usually "
-                    "means a mis-wired forecast line. Analyst ruling "
-                    "needed.", "Model Update Agent")
+                    f"Plug: {-gap:+,.1f} inserted so the forecast balances "
+                    "— LARGE (over 10% of the year's asset move); a big "
+                    "plug usually means a mis-wired forecast line. Your "
+                    "ruling.", "Model Update Agent")
+                writer.watch(sheet, f"{col}{row}",
+                             f"large forecast plug {-gap:+,.0f}")
             plugged.append((col, row, round(-gap, 1), big,
                             round(value - held, 6)))
             log(f"[run] forecast plug {sheet}!{col}{row}: {-gap:+,.1f}"

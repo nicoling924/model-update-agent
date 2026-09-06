@@ -902,7 +902,9 @@ def test_assumption_freeze_law():
     assert coords == {"V5"}, coords
     lines = apply_freezes(wb, plans)
     assert ws["V5"].value == 0.30                    # hardcode, not =U5
-    assert ws["V5"].fill.start_color.rgb.endswith("FFC000")
+    # frozen forecast inputs are BLUE (owner 2026-09-07): the one
+    # forecast-year colour, distinct from red / orange in the actual column
+    assert ws["V5"].fill.start_color.rgb.endswith("BDD7EE")
     assert ws["W5"].value == "=V5"                   # chain untouched
     assert ws["V7"].value == "=V6/V4"                # wiring untouched
     assert ws["V4"].value == "=U4*(1+V5)"            # level untouched
@@ -1188,7 +1190,10 @@ def test_forecast_balance_ladder():
         wb3, w3, (lambda: (lambda s, c: Evaluator(wb3).cell(s, c))),
         "Model", 6, ["V"], 3, lambda m: None)
     assert plugged3[0][3] is True
-    assert ws3["V9"].fill.start_color.rgb.endswith("FFC7CE")
+    # a forecast plug is BLUE even when large (owner 2026-09-07: forecast
+    # cells are never red); the large one is watch-listed for the desk
+    assert ws3["V9"].fill.start_color.rgb.endswith("BDD7EE")
+    assert any(ref == "Model!V9" for ref, _why in w3.log.get("forecast_watch", []))
     # a broken ACTUAL base withholds every forecast plug
     wb5, ws5 = build(10.0)
     ws5["U6"] = "=(U3+U9)-U4"
@@ -3169,6 +3174,86 @@ def test_leaf_walk_expands_sum_ranges_run232():
     leaves = set(f._leaf_inputs_ranges("D", "AI19"))
     assert set(f._leaf_inputs("D", "AI19")) == {("D", "AI20"), ("D", "AI14"), ("D", "AI18")}  # classic walk unchanged
     assert leaves == {("D", "AI20"), ("D", "AI14"), ("D", "AI15"), ("D", "AI16"), ("D", "AI17"), ("D", "AI18")}, leaves
+
+
+def test_roll_base_fixes_an_input_never_a_formula_2026_09_07():
+    """Owner ruling (run 233 review): the structure is the model's. A
+    roll-base gap is closed by backing out the LEAST confident INPUT of
+    the roll — never by overwriting the formula cell or the actual.
+    '3 inputs, 2 confident -> back out the 3rd'."""
+    import openpyxl
+    from openpyxl.styles import PatternFill
+    from pipeline.teachings import roll_base_mismatches
+    from pipeline.writer import Writer
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
+                                            "2026": "V"}}}}
+
+    def build():
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+        # row 10 = total opex: 2024 typed, 2025 typed actual (marked to
+        # disclosure), 2026 forecast computed from its three components
+        # (run 233: Final!14 = AI9 + AI12 rolled -73,746 vs typed -74,206)
+        ws["A10"] = "Total operating expenses"
+        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
+        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
+        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 300.0, "=U12"
+        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
+        return wb, ws
+    # exhibit 1 — fuel and staff are PROVEN (served, tied); 'Other' still
+    # holds last year's 20. Roll from the components: 800+300+20 = 1,120
+    # vs the typed 1,150 -> back out 'Other' by +30, touch nothing else
+    wb, ws = build()
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"},
+              ("S", 12): {"value": 300.0, "conf": 4, "note": "reconciliation: prior ties"}}
+    w = Writer(wb)
+    n = roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
+    assert n == 1, n
+    assert ws["U10"].value == 1150.0                     # the actual untouched
+    assert ws["V10"].value == "=V11+V12+V13"             # the formula untouched
+    assert ws["U11"].value == 800.0 and ws["U12"].value == 300.0   # proven inputs untouched
+    assert ws["U13"].value == "=(20)+(30)", ws["U13"].value          # the 3rd input backed out
+    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC000")
+    assert "Backed out" in ws["U13"].comment.text and len(ws["U13"].comment.text) < 130
+    # exhibit 2 — two equally uncertain inputs: flag both, guess nothing
+    wb, ws = build()
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
+    ws["U12"] = 280.0                       # staff also held at prior
+    w = Writer(wb)
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
+    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0
+    assert str(ws["U12"].fill.fgColor.rgb).endswith("FFC7CE")
+    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC7CE")
+    assert "could not tell which" in ws["U13"].comment.text
+    assert ws["V10"].value == "=V11+V12+V13"
+    # the FORECAST cell is never painted (owner 2026-09-07): the row is
+    # watch-listed, the flags sit on the actual-column inputs
+    assert not str(ws["V10"].fill.fgColor.rgb or "").endswith("FFC7CE")
+    assert ws["V10"].comment is None
+    assert any(ref == "S!V10" for ref, _why in w.log.get("forecast_watch", []))
+    # exhibit 3 — every input proven: nothing written, the row is a
+    # definition question (the old law anchored a FORMULA term here)
+    wb, ws = build()
+    ws["U13"] = 25.0
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "x"},
+              ("S", 12): {"value": 300.0, "conf": 4, "note": "x"},
+              ("S", 13): {"value": 25.0, "conf": 4, "note": "x"}}
+    w = Writer(wb)
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
+    assert ws["U11"].value == 800.0 and ws["U12"].value == 300.0 and ws["U13"].value == 25.0
+    assert ws["V10"].value == "=V11+V12+V13"
+    assert not w.log.get("written")
+    # exhibit 4 — a formula INSIDE the roll (U12 = U14, staff computed
+    # from a sub-input) is walked through to its leaf; the leaf is what
+    # gets backed out, the sub-formula stays
+    wb, ws = build()
+    ws["U12"] = "=U14"; ws["A14"] = "Staff cost build"; ws["T14"], ws["U14"] = 280.0, 280.0
+    ws["U13"] = 22.0
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "x"}}
+    w = Writer(wb)
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
+    assert ws["U12"].value == "=U14"                     # the sub-formula untouched
+    assert ws["U14"].value == "=(280)+(48)", ws["U14"].value
+    assert ws["U13"].value == 22.0
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

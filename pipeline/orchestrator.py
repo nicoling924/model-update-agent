@@ -1505,6 +1505,12 @@ class ObjectiveLoop:
         if sheet not in self.wb.sheetnames:
             return f"MISS: no sheet '{sheet}'"
         cell = self.wb[sheet][coord]
+        if self.writer.in_forecast(sheet, coord):
+            # forecast cells are never painted (owner 2026-09-07): the
+            # row is watch-listed for the analyst's desk instead
+            self.writer.watch(sheet, coord,
+                              str(args.get("why", "flagged for review")))
+            return "WATCH-LISTED (a forecast cell is never painted; the cause belongs in the actual column)"
         self.writer.log["flags"].append(f"{sheet}!{coord}")
         from openpyxl.comments import Comment
         cell.fill = self.writer.fills["red"]

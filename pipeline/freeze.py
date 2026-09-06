@@ -24,7 +24,9 @@ import re
 
 from openpyxl.utils import column_index_from_string
 
-ORANGE = "FFC000"
+ORANGE = "BDD7EE"   # frozen forecast inputs are BLUE (owner 2026-09-07):
+                    # the one forecast-year colour, distinct from red
+                    # (unsure) and orange (backed out) in the actual column
 # A1 refs, optionally sheet-qualified; group(1)=sheet or None
 _A1 = re.compile(r"(?:('?[^'!=,()*/+\-]{1,40}'?)!)?\$?([A-Z]{1,3})\$?"
                  r"([0-9]{1,5})")

@@ -1428,3 +1428,26 @@ Roll-base explained to the owner: the forecast's own roll (opening +
 movements) re-applied to last year should reproduce this year's actual;
 a gap means an input the roll uses was not updated — fix the input,
 not the actual.
+
+## 2026-09-07 — owner rulings from the run-233 review (structure, forecast colours)
+1. THE STRUCTURE IS THE MODEL'S: a roll-base gap is closed by backing
+   out the LEAST CONFIDENT INPUT of the roll (proven > orange > plain >
+   held-at-prior/red), as a traceable formula — never by overwriting the
+   formula cell or the typed actual. A tie at the bottom is flagged red
+   on the tied inputs, nothing guessed; all-proven = definition question
+   (watch-listed). Linear solve by two bumps (adj = -gap/slope).
+   FOUND: the reference regex read 'AI9' as sheet 'A' cell 'I9', so the
+   old law never saw unqualified inputs (fixed; three sites).
+2. FORECAST YEARS CARRY NO ERROR FLAG: what a law finds strange in a
+   forecast row goes on a WATCH LIST (writer.watch -> _FLAGS 'Forecast
+   rows to check'), never painted; the cause is flagged in the actual
+   column. Collapse guard, sign-flip terminal, roll-base mismatch, gate
+   take-backs and the brain's flag_cell all route through it.
+3. BLUE (BDD7EE) is the one forecast-year colour: frozen assumptions,
+   auto-probe holds, one-off holds, forecast plugs. Report: blue tier as
+   a count on page one, full list on _FLAGS.
+Replay 233: AJ column = 30 blue, 0 red/orange; AI = 65 red / 46 orange;
+4 roll-base back-outs fired (SOC Accounts!AI40 +20, Final!AI87 -11,
+HK Sales!AI17 +0.2, India!AI8 -232), 9 rows all-proven -> watch list;
+no 2024A-formula -> 2025A-hardcode structure change (0 before, 0 after).
+Cash 2025 3,928; forecast cash still the fuel-chain ruling. Museum 118.

@@ -42,6 +42,10 @@ from openpyxl.styles import PatternFill
 AUTHOR = "Model Update Agent"
 FLAG_UNCERTAIN = "FFC7CE"    # light red: uncertain / needs analyst review
 FLAG_BACKEDOUT = "FFC000"    # orange: backed-out / derived, awaiting true-up
+FLAG_FROZEN = "BDD7EE"       # light blue: a FORECAST cell the agent froze,
+                             # held or plugged (owner 2026-09-07: forecast
+                             # years carry only this colour — error and
+                             # back-out flags live in the actual column)
 BAND_RATIO = 100.0           # world-band guard: refuse >100x or <1% of prior
 
 _ARITH_FORMULA = re.compile(r"^=[\d+\-*/(). eE]+$")
@@ -165,6 +169,8 @@ class Writer:
                                end_color="FF" + FLAG_UNCERTAIN),
             "orange": PatternFill("solid", start_color="FF" + FLAG_BACKEDOUT,
                                   end_color="FF" + FLAG_BACKEDOUT),
+            "blue": PatternFill("solid", start_color="FF" + FLAG_FROZEN,
+                                end_color="FF" + FLAG_FROZEN),
         }
         self.log = {"written": [], "flags": [], "restatements": [],
                     "skipped_merged": [], "band_refused": [], "lock_refused": []}
@@ -187,6 +193,27 @@ class Writer:
             if isinstance(v, (int, float)):
                 return v
         return None
+
+    # -- FORECAST YEARS CARRY NO ERROR FLAG (owner 2026-09-07): the agent
+    # makes the model's own arithmetic and the typed actual agree, so a
+    # forecast cell has nothing to be red about. What a law finds strange
+    # in a forecast row goes on the WATCH LIST (reported, never painted);
+    # the cause it identifies is flagged where it lives — the actual
+    # column. Blue is the only forecast-year colour: frozen / held /
+    # plugged forecast inputs.
+    forecast_cols = {}          # {sheet: set(column letters)} set by the run
+
+    def in_forecast(self, sheet, coord):
+        cols = self.forecast_cols.get(sheet) or ()
+        col = "".join(ch for ch in str(coord) if ch.isalpha())
+        return col in cols
+
+    def watch(self, sheet, coord, why):
+        ref = f"{sheet}!{coord}"
+        lst = self.log.setdefault("forecast_watch", [])
+        if not any(x[0] == ref for x in lst):
+            lst.append((ref, str(why)[:200]))
+        return ref
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
               flag=None, trusted=False, force_lock=False):

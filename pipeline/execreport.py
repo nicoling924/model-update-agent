@@ -37,6 +37,7 @@ from pathlib import Path
 
 RED_FILLS = {"FFC7CE"}
 ORANGE_FILLS = {"FFC000"}
+BLUE_FILLS = {"BDD7EE"}     # frozen / held / plugged FORECAST inputs
 MAX_ROW = 300
 
 
@@ -159,13 +160,16 @@ def gather_facts(wb, pre_wb, cols=None, primary=None):
                                  max_row=min(sws.max_row, MAX_ROW)):
             for cell in row:
                 code = _fill_code(cell)
-                if code in RED_FILLS or code in ORANGE_FILLS:
+                if code in RED_FILLS or code in ORANGE_FILLS \
+                        or code in BLUE_FILLS:
                     note = ""
                     if cell.comment is not None:
                         note = str(cell.comment.text)[:200]
                     facts["flags"].append(
                         [sheet, cell.coordinate,
-                         "red" if code in RED_FILLS else "orange", note])
+                         "red" if code in RED_FILLS
+                         else "blue" if code in BLUE_FILLS else "orange",
+                         note])
     return facts
 
 
@@ -633,7 +637,9 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
     tiers = [("plugs", "Plugs — inserted to make the model tie; "
               "resolve properly", TINT_O),
              ("red", "Red — unsure, your ruling", TINT_R),
-             ("orange", "Orange — derived, not read", TINT_O)]
+             ("orange", "Orange — derived, not read", TINT_O),
+             ("frozen", "Blue — forecast inputs frozen, held or plugged "
+                        "by the agent", TINT_O)]
     attention = summary.get("attention", {})
     # THE ONE-MINUTE PAGE (owner 2026-09-04: "less cluttered, only what
     # matters to the analyst"): every plug and every red ruling on the
@@ -671,9 +677,11 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
         cell(r, 1, header, BOLD, fill)
         band(r, fill, 20)
         r += 1
-        if key == "orange":
-            cell(r, 1, f"{len(items)} derived cells (orange) — listed on the _FLAGS sheet; "
-                       "each carries its method note in the model", SMALL)
+        if key in ("orange", "frozen"):
+            cell(r, 1, (f"{len(items)} derived cells (orange) — listed on the _FLAGS sheet; "
+                        "each carries its method note in the model") if key == "orange"
+                 else (f"{len(items)} forecast cells (blue) frozen, held or plugged — "
+                       "listed on the _FLAGS sheet with their notes"), SMALL)
             r += 1
             gap(8)
             continue
@@ -696,6 +704,30 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
             r += 1
             shown += 1
         gap(8)
+    # FORECAST ROWS TO CHECK (owner 2026-09-07): forecast cells are never
+    # painted — what the run found strange in a forecast row is listed
+    # here, with its reason; the cause it identified is flagged in the
+    # actual column
+    watch = [w for w in (summary.get("forecast_watch") or [])
+             if isinstance(w, (list, tuple)) and len(w) >= 2]
+    if watch:
+        fr += 1
+        flags_ws.cell(row=fr, column=1,
+                      value="Forecast rows to check (not coloured — the cause is in the actual column)").font = BOLD
+        fr += 1
+        for ref, why in watch[:200]:
+            ref = str(ref)
+            if "!" not in ref:
+                continue
+            sheet, addr = ref.split("!", 1)
+            if sheet not in wb.sheetnames or not re.match(r"^[A-Z]{1,3}[0-9]{1,4}$", addr):
+                continue
+            q = ("'%s'" % sheet if re.search(r"[^A-Za-z0-9]", sheet) else sheet)
+            a_ = flags_ws.cell(row=fr, column=1, value='=HYPERLINK("#\'%s\'!%s","%s")' % (sheet, addr, ref))
+            a_.font = SMALL
+            flags_ws.cell(row=fr, column=2, value="=%s!%s" % (q, addr)).number_format = NUM
+            flags_ws.cell(row=fr, column=3, value=str(why)[:200]).font = SMALL
+            fr += 1
     flags_ws.column_dimensions["A"].width = 26
     flags_ws.column_dimensions["C"].width = 110
     if summary.get("other_note"):
@@ -1049,9 +1081,10 @@ def _deterministic_summary(wb, facts, primary):
                                                 f"row {k['row']}")[:40],
              "kind": _kind(k.get("name") or k.get("label"))}
             for k in keys]
-    att = {"plugs": [], "red": [], "orange": []}
+    att = {"plugs": [], "red": [], "orange": [], "frozen": []}
     for sheet, coord, colour, note in facts.get("flags", []):
-        bucket = ("plugs" if "PLUG" in str(note).upper()
+        bucket = ("frozen" if colour == "blue"
+                  else "plugs" if "PLUG" in str(note).upper()
                   else "red" if colour == "red" else "orange")
         att[bucket].append({"sheet": sheet, "cell": coord,
                             "note": str(note)[:200]})
