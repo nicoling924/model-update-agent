@@ -64,6 +64,31 @@ def _model_prior_index(wb, spec, target_year, max_row=300):
             if isinstance(v, (int, float)) and abs(v) >= 0.5:
                 homes[round(v, 1)].append((sheet, r))
                 by_row[(sheet, r)] = float(v)
+    # THE INTERIM COMPARATIVE (DFE run 236): in a half-year / quarterly
+    # run the balance sheet compares to the last YEAR-END, not to the
+    # interim prior — the model's last annual column is a second home
+    # for a printed comparative (total assets 156,365 | 142,009 ties the
+    # FY column, not the 1H column). Rows already homed by their interim
+    # prior keep that as their tolerance base.
+    for sheet, acol in (spec.get("annual_prior_axis") or {}).items():
+        if sheet not in wb.sheetnames or not acol:
+            continue
+        hdr = (spec.get("year_axis") or {}).get(sheet, {}).get("header_row")
+        ws = wb[sheet]
+        for r in range(1, min(ws.max_row, max_row) + 1):
+            if hdr and r == int(hdr):
+                continue
+            v = ws[f"{acol}{r}"].value
+            if isinstance(v, str) and v.startswith("="):
+                try:
+                    v = ev.cell(sheet, f"{acol}{r}")
+                except Exception:
+                    v = None
+            if isinstance(v, (int, float)) and abs(v) >= 0.5:
+                key = round(v, 1)
+                if (sheet, r) not in homes[key]:
+                    homes[key].append((sheet, r))
+                by_row.setdefault((sheet, r), float(v))
     return homes, by_row
 
 

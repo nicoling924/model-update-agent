@@ -3279,6 +3279,29 @@ def test_two_input_homes_same_prior_resolved_by_label_2026_09_07():
     assert _resolve(rows, wb, spec, 2025, line_label="x") == [("Raw", 221)]
 
 
+def test_interim_balance_sheet_compares_to_year_end_2026_09_07():
+    """DFE run 236 (1H25): the half-year balance sheet prints 'total
+    assets 156,365 | 142,009' — the comparative is the FY24 YEAR-END,
+    not the 1H24 column the run was tying against, so every balance-
+    sheet row read as 'not found' and was held at growth. The model's
+    last annual column is a second home for a printed comparative."""
+    from openpyxl import Workbook
+    from pipeline.reconcile import _model_prior_index
+    wb = Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["A78"] = "资产总计"; ws["T78"], ws["AS78"], ws["AT78"] = 142009.28, 131570.41, None
+    ws["A4"] = "营业总收入"; ws["T4"], ws["AS4"], ws["AT4"] = 69695.14, 33457.01, None
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "AS", "2025": "AT"}}},
+            "annual_prior_axis": {"Raw": "T"}}
+    homes, by_row = _model_prior_index(wb, spec, 2025)
+    assert homes[round(131570.41, 1)] == [("Raw", 78)]      # interim prior still homes
+    assert homes[round(142009.28, 1)] == [("Raw", 78)]      # the year-end comparative too
+    assert homes[round(69695.14, 1)] == [("Raw", 4)]
+    assert by_row[("Raw", 78)] == 131570.41                 # tolerance base = interim prior
+    # without the annual axis nothing changes
+    homes2, _ = _model_prior_index(wb, {"year_axis": spec["year_axis"]}, 2025)
+    assert round(142009.28, 1) not in homes2
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

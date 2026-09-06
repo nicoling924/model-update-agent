@@ -1508,3 +1508,19 @@ served; Model/Driver/Cons have no half-year panel the discovery reads
 (Driver's H124/H224/H125/H225E block is not a year run) and are left out.
 No quarterly panel anywhere -> a 1Q25 run refuses with 'nowhere to land'
 (guard added so Q never lands in the 1H panel). Run 236 = DFE 1H25 live.
+
+## Run 236 — 2026-09-07 night, head 0c7f8fc — DFE 1H25 DELIVERED (1 LLM call)
+The first interim run of the rebuilt agent. Both half-year reports
+identified (2024-06-30 prior / 2025-06-30 current); the 1H panel bound in
+Raw financials (AS/AT); Model, Driver, Cons, Fair Value have no half-year
+panel and were left out. 82 served (revenue 38,151, net profit 2,061,
+cash 26,342 read from the interim statements), 87 stale -> 85 held at
+growth (orange), queue 2 items. FINDING: every BALANCE-SHEET row was
+'not found' — an interim balance sheet compares to the last YEAR-END
+(total assets 156,365 | 142,009 = the FY24 column), not to the 1H24
+column the run tied against; total assets stayed at 1H24's 131,570.
+LAW: in an interim run the model's last annual column is a second home
+for a printed comparative (spec 'annual_prior_axis' -> reconciliation
+home index; museum 120). Replay pending. No quarterly panel exists in
+the DFE model -> 1Q25 not dispatched (the run would refuse: nowhere to
+land); the owner decides where quarterly figures go.

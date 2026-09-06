@@ -197,6 +197,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 f"no sheet in the model carries a {_kind0} panel for "
                 f"{target_year} — an interim update has nowhere to land; "
                 "the analyst decides where interim figures go")
+        # THE INTERIM COMPARATIVE (DFE run 236): an interim P&L / cash
+        # flow compares to the same period last year, but an interim
+        # BALANCE SHEET compares to the last YEAR-END — so the model's
+        # last annual column is a second prior the disclosure may tie.
+        # Kept beside the interim axis for the reconciliation's home index.
+        _annual_prior = {}
+        for _sh in _axis:
+            _cols = (spec_d["year_axis"].get(_sh) or {}).get("columns") or {}
+            _pc = _cols.get(str(target_year - 1))
+            if _pc and _pc != _axis[_sh]["columns"].get(str(target_year - 1)):
+                _annual_prior[_sh] = _pc
+        spec_d["annual_prior_axis"] = _annual_prior
         spec_d["year_axis"] = _axis
     model_path = _model_path(company_dir, spec_d)
     archive = company_dir / "model-archive" / f"{model_path.stem}_{period}_pre{model_path.suffix}"
