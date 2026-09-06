@@ -1562,3 +1562,17 @@ pages later). LAW (f552568): a page that ratifies against the model's
 priors keeps its face whatever the brain called it — a parent-company
 statement cannot tie consolidated priors. Museum 121. Run 239 = the
 rerun on f552568.
+
+## Run 239 — 2026-09-08, head f552568 — DFE FY25 DELIVERED (31 LLM calls)
+The cash-flow statement walked at last: 127 rows served (was 108), the
+share placement 5,236 read into Raw financials!U221. CFI -11,257 vs
+print -10,587 and CFF 5,771 vs 5,102 — one ~670 component sits in the
+financing block instead of investing (net cash change ties); both red
+for the analyst. Other keys: revenue, EPS, total assets, current assets,
+CFO, cash exact; NP / total equity = model definitions. Reclassification
+as in 235 (growth holds; RECLASS card proposed). Colours: Driver J 27
+orange / 19 red, forecast columns blue only; 0 structure changes.
+Night total: CLP 234 MET; DFE FY25 235/238/239 delivered (CF face and
+share placement fixed across the reruns); DFE 1H25 236/237 delivered
+(interim panel + year-end comparative); 1Q25 not possible (no quarterly
+panel in the model). Laws shipped tonight: 8 commits, museum 121.
