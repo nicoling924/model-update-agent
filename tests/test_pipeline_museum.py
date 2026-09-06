@@ -3302,6 +3302,40 @@ def test_interim_balance_sheet_compares_to_year_end_2026_09_07():
     assert round(142009.28, 1) not in homes2
 
 
+def test_page_that_proves_itself_is_a_face_2026_09_07():
+    """DFE run 235: the consolidated cash flow statement (PDF p101) read as
+    'cf' by its own rows and tied the prior year at one scale, but no
+    caption tagged it and the brain's page list did not resolve to it —
+    the statement was never walked. Code's own evidence adopts it."""
+    from types import SimpleNamespace as NS
+    from pipeline.docid import identify_statement_pages
+    doc = "X 2025 Annual Report.pdf"
+    def it(page, label, nums):
+        return NS(doc=doc, page=page, table_id=0, label=label, nums=nums,
+                  scale_hint=None, stmt_face=None)
+    items = [
+        it(101, "经营活动产生的现金流量净额", [2014320913.0, 10059490000.0]),
+        it(101, "投资活动产生的现金流量净额", [-10587324054.0, -2773700000.0]),
+        it(101, "筹资活动产生的现金流量净额", [5101688323.0, 1088760000.0]),
+        it(101, "吸收投资收到的现金", [5236179223.0, 110017500.0]),
+        it(150, "固定资产折旧", [854000000.0, 800000000.0]),      # a note: one tie, no face
+    ]
+    ledger = NS(items=items, faces={}, parent_pages={(doc, 101)},
+                noncurrent_docs=lambda: set())
+    priors = [10059.49, -2773.7, 1088.76, 110.02, 800.0]
+    logs = []
+    identify_statement_pages([f"/tmp/{doc}"], ledger, None, priors, logs.append)
+    assert ledger.faces.get((doc, 101)) == "cf", ledger.faces
+    assert (doc, 101) not in ledger.parent_pages
+    assert (doc, 150) not in ledger.faces                       # a note stays a note
+    assert any("adopted on their own rows" in l for l in logs), logs
+    # an already-tagged face is left alone; a banned (prior-period) doc is skipped
+    ledger2 = NS(items=items, faces={(doc, 101): "bs"}, parent_pages=set(),
+                 noncurrent_docs=lambda: {doc})
+    identify_statement_pages([f"/tmp/{doc}"], ledger2, None, priors, logs.append)
+    assert ledger2.faces[(doc, 101)] == "bs"
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

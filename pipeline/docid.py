@@ -459,11 +459,46 @@ def identify_statement_pages(paths, ledger, client, priors, log):
     used; a named page that does not ratify is refused and logged; pages
     the brain calls parent-only lose face authority. Without a brain the
     deterministic caption tagger stands (the floor)."""
+    from .stage2_join import ratify_page_scales
+    banned = set(getattr(ledger, "noncurrent_docs", lambda: set())())
+    # A PAGE THAT PROVES ITSELF IS A STATEMENT FACE (DFE run 235): the
+    # consolidated cash flow statement (PDF p101) read as 'cf' by its own
+    # rows and ratified the prior year at one scale, yet no caption had
+    # tagged it and the brain's page list did not resolve to it — so the
+    # whole statement was never walked and the share placement was
+    # missed. Code's own evidence (rows + ties) adopts such a page before
+    # the brain is asked; the brain can still add, never lose, a face.
+    from .ledger import face_from_row_labels
+    for path in paths:
+        doc = Path(path).name
+        if doc in banned:
+            continue
+        items = [it for it in ledger.items if it.doc == doc]
+        if not items:
+            continue
+        labels_by_page = {}
+        for it in items:
+            labels_by_page.setdefault(it.page, []).append(str(it.label or ""))
+        try:
+            ratified = ratify_page_scales(items, priors)
+        except Exception:
+            ratified = {}
+        promoted = []
+        for (d, pn) in ratified:
+            if ledger.faces.get((d, pn)) in ("pl", "bs", "cf"):
+                continue
+            face = face_from_row_labels(labels_by_page.get(pn) or [])
+            if face in ("pl", "bs", "cf"):
+                ledger.faces[(d, pn)] = face
+                if hasattr(ledger, "parent_pages"):
+                    ledger.parent_pages.discard((d, pn))
+                promoted.append(f"p{pn}={face}")
+        if promoted:
+            log(f"[run] statement pages ({doc}): {len(promoted)} page(s) adopted "
+                f"on their own rows + prior-year ties: {promoted[:8]}")
     if client is None:
         return {}
     from .stage1_read import page_texts
-    from .stage2_join import ratify_page_scales
-    banned = set(getattr(ledger, "noncurrent_docs", lambda: set())())
     out = {}
     for path in paths:
         doc = Path(path).name
