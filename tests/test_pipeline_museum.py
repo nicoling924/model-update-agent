@@ -3256,6 +3256,29 @@ def test_roll_base_fixes_an_input_never_a_formula_2026_09_07():
     assert ws["U13"].value == 22.0
 
 
+def test_two_input_homes_same_prior_resolved_by_label_2026_09_07():
+    """DFE run 235: 'cash received from investors' (5,236 this year) and
+    its 'of which: from minority investors' sub-line (124) both printed
+    110.0 last year; two input homes for one prior, so the reconciliation
+    refused the line and the parent was held at growth (share placement
+    missed, financing cash flow key off 4,443). The disclosure line's
+    LABEL tells the homes apart: equal label wins, else unique kinship."""
+    from openpyxl import Workbook
+    from pipeline.reconcile import _resolve
+    wb = Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["A221"] = "    吸收投资收到的现金";        ws["T221"], ws["U221"] = 110.02, 110.02
+    ws["A222"] = "    其中：子公司吸收少数股东投资收到的现金"; ws["T222"], ws["U222"] = 110.02, 110.02
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}}}}
+    rows = [("Raw", 221), ("Raw", 222)]
+    assert _resolve(rows, wb, spec, 2025) == rows                       # no label: unresolved
+    assert _resolve(rows, wb, spec, 2025, line_label="吸收投资收到的现金") == [("Raw", 221)]
+    assert _resolve(rows, wb, spec, 2025, line_label="其中：子公司吸收少数股东投资收到的现金") == [("Raw", 222)]
+    assert _resolve(rows, wb, spec, 2025, line_label="经营活动现金流入") == rows   # unrelated label: unresolved
+    # a formula twin still resolves to the one input home, label or not
+    ws["U222"] = "=U221"
+    assert _resolve(rows, wb, spec, 2025, line_label="x") == [("Raw", 221)]
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

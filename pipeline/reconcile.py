@@ -67,11 +67,18 @@ def _model_prior_index(wb, spec, target_year, max_row=300):
     return homes, by_row
 
 
-def _resolve(rows, wb, spec, target_year):
+def _resolve(rows, wb, spec, target_year, line_label=None):
     """Multi-home priors (a D&A figure living on Driver AND SOC as
     linked twins) are resolvable when exactly ONE home is an INPUT cell
     in the target column — the formula twins just read it. Serving the
-    input home serves them all."""
+    input home serves them all.
+
+    Two INPUT homes with the same prior (DFE run 235: 'cash received from
+    investors' 110.0 and its 'of which: from minority investors' sub-line
+    110.0 — the parent and the child printed the same last year) are
+    told apart by the LABEL the disclosure line carries: the home whose
+    label equals the line's wins; failing that, the only home whose
+    label is kin to it. No label evidence -> unresolved, as before."""
     if len(rows) <= 1:
         return rows
     inputs = []
@@ -82,7 +89,26 @@ def _resolve(rows, wb, spec, target_year):
         v = wb[sheet][f"{col}{r}"].value
         if not (isinstance(v, str) and v.startswith("=")):
             inputs.append((sheet, r))
-    return inputs if len(inputs) == 1 else rows
+    if len(inputs) == 1:
+        return inputs
+    if len(inputs) > 1 and line_label:
+        from .numerics import kinship, norm_label
+
+        def _lab(sheet, r):
+            for c in range(1, 7):
+                v = wb[sheet].cell(r, c).value
+                if isinstance(v, str) and v.strip():
+                    return v
+            return ""
+        want = norm_label(str(line_label)).replace(" ", "")
+        exact = [h for h in inputs
+                 if want and norm_label(_lab(*h)).replace(" ", "") == want]
+        if len(exact) == 1:
+            return exact
+        kin = [h for h in inputs if kinship(str(line_label), _lab(*h))]
+        if len(kin) == 1:
+            return kin
+    return rows
 
 
 WIDE_ROW = 4        # numbers on a line at/above which it is not a statement line
@@ -169,11 +195,11 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
             hit = None
             for cur, pv in _pairs(it.nums, s):
                 rows = _resolve(homes.get(round(pv, 1), []), wb, spec,
-                                target_year)
+                                target_year, line_label=it.label)
                 if len(rows) != 1:
                     # sign-flipped storage: model may hold the negative
                     rows = _resolve(homes.get(round(-pv, 1), []), wb, spec,
-                                    target_year)
+                                    target_year, line_label=it.label)
                     if len(rows) != 1:
                         continue
                     cur = -cur

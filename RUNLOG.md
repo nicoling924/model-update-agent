@@ -1471,3 +1471,40 @@ the fuel chain (owner: leave it to the agent, no ruling); cash 2026
 2,556 vs key 5,277 (positive, no longer collapsed). Recurring NP still
 10,374 vs 10,909 (one-offs bridge). Verdict vs the owner's three
 objectives + today's rules: MET. Next: DFE FY25 on the same head.
+
+## Run 235 — 2026-09-07 night, head 83bc3b2 — DFE FY25 DELIVERED (first gate, 29 LLM calls)
+Documents identified (2024 AR = prior, 2025 AR = current), 11 key rows
+named by the brain and verified. Balance every year. Panel keys 6/10:
+revenue, EPS, total assets, total current assets, CFO, cash exact; net
+profit (4,012 after tax vs 3,831 attributable) and total equity (45,234
+ex-NCI vs 48,168) are the model's own definitions (the by-hand key holds
+the same); CFI -6,151 vs -10,587 and CFF 659 vs 5,102 are REAL misses,
+both red. CFF root cause: 'cash received from investors' (the A+H share
+placement, 5,236) and its 'of which: minority investors' sub-line (124)
+both printed 110.0 last year -> two input homes for one prior -> the
+reconciliation refused the line -> tier-3 held the parent at growth
+(124). LAW: two input homes with one prior are told apart by the
+disclosure line's LABEL (equal wins, else unique kinship) — museum 119.
+CFI: the investing components (investment purchases/receipts) mapped to
+other lines; not fixed tonight.
+RECLASSIFICATION (the owner's check): the recipe fired as taught —
+Driver rows 6,7,11,12 and 39,44,45 held at the total's growth (orange),
+residual into the designed plug rows 13/46. BUT the 2025 AR prints the
+segments under the NEW cut with restated 2024 comparatives (p207: 煤电
+24,491.6/20,257.1; 水电 3,902.8/2,854.1; 气电 5,627.6/7,110.3; 风电
+18,224.2/12,288.0; 新兴产业 7,708.8/6,643.7 — restated priors that no
+longer tie the model's). The by-hand restated the prior column and
+mapped the currents; the agent's growth-holds put 21,492 into 'Others'
+(by-hand 13,896) and the mix drives 2026 NP 3,421 vs the by-hand 5,013
+(-32%). PROPOSAL for the owner (not built — 'less change'): a RECLASS
+card — the brain maps each held segment to a row of the disclosure's
+segment table (cross-script), code verifies both years' totals and
+restates the prior column with a logged restatement.
+Structure: 0 rows where a 2024A formula became a 2025A hardcode; notes
+plain; forecast columns carry no red/orange.
+Interim: DFE 1H25 FLOOR (offline, real documents) DELIVERED — both
+half-year reports identified, Raw financials 1H panel bound (AS/AT), 85
+served; Model/Driver/Cons have no half-year panel the discovery reads
+(Driver's H124/H224/H125/H225E block is not a year run) and are left out.
+No quarterly panel anywhere -> a 1Q25 run refuses with 'nowhere to land'
+(guard added so Q never lands in the 1H panel). Run 236 = DFE 1H25 live.

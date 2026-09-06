@@ -173,6 +173,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if _sh not in _wb0.sheetnames:
                 continue
             _ax = _fya(_wb0[_sh], _kind0)
+            # the panel found must be of the period's own kind: a quarterly
+            # update must not land in a half-year panel (the discovery
+            # scores 'interim' without telling H from Q) — the header
+            # marks decide (Q/季 vs H/半年/06-30)
+            if _ax and _kind0 == "Q":
+                _hdr = " ".join(
+                    str(c.value) for row in _wb0[_sh].iter_rows(min_row=1, max_row=6)
+                    for c in row if c.column_letter in set(_ax.values())
+                    and c.value is not None)
+                if not re.search(r"[1-4]Q|Q[1-4]|季|-03-|-09-", _hdr):
+                    _ax = None
             if _ax and str(target_year) in _ax and str(target_year - 1) in _ax:
                 _axis[_sh] = dict(spec_d["year_axis"][_sh], columns=_ax)
                 log(f"[run] interim panel: {_sh} {_kind0} columns "
