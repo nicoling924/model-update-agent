@@ -1380,3 +1380,31 @@ Replay 232 now: CN!AI9 held -840 red (no longer -5,727), 'Others' -251,
 D&A 2026 -8,991 (key -9,730), cash 2025 3,928, 2026 -652 (was -3,184),
 2027 -6,714 (key 648) — the remaining gap is the fuel-clause/fuel-mix
 forecast chain (assumption freeze ruling). DFE floor delivers.
+
+## Run 233 — 2026-09-06, head ba27bb3 — DELIVERED (first gate, 40 min, 60 LLM calls)
+Balance every year; keys vs the pinned panel: revenue, operating profit
+(14,272 print), net profit, EPS, total equity, total assets, L+E, CFI
+exact; recurring NP 10,374 vs 10,909 (one-offs bridge, red); cash 2025
+WRONG — held at last year's 4,999 (key 3,928). Reading step: 4 docs
+identified, company verified, 17 statement pages ratified, 8 key rows
+named by the brain and verified. Rollover: 23 cards; Luna reverted
+Aus!AI14 -> -425 (key -476) and India!AI22 -> 85 (key 140), both red.
+Forecast: 88 of 217 rows off >5% vs the by-hand key, the fuel-clause /
+fuel-mix chain (gas 174k TJ vs 148k; fuel cost -20.8k vs -17.3k) —
+awaiting the owner's freeze-vs-rebase ruling; cash 2026 4,013 vs 5,277.
+CASH AUTOPSY (the fifth form of the cash fault): the constants law wrote
+Final!AI57 '=4976+23' -> '=3905+23' correctly; the ROLLOVER card for
+Driver!100 ('Cash') OFFERED it as revert:B because the composite read as
+unproven — the '+23' (the analyst's own carried adjustment) matched no
+proven figure — and Luna took it (run 232 answered 'justified' on the
+same card). LAW: A REWRITE IS PROVEN BY WHAT IT CHANGED — with the old
+formula in hand only the changed literals need proof; the machinery's
+own 'COMPOSITE REWRITE (constants law)' note is the same proof. Museum
+115 (exhibit 2c'). Faithful replay of 233: pre-fix reproduces the revert
+(cash 4,999); fixed code -> not_sure, cash 2025 3,928, delivered.
+Also: the report's snapshot unit label now reads the model's spec
+('HK$ millions'), not the DFE 'RMB mn' literal.
+Replay note: the replay's rollover card SET differs from live (30 vs 23
+cards on different rows) because the pinned serves land in one pass and
+the collapse guard fires differently (ROAFNA!AI71 restored to -1050 in
+the replay; live's 0 matches the key). End states differ in 3 cells only.

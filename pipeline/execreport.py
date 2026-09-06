@@ -456,7 +456,7 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
     # (owner 2026-09-04: no rollover table on the page — the mini P&L
     # old-vs-new already shows the forecast path; the check's verdicts
     # live in the flags and the log)
-    sect("1 · Key number snapshot   (RMB mn)")
+    sect(f"1 · Key number snapshot   ({summary.get('units') or 'model units'})")
     hdr = ["", "FY prior A", "FY actual A", "YoY", "Your estimate",
            "A vs E", "Next yr before", "Next yr after"]
     for i, h in enumerate(hdr):
@@ -1149,6 +1149,13 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
         summary["skipped_note"] = (
             (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
              + "; ".join(r["bridge"] or "?" for r in refusals)).strip())
+    # the snapshot's unit label is the model's own (run-233: the page said
+    # 'RMB mn' on a HK$ model — a DFE literal left in the furniture)
+    try:
+        from .spec import load as _spec_load
+        summary["units"] = str(_spec_load(company_dir, wb).get("units") or "")
+    except Exception:
+        summary["units"] = ""
     render(wb, summary, pre_wb=pre_wb, cols=cols, primary=primary)
     out = Path(out_path) if out_path else Path(model_path).with_name(
         Path(model_path).stem + " (Luna REPORT).xlsx")

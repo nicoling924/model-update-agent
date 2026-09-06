@@ -1456,7 +1456,8 @@ class ObjectiveLoop:
         # PROVEN IS PROTECTED (run-229 autopsy): a proven actual is never
         # reverted to an estimate to fix a downstream oddity
         from .rollover import input_is_proven
-        if input_is_proven(self.served, sheet, f"{col}{row}", cur, (), self.wb):
+        if input_is_proven(self.served, sheet, f"{col}{row}", cur, (), self.wb,
+                           old=old):
             return (f"REFUSED: {ref} is a PROVEN actual (its evidence ties the "
                     "prior) — never reverted; if the forecast is wrong, its own "
                     "driver or a frozen assumption is stale: flag the forecast "

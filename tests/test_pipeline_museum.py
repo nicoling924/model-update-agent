@@ -2873,6 +2873,27 @@ def test_rollover_investigation_owner_teaching_2026_09_03():
     assert not input_is_proven(served, "F", "AI21", "=+-1860+999")
     assert not input_is_proven(served, "F", "AI21", "=AI9-AI10")     # refs: not a composite
     assert not input_is_proven(served, "F", "AI21", "=+-1860+194", flags=["F!AI21"])
+    # exhibit 2c' — PROVEN BY WHAT IT CHANGED (run-233 live: cash
+    # '=4976+23' -> '=3905+23'; 3,905 is the printed year-end cash, the
+    # '+23' the analyst's carried adjustment. The '+23' matched no proven
+    # figure, the composite read as unproven, the rollover card offered
+    # it as 'revert:B' and Luna took it — cash held at last year's 4,999).
+    # With the old formula in hand only the CHANGED literal needs proof.
+    served = {("D", 100): {"value": 3905.0, "conf": 4, "note": "reconciliation: prior ties"}}
+    assert input_is_proven(served, "F", "AI57", "=3905+23", old="=4976+23")
+    assert not input_is_proven(served, "F", "AI57", "=3905+23")            # no old: '+23' unproven
+    assert not input_is_proven(served, "F", "AI57", "=3999+23", old="=4976+23")  # changed literal unproven
+    assert not input_is_proven({}, "F", "AI57", "=3905+23", old="=4976+23")     # nothing proven at all
+    # the machinery's own rewrite note is the same proof (the constants
+    # law tied every literal before the write landed)
+    from openpyxl import Workbook as _WB
+    from openpyxl.comments import Comment as _Cm
+    _w = _WB(); _ws = _w.active; _ws.title = "F"
+    _ws["AI57"] = "=3905+23"
+    _ws["AI57"].comment = _Cm("COMPOSITE REWRITE (constants law): was =4976+23 = stale prior", "agent")
+    assert input_is_proven({}, "F", "AI57", "=3905+23", wb=_w)
+    _ws["AI57"].comment = _Cm("objective loop: reverted", "agent")
+    assert not input_is_proven({}, "F", "AI57", "=3905+23", wb=_w)
     # exhibit 2d — THE RESIDUAL DISCOUNT (run-229: net financial costs =
     # segments + an 'Others' residual that rolls forward; reverting the
     # total's composite "recovered the swing" through the residual while

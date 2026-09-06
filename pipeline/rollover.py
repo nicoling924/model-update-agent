@@ -142,13 +142,22 @@ def rollover_anomalies(wb, spec, target_year, base, cap=12, key_rows=()):
     return out[:cap]
 
 
-def input_is_proven(served, sheet, coord, value, flags=(), wb=None):
+def input_is_proven(served, sheet, coord, value, flags=(), wb=None, old=None):
     """PROVEN IS PROTECTED, for any input cell:
     - a served cell whose evidence tied the prior and landed clean; or
     - a constants composite (=-1860+194) whose EVERY literal equals a
       proven served figure (the machinery's rewrite from proven
       components — run-229: net finance costs had no serve record of
-      its own and was reverted to last year's composite)."""
+      its own and was reverted to last year's composite); or
+    - a rewrite PROVEN BY WHAT IT CHANGED (run-233 autopsy): cash
+      '=4976+23' became '=3905+23' — 3,905 is the printed year-end cash,
+      the '+23' is the analyst's own carried adjustment. A carried
+      literal needs no proof; only the literals the update CHANGED do.
+      With the old formula in hand, the test is on the changed literals
+      alone (the '+23' cannot be what the rollover reverts anyway). The
+      machinery's own rewrite note ('COMPOSITE REWRITE (constants law)')
+      is the same proof: each literal was tied to its comparative and
+      replaced by the current figure before the write landed."""
     import re as _re
     from .writegate import is_proven
     ref = f"{sheet}!{coord}"
@@ -176,6 +185,26 @@ def input_is_proven(served, sheet, coord, value, flags=(), wb=None):
         lits = [float(x) for x in _re.findall(r"\d+(?:\.\d+)?", value)]
         if not lits:
             return False
+        if wb is not None:
+            try:
+                note = str(getattr(wb[sheet][coord].comment, "text", "") or "")
+                if "COMPOSITE REWRITE (constants law)" in note:
+                    return True
+            except Exception:
+                pass
+        if isinstance(old, str) and old.startswith("=") \
+                and not _re.search(r"[A-Z]{1,3}\d+", old.replace("$", "")):
+            carried = [float(x) for x in _re.findall(r"\d+(?:\.\d+)?", old)]
+            changed = []
+            for l in lits:
+                hit = next((i for i, cv in enumerate(carried)
+                            if abs(cv - l) <= 1e-9), None)
+                if hit is None:
+                    changed.append(l)
+                else:
+                    carried.pop(hit)
+            if changed:
+                lits = changed
         proven_vals = [abs(float(v["value"])) for v in (served or {}).values()
                        if isinstance(v, dict) and is_proven(v)
                        and isinstance(v.get("value"), (int, float))]
@@ -273,7 +302,7 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
         e = (served or {}).get((s, rr)) if rr is not None else None
         if isinstance(e, dict):
             prov = (str(e.get("note") or e.get("line") or "")[:70])
-        proven = input_is_proven(served, s, c, cur, (), wb)
+        proven = input_is_proven(served, s, c, cur, (), wb, old=old)
         cands.append({"sheet": s, "coord": c, "old": old, "cur": cur,
                       "share": share, "share_x": share_x,
                       "via_residual": bool(residuals) and abs(share - share_x) > 0.15,
