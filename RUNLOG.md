@@ -1524,3 +1524,19 @@ for a printed comparative (spec 'annual_prior_axis' -> reconciliation
 home index; museum 120). Replay pending. No quarterly panel exists in
 the DFE model -> 1Q25 not dispatched (the run would refuse: nowhere to
 land); the owner decides where quarterly figures go.
+
+## 2026-09-08 small hours — the DFE annual's cash-flow statement was never walked
+Replay of 235 with the label tie-break alone changed nothing: the
+consolidated cash flow statement (PDF p101) was not a statement FACE —
+no caption tagged it, the brain's page list did not resolve to it — so
+the reconciliation never walked it; only the bound-table join touched
+its lines. LAW: a page that proves itself (its own rows read as a
+statement AND it ties the prior year at one scale) is adopted as a face
+before the brain is asked (museum 121). Replay 235 on 41419bf: p101=cf
+adopted, 127 rows served (was 108), the share placement 5,236 read,
+CFF 5,695 vs print 5,102 and CFI -11,192 vs -10,587 (both red; the net
+change in cash ties the by-hand to 0.4 — the remainder is component
+shifts between borrowing/repayment and investment lines). Also adopted
+p5=pl (the highlights table reads as a P&L by its rows) — watch for
+one-home conflicts. 2026 forecast unchanged: the reclassification
+mapping (see the RECLASS proposal) drives the NP gap.
