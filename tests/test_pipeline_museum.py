@@ -3334,6 +3334,27 @@ def test_page_that_proves_itself_is_a_face_2026_09_07():
                  noncurrent_docs=lambda: {doc})
     identify_statement_pages([f"/tmp/{doc}"], ledger2, None, priors, logs.append)
     assert ledger2.faces[(doc, 101)] == "bs"
+    # exhibit 2 — CODE OUTRANKS THE NAME (run 238): the brain, naming
+    # printed page numbers, called PDF p101 'parent-company only'; the
+    # page ratifies against consolidated priors, so it keeps its face
+    import pipeline.docid as _docid
+    import pipeline.stage1_read as _s1
+    _orig = _s1.page_texts
+    _s1.page_texts = lambda path: [(1, "目录 财务报告 第87页", "text")]
+    class _Client:
+        def json(self, system, user, validate, repair_retries=1):
+            return {"pl": [], "bs": [], "cf": [], "segment": [],
+                    "parent_only": [101, 150], "why": "printed numbers"}
+    ledger3 = NS(items=items, faces={(doc, 101): "cf"}, parent_pages=set(),
+                 noncurrent_docs=lambda: set())
+    try:
+        out = identify_statement_pages([f"/tmp/{doc}"], ledger3, _Client(), priors, logs.append)
+    finally:
+        _s1.page_texts = _orig
+    assert ledger3.faces.get((doc, 101)) == "cf", ledger3.faces
+    assert (doc, 101) not in ledger3.parent_pages
+    assert (doc, 150) in ledger3.parent_pages                    # a note page may be parent-only
+    assert any("parent-only refused" in r for r in out[doc]["refused"]), out
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

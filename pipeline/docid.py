@@ -569,6 +569,17 @@ def identify_statement_pages(paths, ledger, client, priors, log):
                 ledger.faces.setdefault((doc, q), "segment")
                 adopted.append(f"p{q}=segment")
         for pn in obj.get("parent_only") or []:
+            # CODE OUTRANKS THE NAME (DFE run 238): the brain names
+            # parent-company pages in PRINTED numbers; PDF p101 — the
+            # consolidated cash flow statement, self-identified and tied
+            # to the model's priors at one scale — was deleted as
+            # 'parent-only' and never walked. A parent-company statement
+            # cannot ratify against consolidated priors, so a page that
+            # ratifies is kept whatever it was called.
+            if (doc, pn) in ratified and self_face(pn) in ("pl", "bs", "cf"):
+                refused.append(f"p{pn}=parent-only refused (the page ties the "
+                               "model's prior year at one scale: consolidated)")
+                continue
             if ledger.faces.get((doc, pn)) in ("pl", "bs", "cf"):
                 del ledger.faces[(doc, pn)]
             ledger.parent_pages.add((doc, pn))
