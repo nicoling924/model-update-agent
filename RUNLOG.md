@@ -1723,3 +1723,16 @@ the half-year prior, not the year-end comparative a balance sheet
 prints — both fixed. Verdict on the H1: on the printed statements Luna
 is at 117/121 before the fix and every headline is right; the holds are
 Wind-only rows.
+
+## 2026-09-08 — a blank line under a different label is the brain's call
+Owner: the generic map is number first, label to confirm, then this
+year's figure — and a blank is 0; and where the label differs (Wind's
+'bond issuance' for the printed 'other cash received relating to
+financing') the LLM judges the MEANING, not a table or page rule. Built
+that way: a literal label match lands the 0 by code; a differently named
+one-number line that prints the row's prior is offered on the SERVE card
+worth 0 ('blank this year — 0 if the same item'); the brain's answer
+lands as a proven read (code's proof = the prior tie). The two-column
+table test and every page-type gate on blanks are gone. Museum 124;
+bench green; both true-base floors deliver (floors have no brain, so the
+Wind-named bond line stays held there — the live brain decides it).

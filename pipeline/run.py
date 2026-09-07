@@ -670,11 +670,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             import re as _re
             if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
                 continue                # a subtotal is never nil-proven
-            _true_faces = {(d_, p_) for (d_, p_), k_ in
-                           (getattr(ledger, "faces", {}) or {}).items()
-                           if k_ in ("pl", "bs", "cf")}
             it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs,
-                                   statement_faces=_true_faces)
+                                   row_label=lab)
                   if isinstance(pv, (int, float)) else None)
             # an interim balance sheet prints the YEAR-END comparative:
             # the annual prior is the second figure a nil may sit beside
@@ -683,7 +680,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 _apv = wb[sheet][f"{_acol}{r}"].value if _acol else None
                 if isinstance(_apv, (int, float)) and abs(_apv) >= 0.5:
                     it = nil_current_zero(ledger.items, _apv, face_pages, banned_docs,
-                                          statement_faces=_true_faces)
+                                          row_label=lab)
             if it is not None:
                 log(f"[run]   0 means 0: {ref} — prior {pv:,.2f} printed with a "
                     f"blank/nil current slot ({it.doc} p{it.page} "

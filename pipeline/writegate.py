@@ -36,8 +36,10 @@ def _nums(item):
 
 
 def _meta(item, field, default=None):
-    return (getattr(item, field, default) if hasattr(item, field)
-            else item.get(field, default))
+    """Field of a ledger item — a LedgerItem, a plain object, or a dict."""
+    if isinstance(item, dict):
+        return item.get(field, default)
+    return getattr(item, field, default)
 
 
 def _close(a, b, tol=_TOL):
@@ -202,7 +204,7 @@ _NIL_TOKENS = {"-", "–", "—", "―", "/", "不适用"}
 
 
 def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
-                     statement_faces=None):
+                     statement_faces=None, row_label=None):
     """The dash-nil law (run-11 pin, treasury shares): a statement line
     printing a standalone nil mark IMMEDIATELY before a number that ties
     the model's prior to full precision proves the current value is zero
@@ -249,14 +251,16 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
         # ('0' / '0.00' | 593,536,697.59) is nil the same way
         if len(nums) == 2 and nums[0] == 0:
             nums = [nums[1]]
-        # the blank-cell reading is positional, so it is trusted ONLY on a
-        # registered statement face (pl/bs/cf) — a note page (a related-
-        # party purchase list, DFE p239) printing one number that happens
-        # to equal a prior proves nothing (the true-base floor zeroed
-        # 'service charge and others' from exactly such a line)
-        on_statement = (statement_faces is None
-                        or (_meta(it, "doc"), _meta(it, "page")) in statement_faces)
-        if len(nums) == 1 and on_statement:
+        # THE GENERIC MAP (owner 2026-09-08): tie last year's number, confirm
+        # the LABEL, then read this year — and a blank this year is 0,
+        # anywhere in the report. The label check is what stops a
+        # related-party purchase line (DFE p239) whose one number equals
+        # a prior from zeroing 'service charge and others'; no page rule.
+        if len(nums) == 1 and row_label is not None:
+            from .numerics import kinship
+            if not kinship(str(row_label), str(_meta(it, "label", ""))):
+                nums = []            # a differently named line is the brain's call (serve card)
+        if len(nums) == 1:
             v = abs(nums[0])          # sign-blind: '-8,485,403.24' is the prior -8.49
             digits = re.sub(r"[^0-9]", "", ("%.2f" % v).rstrip("0").rstrip("."))
             if len(digits.lstrip("0")) >= 4:

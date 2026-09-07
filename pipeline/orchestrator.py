@@ -1389,6 +1389,19 @@ class ObjectiveLoop:
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
             claimed_keys(self.served), holders)
+        if args.get("nil") and value == 0 and isinstance(pv_cell, (int, float)):
+            # THE BRAIN JUDGED A BLANK LINE THE SAME ITEM (owner 2026-09-08):
+            # code's part is the prior tie — the line must print last
+            # year's figure exactly; then 0 is a read, proven, plain
+            from .writegate import nil_current_zero as _ncz
+            _hit = _ncz(self.ledger.items, pv_cell, None,
+                        self.ledger.noncurrent_docs())
+            if _hit is not None:
+                verdict, forced_flag = "ALLOW", None
+                law_reason = "proven — the blank line's one figure is the prior"
+            else:
+                return ("REFUSED by the evidence law: no line prints this row's "
+                        f"prior {pv_cell:,.2f} with a blank current figure")
         if verdict == "REFUSE" and args.get("card") == "component" \
                 and "already holds a PROVEN value" in law_reason \
                 and args.get("check"):

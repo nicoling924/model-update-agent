@@ -3460,56 +3460,49 @@ def test_blank_current_cell_is_nil_2026_09_08():
     note_line = NS(doc=doc, page=239, label="宏华海洋油气装备(江苏)有限公司 购买商品",
                    nums=[88357200.0], source_line="宏华海洋油气装备(江苏)有限公司 购买商品 88 357 200.00",
                    stmt_face=None, scale_hint=None)
+    # the label decides, anywhere in the report (owner 2026-09-08): a
+    # related-party purchase line is not 'service charge and others'
     assert nil_current_zero([note_line], -88.3572, faces | {(doc, 239)}, set(),
-                            statement_faces={(doc, 101)}) is None
-    assert nil_current_zero([blank], 593.54, faces, set(), statement_faces={(doc, 101)}) is blank
-    assert nil_current_zero([slash], 593.54, faces, set()) is slash            # '/' -> nil
+                            row_label="Service charge and others") is None
+    assert nil_current_zero([blank], 593.54, faces, set(),
+                            row_label="收到其他与筹资活动有关的现金") is blank
+    # Wind's own name for the line (no label kin): not code's call — the
+    # blank line goes to the brain as a serve-card candidate worth 0
+    assert nil_current_zero([blank], 593.54, faces, set(),
+                            row_label="发行债券收到的现金") is None
 
 
-def test_two_readings_brain_judges_check_verifies_2026_09_08():
-    """Owner (run 244): with two proven-grade readings for one cell the
-    agent holds both and JUDGES — that is what the brain is for. The
-    component card shows the second printed line and what it does to the
-    check; the brain's choice lands only if the check really improves,
-    RED, with both readings in the note. Without the card, or when the
-    check does not improve, the proven value stays."""
+
+def test_blank_line_judged_by_meaning_2026_09_08():
+    """Owner: 'bond financing is financing — the LLM should reason on the
+    meaning, not a table rule.' A line printing last year's figure and a
+    blank this year, under a DIFFERENT label from the model row, is not
+    code's call: it is offered on the serve card worth 0 (the prior tie is
+    code's proof); the brain's 'serve' lands as a proven read."""
     import openpyxl
     from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
     from pipeline.writer import Writer
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "M"
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
     ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-    ws["A8"] = "Service charge and others"
-    ws["T5"], ws["U5"] = 1000.0, 1100.0
-    ws["T8"], ws["U8"] = 500.0, 0.0            # 'proven' 0 from a nil coincidence
-    ws["U10"] = "=U5+U8-1800"                   # check: -700 with U8 = 0, 0 with U8 = 700
-    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}},
-            "check_rows": [{"sheet": "M", "row": 10, "expect": 0}]}
-    led = _ledger([_item(95, 1, "手续费及其他", [700.0, 480.0])],      # comparative 480 != prior 500
-                  face_pages=((95, "pl"),))
-    served = {("M", 8): {"value": 0.0, "doc": "ar.pdf", "page": 239, "conf": 4,
-                         "line": "宏华 购买商品", "note": "reconciliation: printed nil"}}
-    loop = ObjectiveLoop(wb, spec, 2025, led, [], served, Writer(wb), None)
-    # no card: the evidence law holds (a proven number is never moved to fix a check)
-    r0 = loop.t_set_input({"cell": "M!U8", "value": 700.0, "why": "p95 手续费及其他"})
-    assert str(r0).startswith("REFUSED") and "PROVEN" in str(r0), r0
-    assert ws["U8"].value == 0.0
-    # the brain's component-card choice: the check closes -> lands RED, both readings noted
-    r1 = loop.t_set_input({"cell": "M!U8", "value": 700.0, "card": "component",
-                           "check": "M!10", "why": "p95 手续费及其他 — component card"})
-    assert str(r1).startswith("WRITTEN"), r1
-    assert ws["U8"].value == 700.0
-    assert str(ws["U8"].fill.fgColor.rgb).endswith("FFC7CE")
-    assert "TWO READINGS" in ws["U8"].comment.text and "held 0.0" in ws["U8"].comment.text
-    assert loop.served[("M", 8)]["conf"] == 3 and loop.served[("M", 8)]["flag"] == "red"
-    # a choice that does NOT improve the check is still refused
-    ws["U8"] = 0.0
-    loop.served[("M", 8)] = dict(served[("M", 8)])
-    led2 = _ledger([_item(95, 1, "手续费及其他", [1600.0, 480.0])], face_pages=((95, "pl"),))
-    loop2 = ObjectiveLoop(wb, spec, 2025, led2, [], loop.served, Writer(wb), None)
-    r2 = loop2.t_set_input({"cell": "M!U8", "value": 1600.0, "card": "component",
-                            "check": "M!10", "why": "p95"})      # check -700 -> +900: worse
+    ws["A225"] = "发行债券收到的现金"; ws["T225"], ws["U225"] = 593.54, 593.54
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    blank = _item(101, 7, "收到其他与筹资活动有关的现金 五（六十八）", [593536697.59], stmt_face="cf")
+    led = _ledger(_anchors(101, 1e6) + [blank], face_pages=((101, "cf"),))
+    targets = _anchor_targets() + [TargetRow("Raw", 225, "发行债券收到的现金", 593.54)]
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
+    cands = candidates_for(loop, "Raw", 225)
+    nil = [c for c in cands if c.get("nil")]
+    assert nil and nil[0]["value"] == 0.0 and "BLANK" in nil[0]["warnings"][0], cands
+    # the brain says 'same item' -> 0 lands as a proven read, plain
+    r = loop.t_set_input({"cell": "Raw!U225", "value": 0.0, "nil": True,
+                          "why": "p101: 收到其他与筹资活动有关的现金 — judged the same item"})
+    assert str(r).startswith("WRITTEN"), r
+    assert ws["U225"].value == 0.0 and loop.served[("Raw", 225)]["conf"] == 4
+    # a 'nil' answer with no blank line printing this row's prior is refused
+    ws["A226"] = "取得借款收到的现金"; ws["T226"], ws["U226"] = 2511.72, 2511.72
+    r2 = loop.t_set_input({"cell": "Raw!U226", "value": 0.0, "nil": True, "why": "guess"})
     assert str(r2).startswith("REFUSED"), r2
-    assert ws["U8"].value == 0.0
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

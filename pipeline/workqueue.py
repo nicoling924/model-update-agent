@@ -186,6 +186,29 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             out.append({"value": sv, "doc": it.doc, "page": it.page,
                         "line": str(it.label)[:60], "face": face or "no-face",
                         "tie_off": tie_off, "warnings": warns})
+    # A BLANK THIS YEAR, JUDGED BY MEANING (owner 2026-09-08): a line
+    # printing last year's figure and nothing this year is offered as a
+    # candidate worth 0 — 'bond financing is financing' is the brain's
+    # call on the label, the prior tie is code's. No page or table rule.
+    from .writegate import nil_current_zero
+    seen_nil = set()
+    for it in loop.ledger.items:
+        if it.doc in bad or it.joinable():
+            continue
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if len(nums) != 1:
+            continue
+        hit = nil_current_zero([it], pv, {(it.doc, it.page)}, bad)
+        if hit is None or (it.doc, it.page, str(it.label)[:40]) in seen_nil:
+            continue
+        seen_nil.add((it.doc, it.page, str(it.label)[:40]))
+        face = loop.ledger.face(it.doc, it.page)
+        out.append({"value": 0.0, "doc": it.doc, "page": it.page,
+                    "line": str(it.label)[:60], "face": face or "no-face",
+                    "tie_off": 0.0, "nil": True,
+                    "warnings": ["prints LAST year's figure with a BLANK this "
+                                 "year — 0 this year IF this line is the same "
+                                 "item as the model row (judge the meaning)"]})
     seen, uniq = set(), []
     # EXACT TIE OUTRANKS EVERYTHING (strict-policy audit 2026-09-01:
     # 'Operating costs' twins — the group P&L line on a face page
@@ -483,8 +506,11 @@ def render_card(loop, item):
                          f"{b}{tie}{arb}{w}")
             options[f"serve:{cid}"] = ("set_input", {
                 "cell": f"{sheet}!{col}{row}", "value": c["value"],
+                "nil": bool(c.get("nil")),
                 "why": f"p{c['page']}: '{c['line'][:40]}' ({c['doc'][:28]}) "
-                       f"— card-adjudicated"})
+                       f"— card-adjudicated"
+                       + (" — printed blank this year, judged the same item: 0"
+                          if c.get("nil") else "")})
         options["not_disclosed"] = (None, None)
         lines.append("  answers: " + ", ".join(options)
                      + "  (not_disclosed = leave red for the analyst)")
