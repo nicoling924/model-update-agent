@@ -1792,3 +1792,26 @@ empty-row guard (allow_empty). A first fixed cap of 8 was removed at the
 owner's objection — the call budget and the balance cards' reserved
 share decide. Museum 127; bench green; both true-base floors deliver
 (FY25 queue 36 items, 1H25 8, all defaulted with no brain).
+
+## Run 248 — 2026-09-08, head 5547b24, DFE FY25 — DELIVERED but the prose proof did not fire
+Delivered, yet no card reached the 'New orders' rows and the bond line
+was held at growth again (CFI/CFF keys off, worse than 246). Two causes,
+both mine: (1) the tier-3 sweep runs BEFORE the cards and held the
+differently named bond line orange, and orange cells get no card — a
+row whose prior prints beside a blank current slot now stays RED for the
+card; (2) the model's row label 'New orders' is English and the sentence
+'新生效订单' is Chinese: label kinship cannot bridge scripts, so the
+no-prior row had no candidates and no card — across scripts the current
+filing's sentences that carry their own growth or prior are offered and
+the brain matches the meaning. Museum 127.
+
+## 2026-09-08 — label-only cards are their own kind, dealt last
+Offline check on the true base: the English 'New orders' row now got a
+card, but (a) every empty labelled row in the model got one — 60 — and
+SERVE-kind cards sort before the rollover and balance cards, so they
+would have starved them; (b) across scripts the card showed only the
+first four sentences with a growth rate, and the order-intake sentence
+was the fifth. Now: never-filled rows are kind LABEL, dealt after every
+other card so the budget's remainder decides how many run (no cap), and
+a cross-script card lists up to eight sentences that carry their own
+growth or prior. Museum 127.

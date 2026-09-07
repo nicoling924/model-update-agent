@@ -620,6 +620,16 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             pv = wb[sheet][f"{pcol}{r}"].value
             if not isinstance(pv, (int, float)):
                 continue
+            # A BLANK BESIDE THE PRIOR IS THE BRAIN'S CALL, NOT A HOLD (run
+            # 248: the differently named bond line was held at growth here
+            # before the card could ask 'same item?') — such rows stay red
+            from .writegate import nil_current_zero as _ncz0
+            try:
+                _blank = _ncz0(ledger.items, pv, None, set(_vintage_ban(ledger)))
+            except Exception:
+                _blank = None
+            if _blank is not None:
+                continue
             if rev_key:
                 ks, kr = rev_key["sheet"], rev_key["row"]
                 ktc = year_columns(spec_d, ks).get(str(target_year))

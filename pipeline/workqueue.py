@@ -291,11 +291,21 @@ def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
         doc_scale.setdefault(d_, []).append(sc)
     doc_scale = {d_: max(set(v), key=v.count) for d_, v in doc_scale.items()}
     out, seen = [], set()
+    import re as _re
+    cjk_row = bool(_re.search(r"[一-鿿]", lab_row))
     for it in loop.ledger.items:
         if it.doc in bad or not it.nums or periods.get(it.doc) not in (None, "current"):
             continue
-        if not _kin(lab_row, str(it.label)):
-            continue
+        kin = _kin(lab_row, str(it.label))
+        if not kin:
+            # ACROSS SCRIPTS (an English model over a Chinese filing) no
+            # label can be kin; the brain matches the MEANING — so the
+            # current filing's sentences that state a figure with its own
+            # growth or prior (the ones a report writes about) are offered
+            cjk_line = bool(_re.search(r"[一-鿿]", str(it.label)))
+            if not (getattr(it, "channel", "") == "prose" and cjk_line != cjk_row
+                    and len(it.nums) >= 2):
+                continue
         key = (it.doc, it.page, str(it.label)[:40], round(float(it.nums[0]), 1))
         if key in seen:
             continue
@@ -313,6 +323,8 @@ def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
                     "face": "prose" if prose else (loop.ledger.face(it.doc, it.page) or "no-face"),
                     "tie_off": 9.0, "no_prior": True, "warnings": warns})
     out.sort(key=lambda c: (c["face"] != "prose", c["doc"], c["page"]))
+    if out and not any(_kin(lab_row, c["line"]) for c in out):
+        k = max(k, 8)         # across scripts the brain needs to SEE the sentences
     return out[:k]
 
 
@@ -458,7 +470,7 @@ def build_queue(loop):
             continue
         if not _label_only_candidates(loop, sheet, row, t, 1):
             continue
-        items.append(WorkItem("SERVE", sheet, row, priority=-1.0))
+        items.append(WorkItem("LABEL", sheet, row, priority=0.0))
         added += 1
     # THE ROLLOVER INVESTIGATION (owner teaching 2026-09-03): strange
     # first-forecast moves become cards with a probed dossier
@@ -491,7 +503,8 @@ def build_queue(loop):
     # The balance cards (COMPONENT/PLUG) keep a RESERVED share of the
     # call budget so the serve/rollover flood can never starve them
     # (run 230's failure mode).
-    order = {"SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4}
+    order = {"SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4,
+             "LABEL": 5}       # label-only cards for never-filled rows: last, budget-bound
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # the cap trims only the SERVE flood — check, tripwire and plug
     # items are few and load-bearing (a cap that silently dropped every
@@ -544,7 +557,7 @@ def phase0(loop, log):
 def render_card(loop, item):
     """The card, from LIVE state. -> (text, options) where options maps
     answer-id -> (tool_name, args). None = item is moot."""
-    if item.kind == "SERVE":
+    if item.kind in ("SERVE", "LABEL"):
         sheet, row = item.sheet, item.row
         col = _tcol(loop, sheet)
         if not col or sheet not in loop.wb.sheetnames:

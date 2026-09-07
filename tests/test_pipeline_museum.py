@@ -3579,7 +3579,8 @@ def test_no_prior_row_gets_a_label_card_2026_09_08():
     assert abs(cands[0]["value"] - 117251.0) < 1                 # yuan -> RMB m via the document's scale
     assert any("NO PRIOR" in w for w in cands[0]["warnings"])
     q = build_queue(loop)
-    assert any(w.kind == "SERVE" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
+    assert any(w.kind == "LABEL" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
+    assert q[-1].kind == "LABEL"                       # dealt last, after every balance card
     r = loop.t_set_input({"cell": "Model!U142", "value": 117251.0, "flag": "red", "no_prior": True,
                           "why": "p10: 新生效订单1172.51亿元 — card-adjudicated"})
     assert str(r).startswith("WRITTEN"), r
