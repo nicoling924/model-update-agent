@@ -923,10 +923,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # print is read off the printed line whose comparative equals the
     # model's own prior; the pinned file only fills what the tie cannot
     from .keytie import panel_by_prior_tie as _pbpt, merge_panel as _merge_panel, _panel as _load_panel
-    _built = _pbpt(wb, spec_d, target_year, ledger, log)
+    _built = _pbpt(wb, spec_d, target_year, ledger, log, served=served)
     _key_panel = _merge_panel(_built, _load_panel(_panel_path), log)
     log(f"[run] key panel: {len(_built)} keys by prior tie "
         f"({', '.join(sorted(_built))}); {len(_key_panel) - len(_built)} from the pinned file")
+    for _kn, _ke in sorted(_built.items()):
+        log(f"[run]   key '{_kn}': print {_ke['print']:,.2f} prior {_ke['prior']:,.2f} — {_ke.get('line', '')}")
     keys_before = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
     if keys_before:
         log(f"[run] rule 2 armed: {len(keys_before)} key(s) proven-printed "

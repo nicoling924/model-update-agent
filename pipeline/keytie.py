@@ -373,7 +373,7 @@ def _sig_digits(v):
     return len(re.sub(r"[^0-9]", "", "%.2f" % abs(v)).strip("0"))
 
 
-def panel_by_prior_tie(wb, spec, target_year, ledger, log=None):
+def panel_by_prior_tie(wb, spec, target_year, ledger, log=None, served=None):
     """THE OWNER'S RULE (2026-09-08): a model's headline row is whatever
     the analyst defined it as, and the definition shows in last year's
     number — find the printed line whose comparative equals the model's
@@ -398,6 +398,18 @@ def panel_by_prior_tie(wb, spec, target_year, ledger, log=None):
             continue
         if not isinstance(pv, (int, float)) or abs(pv) < 0.5 or _sig_digits(pv) < 3:
             continue
+        # THE WALK'S SERVE WINS (run 256: an equity-statement row tied the
+        # equity prior mid-row and offered 3,117.50 as 'total equity'):
+        # when the reconciliation served the key row from the statement
+        # (first claim, proven), that value IS the print
+        e_srv = (served or {}).get((sh, r))
+        if isinstance(e_srv, dict) and isinstance(e_srv.get("value"), (int, float)) \
+                and int(e_srv.get("conf") or 0) >= 4 and e_srv.get("doc"):
+            out[nm] = {"print": float(e_srv["value"]), "prior": float(pv),
+                       "line": f"{e_srv.get('doc')} p{e_srv.get('page')} (served)"}
+            continue
+        from .numerics import kinship as _kin_p
+        row_label = str(wb[sh].cell(r, 1).value or "")
         reads = {}
         for it in ledger.items:
             if it.doc in ban or getattr(it, "channel", "") == "prose":
@@ -405,14 +417,19 @@ def panel_by_prior_tie(wb, spec, target_year, ledger, log=None):
             nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
             if len(nums) < 2:
                 continue
+            wide = len(nums) >= 4
+            if wide and not _kin_p(str(it.label or ""), row_label):
+                continue                    # a wide row's pair position is uncertain: the label must confirm
             for f in _SCALES:
-                # the comparative sits AFTER the current: any later number
-                # tying the model's prior makes the FIRST number the print
-                for j in range(1, len(nums)):
-                    if _sig_digits(nums[j]) >= 4 and _ties_full_precision(nums[j] / f, pv) \
+                vals = [n / f for n in nums]
+                for j in range(1, len(vals)):
+                    if _sig_digits(nums[j]) >= 4 and _ties_full_precision(vals[j], pv) \
                             and (nums[j] < 0) == (pv < 0):
-                        cur = nums[0] / f
-                        reads.setdefault(round(cur, 2), (cur, f"{it.doc} p{it.page} '{str(it.label)[:40]}'"))
+                        # the current is the nearest EARLIER number of the prior's own magnitude
+                        cur = next((vals[i] for i in range(j - 1, -1, -1)
+                                    if abs(vals[i]) <= 30 * abs(pv) and abs(vals[i]) * 30 >= abs(pv)), None)
+                        if cur is not None:
+                            reads.setdefault(round(cur, 2), (cur, f"{it.doc} p{it.page} '{str(it.label)[:40]}'"))
                         break
         if len(reads) == 1:
             cur, where = next(iter(reads.values()))

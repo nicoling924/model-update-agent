@@ -3721,6 +3721,16 @@ def test_key_panel_by_prior_tie_2026_09_08():
     led = _ledger(_anchors(99, 1e6) + [total, attrib], face_pages=((99, "pl"),))
     built = panel_by_prior_tie(wb, spec, 2025, led)
     assert abs(built["net profit"]["print"] - 3965.977963) < 0.01, built    # the TOTAL line: its comparative is the model's prior
+    # run 256: an equity-statement row (wide, unrelated label) tied the equity prior mid-row and
+    # offered 3,117.50 — a wide row's pair needs the label; and the walk's own serve wins outright
+    ws["A91"], ws["T91"] = "Total equity", 41461.11
+    spec["key_rows"].append({"name": "total equity", "sheet": "Model", "row": 91})
+    eq_row = _item(107, 3, "本期增减变动金额", [3117500000.0, 41461110000.0, 500000000.0, 45403660000.0])
+    led2 = _ledger(_anchors(99, 1e6) + [total, attrib, eq_row], face_pages=((99, "pl"),))
+    b2 = panel_by_prior_tie(wb, spec, 2025, led2)
+    assert "total equity" not in b2, b2
+    b3 = panel_by_prior_tie(wb, spec, 2025, led2, served={("Model", 91): {"value": 45403.66, "conf": 4, "doc": DOC, "page": 96}})
+    assert abs(b3["total equity"]["print"] - 45403.66) < 0.01 and "(served)" in b3["total equity"]["line"]
     assert "other" not in built
     pinned = {"net profit": {"print": 3831.301222, "prior": 3287.53}, "eps": {"print": 1.15, "prior": 0.94}}
     msgs = []
