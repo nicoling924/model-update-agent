@@ -3452,6 +3452,9 @@ def test_blank_current_cell_is_nil_2026_09_08():
     slash = NS(doc=doc, page=101, label="发行债券收到的现金", nums=[593536697.59],
                source_line="发行债券收到的现金 / 593 536 697.59", stmt_face="cf", scale_hint=None)
     assert nil_current_zero([zero], 593.54, faces, set()) is zero              # printed 0 -> nil
+    neg = NS(doc=doc, page=51, label="处置子公司及其他营业单位收到的现金净额", nums=[-8485403.24],
+             source_line="处置子公司及其他营业单位收到的现金净额 -8,485,403.24", stmt_face="cf", scale_hint=None)
+    assert nil_current_zero([neg], -8.49, faces | {(doc, 51)}, set()) is neg     # a negative comparative ties sign-blind
     # a NOTE page (related-party purchases, DFE p239) printing one number that
     # equals a prior is not a blank current cell on a statement: no nil
     note_line = NS(doc=doc, page=239, label="宏华海洋油气装备(江苏)有限公司 购买商品",

@@ -257,8 +257,8 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
         on_statement = (statement_faces is None
                         or (_meta(it, "doc"), _meta(it, "page")) in statement_faces)
         if len(nums) == 1 and on_statement:
-            v = nums[0]
-            digits = re.sub(r"[^0-9]", "", ("%.2f" % abs(v)).rstrip("0").rstrip("."))
+            v = abs(nums[0])          # sign-blind: '-8,485,403.24' is the prior -8.49
+            digits = re.sub(r"[^0-9]", "", ("%.2f" % v).rstrip("0").rstrip("."))
             if len(digits.lstrip("0")) >= 4:
                 for f in _SCALES:
                     if abs(v / f - abs(prior)) <= abs(prior) * 2e-3:

@@ -1708,3 +1708,18 @@ plugs); 2026 NP 4,010 vs by-hand 5,013 — the RECLASS card remains the
 owner's decision. 247 (0 LLM calls): 152 read / 24 held / 0 red, every
 headline right; one nil (AT16, 12.45) came from p9, an MD&A summary
 table that self-adopts as a face — note for the deduction pass.
+
+## 2026-09-08 — Fable-vs-Luna cross-check of the half-year (run 247)
+Fable read the three consolidated statements of the 1H25 report (text
+pages 45/46/49/51) and diffed every printed line against Luna's
+half-year column: 148 printed lines carry a current figure, 121 have a
+model row; Luna matches on 117; the 4 real misses are two nils (treasury
+shares blank -> held 121; subsidiary disposals blank -> held -9.7) and
+two Wind aggregate rows (在建工程(合计) = CIP + 工程物资, held at growth
+while the printed CIP row itself was read). The nil misses were two
+small bugs — the blank-cell branch compared the printed number WITH its
+sign (a negative comparative never tied) and an interim run tested only
+the half-year prior, not the year-end comparative a balance sheet
+prints — both fixed. Verdict on the H1: on the printed statements Luna
+is at 117/121 before the fix and every headline is right; the holds are
+Wind-only rows.

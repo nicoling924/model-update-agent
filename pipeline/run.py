@@ -676,6 +676,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs,
                                    statement_faces=_true_faces)
                   if isinstance(pv, (int, float)) else None)
+            # an interim balance sheet prints the YEAR-END comparative:
+            # the annual prior is the second figure a nil may sit beside
+            if it is None:
+                _acol = (spec_d.get("annual_prior_axis") or {}).get(sheet)
+                _apv = wb[sheet][f"{_acol}{r}"].value if _acol else None
+                if isinstance(_apv, (int, float)) and abs(_apv) >= 0.5:
+                    it = nil_current_zero(ledger.items, _apv, face_pages, banned_docs,
+                                          statement_faces=_true_faces)
             if it is not None:
                 log(f"[run]   0 means 0: {ref} — prior {pv:,.2f} printed with a "
                     f"blank/nil current slot ({it.doc} p{it.page} "
