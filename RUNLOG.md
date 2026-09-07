@@ -1855,3 +1855,14 @@ zeros stripped) and the tie at the model's own precision (half a unit
 of the prior's last decimal). The other four: the bond line (the brain
 read the name; card wording taught), and its two key totals (CFI/CFF)
 plus the interest-income plug painted red. Museum 129.
+
+## 2026-09-08 — run 252 (DFE FY25, head 04dbbce) DELIVERED, 38 min: keys 12/14, reds 7
+Against 246 (keys 14/14, reds 4): the time budget worked — 136 cards
+asked, none drained, 28.8 min of the hour offered; 'New orders' is
+filled from the order-intake sentence (117,251, red, p10); the six
+junk-tied rows are orange holds again. The bond line: the brain now
+answered 0 on the reworded card — and set_input REFUSED it, because the
+verifier demanded a statement-face tag that vision-read lines never
+carry, while the card had shown the line. The verifier now judges the
+same evidence the card showed. Its two key totals (CFI/CFF) are the
+other two reds. Museum 130.

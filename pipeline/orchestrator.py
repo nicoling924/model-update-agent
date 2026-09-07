@@ -1394,7 +1394,11 @@ class ObjectiveLoop:
             # code's part is the prior tie — the line must print last
             # year's figure exactly; then 0 is a read, proven, plain
             from .writegate import nil_current_zero as _ncz
-            _hit = _ncz(self.ledger.items, pv_cell, None,
+            # the verifier judges the SAME evidence the card showed (run
+            # 252: the brain answered 0 on the bond line and was refused
+            # because a vision-read statement line carries no face tag)
+            _hit = _ncz(self.ledger.items, pv_cell,
+                        {(i.doc, i.page) for i in self.ledger.items},
                         self.ledger.noncurrent_docs())
             if _hit is not None:
                 verdict, forced_flag = "ALLOW", None

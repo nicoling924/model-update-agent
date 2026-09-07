@@ -3638,6 +3638,31 @@ def test_nil_tie_is_full_precision_significant_digits_2026_09_08():
     assert nil_current_zero([it("收到其他与筹资活动有关的现金", 593536697.59, 101)], 593.54, pages) is not None
 
 
+def test_nil_answer_verified_on_the_cards_evidence_2026_09_08():
+    """Run 252: the brain chose 0 for the bond line (the report's own
+    line prints the model's prior beside a blank) and set_input REFUSED
+    it — the verifier wanted a statement-face tag that vision-read lines
+    never carry, while the card had shown the line. Same evidence in,
+    same verdict out."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["A225"] = "发行债券收到的现金"; ws["T225"] = 593.54; ws["U225"] = 593.54
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    line = Item(DOC, 101, 0, 30, "收到其他与筹资活动有关的现金", [593536697.59], None, "money",
+                None, "vision", 1, False, "收到其他与筹资活动有关的现金  593 536 697.59")
+    led = _ledger(_anchors(95, 1e6) + [line], face_pages=((95, "pl"),))
+    targets = _anchor_targets() + [TargetRow("Raw", 225, "发行债券收到的现金", 593.54)]
+    writer = Writer(wb); writer.log["flags"].append("Raw!U225")
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, writer, None)
+    r = loop.t_set_input({"cell": "Raw!U225", "value": 0.0, "nil": True,
+                          "why": "p101: printed blank this year, judged the same item: 0"})
+    assert str(r).startswith("WRITTEN"), r
+    assert ws["U225"].value == 0
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted
