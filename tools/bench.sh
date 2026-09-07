@@ -12,4 +12,6 @@ for t in tests/test_museum.py tests/test_updater_museum.py tests/test_pipeline_m
 done
 python3 -m pipeline.execreport --selftest >/dev/null 2>&1 \
   || { echo "BENCH RED: execreport selftest"; exit 1; }
+git diff HEAD -U0 -- pipeline | python3 tools/change_guard.py --diff \
+  || { echo "BENCH RED: change guard (a fence was added — fix the cause, never patch)"; exit 1; }
 echo "BENCH GREEN"
