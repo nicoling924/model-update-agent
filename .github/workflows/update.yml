@@ -54,6 +54,14 @@ jobs:
             YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
             python -m pipeline.cli "companies/${{ inputs.company }}" \
               "${{ inputs.period }}" "20${YY}" --budget=90
+          elif [ "${{ inputs.action }}" = "readtest" ]; then
+            # THE READING TEST (owner 2026-09-09): not the agent — an experiment.
+            # Luna reads the whole disclosure in one view and answers the
+            # model's headline rows with page references; scored against
+            # code's own ties. Output: companies/<CO>/updates/read_test_<PERIOD>.{json,md}
+            YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
+            python tools/read_test.py "companies/${{ inputs.company }}" \
+              "${{ inputs.period }}" "20${YY}"
           elif [ "${{ inputs.action }}" = "updater" ]; then
             # THE NEW AGENT (objectives rework 2026-08-17): one loop owns the
             # run, always delivers, 4 Police laws. Exit 3 = PAUSED for the
