@@ -670,7 +670,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             import re as _re
             if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
                 continue                # a subtotal is never nil-proven
-            it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs)
+            _true_faces = {(d_, p_) for (d_, p_), k_ in
+                           (getattr(ledger, "faces", {}) or {}).items()
+                           if k_ in ("pl", "bs", "cf")}
+            it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs,
+                                   statement_faces=_true_faces)
                   if isinstance(pv, (int, float)) else None)
             if it is not None:
                 log(f"[run]   0 means 0: {ref} — prior {pv:,.2f} printed with a "

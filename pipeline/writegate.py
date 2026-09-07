@@ -201,7 +201,8 @@ def no_prior_duplicate(value, doc, claimed_vals):
 _NIL_TOKENS = {"-", "–", "—", "―", "/", "不适用"}
 
 
-def nil_current_zero(items, prior, face_pages=None, banned_docs=None):
+def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
+                     statement_faces=None):
     """The dash-nil law (run-11 pin, treasury shares): a statement line
     printing a standalone nil mark IMMEDIATELY before a number that ties
     the model's prior to full precision proves the current value is zero
@@ -248,7 +249,14 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None):
         # ('0' / '0.00' | 593,536,697.59) is nil the same way
         if len(nums) == 2 and nums[0] == 0:
             nums = [nums[1]]
-        if len(nums) == 1:
+        # the blank-cell reading is positional, so it is trusted ONLY on a
+        # registered statement face (pl/bs/cf) — a note page (a related-
+        # party purchase list, DFE p239) printing one number that happens
+        # to equal a prior proves nothing (the true-base floor zeroed
+        # 'service charge and others' from exactly such a line)
+        on_statement = (statement_faces is None
+                        or (_meta(it, "doc"), _meta(it, "page")) in statement_faces)
+        if len(nums) == 1 and on_statement:
             v = nums[0]
             digits = re.sub(r"[^0-9]", "", ("%.2f" % abs(v)).rstrip("0").rstrip("."))
             if len(digits.lstrip("0")) >= 4:

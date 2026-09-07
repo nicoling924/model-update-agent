@@ -1650,3 +1650,22 @@ replay's one open check (Driver!139, -51) is a replay artefact — the
 live brain closed it in run 240. Owner: no new rules — this is the
 existing nil law + key tie doing their job once the nil survives.
 Museum 123.
+
+## 2026-09-08 — the true DFE base, and the nil law's one misfire
+The base model in companies/DFE/model had been a Luna-updated failure
+file since 09-02 (2025 column already overwritten: J8 = 4,876.71 flat,
+J19 = J8/I8-1 = 0%). The analyst's original (Dongfang Electric (Old).xlsx:
+J8 = I8*(1+U19), J19 = 30% typed) is restored as the base (8299f42); the
+wrong file retired. So the 'Driver forecast frozen at 0%' the owner saw
+was the freeze law faithfully copying a 0 that only existed in the wrong
+base — on the true base the growth cells are typed assumptions.
+Runs 242/243 cancelled (wrong base). Runs 244 (FY25, REFUSED) / 245
+(1H25, delivered) ran on the true base but with the blank-cell nil
+unrestricted: a NOTE page line printing one number equal to a prior
+(p239 related-party purchases = 'service charge and others' -88.36;
+1H25 p135 '机器设备' = a cost line 27,870) was read as a blank current
+cell -> zeroed -> registered proven -> the ladder's evidence fix refused
+-> Driver!139 open -> 244 refused. The blank-cell reading is positional,
+so it is trusted only on a registered statement face (pl/bs/cf) —
+museum 123 (the p239 case). True-base FY25 floor: DELIVERED with 3
+genuine nils; 1H25 floor DELIVERED. Re-dispatched as 246/247.
