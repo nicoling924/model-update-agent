@@ -15,6 +15,7 @@ dry-run path); the museum plus a dry run is the pre-flight bar before any
 dispatch.
 """
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -230,6 +231,24 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     identify_key_rows(wb, spec_d, client, log,
                       panel_path=company_dir / "replay" / str(period) / "key_panel.json",
                       target_year=target_year)
+    # THE KEY ROWS TRAVEL WITH THE REPLAY (owner 2026-09-08, "test before
+    # running"): the brain's named rows are pinned beside the ledger so a
+    # faithful replay ties the same keys and prints the same count
+    _kr_path = company_dir / "replay" / str(period) / "key_rows.json"
+    if client is not None and spec_d.get("key_rows"):
+        try:
+            _kr_path.parent.mkdir(parents=True, exist_ok=True)
+            _kr_path.write_text(json.dumps(spec_d["key_rows"], ensure_ascii=False, indent=1))
+        except Exception:
+            pass
+    elif client is None and pinned_ledger and not spec_d.get("key_rows"):
+        _kr_pin = Path(pinned_ledger).parent / "key_rows.json"
+        if _kr_pin.exists():
+            try:
+                spec_d["key_rows"] = json.loads(_kr_pin.read_text())
+                log(f"[run] key rows PINNED: {len(spec_d['key_rows'])} replayed from {_kr_pin}")
+            except Exception:
+                pass
     pre_map = formula_map(wb)
 
     # -- THE ERROR-BASELINE LAW (owner ruling 2026-08-31): count the
@@ -737,6 +756,70 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     f"(locked={ref in writer.locked})")
     if n_nil:
         log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
+    # A LINE NEW THIS YEAR (owner 2026-09-08, run 254: 'other cash received
+    # relating to investing' printed 19,078,348 with '不适用' last year;
+    # the model row had no prior, so nothing tied and the cash check was
+    # 19 off): no number to tie, so the LABEL is the proof — the printed
+    # line's label IS the row's label, it carries one number, and its
+    # comparative is blank — served red for the analyst. Any page.
+    from .numerics import norm_label as _nl_new
+    _scales_new = ratify_page_scales(
+        ledger.items, [t.prior_value for t in targets
+                       if isinstance(t.prior_value, (int, float))])
+    n_new = 0
+    from .writegate import _ties_full_precision as _tfp_new
+    _all_priors = [abs(float(t.prior_value)) for t in targets
+                   if isinstance(getattr(t, "prior_value", None), (int, float))
+                   and abs(t.prior_value) >= 0.5]
+    for t in targets:
+        if isinstance(getattr(t, "prior_value", None), (int, float)):
+            continue
+        sh_n, r_n = t.sheet, int(t.row)
+        tcol_n = year_columns(spec_d, sh_n).get(str(target_year)) if sh_n in wb.sheetnames else None
+        if not tcol_n or wb[sh_n][f"{tcol_n}{r_n}"].value not in (None, ""):
+            continue
+        _strip = lambda x: re.sub(r"[（(][^（）()]{1,12}[）)]", "", _nl_new(str(x or ""))).replace(" ", "")
+        rl = _strip(t.label)
+        if len(rl) < 4:
+            continue
+        reads = {}
+        for it in ledger.items:
+            if it.doc in banned_docs or getattr(it, "channel", "") == "prose":
+                continue
+            if _strip(it.label) != rl:
+                continue
+            nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+            if len(nums) == 2 and nums[1] == 0:
+                nums = [nums[0]]
+            if len(nums) != 1:
+                continue
+            sc = _scales_new.get((it.doc, it.page))
+            if not sc:
+                continue
+            v = nums[0] / sc
+            # the one number may be LAST year's (the bond line, relabelled,
+            # printed 593.54 beside a blank): if it ties any model prior it
+            # is a comparative, not a new line — the nil law's territory
+            if any(_tfp_new(abs(v), pv_) for pv_ in _all_priors):
+                continue
+            reads.setdefault(round(v, 2), (v, it))
+        if len(reads) != 1:
+            continue
+        v, it = next(iter(reads.values()))
+        pcol_n = prior_column(spec_d, sh_n, target_year)
+        if writer.write(sh_n, f"{tcol_n}{r_n}", float(v),
+                        prior_coord=f"{pcol_n}{r_n}" if pcol_n else None,
+                        flag="red", allow_empty=True,
+                        note=(f"New line this year (blank last year). Label matches the "
+                              f"statement ({it.doc} p{it.page}). Please confirm.")):
+            served[(sh_n, r_n)] = {"value": float(v), "status": "OK", "doc": it.doc,
+                                   "page": it.page, "line": str(it.label)[:60],
+                                   "conf": 3, "note": "new line: exact label, blank prior"}
+            n_new += 1
+            log(f"[run]   new line: {sh_n}!{tcol_n}{r_n} = {v:,.2f} ({it.doc} p{it.page} "
+                f"{str(it.label)[:30]!r}) — blank last year, label matches")
+    if n_new:
+        log(f"[run] new-line sweep: {n_new} rows new this year served (red, exact label)")
     err_guard("tier-3 + dash-nil")
     collapse_guard("tier-3 + dash-nil")
 
@@ -829,7 +912,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # two late reverts broke four of them; the gate never looked.
     from .keytie import key_snapshot as _key_snapshot
     _panel_path = company_dir / "replay" / str(period) / "key_panel.json"
-    keys_before = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path)
+    # THE KEY PANEL BY PRIOR TIE (owner 2026-09-08): each headline row's
+    # print is read off the printed line whose comparative equals the
+    # model's own prior; the pinned file only fills what the tie cannot
+    from .keytie import panel_by_prior_tie as _pbpt, merge_panel as _merge_panel, _panel as _load_panel
+    _built = _pbpt(wb, spec_d, target_year, ledger, log)
+    _key_panel = _merge_panel(_built, _load_panel(_panel_path), log)
+    log(f"[run] key panel: {len(_built)} keys by prior tie "
+        f"({', '.join(sorted(_built))}); {len(_key_panel) - len(_built)} from the pinned file")
+    keys_before = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
     if keys_before:
         log(f"[run] rule 2 armed: {len(keys_before)} key(s) proven-printed "
             f"before stage 4 ({', '.join(sorted(keys_before))})")
@@ -932,7 +1023,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # round, and refused)
         key_tie(wb, spec_d, target_year, writer,
                 company_dir / "replay" / str(period) / "key_panel.json",
-                log, ledger=ledger)
+                log, ledger=ledger, panel=_key_panel)
         err_guard("key tie")
         collapse_guard("key tie")
         # THE PRINTED-SUBTOTAL LAW (owner 2026-09-04): current assets,
@@ -946,7 +1037,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         #                                  ledger, log, priors=known))
         # RULE 2, re-armed: keys the key tie just proved must also hold
         # through the repair suite and the gate loop
-        _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path)
+        _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
         _new_keys = sorted(set(_more) - set(keys_before))
         keys_before.update(_more)
         if _new_keys:
@@ -1001,7 +1092,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if tag != "first":
             from .keytie import key_tie as _kt_again
             _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
-                      ledger=ledger)
+                      ledger=ledger, panel=_key_panel)
         n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
         if n_rb2:
             err_guard(f"roll-base {tag}")
@@ -1070,7 +1161,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # the run exactly like an unbalanced check does — and feeds the
         # same take-back loop
         for nm, ref, then, now in _key_violations(wb, spec_d, target_year,
-                                                  ledger, _panel_path, keys_before):
+                                                  ledger, _panel_path, keys_before, panel=_key_panel):
             fails_g.append(f"KEY {nm} at {ref}: was proven-printed "
                            f"{then:,.1f}, now {now if now is None else f'{now:,.1f}'}"
                            " — printed nowhere (rule 2)")
@@ -1081,7 +1172,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         ev_m = _Ev(wb)
         m = 0.0
         for _nm, _ref, then, now in _key_violations(wb, spec_d, target_year,
-                                                    ledger, _panel_path, keys_before):
+                                                    ledger, _panel_path, keys_before, panel=_key_panel):
             m += abs((now if isinstance(now, (int, float)) else 0.0) - then)
         for c in (spec_d.get("check_rows") or []):
             sh = c.get("sheet")
@@ -1261,9 +1352,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 from .keytie import key_state as _key_state
                 _key_ties_for_report = [
                     {"name": n_, "ref": ref_, "value": v_, "print": w_, "tied": ok_}
-                    for n_, ref_, v_, w_, ok_ in _key_state(wb, spec_d, target_year, _panel_path)]
-            except Exception:
+                    for n_, ref_, v_, w_, ok_ in _key_state(wb, spec_d, target_year, _panel_path, panel=_key_panel)]
+            except Exception as _e:
                 _key_ties_for_report = []
+                log(f"[run] key count unavailable for the report: {_e!r}")
+            log(f"[run] key count: {sum(1 for k in _key_ties_for_report if k['tied'])}/"
+                f"{len(_key_ties_for_report)} tied to the print "
+                f"(key rows {len(spec_d.get('key_rows') or [])}, panel {len(_key_panel)})")
             rep = report_only(str(company_dir), str(out_path),
                               str(archive), client, str(out_path),
                               target_year=target_year,
@@ -1272,6 +1367,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                      "rollover": rollover,
                                      "forecast_watch": list(
                                          writer.log.get("forecast_watch", []))})
+            log(f"[run] executive report coverage line: {rep.get('coverage')!r}")
             log(f"[run] executive report: {rep['bridges']} bridges, "
                 f"{rep['refused']} refused, "
                 f"{len(rep.get('corrections', []))} corrected, sense "

@@ -3688,6 +3688,125 @@ def test_key_count_is_codes_not_the_brains_2026_09_08():
     assert "key numbers tied" in inspect.getsource(execreport.report_only)
 
 
+def test_key_rows_travel_with_the_replay_2026_09_08():
+    """Owner: "test before running." The brain-named key rows are written
+    beside the ledger on a live run and read back on a pinned replay, so
+    the floors tie the same keys and print the same count as the live run."""
+    import inspect
+    from pipeline import run as _run
+    src = inspect.getsource(_run.update)
+    assert 'key_rows.json' in src
+    assert '_kr_path.write_text(json.dumps(spec_d["key_rows"]' in src        # live: pinned beside the ledger
+    assert 'Path(pinned_ledger).parent / "key_rows.json"' in src              # replay: read back
+    assert 'key rows PINNED' in src
+
+
+def test_key_panel_by_prior_tie_2026_09_08():
+    """Owner: a model's bottom line may be 'net profit', 'total net
+    profit' or 'net recurring profit' — the name is not the signal; the
+    model's previous-period figure is. The printed line whose comparative
+    equals the model's prior IS the item, and its current figure is the
+    print to tie. A hand-pinned entry that disagrees loses."""
+    import openpyxl
+    from pipeline.keytie import panel_by_prior_tie, merge_panel
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["A28"], ws["T28"] = "Net recurring profit", 3287.53          # the analyst's bottom line = total net profit
+    ws["A30"], ws["T30"] = "Other", 12.5                             # too few digits to tie anything
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}},
+            "key_rows": [{"name": "net profit", "sheet": "Model", "row": 28},
+                         {"name": "other", "sheet": "Model", "row": 30}]}
+    total = _item(99, 5, "五、净利润", [3965977963.18, 3287525856.31])
+    attrib = _item(99, 6, "归属于母公司股东的净利润", [3831301222.13, 2922100908.48])
+    led = _ledger(_anchors(99, 1e6) + [total, attrib], face_pages=((99, "pl"),))
+    built = panel_by_prior_tie(wb, spec, 2025, led)
+    assert abs(built["net profit"]["print"] - 3965.977963) < 0.01, built    # the TOTAL line: its comparative is the model's prior
+    assert "other" not in built
+    pinned = {"net profit": {"print": 3831.301222, "prior": 3287.53}, "eps": {"print": 1.15, "prior": 0.94}}
+    msgs = []
+    merged = merge_panel(built, pinned, msgs.append)
+    assert abs(merged["net profit"]["print"] - 3965.977963) < 0.01 and "eps" in merged
+    assert msgs and "disagrees" in msgs[0]
+
+
+def test_prose_tie_via_last_years_report_2026_09_08():
+    """Owner (dividend, run 254): "read last year's report for the tie."
+    The model row says 'Dividend 现金分红'; the reports say '共计派发现金股利'.
+    Last year's sentence states the model's prior (1,366.32), which proves
+    the noun; this year's sentence with the same noun is the candidate."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
+    from pipeline.writer import Writer
+    from pipeline.prose import harvest_prose
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["A38"], ws["T38"], ws["U38"] = "Dividend 现金分红", 1366.32, 1366.32
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    old_doc = "DFE 2024 Annual Report (CN).pdf"
+    last = harvest_prose(old_doc, 2, "共计派发现金股利1,366,315,211.38元。")
+    this = harvest_prose(DOC, 2, "共计派发现金股利1,832,930,972.78元。")
+    led = _ledger(_anchors(95, 1e6) + [it for it in last + this if "派发现金股利" in it.label], face_pages=((95, "pl"),))
+    led._doc_periods = {DOC: "current", old_doc: "prior"}
+    ws["A1"], ws["T1"], ws["A3"], ws["T3"] = "aaaa", 58000.0, "bbbb", 39000.0     # scale anchors
+    targets = _anchor_targets() + [TargetRow("Model", 38, "Dividend 现金分红", 1366.32)]
+    writer = Writer(wb); writer.log["flags"].append("Model!U38")
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, writer, None)
+    cands = candidates_for(loop, "Model", 38)
+    div = [c for c in cands if c["face"] == "prose"]
+    assert div and abs(div[0]["value"] - 1832.93) < 0.01, cands
+    assert any("LAST YEAR" in w for w in div[0]["warnings"])
+
+
+def test_walk_reads_the_whole_report_faces_first_2026_09_08():
+    """Owner: the agent reads the ENTIRE report and maps from anywhere.
+    Run 254: 'proceeds from investments' printed on the summary table
+    (p20: current, prior, growth) while the vision read of the statement
+    lost the comparative — the row was held at growth and plugged by
+    14,601. The walk now enters every current-document page, statement
+    faces first so they claim first."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0                                      # scale anchors
+    ws["A203"], ws["T203"] = "收回投资收到的现金", 35262.27
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    summary = _item(20, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, -28.66])
+    lost = _item(101, 7, "收回投资收到的现金", [25155704810.83])              # comparative lost by the read
+    led = _ledger(_anchors(101, 1e6) + _anchors(20, 1e6) + [summary, lost], face_pages=((101, "cf"),))
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    got = serves.get(("Raw", 203))
+    assert got and abs(float(got["value"]) - 25155.70) < 0.01, (got, mapping)
+    faces_first = led.join_pool(all_pages=True)
+    assert faces_first and led.faces.get((faces_first[0].doc, faces_first[0].page)) == "cf"
+
+
+def test_forecast_checks_never_veto_an_actual_2026_09_08():
+    """Readiness on run 254: the bond line's proven 0 was REVERTED because
+    the 2026/2027 checks moved. Only the actual year's own checks can
+    veto a write; a forecast check that moves goes to the watch list."""
+    import inspect
+    from pipeline import orchestrator as _o
+    src = inspect.getsource(_o.ObjectiveLoop.t_set_input)
+    assert "fc_broke = [b for b in broke if" in src and "self.writer.watch(" in src
+    assert 'flag="red"' in src.split("REVERTED: the write broke")[0][-600:]
+
+
+def test_new_line_this_year_served_by_its_label_2026_09_08():
+    """Run 254: 'other cash received relating to investing' printed
+    19,078,348 with '不适用' last year; the model row had no prior, so
+    nothing tied, the row stayed 0 and the cash check was 19 off. With no
+    number to tie, the exact label on the printed line is the proof:
+    served red for the analyst."""
+    import inspect
+    from pipeline import run as _run
+    src = inspect.getsource(_run.update)
+    assert "new-line sweep" in src and "blank last year, label matches" in src
+    assert "ties any model prior it" in src          # a lone number tying a prior is last year's, not new
+    assert "_strip(it.label) != rl" in src            # bracketed note refs stripped before the exact match
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

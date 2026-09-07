@@ -1211,7 +1211,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     out = Path(out_path) if out_path else Path(model_path).with_name(
         Path(model_path).stem + " (Luna REPORT).xlsx")
     wb.save(out)
-    return {"ok": True, "out": str(out), "bridges": len(kept),
+    return {"ok": True, "out": str(out), "bridges": len(kept), "coverage": summary.get("coverage"),
             "headersFixed": headers_fixed,
             "refused": len(refusals), "corrections": corrections,
             "refusals": refusals, "summary": summary}

@@ -224,11 +224,32 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     for (d_, p_), sc in scales.items():
         doc_scale.setdefault(d_, []).append(sc)
     doc_scale = {d_: max(set(v), key=v.count) for d_, v in doc_scale.items()}
+    # LAST YEAR'S REPORT GIVES THE TIE (owner 2026-09-08, dividend): a
+    # sentence in the PRIOR-vintage document whose figure is the model's
+    # prior names the item — the same noun in this year's document is
+    # the candidate, whatever the model row is called ('现金分红' vs the
+    # report's '共计派发现金股利'). The prior doc proves the noun; the
+    # current doc supplies the number.
+    from .numerics import norm_label as _norm2
+    tied_nouns = set()
+    for it in loop.ledger.items:
+        if getattr(it, "channel", "") != "prose" or it.doc not in bad or not it.nums:
+            continue
+        sc0 = doc_scale.get(it.doc)
+        if getattr(it, "unit_dim", "") == "money":
+            from .writegate import _SCALES as _SC
+            v0s = [_tmu2(it.nums[0], sc0)] if sc0 else [float(it.nums[0]) / f for f in _SC]
+        else:
+            v0s = [float(it.nums[0])]
+        if any(abs(abs(v0) - abs(pv)) <= max(0.6, abs(pv) * 5e-3) for v0 in v0s):
+            tied_nouns.add(_norm2(str(it.label)))
     seen_prose = set()
     for it in loop.ledger.items:
         if getattr(it, "channel", "") != "prose" or it.doc in bad:
             continue
-        if not lab_row or not _kin2(lab_row, str(it.label)):
+        noun_tied = bool(tied_nouns) and any(
+            n_ and (n_ == _norm2(str(it.label)) or _kin2(n_, str(it.label))) for n_ in tied_nouns)
+        if not noun_tied and (not lab_row or not _kin2(lab_row, str(it.label))):
             continue
         key = (it.doc, it.page, str(it.label)[:40])
         if key in seen_prose or not it.nums:
@@ -247,6 +268,8 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             off = abs(abs(pr) - abs(pv))
             if off <= max(0.6, abs(pv) * 5e-3):
                 warns.append("✔ the sentence's own growth/prior implies LAST year = the model's prior")
+        if noun_tied:
+            warns.append("✔ LAST YEAR'S report states this same item at the model's prior — the noun is proven")
         out.append({"value": val, "doc": it.doc, "page": it.page,
                     "line": str(it.label)[:60], "face": "prose",
                     "tie_off": (0.0 if any(w.startswith("✔") for w in warns) else 9.0),

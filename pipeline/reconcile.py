@@ -35,7 +35,7 @@ CONF_RECON = 4   # trusted, NOT locked — a new stage earns locks later
 UNCHANGED_CONF = 4
 
 
-def _model_prior_index(wb, spec, target_year, max_row=300):
+def _model_prior_index(wb, spec, target_year, max_row=100000):
     """Evaluated prior for every target row -> {round(pv,1): [(sheet,
     row)]}, plus per-row lookup {(sheet,row): pv}. Formula priors are
     evaluated (the no-cached-values discipline)."""
@@ -181,21 +181,27 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     homes, by_row = _model_prior_index(wb, spec, target_year)
     prior_docs = _vintage_ban(ledger)
     from .stage2_join import ratify_page_scales
-    pool = ledger.join_pool()
+    try:
+        pool = ledger.join_pool(all_pages=True)     # the whole report, faces first
+    except TypeError:                               # a face-only stub ledger (museum)
+        pool = ledger.join_pool()
     priors = list(by_row.values())
     page_scales = ratify_page_scales(pool, priors, [])
     tables = defaultdict(list)
+    face_rank = {}
     for it in pool:
         if it.doc in prior_docs or (it.doc, it.page) not in page_scales:
             continue
         tables[(it.doc, it.page, it.table_id)].append(it)
+        face_rank[(it.doc, it.page, it.table_id)] = \
+            0 if getattr(ledger, "faces", {}).get((it.doc, it.page)) in ("pl", "bs", "cf") else 1
 
     serves, mapping = {}, {
         "tables": 0, "lines": 0, "matched": 0, "confirmed": 0,
         "rejected_tables": [], "unmatched_lines": []}
     claimed = {}          # (sheet,row) -> (value, src) the FIRST claim wins
 
-    for key in sorted(tables):
+    for key in sorted(tables, key=lambda k: (face_rank.get(k, 1), k)):   # statements claim first
         doc, page, tid = key
         items = sorted(tables[key], key=lambda i: i.row_ord or 0)
         if len(items) > max_lines_per_table:

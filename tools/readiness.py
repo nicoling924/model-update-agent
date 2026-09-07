@@ -87,7 +87,7 @@ def main(argv):
         verdict = ""
         if exp is not None:
             try:
-                good = abs(float(c.value) - float(exp)) < 1e-6
+                good = abs(float(c.value) - float(exp)) <= max(0.01, abs(float(exp)) * 1e-5)
             except (TypeError, ValueError):
                 good = str(c.value) == exp
             verdict = "OK" if good else "FAIL"

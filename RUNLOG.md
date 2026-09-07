@@ -1906,3 +1906,37 @@ against the total's prior (3,287.53), so the model's total-net-profit
 row was flagged red every run as '134.68 off' while correct against the
 printed total (3,965.98). Repinned to the total; 'net profit
 attributable' added as its own key. Floor: the false red is gone.
+
+## 2026-09-08 — run 254 autopsy: the walk reads the whole report; last year's report gives the prose tie
+Owner: "are there any other problems in the last run?" Yes: (1) the
+cash line 'proceeds from investments' was held at growth and plugged by
+14,601 to close the cash check, although the summary table on p20
+prints it with its comparative tying the model's prior exactly — the
+walk only entered statement-face pages. The walk now reads every page
+of the current documents, statement faces first (first claim wins);
+the prior index's 300-row cap is gone. (2) the dividend stayed at prior
+(1,366.32, 'not found') although this year's report states 1,832.93 —
+no label rule links '现金分红' to '派发现金股利'; last year's report
+states the same noun at the model's prior, which proves the noun
+(owner: "read last year's report for the tie") — a prose candidate
+now carries that proof. (3) hydro segment revenue held (definition
+differs from the printed 水电 line — analyst's), three small plugs as
+in 246, 12 forecast rows on the watch list, interest-expense roll gap
+22. Also: the key panel is built by prior tie at run time and the
+report's key count is code's. Museum pins for each.
+
+## 2026-09-08 — deduction pass, step 1 proven offline (no live run)
+On run 254's own ledger, answering the cards as the brain should: bond
+line 0 (red), New orders 117,251 (red), dividend 1,832.93 (red, noun
+proven by last year's report), proceeds from investments 25,155.70
+(plain, from the p20 summary table now walked), 'other investing cash
+received' 19.08 (red, new line this year by exact label) — DELIVERED,
+key numbers tied 9/9 by code's count. Two defects caught by the proof
+and fixed: the new-line rule also took last year's bond figure (a lone
+number that ties any model prior is a comparative, excluded); a
+defaulted card overwrote a served cell's note (skipped when served) and
+hygiene mapped the new-line note to 'not found' (passthrough). Written
+up in docs/DEDUCTION_2026-09-08.md: F1 location-as-admission (57 gates,
+dispositions), F2 single-read fragility (cross-appearance corroboration
+planned). Step 2 (drop WIDE_ROW, table cap, candidate caps; split the
+vintage ban at 12 sites) awaits the owner's approval.

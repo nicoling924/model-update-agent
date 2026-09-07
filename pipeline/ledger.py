@@ -276,15 +276,27 @@ class Ledger:
     def face(self, doc, page):
         return self.faces.get((doc, page))
 
-    def join_pool(self):
-        """Items eligible to even be CONSIDERED by Stage 2: structurally
-        joinable AND on a statement-face page (face authority is a pool
-        property — parent pages were never admitted to the map) AND not
-        from a prior-period document."""
+    def join_pool(self, all_pages=False):
+        """Items eligible to even be CONSIDERED: structurally joinable AND
+        not from a prior-period document. Stage 2's join keeps the
+        statement faces only (face authority is a pool property). The
+        reconciliation WALK reads the entire report (owner 2026-09-08,
+        run 254: the cash-flow line 'proceeds from investments' printed
+        on the summary table p20 with its comparative, while the vision
+        read of the statement page lost the comparative — the row was
+        held at growth and then plugged by 14,601): `all_pages=True`
+        returns the faces FIRST (first claim wins) and then every other
+        page of the current documents."""
         bad = self.noncurrent_docs()
-        return [it for it in self.items
+        faces = [it for it in self.items
+                 if it.joinable() and it.doc not in bad
+                 and self.faces.get((it.doc, it.page)) in JOIN_FACES]
+        if not all_pages:
+            return faces
+        rest = [it for it in self.items
                 if it.joinable() and it.doc not in bad
-                and self.faces.get((it.doc, it.page)) in JOIN_FACES]
+                and self.faces.get((it.doc, it.page)) not in JOIN_FACES]
+        return faces + rest
 
     def classify_doc_periods(self, priors, deep_priors=None):
         """{doc: 'current'|'prior'|'unknown'} — deterministic, language-free.

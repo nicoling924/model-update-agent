@@ -1488,11 +1488,25 @@ class ObjectiveLoop:
             and c["name"] in before_gaps
             and abs(c["got"] - c["expect"]) > before_gaps[c["name"]] + 1.0)
         broke = sorted(after_fails - before_fails) + worsened
+        # FORECAST YEARS NEVER VETO AN ACTUAL (owner 2026-09-08, readiness
+        # on run 254: the bond line's proven 0 was reverted because the
+        # 2026/2027 checks moved): a forecast check that moves is a
+        # rollover matter for the watch list; only the actual year's own
+        # checks can say a write is wrong.
+        _ty = str(self.ty)
+        fc_broke = [b for b in broke if "(" in b and _ty not in b]
+        broke = [b for b in broke if b not in fc_broke]
+        if fc_broke:
+            try:
+                self.writer.watch(f"{sheet}!{col}{row}",
+                                  f"forecast checks moved after this actual: {fc_broke[:3]}")
+            except Exception:
+                pass
         if broke:
             self.writer.write(sheet, f"{col}{row}", held,
                               prior_coord=f"{pcol}{row}" if pcol else None,
-                              force_lock=True, trusted=True,
-                              note="objective loop: REVERTED (broke checks)")
+                              force_lock=True, trusted=True, flag="red",
+                              note="Not confirmed: writing this broke the year's own checks. Kept the previous figure — please check.")
             return (f"REVERTED: the write broke previously-passing checks "
                     f"{broke[:4]} — the target cell is wrong, not the value; "
                     "trace_cell / statement_diff to find the right row")

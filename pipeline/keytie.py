@@ -369,12 +369,85 @@ def _panel(panel_path):
         return {}
 
 
-def key_state(wb, spec, target_year, panel_path):
+def _sig_digits(v):
+    return len(re.sub(r"[^0-9]", "", "%.2f" % abs(v)).strip("0"))
+
+
+def panel_by_prior_tie(wb, spec, target_year, ledger, log=None):
+    """THE OWNER'S RULE (2026-09-08): a model's headline row is whatever
+    the analyst defined it as, and the definition shows in last year's
+    number — find the printed line whose comparative equals the model's
+    prior for that row, and that line's current figure is the print the
+    row must tie this year. Names ('net profit', 'total net profit',
+    'net recurring profit') are not the signal; the prior tie is.
+    -> {name: {"print": current, "prior": model prior, "line": ...}} for
+    every key row with exactly one such reading; several different
+    currents tying the same prior = ambiguous, left out (logged)."""
+    from .writegate import _SCALES, _ties_full_precision
+    ev = Evaluator(wb)
+    ban = _vintage_ban(ledger)
+    out = {}
+    for kk in (spec.get("key_rows") or []):
+        nm, sh, r = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
+        pc = prior_column(spec, sh, target_year) if sh in wb.sheetnames else None
+        if not pc:
+            continue
+        try:
+            pv = ev.cell(sh, f"{pc}{r}")
+        except Exception:
+            continue
+        if not isinstance(pv, (int, float)) or abs(pv) < 0.5 or _sig_digits(pv) < 3:
+            continue
+        reads = {}
+        for it in ledger.items:
+            if it.doc in ban or getattr(it, "channel", "") == "prose":
+                continue
+            nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+            if len(nums) < 2:
+                continue
+            for f in _SCALES:
+                # the comparative sits AFTER the current: any later number
+                # tying the model's prior makes the FIRST number the print
+                for j in range(1, len(nums)):
+                    if _sig_digits(nums[j]) >= 4 and _ties_full_precision(nums[j] / f, pv) \
+                            and (nums[j] < 0) == (pv < 0):
+                        cur = nums[0] / f
+                        reads.setdefault(round(cur, 2), (cur, f"{it.doc} p{it.page} '{str(it.label)[:40]}'"))
+                        break
+        if len(reads) == 1:
+            cur, where = next(iter(reads.values()))
+            out[nm] = {"print": float(cur), "prior": float(pv), "line": where}
+        elif log is not None and reads:
+            log(f"[run] key panel: '{nm}' prior {pv:,.2f} ties {len(reads)} different "
+                f"printed lines — left to the pinned panel")
+    return out
+
+
+def merge_panel(built, pinned, log=None):
+    """Runtime prior-tie entries win; a pinned entry only fills a key the
+    tie could not build (and is flagged when it disagrees)."""
+    out = dict(pinned or {})
+    for nm, e in (built or {}).items():
+        pin = (pinned or {}).get(nm)
+        if pin and isinstance(pin.get("print"), (int, float)) \
+                and abs(pin["print"] - e["print"]) > max(TOL_ABS, abs(e["print"]) * TOL_REL) \
+                and log is not None:
+            log(f"[run] key panel: '{nm}' pinned print {pin['print']:,.2f} disagrees with the "
+                f"prior-tie print {e['print']:,.2f} ({e['line']}) — the prior tie wins")
+        out[nm] = e
+    return out
+
+
+def _panel_or(panel, panel_path):
+    return panel if panel is not None else _panel(panel_path)
+
+
+def key_state(wb, spec, target_year, panel_path, panel=None):
     """Every panel key right now: [(name, ref, model value, print, tied)].
     Code's own count for the report (owner 2026-09-08: "i thought the key
     numbers are all written in the rules" — the report's 'X/14' line had
     been the brain's prose, copied from a prompt example)."""
-    panel = _panel(panel_path)
+    panel = _panel_or(panel, panel_path)
     ev = Evaluator(wb)
     out = []
     for kk in (spec.get("key_rows") or []):
@@ -392,12 +465,12 @@ def key_state(wb, spec, target_year, panel_path):
     return out
 
 
-def key_snapshot(wb, spec, target_year, ledger, panel_path):
+def key_snapshot(wb, spec, target_year, ledger, panel_path, panel=None):
     """Every key row whose value is PROVEN-PRINTED right now: equal to
     the pinned print, or itself a printed figure on a current statement
     face. -> {name: (ref, value, basis)}. Taken before stage 4, so a
     later write that moves a proven key off the print is caught."""
-    panel = _panel(panel_path)
+    panel = _panel_or(panel, panel_path)
     ev = Evaluator(wb)
     out = {}
     for kk in (spec.get("key_rows") or []):
@@ -424,7 +497,7 @@ def key_snapshot(wb, spec, target_year, ledger, panel_path):
     return out
 
 
-def key_violations(wb, spec, target_year, ledger, panel_path, snapshot):
+def key_violations(wb, spec, target_year, ledger, panel_path, snapshot, panel=None):
     """Keys that were proven-printed at the snapshot and now hold a
     DIFFERENT value that is printed nowhere. -> [(name, ref, then, now)].
     A key that moved to another printed figure is a definition
@@ -432,7 +505,7 @@ def key_violations(wb, spec, target_year, ledger, panel_path, snapshot):
     never gated here."""
     if not snapshot:
         return []
-    panel = _panel(panel_path)
+    panel = _panel_or(panel, panel_path)
     ev = Evaluator(wb)
     out = []
     for nm, (ref, then, _basis) in snapshot.items():

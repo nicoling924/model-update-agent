@@ -92,7 +92,8 @@ def plain_note(text):
     if low.startswith(("queue-documented", "card rendered with zero candidates",
                        "card-adjudicated not proven", "stale input")):
         return "Not found in the documents. Kept last period's figure."
-    if low.startswith(("guard revert", "not confirmed", "backed out",
+    if low.startswith(("guard revert", "not confirmed", "backed out", "new line this year",
+                       "updated per the disclosure", "two readings",
                        "least confident", "one of ")):
         return _cut(t)                     # already written for the analyst
     if low.startswith("embedded hardcode"):
