@@ -3174,7 +3174,7 @@ def test_leaf_walk_expands_sum_ranges_run232():
     f = Fake()
     f.wb = wb
     leaves = set(f._leaf_inputs_ranges("D", "AI19"))
-    assert set(f._leaf_inputs("D", "AI19")) == {("D", "AI20"), ("D", "AI14"), ("D", "AI18")}  # classic walk unchanged
+    assert set(f._leaf_inputs("D", "AI19")) == leaves   # 2026-09-09: every row of a range is an input for every caller (the half-year ladder lesson)
     assert leaves == {("D", "AI20"), ("D", "AI14"), ("D", "AI15"), ("D", "AI16"), ("D", "AI17"), ("D", "AI18")}, leaves
 
 
@@ -3836,9 +3836,9 @@ def test_fences_removed_deduction_2026_09_08():
     hdr21 = _item(21, 1, "项目 年度", [2025.0, 2024.0, 2023.0, 2022.0, 2021.0])    # a period table: years in the header
     five = _item(21, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, 30000000000.0, 28000000000.0, 27000000000.0])
     face = _item(101, 7, "收回投资收到的现金", [25155704810.83, 35262270217.8])
-    other = _item(30, 3, "收回投资收到的现金", [25000000000.0, 35262270217.8])       # a second, different printing
+    other = _item(31, 3, "收回投资收到的现金", [25000000000.0, 35262270217.8])       # a second, different printing (its own page: a note, not a grid)
     grid = _item(30, 4, "Net book value at 1 January", [6608000000.0, 471000000.0, 914000000.0, 7993000000.0])
-    led = _ledger(_anchors(101, 1e6) + _anchors(21, 1e6) + _anchors(30, 1e6) + [hdr21, five, face, other, grid], face_pages=((101, "cf"),))
+    led = _ledger(_anchors(101, 1e6) + _anchors(21, 1e6) + _anchors(30, 1e6) + _anchors(31, 1e6) + [hdr21, five, face, other, grid], face_pages=((101, "cf"),))
     led._doc_periods = {DOC: "current"}
     serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
     got = serves.get(("Raw", 203))
@@ -4059,6 +4059,100 @@ def test_reader_verifies_every_answer_against_print_2026_09_09():
     assert abs(v["Model!38"]["value"] - 1832.93) < 0.01 and v["Model!38"]["flag"] == "red"       # no tie: red with citation
     assert abs(v["Raw!44"]["value"] - 3831.30) < 0.01 and v["Raw!44"]["conf"] == 4              # found on p2 by name
     assert "Model!54" not in v                                                                    # fabricated: never written
+
+
+def test_every_row_of_a_sum_range_is_a_plug_site_2026_09_09():
+    """Half-year replay: 'SUM(BS69:BS74)' yielded only its two end rows to
+    the ladder, so the stale dividends-payable inside the range was
+    invisible and the balance stayed open by exactly that amount. Every
+    row of a range is an input."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"] = 2024, 2025
+    raw = wb.create_sheet("Raw")
+    for r, v in ((121, 16341.0), (126, 776.0), (127, 542.0), (130, 1485.0), (131, 2969.0)):
+        raw[f"U{r}"] = v
+    ws["U72"] = "=SUM(Raw!U121,Raw!U126,Raw!U127,Raw!U130,Raw!U131)"
+    ws["U69"], ws["U70"], ws["U71"], ws["U73"], ws["U74"] = 75.0, 30488.0, 42078.0, 257.0, 6016.0
+    ws["U75"] = "=SUM(U69:U74)"
+    ws["U95"] = "=ROUND(U75-99545,0)"
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2},
+                          "Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}},
+            "check_rows": [{"sheet": "Model", "row": 95}]}
+    led = _ledger(_anchors(95, 1e6), face_pages=((95, "pl"),))
+    loop = ObjectiveLoop(wb, spec, 2025, led, _anchor_targets(), {}, Writer(wb), None)
+    leaves = set(loop._leaf_inputs("Model", "U95"))
+    assert ("Raw", "U130") in leaves and ("Model", "U70") in leaves, leaves
+
+
+def test_header_roll_keeps_the_analysts_mark_and_moves_two_digit_marks_2026_09_09():
+    """Half-year replay: the roll copied 'H124' over the analyst's 'H125'
+    (two H124 columns); the header roll only knew four-digit years. A
+    target header marking another period is the author's and stays; a
+    two-digit mark moves one period on."""
+    import openpyxl
+    from pipeline.writer import rollover_column, roll_year_headers, Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Driver"
+    ws["AB2"], ws["AD2"] = "H124", "H125"
+    ws["AB4"], ws["AD4"] = 10.0, "=AB4*(1+X9)"
+    rollover_column(wb, "Driver", "AB", "AD")
+    assert ws["AD2"].value == "H125" and ws["AD4"].value == 10.0
+    ws2 = wb.create_sheet("S"); ws2["T2"], ws2["U2"] = "FY24", "FY24"; ws2["T3"], ws2["U3"] = "H124", "H124"
+    n = roll_year_headers(Writer(wb), "S", "T", "U", 2024, 2025)
+    assert n == 2 and ws2["U2"].value == "FY25" and ws2["U3"].value == "H125"
+
+
+def test_unratified_page_takes_its_documents_scale_2026_09_09():
+    """Half-year replay: the dividends-payable note (p153) tied the model's
+    year-end prior exactly but had too few priors to ratify its own scale
+    and was never walked. A page without anchors takes the scale most of
+    its document's ratified pages carry."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A130"], ws["T130"] = "应付股利", 4.5689
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    note = _item(153, 3, "应付股利", [1371192193.78, 4568944.33])       # one line: cannot ratify a scale alone
+    led = _ledger(_anchors(95, 1e6) + _anchors(96, 1e6) + _anchors(97, 1e6) + [note], face_pages=((95, "bs"),))
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    got = serves.get(("Raw", 130))
+    assert got and abs(float(got["value"]) - 1371.19) < 0.01, (got, mapping)
+
+
+def test_a_matrix_is_a_matrix_in_every_row_2026_09_09():
+    """CLP floor: the statement of changes in equity (no year header, wide
+    rows) has a 'Balance at 31 December' line read with three numbers —
+    a day, total equity, non-controlling interests — which paired (total
+    equity, NCI) as (current, prior) and served 104,055 into minority
+    interests. Where a table's columns are categories, no row pairs."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Final"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A97"], ws["T97"] = "Minority Interests", 9815.0
+    spec = {"year_axis": {"Final": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    wide = _item(17, 50, "Non-controlling interests (NCI)", [6063e6, 26258e6, 9815e6, 1200e6])   # a wide row: the table is a matrix
+    narrow = _item(17, 77, "Balance at", [31.0, 107610e6, 9815e6])                                # its narrow row must not pair
+    led = _ledger(_anchors(17, 1e6) + [wide, narrow], face_pages=())
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    assert ("Final", 97) not in serves and mapping.get("matrix_rows", 0) >= 2, (serves.get(("Final", 97)), mapping)
+
+
+def test_new_line_needs_a_real_name_2026_09_09():
+    """CLP floor: a memo row labelled 'Note:' took 25 from a '(Note' line
+    under the new-line rule. 'Note', 'Total', 'Other' name nothing; a new
+    line's label must name an item (three CJK characters or two words)."""
+    import inspect
+    from pipeline import run as _run
+    src = inspect.getsource(_run.update)
+    assert "note|notes|total|subtotal|other|others|合计|小计|总计|其他|其中" in src and "_cjk < 3" in src
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

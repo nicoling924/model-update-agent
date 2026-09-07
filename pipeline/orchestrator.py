@@ -494,9 +494,13 @@ class ObjectiveLoop:
         """The range-aware walk (every row of a SUM range is a leaf)."""
         return self._leaf_inputs(sheet, coord, ranges=True)
 
-    def _leaf_inputs(self, sheet, coord, depth=0, seen=None, ranges=False):
+    def _leaf_inputs(self, sheet, coord, depth=0, seen=None, ranges=True):
         """The leaf INPUT cells under a target-year formula cell: follow
-        references recursively; a numeric hardcode is a leaf. Bounded."""
+        references recursively; a numeric hardcode is a leaf. Bounded.
+        EVERY row of a SUM range is an input (half-year replay 2026-09-09:
+        with ranges off, 'SUM(BS69:BS74)' yielded only its two end rows,
+        so the stale dividends-payable inside it was invisible to the
+        ladder and the balance stayed open by exactly that amount)."""
         seen = seen if seen is not None else set()
         if depth > 6 or (sheet, coord) in seen or len(seen) > 400:
             return []

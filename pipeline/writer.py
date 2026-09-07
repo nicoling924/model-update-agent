@@ -124,6 +124,16 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
         if v is None:
             dst.value = None
             continue
+        # THE ANALYST'S OWN PERIOD MARK IS KEPT (half-year replay 2026-09-09:
+        # the roll copied 'H124' over the analyst's 'H125' header and the
+        # workbook left with two H124 columns): a target header cell that
+        # already marks a period other than the source's is the author's,
+        # not a stale copy
+        if r <= 12:
+            from .discover import _year_of as _yo
+            ys, yd = _yo(v)[0], _yo(dst.value)[0]
+            if ys is not None and yd is not None and yd != ys:
+                continue
         if isinstance(v, str) and v.startswith("="):
             # THE ANALYST'S OWN CARRIED-FORWARD FORMULA IS KEPT (half-year
             # replay 2026-09-09: the H125 column already held '=EY152+EX152'
@@ -171,6 +181,13 @@ def roll_year_headers(writer, sheet, pcol, tcol, prior_year, target_year,
                 nv = pv.replace(year=int(ty), day=28)
         elif isinstance(pv, str) and py in pv:
             nv = pv.replace(py, ty)
+        elif isinstance(pv, str):
+            # two-digit period marks ('H124' -> 'H125', '1H24' -> '1H25',
+            # 'FY24' -> 'FY25'): the mark's own year moves one on
+            import re as _re
+            m_ = _re.fullmatch(r"\s*((?:H[12]|[12]H|Q[1-4]|[1-4]Q|FY)\s*'?)(\d{2})(\s*[AEae]?\s*)", pv)
+            if m_ and int(m_.group(2)) == int(py) % 100:
+                nv = f"{m_.group(1)}{int(ty) % 100:02d}{m_.group(3)}"
         if nv is None or ws[f"{tcol}{r}"].value == nv:
             continue
         if writer.write(sheet, f"{tcol}{r}", nv, prior_coord=f"{pcol}{r}",

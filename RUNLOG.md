@@ -2022,3 +2022,21 @@ year's (593.54 had gone into 'other financing receipts', then the ladder
 plugged it); a no-tie read must live in the row's world (10,820 read as
 interest income, prior 132.71). The prose unit word ('1,172.51亿元') now
 verifies. 3 plugs, 34 red cells (12 of them reader reads), 8/8 keys.
+
+## 2026-09-09 (late night) — three more found by the half-year replay, all pinned
+- The plug ladder's leaf walker did not expand SUM ranges (only their end
+  rows): the stale dividends-payable inside 'SUM(BS69:BS74)' was invisible,
+  so the Model's H125 balance stayed open by exactly that amount and no
+  plug was even attempted. Every row of a range is an input now.
+- The column roll copied the prior header 'H124' over the analyst's 'H125'
+  (two H124 columns); the header roll knew only four-digit years. A target
+  header marking another period is the author's and stays; two-digit
+  marks move one period on.
+- A note page with too few priors to ratify its own scale was never walked
+  (dividends payable p153 tied the year-end prior exactly). A page without
+  anchors takes the scale most of its document's ratified pages carry.
+- CLP floor after the matrix-in-every-row rule: minority interests no
+  longer mis-served from the equity statement; two readings 12 → 2; keys
+  8/8; one open check (ROAFNA 2025, 1,405) delivered red. Half-year
+  floor: Model balance 0, dividends payable 1,371.19 from the note. Head
+  proven on all three ledgers; museum 151.

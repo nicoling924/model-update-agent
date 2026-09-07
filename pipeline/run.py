@@ -802,7 +802,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             continue
         _strip = lambda x: re.sub(r"[（(][^（）()]{1,12}[）)]", "", _nl_new(str(x or ""))).replace(" ", "")
         rl = _strip(t.label)
-        if len(rl) < 4:
+        # the label must NAME an item: 'Note', 'Total', 'Other' name nothing
+        # (CLP floor 2026-09-09: a 'Note:' memo row took 25 from a '(Note' line)
+        _cjk = sum(1 for ch in rl if "一" <= ch <= "鿿")
+        if len(rl) < 4 or re.fullmatch(r"(note|notes|total|subtotal|other|others|合计|小计|总计|其他|其中)", rl, re.IGNORECASE) \
+                or (_cjk < 3 and len(str(t.label).split()) < 2):
             continue
         reads = {}
         for it in ledger.items:

@@ -77,22 +77,30 @@ def main(argv):
         cands = sorted(Path(company, "model").glob(f"* {period} (pipeline*.xlsx"))
         out = str(cands[-1]) if cands else None
     wb = openpyxl.load_workbook(out)
+    from pipeline.evaluator import Evaluator
+    ev = Evaluator(wb)
     fails = 0
     for cell, (sub, exp) in wants.items():
         sheet, coord = cell.split("!")
         c = wb[sheet][coord]
+        shown = c.value
+        if isinstance(c.value, str) and c.value.startswith("="):
+            try:
+                shown = ev.cell(sheet, coord)          # a check row is a formula: compare its VALUE
+            except Exception:
+                shown = c.value
         rgb = str(c.fill.fgColor.rgb or "")[-6:]
         note = (c.comment.text[:90].replace("\n", " ") if c.comment else "")
         asked = seen.get(cell, ("NO CARD", ""))[0]
         verdict = ""
         if exp is not None:
             try:
-                good = abs(float(c.value) - float(exp)) <= max(0.01, abs(float(exp)) * 1e-5)
+                good = abs(float(shown) - float(exp)) <= max(0.01, abs(float(exp)) * 1e-5)
             except (TypeError, ValueError):
-                good = str(c.value) == exp
+                good = str(shown) == exp
             verdict = "OK" if good else "FAIL"
             fails += not good
-        print(f"[readiness] {cell}: card {asked} -> value {c.value!r} fill {rgb} {verdict} | {note}")
+        print(f"[readiness] {cell}: card {asked} -> value {shown!r} fill {rgb} {verdict} | {note}")
     return 0 if (ok and not fails) else 1
 
 

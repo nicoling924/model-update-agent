@@ -187,6 +187,23 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         pool = ledger.join_pool()
     priors = list(by_row.values())
     page_scales = ratify_page_scales(pool, priors, [])
+    # A DOCUMENT'S SCALE IS PRINTED ONCE (half-year replay 2026-09-09: the
+    # dividends-payable note on p153 tied the model's year-end prior
+    # exactly, but the page had too few priors to ratify its own scale and
+    # was never walked). A page without a ratified scale takes the scale
+    # most of its document's ratified pages carry — the report's unit.
+    _dom = {}
+    for (d_, _p), sc in page_scales.items():
+        _dom.setdefault(d_, []).append(sc)
+    _dom = {d_: max(set(v), key=v.count) for d_, v in _dom.items() if len(v) >= 3}
+    _filled = 0
+    for it in pool:
+        key_ = (it.doc, it.page)
+        if key_ not in page_scales and it.doc in _dom:
+            page_scales[key_] = _dom[it.doc]
+            _filled += 1
+    if _filled:
+        log(f"[run] reconciliation: {_filled} page(s) took their document's scale (no anchors of their own)")
     tables = defaultdict(list)
     face_rank = {}
     for it in pool:
@@ -230,6 +247,18 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
             if len(yrs) >= 2 and len(set(yrs)) < len(yrs):
                 period_table = False
                 break
+        # A MATRIX IS A MATRIX IN EVERY ROW (CLP floor 2026-09-09: the
+        # statement of changes in equity has no year header and wide rows;
+        # its 'Balance at 31 December' line came through with three numbers
+        # — a day, total equity, non-controlling interests — and paired
+        # (total equity, NCI) as (current, prior), serving 104,055 into
+        # minority interests). Where a table's columns are categories, no
+        # row of it pairs horizontally, however few numbers the row shows.
+        matrix_table = (not period_table) and any(
+            len([n for n in it_.nums if isinstance(n, (int, float))]) >= 4 for it_ in items)
+        if matrix_table:
+            mapping["matrix_rows"] = mapping.get("matrix_rows", 0) + len(items)
+            continue          # evidence: no year header and category columns — its rows carry no (current, prior) pair
         for it in items:
             mapping["lines"] += 1
             # NO WIDE-ROW FENCE (deduction 2026-09-08): a summary table
