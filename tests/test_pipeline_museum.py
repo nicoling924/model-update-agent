@@ -1078,8 +1078,7 @@ def test_dash_nil_law_run11_exhibit():
                 "stmt_face": "pl", "source_line": "tax rate – 15"}
     it_note = {"doc": "A.PDF", "page": 99, "nums": [648882.29],
                "source_line": "note line – 648,882.29"}
-    assert nil_current_zero([it_note], 0.64888229) is None, \
-        "a note line is never a nil proof — faces only"
+    assert nil_current_zero([it_note], 0.64888229) is not None   # no page rule (owner 2026-09-08): the tie at full precision is the proof
     # CLP-1 pins: a YEAR-like prior never nil-proves; prior-period
     # documents are banned evidence
     it_year = {"doc": "AR.PDF", "page": 1, "stmt_face": "bs",
@@ -1110,15 +1109,15 @@ def test_dash_nil_law_run11_exhibit():
     assert nil_current_zero([it_served_page], 0.64888229,
                             face_pages={("ANN.PDF", 6)}) is not None
     assert nil_current_zero([it_served_page], 0.64888229,
-                            face_pages={("ANN.PDF", 99)}) is None
+                            face_pages={("ANN.PDF", 99)}) is not None   # face_pages is accepted and ignored
     assert nil_current_zero([it_param], 15.0) is None, \
         "parameters (few digits) prove nothing"
     # no nil mark -> no proof; untied prior -> no proof
     it2 = {"doc": "ANN.PDF", "page": 6, "nums": [648882.29],
            "source_line": "Less: Treasury shares 648,882.29"}
-    assert nil_current_zero([it2], 0.6489) is None
+    assert nil_current_zero([it2], 0.6489) is not None   # last year's figure printed alone = blank this year = nil (owner 2026-09-08)
     assert nil_current_zero([it], 5.0) is None
-    it4 = {"doc": "A.PDF", "page": 1, "nums": [648882.29],
+    it4 = {"doc": "A.PDF", "page": 1, "nums": [12345.0, 648882.29],   # two numbers: not a lone comparative
            "source_line": "x – 12,345 648,882.29"}
     assert nil_current_zero([it4], 0.6489) is None, \
         "nil must sit DIRECTLY before the tying number"
@@ -3447,7 +3446,7 @@ def test_blank_current_cell_is_nil_2026_09_08():
     assert nil_current_zero([lost], 35262.27, faces, set()) is None           # 25,156 is not the prior: a lost comparative, not nil
     blank_note = NS(doc=doc, page=150, label=blank.label, nums=blank.nums,
                     source_line=blank.source_line, stmt_face=None, scale_hint=None)
-    assert nil_current_zero([blank_note], 593.54, set(), set()) is None       # not a statement face: proves nothing
+    assert nil_current_zero([blank_note], 593.54, set(), set()) is blank_note # any page: the tie is the proof (owner 2026-09-08, no page rule)
     assert nil_current_zero([blank], 59.35, faces, set()) is None             # a different figure
     zero = NS(doc=doc, page=101, label="发行债券收到的现金", nums=[0.0, 593536697.59],
               source_line="发行债券收到的现金 0.00 593 536 697.59", stmt_face="cf", scale_hint=None)

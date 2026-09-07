@@ -987,7 +987,8 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S):
             # sitting on it). A refusal is information — show it, drop
             # the refused option, ask ONCE more.
             log(f"[queue] {item.kind} {item.sheet}!{item.row or ''} "
-                f"-> {ans} REFUSED — re-asking without it")
+                f"-> {ans} REFUSED — re-asking without it "
+                f"({res.splitlines()[0][:140]})")
             options2 = {k: v for k, v in options.items() if k != ans}
             text2 = (text + f"\n  NOTE: your previous answer '{ans}' was "
                      f"refused by the write guard: "

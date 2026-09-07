@@ -244,17 +244,13 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
         if banned_docs and _meta(it, "doc") in banned_docs:
             continue                 # prior-period documents prove nothing
                                      # about THIS period's nils
-        # STATEMENT FACES ONLY (second dry-run audit: a five-year-summary
-        # line and a note's 15,000,000 after a dash still slipped) — the
-        # empty-current-slot reading is only trustworthy on the face,
-        # where column order is law. A face is a page the deterministic
-        # join actually served from (its own accepted serves ratify it);
-        # the stmt_face tag backs it up where present.
-        page_ok = bool(_meta(it, "stmt_face"))
-        if face_pages is not None and not page_ok:
-            page_ok = (_meta(it, "doc"), _meta(it, "page")) in face_pages
-        if not page_ok:
-            continue
+        # NO PAGE RULE (owner 2026-09-08: "these kind of rules make the
+        # agent unable to adapt to other kinds of statements"). The old
+        # 'statement faces only' guard was the safety before the test
+        # itself carried it — the tie is now at the model's own precision,
+        # needs four significant digits, and the sweep needs label
+        # kinship; where the line sits no longer matters. `face_pages` and
+        # `statement_faces` are accepted and ignored.
         line = str(_meta(it, "source_line", ""))
         # A BLANK CURRENT CELL IS NIL TOO (owner 2026-09-08, DFE: 'other
         # cash received relating to financing' prints the comparative

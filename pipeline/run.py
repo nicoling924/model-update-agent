@@ -469,7 +469,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 continue
             if e.get("doc") and e.get("doc") in _ban:
                 continue        # the vintage law binds pinned serves too
-            if str(e.get("note") or "").startswith(("stage-2", "reconciliation")):
+            _n = str(e.get("note") or "")
+            if "card-adjudicated" in _n or _n.startswith("objective loop"):
+                continue        # STAGE-4 PRODUCTS ARE RE-DECIDED (readiness
+                                # 2026-09-08): pinning the live run's own card
+                                # serves made the cell 'already served' and
+                                # its value 'already homed', so the replayed
+                                # card was refused — and the floors were
+                                # scoring the live brain's answers as proven
+            if _n.startswith(("stage-2", "reconciliation")):
                 continue        # deterministic serves recompute under the
                                 # CURRENT laws; only the brain's reads are pinned
             served[key_p] = {"value": e["value"], "status": "OK",

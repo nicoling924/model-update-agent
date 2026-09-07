@@ -1866,3 +1866,24 @@ verifier demanded a statement-face tag that vision-read lines never
 carry, while the card had shown the line. The verifier now judges the
 same evidence the card showed. Its two key totals (CFI/CFF) are the
 other two reds. Museum 130.
+
+## 2026-09-08 — no page rule in the nil check; readiness proof before any dispatch
+Owner: "these kind of rules will make the agent unable to adapt to other
+kinds of statements." The 'statement faces only' guard inside the nil
+check was the safety from before the test carried its own (precision,
+significant digits, label kinship for the sweep) — removed; where a
+line sits no longer matters. Runs 251 and 253 cancelled by the owner
+("can u test before running"): the floors replay with default answers
+and never exercise the brain's answer path, where the verifier bug
+lived. tools/readiness.py now answers named cards the way the brain is
+expected to, on a live run's own ledger, and proves the cells land —
+part of the bench before any dispatch. Museum 130.
+
+## 2026-09-08 — replays no longer pin the live run's own card answers
+Readiness on run 252's ledger refused the New orders write: "this cell
+already holds a PROVEN value" — the pinned provenance carried the live
+brain's own card serve for that cell, so the replayed card met itself.
+Worse, the floors had been scoring the live brain's answers as proven
+instead of re-deciding them. Stage-4 products (card-adjudicated,
+objective-loop notes) are dropped from the pin; only the reading
+stages' serves replay. Card refusals now log their reason.
