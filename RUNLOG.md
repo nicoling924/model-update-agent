@@ -2004,3 +2004,7 @@ unverifiable answer is never served, not even red.
   years (2025 2024 | 2025 2024) are a segment × year grid — never paired.
 - Step-1 floors on the three ledgers all delivered; open checks are now
   marked red and delivered, never quarantined.
+- reconcile: a second READING must name the item (label kin to the model
+  row or to the first reading's line); a line whose comparative merely
+  equals the prior by coincidence is no reading. CLP floor: 35 → 11 flags,
+  delivered, keys 7/8.

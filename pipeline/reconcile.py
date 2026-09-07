@@ -358,8 +358,17 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                 _raw = next((n for n in it.nums if isinstance(n, (int, float))), None)
                 _dec = len(repr(round(abs(_raw), 8)).split(".")[1].rstrip("0")) if _raw is not None and "." in repr(round(abs(_raw), 8)) else 0
                 _gran = abs(to_model_units(10.0 ** (-_dec), s)) if _raw is not None else 0.0
-                _parent = (doc, page) in getattr(ledger, "parent_pages", set())
-                if abs(prev_v - cur) > max(row_tol(cur, base=1.0), 0.51 * _gran) and (sheet, r) in serves and not _parent:
+                _parent = (doc, page) in getattr(ledger, "parent_pages", set())  # evidence: docid proved this page is the PARENT company's statement — a different entity, not a second reading of the consolidated row
+                # a second READING is a line that names the item — kin to the
+                # model row's label or to the first reading's line; a line
+                # whose comparative merely equals the prior by coincidence
+                # (a solar farm's balance, a tax item) is no reading at all
+                from .numerics import kinship as _kin_r
+                _first = serves.get((sheet, r), {}).get("line", "") if (sheet, r) in serves else ""
+                _named = _kin_r(str(it.label or ""), str(wb[sheet].cell(r, 1).value or "")) \
+                    or (_first and _kin_r(str(it.label or ""), str(_first)))
+                if abs(prev_v - cur) > max(row_tol(cur, base=1.0), 0.51 * _gran) and (sheet, r) in serves \
+                        and not _parent and _named:
                     # TWO PRINTED READINGS (deduction 2026-09-08, F2): the
                     # statement claimed first; a later page prints a
                     # different current for the same tying prior — never
