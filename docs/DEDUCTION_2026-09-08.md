@@ -87,13 +87,14 @@ without the owner's go)
    (excluding numbers that tie any prior); forecast checks never veto an actual; no serve/call
    caps; key panel by prior tie; code-owned key count; replays carry key rows and do not pin
    card answers; readiness tool.
-2. NEXT (needs the owner's approval — this is the deduction): drop `WIDE_ROW`, drop
-   `max_lines_per_table`, split the vintage ban (readable for ties, never a source) at the 12
-   remaining sites, demote faces-only in stage2_join/composites/docid to priority, remove the
-   candidate caps from the cards.
-3. THEN: the cross-appearance corroboration index (F2) — one module, consulted by the walk and
-   by the nil/new-line paths; museum exhibits: lost column repaired from p20; disputed row
-   rescued; disagreeing appearances → two-readings card.
+2. DONE (owner's go, same night): `WIDE_ROW` and `max_lines_per_table` gone (wide rows: nearest
+   earlier number of the prior's magnitude + label confirms); candidate caps gone; the vintage ban
+   split — last year's report names a table item, never supplies a number. The remaining
+   `noncurrent_docs` sites are all SOURCE uses (kept by design). Faces-only in stage2_join /
+   composites / docid stays as priority for now (the walk covers every page).
+3. DONE (first cut): `Ledger.corroborate` rescues disputed vision rows by a second printing;
+   the whole-report walk repairs a lost column through the other printing; disagreeing printings
+   are red with both readings (the card lists both). A fuller per-figure index remains open.
 4. Prove on DFE FY25 (run-254 ledger) and 1H25, and on CLP FY25 (genericity), offline first.
 
 ## 6 · What this does NOT change

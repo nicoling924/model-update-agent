@@ -276,6 +276,37 @@ class Ledger:
     def face(self, doc, page):
         return self.faces.get((doc, page))
 
+    def corroborate(self, log=None):
+        """CROSS-APPEARANCE CORROBORATION (deduction 2026-09-08, F2): a
+        figure is printed more than once — statement, summary table,
+        five-year data, notes. A vision row the passes disputed becomes
+        usable when another appearance in the same document carries the
+        same label and the same leading numbers digit-for-digit; the two
+        printings are each other's second pass."""
+        from .numerics import norm_label
+        by_key = {}
+        for it in self.items:
+            if it.disputed or not it.nums:
+                continue
+            by_key.setdefault((it.doc, norm_label(str(it.label)).replace(" ", "")), []).append(it)
+        n = 0
+        for it in self.items:
+            if not it.disputed or not it.nums:
+                continue
+            k = (it.doc, norm_label(str(it.label)).replace(" ", ""))
+            for other in by_key.get(k, []):
+                a = [x for x in it.nums if isinstance(x, (int, float))][:2]
+                b = [x for x in other.nums if isinstance(x, (int, float))][:2]
+                if a and a == b:
+                    it.disputed = False
+                    it.consensus = max(int(it.consensus or 1), 2)
+                    n += 1
+                    if log is not None:
+                        log(f"[stage1] corroborated {it.doc} p{it.page} {str(it.label)[:24]!r} "
+                            f"by p{other.page} — no longer disputed")
+                    break
+        return n
+
     def join_pool(self, all_pages=False):
         """Items eligible to even be CONSIDERED: structurally joinable AND
         not from a prior-period document. Stage 2's join keeps the

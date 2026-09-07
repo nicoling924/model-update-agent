@@ -3807,6 +3807,78 @@ def test_new_line_this_year_served_by_its_label_2026_09_08():
     assert "ties any model prior it" in src          # a lone number tying a prior is last year's, not new
     assert "_strip(it.label) != rl" in src            # bracketed note refs stripped before the exact match
 
+def test_fences_removed_deduction_2026_09_08():
+    """Owner: "remove those patches and fix the underlying issues." No
+    wide-row fence (a five-year line serves by its tying pair when the
+    label confirms), no table-length fence, no candidate cap, and two
+    printed readings are flagged red — never dropped, never picked
+    silently. Run 229's grid ('6,608 | 471 | 914 | 7,993') still cannot
+    serve: wide + no label kinship."""
+    import openpyxl, inspect
+    from pipeline.reconcile import reconcile
+    from pipeline import workqueue as wq
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A203"], ws["T203"] = "收回投资收到的现金", 35262.27
+    ws["A50"], ws["T50"] = "Finance costs", 471.0
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    five = _item(21, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, 30000000000.0, 28000000000.0, 27000000000.0])
+    face = _item(101, 7, "收回投资收到的现金", [25155704810.83, 35262270217.8])
+    other = _item(30, 3, "收回投资收到的现金", [25000000000.0, 35262270217.8])       # a second, different printing
+    grid = _item(30, 4, "Net book value at 1 January", [6608000000.0, 471000000.0, 914000000.0, 7993000000.0])
+    led = _ledger(_anchors(101, 1e6) + _anchors(21, 1e6) + _anchors(30, 1e6) + [five, face, other, grid], face_pages=((101, "cf"),))
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    got = serves.get(("Raw", 203))
+    assert got and abs(float(got["value"]) - 25155.70) < 0.01, (got, mapping)     # the statement's reading kept
+    assert got.get("flag") == "red" and "Two printed readings" in got.get("note", ""), got
+    assert ("Raw", 50) not in serves and mapping.get("wide_unkin", 0) >= 1          # the grid coincidence refused by label
+    src = inspect.getsource(reconcile)
+    assert "wide_skipped" not in src and "if len(items) > max_lines_per_table" not in src
+    assert wq.MAX_CANDS is None
+
+
+def test_last_years_report_names_a_table_item_2026_09_08():
+    """Vintage split: last year's report is never a SOURCE of this year's
+    number, but it names the item. The line whose own current equalled
+    the model's prior tells the printed label; this year's line under
+    that label is the candidate — a renamed row, a moved segment."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["A1"], ws["T1"], ws["A3"], ws["T3"] = "aaaa", 58000.0, "bbbb", 39000.0
+    ws["A11"], ws["T11"], ws["U11"] = "Hydro", 2955.37, 2955.37
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    old_doc = "DFE 2024 Annual Report (CN).pdf"
+    last = Item(old_doc, 200, 0, 4, "水电设备", [2955370000.0, 2600000000.0], None, "money", None, "text", 1, False, "")
+    this = _item(95, 4, "水电设备", [3429350000.0, 2955370000.0])
+    led = _ledger(_anchors(95, 1e6) + [this, last], face_pages=((95, "pl"),))
+    led._doc_periods = {DOC: "current", old_doc: "prior"}
+    targets = _anchor_targets() + [TargetRow("Model", 11, "Hydro", 2955.37)]
+    writer = Writer(wb); writer.log["flags"].append("Model!U11")
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, writer, None)
+    cands = candidates_for(loop, "Model", 11)
+    hit = [c for c in cands if abs(c["value"] - 3429.35) < 0.01]
+    assert hit, cands
+    assert any("LAST YEAR" in w for w in hit[0]["warnings"]) or hit[0].get("tie_off", 9) == 0.0
+
+
+def test_corroboration_rescues_a_disputed_row_2026_09_08():
+    """F2: the vision passes disagreed on a statement row (disputed, never
+    joinable); the summary table prints the same label with the same
+    numbers — the second printing is the second pass."""
+    disputed = _item(101, 7, "收回投资收到的现金", [25155704810.83, 35262270217.8], channel="vision", disputed=True)
+    summary = _item(20, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, -28.66])
+    led = _ledger([disputed, summary], face_pages=((101, "cf"),))
+    assert not disputed.joinable()
+    n = led.corroborate()
+    assert n == 1 and disputed.joinable() and disputed.consensus >= 2
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

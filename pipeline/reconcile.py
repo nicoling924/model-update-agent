@@ -204,8 +204,7 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     for key in sorted(tables, key=lambda k: (face_rank.get(k, 1), k)):   # statements claim first
         doc, page, tid = key
         items = sorted(tables[key], key=lambda i: i.row_ord or 0)
-        if len(items) > max_lines_per_table:
-            continue
+        # no table-length fence (deduction 2026-09-08): time is the budget
         s = page_scales[(doc, page)]
         mapping["tables"] += 1
         table_serves = {}      # (sheet,row) -> (value, item, kind)
@@ -213,20 +212,32 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         exact_rows = set()     # the line's label IS the row's label
         for it in items:
             mapping["lines"] += 1
-            if not is_statement_line(it):
-                # THE TIME-SIGNATURE LAW, applied to reconciliation
-                # (run-229 autopsy: wide-row serves were wrong 20 of 27
-                # — 'Net book value at 1 | 6,608 | 471 | 914 | 7,993'
-                # served Australia's finance costs -6,608 because 471
-                # sat mid-row by coincidence; narrow lines were right
-                # 32 of 39). A statement line is current | prior (plus
-                # a note ref); a wider row is a note grid, a five-year
-                # table or a segment matrix — never reconciled
-                # positionally.
-                mapping["wide_skipped"] = mapping.get("wide_skipped", 0) + 1
-                continue
+            # NO WIDE-ROW FENCE (deduction 2026-09-08): a summary table
+            # prints current | prior | growth, a five-year table prints
+            # five columns — any adjacent pair whose prior ties is
+            # evidence. What run 229 actually taught ('6,608 | 471 | 914 |
+            # 7,993' served finance costs because 471 sat mid-row): in a
+            # wide row the pair's POSITION is uncertain, so the LABEL must
+            # confirm the tie — number first, then the name.
+            wide = len([n for n in it.nums if isinstance(n, (int, float))]) >= 4
             hit = None
-            for cur, pv in _pairs(it.nums, s):
+            # THE PAIR IN A WIDE ROW (deduction 2026-09-08, fence-free floor):
+            # 'accounts receivable 15,193.79 | 9.34% | 12,000 | 8.1% | +26%'
+            # — the number before the tying prior is a percentage; the
+            # current is the nearest EARLIER number of the prior's own
+            # magnitude. Narrow lines keep the classic adjacent pair.
+            pairs = _pairs(it.nums, s)
+            if wide:
+                vals_w = [to_model_units(n, s) for n in it.nums]
+                pairs = []
+                for j in range(1, len(vals_w)):
+                    pv_w = vals_w[j]
+                    for i in range(j - 1, -1, -1):
+                        cw = vals_w[i]
+                        if abs(pv_w) >= 0.5 and abs(cw) <= 30 * abs(pv_w) and abs(cw) * 30 >= abs(pv_w):
+                            pairs.append((cw, pv_w))
+                            break
+            for cur, pv in pairs:
                 rows = _resolve(homes.get(round(pv, 1), []), wb, spec,
                                 target_year, line_label=it.label)
                 if len(rows) != 1:
@@ -242,6 +253,11 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                         pv, it.label, wb[sheet].cell(r, 1).value):
                     mapping["small_unkin"] = mapping.get("small_unkin", 0) + 1
                     continue
+                if wide:
+                    from .numerics import kinship as _kin_w
+                    if not _kin_w(str(it.label or ""), str(wb[sheet].cell(r, 1).value or "")):
+                        mapping["wide_unkin"] = mapping.get("wide_unkin", 0) + 1
+                        continue
                 tol = row_tol(by_row[(sheet, r)])
                 # THE OUT-OF-WORLD GUARD FIRES ONLY ON A WEAK MAP (owner
                 # 2026-09-08): on a ratified face where the line's label
@@ -313,9 +329,26 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         for (sheet, r), (cur, it, kind) in table_serves.items():
             if (sheet, r) in claimed:
                 prev_v, _src = claimed[(sheet, r)]
-                if abs(prev_v - cur) > row_tol(cur, base=1.0):
-                    # two tables disagree on one row -> distrust both
-                    serves.pop((sheet, r), None)
+                # two printings agree within the COARSER printing's own
+                # granularity (a 亿元 summary with two decimals prints to
+                # the nearest 1m; the statement prints to the cent)
+                _raw = next((n for n in it.nums if isinstance(n, (int, float))), None)
+                _dec = len(repr(round(abs(_raw), 8)).split(".")[1].rstrip("0")) if _raw is not None and "." in repr(round(abs(_raw), 8)) else 0
+                _gran = abs(to_model_units(10.0 ** (-_dec), s)) if _raw is not None else 0.0
+                if abs(prev_v - cur) > max(row_tol(cur, base=1.0), 0.51 * _gran) and (sheet, r) in serves:
+                    # TWO PRINTED READINGS (deduction 2026-09-08, F2): the
+                    # statement claimed first; a later page prints a
+                    # different current for the same tying prior — never
+                    # dropped silently, never picked silently: red, both
+                    # readings in the note, the brain's card decides
+                    serves[(sheet, r)].update({
+                        "flag": "red", "conf": 3,
+                        "note": (f"Two printed readings: {prev_v:,.2f} ({_src}) vs "
+                                 f"{cur:,.2f} ({doc} p{page} {str(it.label)[:24]!r}). "
+                                 "Kept the statement's — please confirm.")})
+                    mapping["two_readings"] = mapping.get("two_readings", 0) + 1
+                    mapping.setdefault("two_readings_rows", []).append(
+                        (sheet, r, round(prev_v, 2), _src, round(cur, 2), f"{doc} p{page} {str(it.label)[:24]}"))
                 continue
             claimed[(sheet, r)] = (cur, f"{doc} p{page}")
             mapping["matched"] += 1
@@ -344,8 +377,11 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                     "note": (f"Read from the disclosure ({doc} p{page}) but "
                              f"moved {_x:,.0f}x vs last year ({_pv:,.1f} -> "
                              f"{cur:,.1f}) — please double check.")})
-    log(f"[run] reconciliation: {mapping.get('wide_skipped', 0)} wide rows "
-        f"skipped (not statement lines), {mapping.get('small_unkin', 0)} "
+    for _tr in mapping.get("two_readings_rows", [])[:12]:
+        log(f"[run]   two readings: {_tr[0]}!{_tr[1]} {_tr[2]:,} ({_tr[3]}) vs {_tr[4]:,} ({_tr[5]})")
+    log(f"[run] reconciliation: {mapping.get('two_readings', 0)} rows with two printed "
+        f"readings (red), {mapping.get('wide_unkin', 0)} wide-row ties refused (no label "
+        f"kinship), {mapping.get('small_unkin', 0)} "
         "small-prior coincidences refused (no label kinship); "
         f"{mapping['tables']} tables walked, "
         f"{mapping['matched']} rows served ({mapping['confirmed']} "

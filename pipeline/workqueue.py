@@ -41,7 +41,7 @@ from .numerics import row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
 
 DEADLINE_S = 1200
-MAX_CANDS = 4
+MAX_CANDS = None      # no cap (deduction 2026-09-08): every candidate, ordered; the brain judges
 
 _SYSTEM = (
     "You are an equity research analyst answering ONE bounded question "
@@ -213,6 +213,43 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
                                  "does not) — so the blank means 0 this year, "
                                  "unless the same figure is a coincidence on an "
                                  "unrelated line (judge the meaning)"]})
+    # LAST YEAR'S REPORT NAMES THE ITEM (deduction 2026-09-08, vintage
+    # split): a prior-vintage document is never a SOURCE of this year's
+    # number, but it is evidence of IDENTITY — the line whose own current
+    # equalled the model's prior tells the item's printed label; this
+    # year's lines under that label are candidates (the segment that
+    # moved, the row the company renamed). Same rule as the prose noun.
+    from .numerics import kinship as _kin3, to_model_units as _tmu3, norm_label as _norm3
+    from .writegate import _SCALES as _SC3, _ties_full_precision as _tfp3
+    old_labels = set()
+    for it in loop.ledger.items:
+        if it.doc not in bad or getattr(it, "channel", "") == "prose":
+            continue
+        nums0 = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if nums0 and any(_tfp3(nums0[0] / f, pv) for f in _SC3):
+            old_labels.add(_norm3(str(it.label)).replace(" ", ""))
+    if old_labels:
+        seen_old = {round(c["value"], 1) for c in out}
+        for it in loop.ledger.items:
+            if it.doc in bad or getattr(it, "channel", "") == "prose":
+                continue
+            lab_n = _norm3(str(it.label)).replace(" ", "")
+            if not any(lab_n == o or _kin3(o, lab_n) for o in old_labels):
+                continue
+            nums1 = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+            sc = scales.get((it.doc, it.page))
+            if not nums1 or not sc:
+                continue
+            val = _tmu3(nums1[0], sc)
+            if round(val, 1) in seen_old:
+                continue
+            seen_old.add(round(val, 1))
+            face = loop.ledger.face(it.doc, it.page)
+            out.append({"value": val, "doc": it.doc, "page": it.page,
+                        "line": str(it.label)[:60], "face": face or "no-face",
+                        "tie_off": 0.5,
+                        "warnings": ["✔ LAST YEAR'S report prints the model's prior under this "
+                                     "label — the item's own name; this year's line under it"]})
     # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
     # candidate even without a prior tie — the brain judges the item and
     # the unit from the sentence printed on the card; code's guard is the
@@ -288,7 +325,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             continue
         seen.add(key)
         uniq.append(c)
-    return uniq[:k]
+    return uniq if k is None else uniq[:k]
 
 
 def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
@@ -350,9 +387,9 @@ def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
                     "face": "prose" if prose else (loop.ledger.face(it.doc, it.page) or "no-face"),
                     "tie_off": 9.0, "no_prior": True, "warnings": warns})
     out.sort(key=lambda c: (c["face"] != "prose", c["doc"], c["page"]))
-    if out and not any(_kin(lab_row, c["line"]) for c in out):
+    if k is not None and out and not any(_kin(lab_row, c["line"]) for c in out):
         k = max(k, 8)         # across scripts the brain needs to SEE the sentences
-    return out[:k]
+    return out if k is None else out[:k]
 
 
 def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
@@ -406,7 +443,7 @@ def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
                     "basis": (f"positional: prior {pv:,.1f} at slot {kpos} "
                               f"of the same-labelled row, {it_p.doc[:20]} "
                               f"p{it_p.page}")})
-    return out[: k * 3]
+    return out if k is None else out[: k * 3]
 
 
 def _block_context(loop, sheet, row, span=8):

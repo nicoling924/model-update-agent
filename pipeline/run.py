@@ -400,11 +400,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # client=None rebuild; the pinned ledger carries the checksummed
         # transcriptions)
         ledger = Ledger.from_json(Path(pinned_ledger).read_text())
+        ledger.corroborate(log)
         log(f"[run] stage 1 PINNED: ledger replayed from {pinned_ledger} "
             f"({len(ledger.items)} items)")
     else:
         ledger = read_documents(docs, client=client, known_values=known,
                                 log=log)
+        ledger.corroborate(log)
     # THE VINTAGE LAW (run-228 autopsy): each document's vintage is
     # decided ONCE, here, before any stage serves. A document is
     # evidence for the periods it proves; 'unknown' is context, never a
@@ -642,6 +644,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             ref = f"{sheet}!{tcol}{r}"
             if ref not in writer.log["flags"] or (sheet, r) in lb:
                 continue
+            if (sheet, r) in served:
+                continue                     # a SERVED row is never a stale input,
+                                             # whatever its flag (two readings, big
+                                             # move): holding it at growth threw away
+                                             # 21 proven reads on the fence-free floor
             cell_now = wb[sheet][f"{tcol}{r}"]
             from openpyxl.styles import PatternFill as _PF
             try:

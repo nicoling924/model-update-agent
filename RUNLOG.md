@@ -1940,3 +1940,17 @@ up in docs/DEDUCTION_2026-09-08.md: F1 location-as-admission (57 gates,
 dispositions), F2 single-read fragility (cross-appearance corroboration
 planned). Step 2 (drop WIDE_ROW, table cap, candidate caps; split the
 vintage ban at 12 sites) awaits the owner's approval.
+
+## 2026-09-08 — deduction steps 2 and 3 landed (owner: "remove those patches and fix the underlying issues")
+Removed: the wide-row fence, the table-length fence, the candidate caps.
+Replaced by evidence: in a wide row the current is the nearest earlier
+number of the prior's own magnitude and the label must confirm (run
+229's grid still cannot serve); two printings that disagree are red
+with both readings, never dropped or picked silently; last year's
+report names a table item (identity, never a source); disputed vision
+rows are rescued by a second printing (corroborate). Two harness bugs
+the fence-free floor exposed: the tier-3 hold treated a served-but-
+flagged row as stale (threw away 21 proven reads), and a two-readings
+flag made a proven BS row look least confident to the plug ladder.
+Fence-free proof on run 254's ledger: DELIVERED, five cells land, keys
+9/9, 2 plugs, 3 genuine two-readings flags for the analyst. Museum 140.
