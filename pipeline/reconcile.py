@@ -28,7 +28,7 @@ from collections import defaultdict
 
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
-from .numerics import row_tol, to_model_units
+from .numerics import norm_label, row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
 
 CONF_RECON = 4   # trusted, NOT locked — a new stage earns locks later
@@ -203,6 +203,8 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         s = page_scales[(doc, page)]
         mapping["tables"] += 1
         table_serves = {}      # (sheet,row) -> (value, item, kind)
+        big_moves = set()      # served, but worth a second look
+        exact_rows = set()     # the line's label IS the row's label
         for it in items:
             mapping["lines"] += 1
             if not is_statement_line(it):
@@ -235,10 +237,29 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                     mapping["small_unkin"] = mapping.get("small_unkin", 0) + 1
                     continue
                 tol = row_tol(by_row[(sheet, r)])
-                if abs(cur) > 30 * max(abs(pv), 1) \
-                        or (abs(pv) > 30 and abs(cur) * 30 < abs(pv)):
-                    continue           # out-of-world pair
+                # THE OUT-OF-WORLD GUARD FIRES ONLY ON A WEAK MAP (owner
+                # 2026-09-08): on a ratified face where the line's label
+                # IS the model row's label, a 47x move is the disclosure
+                # (DFE's A+H share placement: 110 -> 5,236). The guard
+                # stays for prior-only ties, which can be coincidences.
+                _rl = norm_label(str(wb[sheet].cell(r, 1).value or "")).replace(" ", "")
+                _ll = norm_label(str(it.label or "")).replace(" ", "")
+                exact = bool(_rl) and _rl == _ll
+                big = (abs(cur) > 30 * max(abs(pv), 1)
+                       or (abs(pv) > 30 and abs(cur) * 30 < abs(pv)))
+                # ... on a KIN map it is a SUGGESTION, not a gate (owner
+                # 2026-09-08: "this input moved 30x — double check before
+                # you input it"): served and flagged for review; on a
+                # prior-only tie with no label kinship a 30x move is a
+                # coincidence and is dropped, as before
+                if big and not exact:
+                    from .numerics import kinship as _kin
+                    if not _kin(str(wb[sheet].cell(r, 1).value or ""), str(it.label or "")):
+                        continue
+                    big_moves.add((sheet, r))
                 hit = (sheet, r, cur, pv)
+                if exact:
+                    exact_rows.add((sheet, r))
                 break
             if hit is None:
                 money = [n for n in it.nums if abs(n) >= 50]
@@ -303,6 +324,18 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                          + ("value CONFIRMED unchanged vs last year"
                             if kind == "confirmed" else
                             "current read from the same line"))}
+            if (sheet, r) in exact_rows:
+                serves[(sheet, r)]["exact_label"] = True
+            if (sheet, r) in big_moves:
+                # served, with the owner's 'double check' note — red
+                # (unsure), conf 3 so the value is not proven-locked
+                _pv = by_row[(sheet, r)]
+                _x = abs(cur) / max(abs(_pv), 1e-9)
+                serves[(sheet, r)].update({
+                    "flag": "red", "conf": 3,
+                    "note": (f"Read from the disclosure ({doc} p{page}) but "
+                             f"moved {_x:,.0f}x vs last year ({_pv:,.1f} -> "
+                             f"{cur:,.1f}) — please double check.")})
     log(f"[run] reconciliation: {mapping.get('wide_skipped', 0)} wide rows "
         f"skipped (not statement lines), {mapping.get('small_unkin', 0)} "
         "small-prior coincidences refused (no label kinship); "

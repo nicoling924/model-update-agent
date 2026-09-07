@@ -506,6 +506,16 @@ class ObjectiveLoop:
             return [(sheet, coord)]
         if not isinstance(v, str) or not v.startswith("="):
             return []
+        # the agent's OWN back-out formula (an orange growth hold written
+        # this run) is a leaf: the least confident input in the chain,
+        # and the ladder's first plug site (owner 2026-09-08). The
+        # analyst's formulas are walked through, never treated as inputs.
+        try:
+            _rgb = str(self.wb[sheet][coord].fill.fgColor.rgb or "")
+        except Exception:
+            _rgb = ""
+        if _rgb.endswith("FFC000") and f"{sheet}!{coord}" in self.writer.log.get("written", []):
+            return [(sheet, coord)]
         out = []
         txt = v.replace("$", "")
         if ranges:
@@ -714,6 +724,16 @@ class ObjectiveLoop:
         i_sheet, i_col, i_row = ci
         pe = (self.served or {}).get((i_sheet, i_row))
         proven = isinstance(pe, dict)
+        # a PROVEN value is never a plug site (owner 2026-09-08): the plug
+        # goes into the least confident input of the check's chain
+        from .rollover import input_is_proven as _iip
+        if proven and _iip(self.served, i_sheet, f"{i_col}{i_row}",
+                           self.wb[i_sheet][f"{i_col}{i_row}"].value, (), self.wb):
+            return (f"REFUSED: {i_sheet}!{i_col}{i_row} holds a PROVEN value "
+                    f"({pe.get('value')} from {pe.get('doc')} p{pe.get('page')}) — "
+                    "a plug goes into the least confident input of this "
+                    "check's chain (a held-at-prior or red cell), never over "
+                    "a read figure")
         # THE PROBE-TESTED PLUG (owner regression ruling 2026-09-01:
         # run-213's share-capital plug was wrong because it BROKE THE
         # FORECAST YEARS, not because the cell was proven — and the
@@ -732,6 +752,22 @@ class ObjectiveLoop:
         if abs(residual) <= 0.01:
             return "MISS: that check already passes — nothing to plug"
         held = self.wb[i_sheet][f"{i_col}{i_row}"].value
+        hold_formula = None
+        if isinstance(held, str) and held.startswith("="):
+            # the agent's own growth hold (orange, this run) may take the
+            # plug — as a traceable composite on its evaluated value
+            try:
+                rgb_h = str(self.wb[i_sheet][f"{i_col}{i_row}"].fill.fgColor.rgb or "")
+            except Exception:
+                rgb_h = ""
+            if rgb_h.endswith("FFC000") and \
+                    f"{i_sheet}!{i_col}{i_row}" in self.writer.log.get("written", []):
+                try:
+                    hv = Evaluator(self.wb).cell(i_sheet, f"{i_col}{i_row}")
+                except Exception:
+                    hv = None
+                if isinstance(hv, (int, float)):
+                    hold_formula, held = held, float(hv)
         if not isinstance(held, (int, float)):
             return (f"MISS: {i_sheet}!{i_col}{i_row} holds "
                     f"{'a formula' if isinstance(held, str) else 'nothing'}, "
@@ -762,8 +798,10 @@ class ObjectiveLoop:
         wild_txt = (", WILD — swings the component by more than half; "
                     "a mapped sibling is probably wrong" if wild else "")
         fc_before = self._forecast_check_residuals()
+        plug_value = (f"=({held:g})+({-residual_eff:g})" if hold_formula
+                      else held - residual_eff)
         ok = self.writer.write(
-            i_sheet, f"{i_col}{i_row}", held - residual_eff,
+            i_sheet, f"{i_col}{i_row}", plug_value,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
             trusted=True,
             flag="red" if wild else "orange",
@@ -778,7 +816,7 @@ class ObjectiveLoop:
         except Exception:
             after = None
         if after is None or abs(after) > 0.01:
-            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
+            self.writer.write(i_sheet, f"{i_col}{i_row}", hold_formula or held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
                               note="plug reverted: did not zero the check")
@@ -793,8 +831,21 @@ class ObjectiveLoop:
                 if isinstance(v, (int, float))
                 and isinstance(fc_before.get(k), (int, float))
                 and abs(v) > abs(fc_before[k]) + 1.0]
+        if hurt and hold_formula:
+            # the least confident site (the agent's own growth hold) takes
+            # the plug even where the forecast years move — that movement
+            # is the rollover check's business (watch-listed), not a veto
+            # (owner 2026-09-08: never plug a proven value instead)
+            for k, before_v, after_v in hurt[:6]:
+                try:
+                    self.writer.watch(str(k).split("!", 1)[0], str(k).split("!", 1)[1],
+                                      f"forecast check moved {before_v:,.0f} -> {after_v:,.0f} "
+                                      f"after the {check} plug into {into}")
+                except Exception:
+                    pass
+            hurt = []
         if hurt:
-            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
+            self.writer.write(i_sheet, f"{i_col}{i_row}", hold_formula or held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
                               note="plug reverted: forecast damage")
@@ -1929,6 +1980,13 @@ def terminal_ladder(loop, log):
                     for sh2, coord2, old2 in olds:
                         loop.wb[sh2][coord2] = old2
         tcol = loop._tcol(sheet)
+        # PLUG ONLY THE LEAST CONFIDENT INPUT (owner ruling 2026-09-08,
+        # DFE run 239: the ladder plugged -15,826 into 'cash paid for
+        # investments', a line read correctly from the statement, while
+        # the real gap sat in a line held at growth). Sites are ranked
+        # by confidence — held-at-prior / red first, then plain, then
+        # orange back-outs; a PROVEN value is never a plug site.
+        from .rollover import input_is_proven
         sites = []
         for (sh, coord) in dict.fromkeys(
                 loop._leaf_inputs(sheet, f"{tcol}{row}")):
@@ -1940,9 +1998,36 @@ def terminal_ladder(loop, log):
                               # blocked the ladder's first two tries and
                               # the year was left failing — skip them
             v = loop.wb[sh][coord].value
-            if isinstance(v, (int, float)):
-                sites.append((abs(v), sh, coord))
-        for _v, sh, coord in sorted(sites, reverse=True)[:8]:
+            try:
+                rgb = str(loop.wb[sh][coord].fill.fgColor.rgb or "")
+            except Exception:
+                rgb = ""
+            if isinstance(v, str) and v.startswith("="):
+                # the agent's OWN back-out (orange, written this run — a
+                # growth hold) is the least confident input there is;
+                # the analyst's formulas are never plug sites
+                if not (rgb.endswith("FFC000")
+                        and f"{sh}!{coord}" in loop.writer.log.get("written", [])):
+                    continue
+                try:
+                    v = Evaluator(loop.wb).cell(sh, coord)
+                except Exception:
+                    continue
+                if not isinstance(v, (int, float)):
+                    continue
+                sites.append((0, -abs(v), sh, coord))
+                continue
+            if not isinstance(v, (int, float)):
+                continue
+            if input_is_proven(loop.served, sh, coord, v, (), loop.wb):
+                continue
+            pc = prior_column(loop.spec, sh, loop.ty)
+            pv = loop.wb[sh][f"{pc}{m.group(2)}"].value if pc else None
+            held_at_prior = isinstance(pv, (int, float)) and abs(v - pv) <= max(0.6, abs(pv) * 1e-3)
+            conf = (0 if (rgb.endswith("FFC7CE") or held_at_prior)
+                    else 2 if rgb.endswith("FFC000") else 1)
+            sites.append((conf, -abs(v), sh, coord))
+        for _c, _v, sh, coord in sorted(sites)[:8]:
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
                  "why": ("terminal ladder: the loop ended with this "

@@ -2309,13 +2309,14 @@ def test_plug_experiment_referees_proven_sites():
     loop = ObjectiveLoop(wb, spec, 2025, led, [], served, Writer(wb), None)
     r1 = loop.t_plug_residual({"check": "M!10", "into": "M!U5",
                                "why": "absorb the residual"})
-    assert str(r1).startswith("REVERTED") and "forecast" in str(r1), r1
-    assert wb["M"]["U5"].value == 23243.0, "damaging plug not reverted"
+    # owner ruling 2026-09-08 (DFE 239: the ladder plugged -15,826 over a
+    # correctly read cash-flow line): a PROVEN value is never a plug site
+    assert str(r1).startswith("REFUSED") and "PROVEN" in str(r1), r1
+    assert wb["M"]["U5"].value == 23243.0, "proven site was written"
     r2 = loop.t_plug_residual({"check": "M!10", "into": "M!U8",
                                "why": "absorb the residual"})
-    assert "PLUGGED" in str(r2) and "PROVEN" in str(r2), r2
-    assert abs(wb["M"]["U8"].value - 1921.0) < 0.01, wb["M"]["U8"].value
-    assert "M!U8" in loop.writer.log["flags"], "proven plug not RED-flagged"
+    assert str(r2).startswith("REFUSED") and "PROVEN" in str(r2), r2
+    assert "M!U8" not in loop.writer.log["flags"], "refused plug must not flag"
 
 
 def test_verdict_error_fixed_requires_the_error_gone():
@@ -3355,6 +3356,75 @@ def test_page_that_proves_itself_is_a_face_2026_09_07():
     assert (doc, 101) not in ledger3.parent_pages
     assert (doc, 150) in ledger3.parent_pages                    # a note page may be parent-only
     assert any("parent-only refused" in r for r in out[doc]["refused"]), out
+
+
+def test_owner_statement_laws_2026_09_08():
+    """Owner rulings from the DFE 239 review: (1) the 30x guard is a
+    suggestion, not a gate — served, red 'please double check' on a weak
+    map, plain on an exact-label face map; (2) 0 means 0 — a statement
+    line printed nowhere this year is nil; (3) a model row that is a
+    subtotal of printed lines sums them when the prior year proves it;
+    (4) the ladder plugs only the least confident input, never a proven
+    one; (5) a parent-company page never passes as the consolidated one."""
+    from types import SimpleNamespace as NS
+    from openpyxl import Workbook
+    from pipeline.reconcile import reconcile
+    doc = "X 2025 Annual Report.pdf"
+    def it(page, label, nums, tid=0, ro=0):
+        return NS(doc=doc, page=page, table_id=tid, row_ord=ro, label=label, nums=nums,
+                  scale_hint=None, stmt_face="cf", joinable=lambda: len(nums) >= 2,
+                  channel="text", consensus=2, disputed=False)
+    pdoc = "X 2024 Annual Report.pdf"
+    class L:
+        def __init__(self, items, faces): self.items, self.faces, self.parent_pages = items, faces, set()
+        def join_pool(self): return [i for i in self.items if i.joinable() and i.doc != pdoc]
+        def noncurrent_docs(self): return {pdoc}
+        prior_period_docs = (pdoc,)
+    wb = Workbook(); ws = wb.active; ws.title = "Raw"
+    spec = {"year_axis": {"Raw": {"header_row": 2, "columns": {"2024": "T", "2025": "U"}}}}
+    # rows: share placement (exact label, 47x), a weak-map 40x line, bond issuance (nil), receivables aggregate
+    ws["A10"], ws["T10"], ws["U10"] = "吸收投资收到的现金", 110.0, 110.0
+    ws["A11"], ws["T11"], ws["U11"] = "其他与筹资活动有关的现金", 200.0, 200.0
+    ws["A12"], ws["T12"], ws["U12"] = "发行债券收到的现金", 593.5, 593.5
+    ws["A13"], ws["T13"], ws["U13"] = "取得借款收到的现金", 9000.0, 9000.0
+    ws["A14"], ws["T14"], ws["U14"] = "偿还债务支付的现金", 7000.0, 7000.0
+    ws["A20"], ws["T20"], ws["U20"] = "应收票据及应收账款", 13769.66, 13769.66
+    ws["A21"], ws["T21"], ws["U21"] = "货币资金", 26855.95, 26855.95     # ratify the BS page
+    ws["A22"], ws["T22"], ws["U22"] = "存货", 21685.30, 21685.30
+    items = [
+        it(95, "货币资金", [18980.96, 26855.95], tid=1, ro=0),
+        it(95, "存货", [25000.0, 21685.30], tid=1, ro=4),
+        it(101, "吸收投资收到的现金", [5236.0, 110.0], ro=1),
+        it(101, "收到其他与筹资活动有关的现金", [8000.0, 200.0], ro=2),   # label not equal: weak map, 40x
+        it(101, "取得借款收到的现金", [9500.0, 9000.0], ro=3),
+        it(101, "偿还债务支付的现金", [7200.0, 7000.0], ro=4),
+        it(95, "应收票据", [1664.06, 1224.35], tid=1, ro=1),
+        it(95, "应收账款", [15193.79, 12545.31], tid=1, ro=2),
+        it(95, "应收款项融资", [2885.61, 1927.57], tid=1, ro=3),
+    ]
+    led = L(items, {(doc, 101): "cf", (doc, 95): "bs"})
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    # (1) served, not dropped: exact label -> plain; weak map -> red note
+    assert serves[("Raw", 10)]["value"] == 5236.0 and serves[("Raw", 10)].get("flag") is None
+    assert serves[("Raw", 11)]["value"] == 8000.0 and serves[("Raw", 11)].get("flag") == "red"
+    assert "double check" in serves[("Raw", 11)]["note"]
+    # (5) parent page: reads as 'cf' but ties 1 prior vs 4 on the consolidated page -> not adopted
+    from pipeline.docid import identify_statement_pages
+    par = [it(107, "取得借款收到的现金", [1000.0, 9000.0], ro=1),
+           it(107, "偿还债务支付的现金", [900.0, 7000.0], ro=5),        # 2 shared ties: ratifies, weakly
+           it(107, "经营活动产生的现金流量净额", [5.0, 6.0], ro=2),
+           it(107, "投资活动产生的现金流量净额", [7.0, 8.0], ro=3),
+           it(107, "筹资活动产生的现金流量净额", [9.0, 10.0], ro=4)]
+    cons = [it(101, "经营活动产生的现金流量净额", [2014.0, 10059.0], ro=5),
+            it(101, "投资活动产生的现金流量净额", [-10587.0, -2773.0], ro=6),
+            it(101, "筹资活动产生的现金流量净额", [5101.0, 1088.0], ro=7)]
+    led2 = L(items + par + cons, {})
+    priors = [110.0, 200.0, 9000.0, 7000.0, 10059.0, -2773.0, 1088.0]
+    logs = []
+    identify_statement_pages([f"/tmp/{doc}"], led2, None, priors, logs.append)
+    assert led2.faces.get((doc, 101)) == "cf", led2.faces
+    assert (doc, 107) not in led2.faces, led2.faces
+    assert any("not adopted" in l for l in logs), logs
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

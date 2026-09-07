@@ -484,10 +484,49 @@ def identify_statement_pages(paths, ledger, client, priors, log):
         except Exception:
             ratified = {}
         promoted = []
+        # A PARENT-COMPANY STATEMENT MUST NOT PASS AS THE CONSOLIDATED ONE
+        # (DFE 1H25: the parent balance sheet two pages after the
+        # consolidated one ties a few shared lines — share capital,
+        # reserves — and would ratify). Per face kind, a page adopts
+        # only when it ties at least a third as many distinct priors as
+        # the best page of that kind, and never fewer than 3.
+        from .numerics import to_model_units as _tmu
+        _pri = sorted({abs(float(p)) for p in priors
+                       if isinstance(p, (int, float)) and abs(p) > 100})
+
+        def _ties(pn, scale):
+            hit = set()
+            for it in items:
+                if it.page != pn:
+                    continue
+                for n in (it.nums or [])[1:]:
+                    if scale > 1 and abs(n) < scale / 1000:
+                        continue
+                    a = abs(_tmu(n, scale))
+                    for p in _pri:
+                        if abs(a - p) <= max(1.0, p * 0.01):
+                            hit.add(p)
+                            break
+            return len(hit)
+        face_of = {}
+        ties_of = {}
+        for (d, pn), scale in ratified.items():
+            f = face_from_row_labels(labels_by_page.get(pn) or [])
+            if f in ("pl", "bs", "cf"):
+                face_of[pn] = f
+                ties_of[pn] = _ties(pn, scale)
+        best = {}
+        for pn, f in face_of.items():
+            best[f] = max(best.get(f, 0), ties_of[pn])
         for (d, pn) in ratified:
             if ledger.faces.get((d, pn)) in ("pl", "bs", "cf"):
                 continue
-            face = face_from_row_labels(labels_by_page.get(pn) or [])
+            face = face_of.get(pn)
+            if face and ties_of.get(pn, 0) < max(3, best.get(face, 0) / 3.0):
+                log(f"[run] statement pages ({doc}): p{pn} reads as {face} but ties "
+                    f"only {ties_of.get(pn, 0)} prior(s) vs {best.get(face, 0)} on the "
+                    "best page of that kind — parent-company or note page, not adopted")
+                continue
             if face in ("pl", "bs", "cf"):
                 ledger.faces[(d, pn)] = face
                 if hasattr(ledger, "parent_pages"):

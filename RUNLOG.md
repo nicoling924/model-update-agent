@@ -1576,3 +1576,35 @@ Night total: CLP 234 MET; DFE FY25 235/238/239 delivered (CF face and
 share placement fixed across the reruns); DFE 1H25 236/237 delivered
 (interim panel + year-end comparative); 1Q25 not possible (no quarterly
 panel in the model). Laws shipped tonight: 8 commits, museum 121.
+
+## 2026-09-08 — the owner's rulings from the DFE review (built, proven offline, no reruns)
+Rulings: (1) plug only the LEAST CONFIDENT input, never a proven value;
+(2) the 30x guard is a suggestion, not a gate; (3) a model row that is a
+subtotal of printed lines (Wind aggregate) is summed, not flagged, when
+the prior year proves the pattern; (4) 0 means 0. Investigation first
+(no rerun): the Raw financials tab is a Wind export — 27 of 166 rows are
+Wind aggregates/splits with no printed line; the cash-flow misses were
+2 lines transcribed with one number, the 30x guard killing the share
+placement, the bond line printed nowhere, and the ladder plugging a
+proven line. Built: the ladder ranks sites by confidence (held-at-prior
+/ red, plain, orange) and the agent's own growth holds are leaf inputs
+and plug sites (as composites); t_plug_residual refuses a proven site;
+the 30x guard serves and red-notes on a kin map, plain on an exact-
+label face map, drops only prior-only coincidences; the gate's
+MAGNITUDE check skips exact-label face reads (1H25 finance costs 45 ->
+-0.4 is the disclosure); a prior-proven composition is a plain SUM
+(unflagged); CJK kinship reaches containment ('应收票据' ⊂
+'应收票据及应收账款' — the word-overlap path had blocked it); the
+self-proving page adoption skips pages that tie < max(3, best/3) priors
+(parent-company statements). REMOVED after over-firing offline: an
+'aggregate law' (82 coincidental windows) and a 'nil law' (zeroed real
+lines with label variants / lost comparatives) — 0-means-0 needs the
+prior-year statement read, which the prior-doc vision aborts on; left
+open. Control: committed head delivers the 239 ledger; the refusal
+mid-way was the ladder finding no site once proven values were banned
+(holds were formulas, invisible to the leaf walk). Final offline:
+FY25 replay DELIVERED — 收回投资 plugged 35,262 -> 24,088 (true 25,156),
+投资支付 stays 31,456 (read), share placement 5,236 plain, receivables
+=SUM plain; CFI/CFF still off ~600 = the bond hold. 1H25 replay
+DELIVERED — total liabilities 110,962 read (the page-2 continuation of
+the balance sheet adopted), finance costs -0.38 plain. Museum 122.

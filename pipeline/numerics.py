@@ -157,13 +157,29 @@ def kinship(a, b):
     na, nb = norm_label(a), norm_label(b)
     if not na or not nb:
         return False
-    wa = {w for w in na.split() if w not in STOPWORDS and len(w) > 2}
-    wb = {w for w in nb.split() if w not in STOPWORDS and len(w) > 2}
-    if wa and wb:
-        return bool(wa & wb)
+    import re as _re
+    cjk = bool(_re.search(r"[\u4e00-\u9fff]", na + nb))
+    if not cjk:
+        wa = {w for w in na.split() if w not in STOPWORDS and len(w) > 2}
+        wb = {w for w in nb.split() if w not in STOPWORDS and len(w) > 2}
+        if wa and wb:
+            return bool(wa & wb)
     sa, sb = na.replace(" ", ""), nb.replace(" ", "")
     if len(sa) < 2 or len(sb) < 2:
         return False
     if sa in CJK_STRUCTURAL or sb in CJK_STRUCTURAL:
         return False
     return sa in sb or sb in sa
+    # CJK labels are one token: kinship is a shared stem of >= 4
+    # characters (DFE 2026-09-08: '汇率变动对现金的影响' vs
+    # '四、汇率变动对现金及现金等价物的影响'; '应收票据及应收账款' vs
+    # '应收票据' — the word-overlap path never reached containment)
+    short, long_ = (sa, sb) if len(sa) <= len(sb) else (sb, sa)
+    for n in range(len(short), 3, -1):
+        for i in range(0, len(short) - n + 1):
+            seg = short[i:i + n]
+            if seg in CJK_STRUCTURAL:
+                continue
+            if seg in long_:
+                return True
+    return False

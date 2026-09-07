@@ -559,16 +559,21 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                   for k in range(int(m2.group(1)),
                                                  int(m2.group(2)) + 1)):
                         f = None
+                # NOT A BACK-OUT (owner 2026-09-08): a row the prior year
+                # proves to be the sum of its own component rows — a Wind
+                # aggregate of printed lines — is summed the same way
+                # this year, plain, unflagged; the pattern is the model's
                 if f and writer.write(
                         sheet, f"{tcol}{r}", f,
-                        prior_coord=f"{pcol}{r}",
-                        flag="orange",
-                        note=("backed out: composition inferred from the "
-                              "prior column's own arithmetic — true up "
-                              "against the detailed disclosure")):
+                        prior_coord=f"{pcol}{r}"):
+                    from openpyxl.styles import PatternFill as _PFc
+                    wb[sheet][f"{tcol}{r}"].fill = _PFc()
+                    wb[sheet][f"{tcol}{r}"].comment = None
+                    writer.log["flags"] = [x for x in writer.log["flags"] if x != ref]
                     n_comp += 1
     if n_comp:
-        log(f"[run] stale sweep: {n_comp} compositions backed out (orange)")
+        log(f"[run] stale sweep: {n_comp} aggregate rows summed from their own "
+            "component rows (the prior year proves the pattern; plain)")
 
     # -- THE LOAD-BEARING TRACE + TIER-3 SWEEP (owner ruling, CLP
     # campaign): effort follows the wiring. Rows the model's own

@@ -108,8 +108,15 @@ def magnitude_sweep(wb, spec, target_year, written, served=None):
             m = re.match(rf"^{tcol}(\d+)$", coord) if tcol else None
             if not m:
                 continue
-            if int((served.get((sheet, int(m.group(1)))) or {})
-                   .get("conf") or 0) >= 5:
+            _e = served.get((sheet, int(m.group(1)))) or {}
+            if int(_e.get("conf") or 0) >= 5:
+                continue
+            if _e.get("exact_label") and str(_e.get("note", "")).startswith("reconciliation"):
+                # read from a ratified statement face under the row's own
+                # label at the page's proven scale: a 100x move is the
+                # disclosure, not a scale error (owner 2026-09-08: the
+                # guard suggests, it does not gate — DFE 1H25 finance
+                # costs 45.1 -> -0.4)
                 continue
             v = ws[coord].value
             pv = ws[f"{pcol}{m.group(1)}"].value
