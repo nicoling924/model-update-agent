@@ -1257,10 +1257,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if True:
         try:
             from .execreport import report_only
+            try:
+                from .keytie import key_state as _key_state
+                _key_ties_for_report = [
+                    {"name": n_, "ref": ref_, "value": v_, "print": w_, "tied": ok_}
+                    for n_, ref_, v_, w_, ok_ in _key_state(wb, spec_d, target_year, _panel_path)]
+            except Exception:
+                _key_ties_for_report = []
             rep = report_only(str(company_dir), str(out_path),
                               str(archive), client, str(out_path),
                               target_year=target_year,
-                              extra={"documents": [d["line"] for d in documents],
+                              extra={"key_ties": _key_ties_for_report,
+                                     "documents": [d["line"] for d in documents],
                                      "rollover": rollover,
                                      "forecast_watch": list(
                                          writer.log.get("forecast_watch", []))})

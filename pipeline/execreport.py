@@ -817,7 +817,7 @@ THE PAGE (owner's locked design):
 RULES THAT NEVER BEND:
 - Every number you state must come from the data given. Never invent.
 - "banner": one line, honest verdict + the biggest caveat.
-- "coverage": counts line, e.g. "key numbers proven X/14 · N plugs · N rulings".
+- "coverage": one short counts line (code overwrites it with its own tally).
 - "skipped_note": name the key numbers you judged too small to bridge,
   with their % moves, so the omission reads as deliberate.
 - "company_note": ONLY a company-stated reason with a page reference
@@ -1165,6 +1165,16 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     summary["bridges"] = kept
     for k, v in (extra or {}).items():     # documents received, rollover check
         summary[k] = v
+    # THE COUNT IS CODE'S (owner 2026-09-08): key numbers tied, from the
+    # pinned key panel; plugs and rulings from the flag lists — never the
+    # brain's arithmetic
+    kt = summary.get("key_ties") or []
+    if kt:
+        att = summary.get("attention") or {}
+        n_plug = len(att.get("plugs") or [])
+        n_red = len(att.get("red") or [])
+        summary["coverage"] = (f"key numbers tied {sum(1 for k in kt if k.get('tied'))}/{len(kt)} "
+                               f"to the print · {n_plug} plugs · {n_red} rulings")
     mini_rows = summary.get("mini_pl", {}).get("rows", [])
     value_of = None
     try:

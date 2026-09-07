@@ -369,6 +369,29 @@ def _panel(panel_path):
         return {}
 
 
+def key_state(wb, spec, target_year, panel_path):
+    """Every panel key right now: [(name, ref, model value, print, tied)].
+    Code's own count for the report (owner 2026-09-08: "i thought the key
+    numbers are all written in the rules" — the report's 'X/14' line had
+    been the brain's prose, copied from a prompt example)."""
+    panel = _panel(panel_path)
+    ev = Evaluator(wb)
+    out = []
+    for kk in (spec.get("key_rows") or []):
+        nm, sh, r = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
+        want = (panel.get(nm) or {}).get("print")
+        tc = year_columns(spec, sh).get(str(target_year)) if sh in wb.sheetnames else None
+        if not isinstance(want, (int, float)) or not tc:
+            continue
+        try:
+            v = ev.cell(sh, f"{tc}{r}")
+        except Exception:
+            v = None
+        ok = isinstance(v, (int, float)) and abs(v - want) <= max(TOL_ABS, abs(want) * TOL_REL)
+        out.append((nm, f"{sh}!{tc}{r}", v, float(want), bool(ok)))
+    return out
+
+
 def key_snapshot(wb, spec, target_year, ledger, panel_path):
     """Every key row whose value is PROVEN-PRINTED right now: equal to
     the pinned print, or itself a printed figure on a current statement

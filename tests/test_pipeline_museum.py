@@ -3662,6 +3662,32 @@ def test_nil_answer_verified_on_the_cards_evidence_2026_09_08():
     assert ws["U225"].value == 0
 
 
+def test_key_count_is_codes_not_the_brains_2026_09_08():
+    """Owner: 'i thought the key numbers are all written in the rules.'
+    The report's 'key numbers proven 14/14' / '12/12' line was the brain's
+    prose (a prompt example said 'X/14'). key_state ties every pinned
+    panel key in code and the report prints that tally."""
+    import json, openpyxl, tempfile
+    from pathlib import Path
+    from pipeline.keytie import key_state
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["A4"], ws["U4"] = "Revenue", 78615.28
+    ws["A28"], ws["U28"] = "Net profit", 3900.0
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}},
+            "key_rows": [{"name": "revenue", "sheet": "Model", "row": 4},
+                         {"name": "net profit", "sheet": "Model", "row": 28}]}
+    d = Path(tempfile.mkdtemp()); pp = d / "key_panel.json"
+    pp.write_text(json.dumps({"revenue": {"print": 78615.27744, "prior": 69695.14},
+                              "net profit": {"print": 3831.301222, "prior": 3287.53}}))
+    st = key_state(wb, spec, 2025, pp)
+    assert [(n, ok) for n, _, _, _, ok in st] == [("revenue", True), ("net profit", False)]
+    from pipeline import execreport
+    assert "X/14" not in execreport._COMPOSE_RULES if hasattr(execreport, "_COMPOSE_RULES") else True
+    import inspect
+    assert "key numbers tied" in inspect.getsource(execreport.report_only)
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted
