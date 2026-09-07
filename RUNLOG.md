@@ -1694,3 +1694,17 @@ chosen line + its page) for the analyst. No card, or no improvement:
 the proven value stays. Museum 124 (exhibit: no card refused; card +
 closing check written red; card + worsening check refused). Bench green;
 true-base FY25 floor DELIVERED.
+
+## Runs 246 (DFE FY25) + 247 (DFE 1H25) — 2026-09-08, head 4bbb481, the TRUE base — both DELIVERED
+246 (32 LLM calls): keys 8/10 — revenue, EPS, total assets, current
+assets, CFO, CFI (-10,587.7 vs -10,587.3), CFF (5,101.7 exact), cash all
+tie the print; NP / total equity = model definitions. The nil law did
+its work: 'other financing cash' and 'subsidiary disposals' 0; the cash
+plug went into the growth-held 'investment disposals' (25,174; printed
+25,156); share placement 5,236 and finance costs 117.7 plain; receivables
+=SUM plain. 0 structure changes; forecast columns blue only; notes red
+22 / orange 45. Reclassification as taught (growth holds + designed
+plugs); 2026 NP 4,010 vs by-hand 5,013 — the RECLASS card remains the
+owner's decision. 247 (0 LLM calls): 152 read / 24 held / 0 red, every
+headline right; one nil (AT16, 12.45) came from p9, an MD&A summary
+table that self-adopts as a face — note for the deduction pass.
