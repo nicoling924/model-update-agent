@@ -628,6 +628,21 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # campaign): effort follows the wiring. Rows the model's own
     # formulas consume on the way to the key rows are LOAD-BEARING —
     # staleness there stays red and must be adjudicated. Everything
+    # THE READER STAGE (owner 2026-09-09, the reading test): before any
+    # row is held at growth, the brain reads the whole disclosure in one
+    # view and answers every row the deterministic stages left unproven;
+    # code verifies each answer against a printed number (tie, units,
+    # sign, one home) and writes only what it can prove — plain when the
+    # comparative ties the prior, red with its citation otherwise.
+    try:
+        from .reader import brain_read
+        _n_read = brain_read(client, company_dir, period, target_year, wb, spec_d,
+                             {t.key: t for t in targets}, ledger, served, writer, log)
+    except Exception as _e_read:
+        _n_read = 0
+        log(f"[read] reader stage skipped: {_e_read!r}")
+    if _n_read:
+        err_guard("reader")
     # else is tier-3: never searched, held at the group's growth as a
     # traceable orange formula, awaiting true-up.
     from .loadbearing import trace as lb_trace
@@ -1343,11 +1358,40 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     (replay_dir / "provenance.json").write_text(
         json.dumps(prov, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    tag = "" if ok else " QUARANTINE"
+    # THE AGENT ALWAYS DELIVERS (BOSS_MINDMAP 2026-08-17: "refusal is dead
+    # — no flag budget, no quarantine ... if truly unsolvable: back out,
+    # mark, still deliver"; owner 2026-09-09 re-read it: "the gate must
+    # stop refusing"). A check the repair could not close is MARKED on
+    # its own cell — red, the residual in the note — and listed first
+    # on the report; the workbook ships. Only a restatement pauses a run.
+    open_checks = []
+    if not ok:
+        import re as _re_g
+        for f_ in failures or []:
+            m_ = _re_g.match(r"\s*CHECK (\S+)!r(\d+) \((\d{4})\): (\S+) vs (\S+)", str(f_))
+            if not m_:
+                open_checks.append(str(f_)[:120])
+                continue
+            sh_, r_, yr_, got_ = m_.group(1), int(m_.group(2)), m_.group(3), m_.group(4)
+            col_ = year_columns(spec_d, sh_).get(yr_) if sh_ in wb.sheetnames else None
+            if col_:
+                from openpyxl.comments import Comment as _Cm
+                c_ = wb[sh_][f"{col_}{r_}"]
+                c_.fill = writer.fills["red"]
+                c_.comment = _Cm(f"Open check: off by {got_}. The update could not close it — "
+                                 "please trace the inputs of this check.", "Model Update Agent")
+                writer.log["flags"].append(f"{sh_}!{col_}{r_}")
+            open_checks.append(f"{sh_}!{col_ or '?'}{r_} ({yr_}) off by {got_}")
+        for f_ in failures or []:
+            if not str(f_).lstrip().startswith("CHECK"):
+                open_checks.append(str(f_)[:120])
+        log(f"[run] delivered with {len(open_checks)} OPEN CHECK(S) marked red for the analyst: "
+            + "; ".join(open_checks[:6]))
+    tag = ""
     out_path = (company_dir / "model"
                 / f"{model_path.stem} {period} (pipeline{tag}){model_path.suffix}")
     save(wb, out_path)
-    log(f"[run] {'DELIVERED' if ok else 'GATE REFUSED — quarantined'}: "
+    log(f"[run] {'DELIVERED' if ok else 'DELIVERED WITH OPEN CHECKS'}: "
         f"{out_path.name}")
     # -- the executive _REPORT (owner's locked design): Luna composes,
     # the code renders and referees; includes the sense-check second
@@ -1372,6 +1416,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                               str(archive), client, str(out_path),
                               target_year=target_year,
                               extra={"key_ties": _key_ties_for_report,
+                                     "open_checks": open_checks,
                                      "documents": [d["line"] for d in documents],
                                      "rollover": rollover,
                                      "forecast_watch": list(
@@ -1387,7 +1432,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 f"{ex}")
     for f in failures[:12]:
         log(f"[run]   gate: {f}")
-    return {"ok": ok, "out": str(out_path), "archive": str(archive),
+    return {"ok": True, "gate_ok": ok, "open_checks": open_checks,
+            "out": str(out_path), "archive": str(archive),
             "served": len(served), "failures": failures,
             "completion": card["completion"].get("_overall_pct"),
             "replay": str(replay_dir)}

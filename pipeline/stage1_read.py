@@ -439,6 +439,22 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
         image_pages = [pn for pn, c in classes.items() if c == "image"]
         unread = []
         vision_faces = {}   # accepted scan pages self-identify by their rows
+        # A PRIOR-VINTAGE DOCUMENT IS READ AS TEXT ONLY (run 257: the 2024
+        # annual report's scanned pages were transcribed at three votes
+        # each and every one discarded as anchorless — the hour went there
+        # and the cards got ten minutes). Its text still serves every tie
+        # and identity read; its numbers are never a current-year source,
+        # so paying vision for them buys nothing.
+        if image_pages and client is not None and known_values:
+            try:
+                _period = led.classify_doc_periods(list(known_values)).get(doc)
+            except Exception:
+                _period = None
+            if _period == "prior":
+                log(f"[stage1] {doc}: prior-vintage document — text only, "
+                    f"{len(image_pages)} scanned pages not transcribed")
+                unread += [(pn, "prior-vintage document: text only") for pn in image_pages]
+                image_pages = []
         if image_pages and client is None:
             unread = [(pn, "no vision client") for pn in image_pages]
         elif image_pages:

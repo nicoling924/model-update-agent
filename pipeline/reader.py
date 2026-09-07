@@ -1,0 +1,319 @@
+"""THE READER STAGE (owner 2026-09-09: "test Luna's ability to read like
+Fable 5 so that we are sure whether to use cards") — Luna reads the whole
+disclosure in one view and answers the model's rows; CODE verifies every
+answer against a PRINTED number before anything is written.
+
+What the reading test proved (RUNLOG 2026-09-09): on text pages Luna
+reads like an analyst — revenue, profits, cash flows, a dividend in a
+sentence, an order-intake figure, two blank-beside-prior zeros — with
+page references, in one call. Its misses were model conventions (units,
+sign, dividend paid vs declared, a group figure on a segment row) and,
+on a scanned page it could not read exactly, a FABRICATED balance sheet
+that balanced to the true total. Hence the split:
+
+  Luna: which printed line answers this row, and why.
+  Code: is that line really printed (ledger), does its comparative tie
+        the model's prior at full precision, what is the value in the
+        model's units from the PRINTED number, what sign does the model
+        use, is this the one home for that figure.
+
+Verified answers serve plain; a printed line with no tie serves RED with
+its citation; an answer no printed number supports is never written.
+Cards remain for genuine conflicts (two printed readings, a check that
+will not close). No page rules: the whole current-vintage disclosure is
+read; the verification is evidence, not location.
+"""
+import re
+from pathlib import Path
+
+from .checks import prior_column, year_columns
+from .numerics import kinship
+
+_SYSTEM = (
+    "You are an equity research analyst updating a valuation model from a company's newly "
+    "published financial disclosure. You are given the FULL disclosure text page by page (and "
+    "images of scanned pages), and a list of model rows with the model's LAST-period value. For "
+    "each row, find THIS period's value in the disclosure. Method, in order: (1) find the printed "
+    "line whose last-period (comparative) figure equals the model's last-period value — that line "
+    "is the item, whatever it is called; (2) confirm the label makes sense; (3) if the line prints "
+    "last period's figure with this period's slot blank, dash or nil, the value is 0; (4) if a "
+    "figure appears in several places they must agree — say so if they do not; (5) a row with no "
+    "last-period value is identified by its label AND its scope: a group total belongs to the group "
+    "row, a segment figure to the segment row — never both. Quote the printed line EXACTLY as it "
+    "appears (label and the printed digits, in the document's own units) — the number you quote is "
+    "checked against the page; a figure you cannot quote from a printed line is null with the "
+    "reason 'not found'. Never guess. Answer ONLY with JSON: {\"rows\": [{\"row\": \"<id>\", "
+    "\"printed\": <the printed number for THIS period, in the document's units, or null>, "
+    "\"page\": <int or null>, \"line\": \"<printed line label>\", \"reason\": \"<one sentence>\"}]}"
+)
+
+_MAX_CHARS = 1_600_000          # the model's context (1M tokens), less rows and images
+
+
+def _doc_text(paths, max_chars=_MAX_CHARS):
+    from .stage1_read import page_texts
+    parts, images, n = [], [], 0
+    for p in paths:
+        for pn, text, cls in page_texts(str(p)):
+            if cls == "image":
+                images.append((p, pn))
+                parts.append(f"\n=== {Path(p).name} page {pn} (SCANNED — see image) ===\n")
+                continue
+            t = (text or "").strip()
+            if not t:
+                continue
+            block = f"\n=== {Path(p).name} page {pn} ===\n{t}\n"
+            if n + len(block) > max_chars:
+                parts.append(f"\n[truncated: {Path(p).name} from page {pn}]\n")
+                break
+            parts.append(block)
+            n += len(block)
+    return "".join(parts), images
+
+
+def _images(images):
+    out = []
+    try:
+        import pdfplumber
+        from .stage1_read import _page_image, _encode
+    except Exception:
+        return out
+    for p, pn in images:
+        try:
+            with pdfplumber.open(str(p)) as pdf:
+                im = _page_image(pdf.pages[pn - 1])
+            if im is not None:
+                out.append(_encode(im, 1600))
+        except Exception:
+            continue
+    return out
+
+
+def rows_to_read(wb, spec, target_year, targets, served):
+    """The rows the deterministic stages did not prove: every target row
+    with a label whose serve is missing or unproven (conf < 4)."""
+    out = []
+    for (sheet, row), t in sorted(targets.items()):
+        e = (served or {}).get((sheet, row))
+        if isinstance(e, dict) and int(e.get("conf") or 0) >= 4:
+            continue
+        lab = str(getattr(t, "label", "") or "").strip()
+        if not lab or re.search(r"差额|平衡|check|balance test", lab, re.IGNORECASE):
+            continue
+        tcol = year_columns(spec, sheet).get(str(target_year)) if sheet in wb.sheetnames else None
+        if tcol:
+            held = wb[sheet][f"{tcol}{row}"].value
+            if isinstance(held, str) and held.startswith("="):
+                continue             # a formula row (a link, a subtotal) is never an input
+        pv = getattr(t, "prior_value", None)
+        out.append({"row": f"{sheet}!{row}", "sheet": sheet, "r": row, "label": lab,
+                    "prior": (round(float(pv), 4) if isinstance(pv, (int, float)) else None)})
+    return out
+
+
+def _near(a, b):
+    return abs(abs(a) - abs(b)) <= max(0.02, abs(b) * 1e-4)
+
+
+def _printed_match(items, page, printed, line, sources):
+    """The ledger item on `page` of a current-vintage document that carries
+    the quoted number — the proof the number is printed. Label kinship
+    breaks ties between lines that print the same figure."""
+    if not isinstance(printed, (int, float)):
+        return None
+    hits = []
+    for it in items:
+        if it.doc not in sources:
+            continue
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if not any(_near(n, printed) for n in nums):
+            continue
+        kin = bool(line and kinship(str(it.label or ""), str(line)))
+        hits.append((it.page == page, kin, it))
+    if not hits:
+        return None
+    # the cited page first; then the same number under the same name on
+    # ANY page (the brain's page numbers slip — the reading test cited p5
+    # for a figure printed on p2 and p44); a bare number elsewhere counts
+    # only when it is printed once in the whole disclosure
+    on_page = [h for h in hits if h[0]]
+    if on_page:
+        return max(on_page, key=lambda h: h[1])[2]
+    kin_any = [h for h in hits if h[1]]
+    if kin_any:
+        return kin_any[0][2]
+    return hits[0][2] if len(hits) == 1 else None
+
+
+def _nil_line(items, page, pv, sources):
+    """A line on `page` printing ONE number equal to the model's prior:
+    last year's figure beside a blank — this year is 0."""
+    from .writegate import _SCALES, _ties_full_precision
+    if not (isinstance(pv, (int, float)) and abs(pv) >= 0.5):
+        return None
+    for it in items:
+        if it.page != page or it.doc not in sources:
+            continue
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if len(nums) == 1 and any(_ties_full_precision(nums[0] / f, pv) for f in _SCALES):
+            return it
+    return None
+
+
+def verify(answers, rows, ledger, page_scales, log=None):
+    """-> {row_id: verdict}; verdict = {"value", "conf", "flag", "note",
+    "doc", "page", "line", "why"}. Nothing here trusts the brain's number:
+    the value is recomputed from the printed digits at the page's ratified
+    scale; the tie is checked on the printed line; the model's sign wins."""
+    from .writegate import _SCALES, _ties_full_precision
+    by_row = {r["row"]: r for r in rows}
+    sources = {it.doc for it in ledger.items} - set(ledger.noncurrent_docs())  # evidence: a prior-vintage document is never a SOURCE of this year's number; it stays readable for ties
+    # a document's DOMINANT scale (the one most of its ratified pages carry)
+    # answers for pages the anchors never ratified — a sentence page, a
+    # note; prose figures are harvested in base units, so they take it too
+    dom = {}
+    for (d_, _p), sc in (page_scales or {}).items():
+        dom.setdefault(d_, []).append(sc)
+    dom = {d_: max(set(v), key=v.count) for d_, v in dom.items()}
+    out, homes = {}, {}
+    for a in answers:
+        rid = str(a.get("row"))
+        r = by_row.get(rid)
+        page = a.get("page")
+        if r is None or not isinstance(page, int):
+            continue
+        printed, line, pv = a.get("printed"), str(a.get("line") or ""), r["prior"]
+        item = _printed_match(ledger.items, page, printed, line, sources)
+        if item is None:
+            nil = _nil_line(ledger.items, page, pv, sources) if printed in (None, 0, 0.0) else None
+            if nil is not None:
+                out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": nil.doc,
+                            "page": page, "line": str(nil.label)[:60],
+                            "why": "read: last year's figure printed beside a blank — 0"}
+            elif log:
+                log(f"[read]   unverified {rid}: no printed line on p{page} carries {printed!r} — not written")
+            continue
+        nums = [n for n in (item.nums or []) if isinstance(n, (int, float))]
+        idx = next((i for i, n in enumerate(nums) if _near(n, printed)), 0)
+        raw = nums[idx]
+        scale = page_scales.get((item.doc, item.page))
+        tied = None
+        if isinstance(pv, (int, float)) and abs(pv) >= 0.5:
+            for j in range(idx + 1, len(nums)):
+                for f in ([scale] if scale else _SCALES):
+                    if f and _ties_full_precision(nums[j] / f, pv):
+                        tied = f
+                        break
+                if tied:
+                    break
+            if tied is None and len(nums) == 1 and any(_ties_full_precision(raw / f, pv) for f in _SCALES):
+                out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": item.doc,
+                            "page": page, "line": str(item.label)[:60],
+                            "why": "read: the quoted number is last year's, printed alone — 0"}
+                continue
+        f_use = tied or scale or dom.get(item.doc)       # a sentence page, a note: the document's own scale
+        if not f_use and isinstance(pv, (int, float)) and abs(pv) >= 0.5:
+            f_use = next((f for f in _SCALES if abs(raw / f) <= 30 * abs(pv) and abs(raw / f) * 30 >= abs(pv)), None)
+        if not f_use:
+            if log:
+                log(f"[read]   unverified {rid}: no ratified scale for p{page} — not written")
+            continue
+        value = float(raw) / float(f_use)
+        if isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
+            value = -value                                   # the model owns the sign convention
+        key = (item.doc, item.page, str(item.label)[:40], round(abs(value), 2))
+        if key in homes and homes[key] != rid \
+                and not (isinstance(pv, (int, float)) and by_row[homes[key]]["prior"] == pv):
+            # (two rows holding the SAME prior are the model's own duplicate
+            # of one item — both take the figure; only differing rows compete)
+            other = homes[key]
+            mine = kinship(str(item.label or ""), r["label"])
+            theirs = kinship(str(item.label or ""), by_row[other]["label"])
+            if theirs and not mine:
+                if log:
+                    log(f"[read]   {rid}: '{str(item.label)[:30]}' already home at {other} (label kin) — skipped")
+                continue
+            out.pop(other, None)
+            if not (mine and not theirs):
+                if log:
+                    log(f"[read]   {rid} and {other} both claim '{str(item.label)[:30]}' — neither written")
+                continue
+        homes[key] = rid
+        if tied:
+            out[rid] = {"value": value, "conf": 4, "flag": None, "note": None, "doc": item.doc,
+                        "page": page, "line": str(item.label)[:60],
+                        "why": f"read: printed p{page} '{str(item.label)[:30]}', comparative ties the prior"}
+        else:
+            out[rid] = {"value": value, "conf": 3, "flag": "red",
+                        "note": (f"Read from the disclosure (p{page} '{str(item.label)[:30]}'); the printed "
+                                 "line does not carry last year's figure. Please confirm."),
+                        "doc": item.doc, "page": page, "line": str(item.label)[:60],
+                        "why": f"read: printed p{page}, no prior tie"}
+    return out
+
+
+def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledger,
+               served, writer, log, rows=None, chunk=90):
+    """The stage. -> number of rows written."""
+    if client is None:
+        return 0
+    rows = rows if rows is not None else rows_to_read(wb, spec, target_year, targets, served)
+    if not rows:
+        return 0
+    sources = {it.doc for it in ledger.items} - set(ledger.noncurrent_docs())  # evidence: the brain reads this period's documents; last year's is never a SOURCE of this year's number
+    docs = [p for p in sorted((Path(company_dir) / "disclosures" / str(period)).glob("*.pdf"))
+            if p.name in sources]
+    if not docs:
+        return 0
+    text, image_pages = _doc_text(docs)
+    imgs = _images(image_pages)
+    from .stage2_join import ratify_page_scales
+    priors = [t.prior_value for t in targets.values()
+              if isinstance(getattr(t, "prior_value", None), (int, float))]
+    page_scales = ratify_page_scales([it for it in ledger.items if it.joinable()], priors, [])
+    units = str(spec.get("units") or "the model's units")
+
+    def _val(o):
+        return [] if isinstance(o, dict) and isinstance(o.get("rows"), list) else ["rows list required"]
+    answers = []
+    for i in range(0, len(rows), chunk):
+        part = rows[i:i + chunk]
+        user = (f"MODEL UNITS: {units}\n\nMODEL ROWS (id | label | last-period value):\n"
+                + "\n".join(f"{r['row']} | {r['label']} | {r['prior']}" for r in part)
+                + "\n\nDISCLOSURE (full text, page-marked; scanned pages attached as images in order):\n"
+                + text)
+        try:
+            obj = client.json(_SYSTEM, user, _val, repair_retries=1, images=imgs or None)
+        except Exception as e:
+            log(f"[read] call failed: {e}")
+            continue
+        answers += [a for a in (obj.get("rows") or []) if isinstance(a, dict)]
+    log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers")
+    verdicts = verify(answers, rows, ledger, page_scales, log)
+    n = 0
+    for r in rows:
+        v = verdicts.get(r["row"])
+        if not v:
+            continue
+        sheet, row = r["sheet"], r["r"]
+        tcol = year_columns(spec, sheet).get(str(target_year))
+        pcol = prior_column(spec, sheet, target_year)
+        if not tcol:
+            continue
+        held = wb[sheet][f"{tcol}{row}"].value
+        if isinstance(held, str) and held.startswith("="):
+            continue                     # a formula row is never an input
+        ok = writer.write(sheet, f"{tcol}{row}", float(v["value"]),
+                          prior_coord=f"{pcol}{row}" if pcol else None,
+                          flag=v.get("flag"), note=v.get("note"),
+                          allow_empty=(r["prior"] is None), trusted=(v["conf"] >= 4))
+        if ok:
+            served[(sheet, row)] = {"value": float(v["value"]), "status": "OK", "doc": v["doc"],
+                                    "page": v["page"], "line": v["line"], "conf": v["conf"],
+                                    "note": v["why"]}
+            n += 1
+            log(f"[read]   {r['row']} = {v['value']:,.2f} ({v['why']})" + ("" if v["conf"] >= 4 else " — RED"))
+    log(f"[read] reader stage: {n} rows written "
+        f"({sum(1 for v in verdicts.values() if v and v['conf'] >= 4)} proven, "
+        f"{sum(1 for v in verdicts.values() if v and v['conf'] < 4)} red)")
+    return n

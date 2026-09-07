@@ -3833,17 +3833,18 @@ def test_fences_removed_deduction_2026_09_08():
     ws["A203"], ws["T203"] = "收回投资收到的现金", 35262.27
     ws["A50"], ws["T50"] = "Finance costs", 471.0
     spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    hdr21 = _item(21, 1, "项目 年度", [2025.0, 2024.0, 2023.0, 2022.0, 2021.0])    # a period table: years in the header
     five = _item(21, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, 30000000000.0, 28000000000.0, 27000000000.0])
     face = _item(101, 7, "收回投资收到的现金", [25155704810.83, 35262270217.8])
     other = _item(30, 3, "收回投资收到的现金", [25000000000.0, 35262270217.8])       # a second, different printing
     grid = _item(30, 4, "Net book value at 1 January", [6608000000.0, 471000000.0, 914000000.0, 7993000000.0])
-    led = _ledger(_anchors(101, 1e6) + _anchors(21, 1e6) + _anchors(30, 1e6) + [five, face, other, grid], face_pages=((101, "cf"),))
+    led = _ledger(_anchors(101, 1e6) + _anchors(21, 1e6) + _anchors(30, 1e6) + [hdr21, five, face, other, grid], face_pages=((101, "cf"),))
     led._doc_periods = {DOC: "current"}
     serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
     got = serves.get(("Raw", 203))
     assert got and abs(float(got["value"]) - 25155.70) < 0.01, (got, mapping)     # the statement's reading kept
     assert got.get("flag") == "red" and "Two printed readings" in got.get("note", ""), got
-    assert ("Raw", 50) not in serves and mapping.get("wide_unkin", 0) >= 1          # the grid coincidence refused by label
+    assert ("Raw", 50) not in serves and (mapping.get("wide_unkin", 0) + mapping.get("matrix_rows", 0)) >= 1   # the grid: a matrix row, never paired
     # a PARENT-company statement page is not a second reading of the consolidated row
     led2 = _ledger(_anchors(101, 1e6) + _anchors(30, 1e6) + [face, other], face_pages=((101, "cf"),), parents=(30,))
     led2._doc_periods = {DOC: "current"}
@@ -3892,6 +3893,150 @@ def test_corroboration_rescues_a_disputed_row_2026_09_08():
     assert not disputed.joinable()
     n = led.corroborate()
     assert n == 1 and disputed.joinable() and disputed.consensus >= 2
+
+
+def test_two_digit_period_headers_form_panels_2026_09_09():
+    """Run 256: the Model sheet's half-year panel is headed 'H120 … H125'
+    with H2 columns between, the Driver's 'H124 H224 H125 H225E'; both
+    sheets were 'left out of this run', so the Model's check row never
+    gated an unbalanced H125 column (it delivered at -1,389). Two-digit
+    tagged marks are period marks; runs are built within a tag."""
+    import openpyxl
+    from pipeline.discover import find_year_axis, _year_of, period_tag
+    assert _year_of("H125") == (2025, True) and _year_of("H225E") == (2025, True)
+    assert _year_of("Q320") == (2020, True) and _year_of("FY25") == (2025, False)
+    assert period_tag("H125") == "H1" and period_tag("H225E") == "H2" and period_tag("1H2024") == "H1"
+    wb = openpyxl.Workbook(); ws = wb.active
+    hdr = ["", 2022, 2023, 2024, 2025, "H123", "H223", "H124", "H224", "H125", "H225E"]
+    for i, v in enumerate(hdr, 1):
+        ws.cell(2, i, v)
+    fy = find_year_axis(ws, "FY"); h1 = find_year_axis(ws, "1H")
+    assert fy == {"2022": "B", "2023": "C", "2024": "D", "2025": "E"}, fy
+    assert h1 == {"2023": "F", "2024": "H", "2025": "J"}, h1
+
+
+def test_matrix_rows_never_pair_2026_09_09():
+    """Run 257: 57 false 'two readings' and 182 refused ties, all from
+    segment matrices whose columns are segments, not periods. A wide row
+    pairs only in a PERIOD table — one with a header line of consecutive
+    years; a matrix row never pairs. The five-year table still serves."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A24"], ws["T24"] = "Profit for the year", 10468.0
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    # a segment matrix: HK | CN | Aus | India | Total — the row's numbers are segments
+    matrix = _item(30, 3, "Profit for the year", [9000e6, 1200e6, -919e6, 1187e6, 10468e6])
+    led = _ledger(_anchors(30, 1e6) + [matrix], face_pages=())
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    assert ("Raw", 24) not in serves and mapping.get("matrix_rows", 0) >= 1, (serves, mapping)
+    # a five-year table: a year-header line makes it a period table — the wide row pairs
+    hdr = _item(21, 1, "Year ended 31 December", [2025.0, 2024.0, 2023.0, 2022.0, 2021.0])
+    five = _item(21, 9, "Profit for the year", [11546e6, 10468e6, 9800e6, 9100e6, 8700e6])
+    led2 = _ledger(_anchors(21, 1e6) + [hdr, five], face_pages=())
+    led2._doc_periods = {DOC: "current"}
+    serves2, _m2 = reconcile(wb, spec, 2025, led2, lambda s: None)
+    assert abs(float(serves2[("Raw", 24)]["value"]) - 11546.0) < 0.01, serves2.get(("Raw", 24))
+
+
+def test_repairs_of_2026_09_09_pinned():
+    """The night's repairs, each a sentence: the plug ladder never vetoes on
+    forecast damage (watch list); the one-off law registers its cells as
+    frozen so the gate accepts them; a prior-vintage document is read as
+    text only; the run always delivers (open checks marked red, never a
+    quarantine); identity candidates need a specific label and two numbers;
+    reasoning effort rides on every call."""
+    import inspect
+    from pipeline import orchestrator as _o, teachings as _t, stage1_read as _s1, run as _r, workqueue as _wq, llm as _llm
+    assert "if hurt:" in inspect.getsource(_o.ObjectiveLoop.t_plug_residual) and \
+        "if hurt and hold_formula:" not in inspect.getsource(_o.ObjectiveLoop.t_plug_residual)
+    assert 'setdefault("frozen", [])' in inspect.getsource(_t.oneoff_no_propagate)
+    assert "prior-vintage document — text only" in inspect.getsource(_s1.read_documents)
+    src = inspect.getsource(_r.update)
+    assert "DELIVERED WITH OPEN CHECKS" in src and '" QUARANTINE"' not in src and '"gate_ok": ok' in src
+    assert "_specific(it.label)" in inspect.getsource(_wq.candidates_for)
+    assert "reasoning" in inspect.getsource(_llm._install_reasoning_effort)
+    assert "OTHER ROWS NAMED LIKE THIS ONE" in inspect.getsource(_wq.render_card)
+
+
+def test_roll_keeps_the_analysts_same_shape_formula_2026_09_09():
+    """Half-year replay: the H125 column already held '=EY152+EX152' (the
+    prior's '=EU152+ET152' rolled one period at the quarterly stride); the
+    two-column shift wrote '=EW152+EV152' — the wrong half — and broke 31
+    cells. A target formula of the prior's SHAPE is kept; a forecast
+    formula (a different shape) is still replaced by the prior's structure."""
+    import openpyxl
+    from pipeline.writer import rollover_column, _shape
+    assert _shape("=EY152+EX152") == _shape("=EU152+ET152")
+    assert _shape("=T4*(1+V22)") != _shape("=U4") and _shape("=$T$4") == _shape("=U4")
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["BQ152"], ws["BS152"] = "=EU152+ET152", "=EY152+EX152"     # same shape: the analyst rolled it already
+    ws["BQ4"], ws["BS4"] = 100.0, "=BQ4*(1+V22)"                    # a hardcode prior: the forecast formula is replaced
+    ws["BQ9"], ws["BS9"] = "='Raw'!AS9", "=BS8*2"                    # a different shape: replaced by the shifted prior
+    rollover_column(wb, "Model", "BQ", "BS")
+    assert ws["BS152"].value == "=EY152+EX152"
+    assert ws["BS4"].value == 100.0
+    assert ws["BS9"].value == "='Raw'!AU9"
+
+
+def test_repeated_years_header_is_a_matrix_2026_09_09():
+    """CLP floor after the matrix rule: 35 false readings remained from
+    segment tables whose header repeats '2025 2024' per segment. Distinct
+    years across the header = a period table; repeated years = a grid."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Raw"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A24"], ws["T24"] = "Profit for the year", 10468.0
+    spec = {"year_axis": {"Raw": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    hdr = _item(30, 1, "Hong Kong | Mainland | Total", [2025.0, 2024.0, 2025.0, 2024.0, 2025.0, 2024.0])
+    row = _item(30, 3, "Profit for the year", [9000e6, 8500e6, -919e6, 1968e6, 11546e6, 10468e6])
+    led = _ledger(_anchors(30, 1e6) + [hdr, row], face_pages=())
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    assert ("Raw", 24) not in serves and mapping.get("matrix_rows", 0) >= 1, (serves, mapping)
+
+
+def test_reader_verifies_every_answer_against_print_2026_09_09():
+    """THE READER STAGE (the reading test, 2026-09-09): Luna reads whole,
+    code verifies. A fabricated balance-sheet figure with a page reference
+    is never written; a units slip is corrected from the printed digits; a
+    quoted number that is last year's, printed alone, is 0; a page slip is
+    found by the printed name; a no-tie read lands red with its citation."""
+    from pipeline.reader import verify
+    lines = _anchors(95, 1e6) + [
+        _item(20, 9, "收回投资收到的现金", [25155704810.83, 35262270217.8, -28.66]),
+        _item(20, 10, "收到其他与投资活动有关的现金", [19078348.0]),
+        _item(101, 7, "收到其他与筹资活动有关的现金", [593536697.59]),
+        _item(45, 3, "现金分红金额(含税)", [1832930972.78]),
+        _item(2, 4, "归属于母公司所有者的净利润", [3831301222.13, 2922100908.48]),
+    ]
+    led = _ledger(lines, face_pages=((95, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    rows = [{"row": "Raw!203", "sheet": "Raw", "r": 203, "label": "收回投资收到的现金", "prior": 35262.27},
+            {"row": "Raw!207", "sheet": "Raw", "r": 207, "label": "收到其他与投资活动有关的现金", "prior": None},
+            {"row": "Raw!225", "sheet": "Raw", "r": 225, "label": "发行债券收到的现金", "prior": 593.54},
+            {"row": "Model!38", "sheet": "Model", "r": 38, "label": "Dividend 现金分红", "prior": 1366.32},
+            {"row": "Raw!44", "sheet": "Raw", "r": 44, "label": "归属于母公司所有者的净利润", "prior": 2922.1},
+            {"row": "Model!54", "sheet": "Model", "r": 54, "label": "Total current assets", "prior": 93779.78}]
+    answers = [{"row": "Raw!203", "printed": 25155704810.83, "page": 20, "line": "收回投资收到的现金"},
+               {"row": "Raw!207", "printed": 19078348.0, "page": 20, "line": "收到其他与投资活动有关的现金"},
+               {"row": "Raw!225", "printed": 593536697.59, "page": 101, "line": "收到其他与筹资活动有关的现金"},
+               {"row": "Model!38", "printed": 1832930972.78, "page": 45, "line": "现金分红金额(含税)"},
+               {"row": "Raw!44", "printed": 3831301222.13, "page": 5, "line": "归属于母公司所有者的净利润"},   # page slip
+               {"row": "Model!54", "printed": 97562731517.07, "page": 95, "line": "流动资产合计"}]              # fabricated
+    scales = {(DOC, 20): 1e6, (DOC, 95): 1e6, (DOC, 101): 1e6, (DOC, 2): 1e6}
+    v = verify(answers, rows, led, scales, lambda s: None)
+    assert abs(v["Raw!203"]["value"] - 25155.70) < 0.01 and v["Raw!203"]["conf"] == 4
+    assert abs(v["Raw!207"]["value"] - 19.078) < 0.01 and v["Raw!207"]["flag"] == "red"       # units from the printed digits
+    assert v["Raw!225"]["value"] == 0.0 and v["Raw!225"]["conf"] == 4                            # last year's, printed alone
+    assert abs(v["Model!38"]["value"] - 1832.93) < 0.01 and v["Model!38"]["flag"] == "red"       # no tie: red with citation
+    assert abs(v["Raw!44"]["value"] - 3831.30) < 0.01 and v["Raw!44"]["conf"] == 4              # found on p2 by name
+    assert "Model!54" not in v                                                                    # fabricated: never written
 
 
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():

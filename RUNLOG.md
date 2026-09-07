@@ -1954,3 +1954,53 @@ flagged row as stale (threw away 21 proven reads), and a two-readings
 flag made a proven BS row look least confident to the plug ladder.
 Fence-free proof on run 254's ledger: DELIVERED, five cells land, keys
 9/9, 2 plugs, 3 genuine two-readings flags for the analyst. Museum 140.
+
+## 2026-09-09 (night) — THE READING TEST: Luna reads a whole report in one call
+Owner's priority before sleep: "test luna's ability to read like Fable 5
+so that we are sure that we will have to use cards". Result, both
+companies, one call each, the full disclosure text page-marked plus the
+scanned pages as images: CLP 392k prompt tokens, 40 s, 24/28 rows
+answered with page references, 18/24 equal to the by-hand key — every
+miss a model convention (payout as % vs fraction, dividends sign, a
+segment sheet given the group total, an analyst's own definition). DFE
+368k tokens, 66 s, 41/42 answered — revenue, PBT, EPS, dividend 1,832.93,
+totals, the three cash flows, cash, attributable profit, new orders
+117,251 and two blank-beside-prior zeros all right; misses: the bond
+line read as this year's (the comparative in the summary table), a
+units slip (19,078 instead of 19.08), dividend paid vs declared, the
+group order figure on a segment row, one line not found on a scanned
+page. Conclusion: Luna reads like an analyst; its errors are exactly
+what code verifies mechanically (prior tie on the cited line, units
+from the printed number, sign from the model, blank beside the tie,
+one home per figure). Design decision: a READER stage — Luna reads
+whole, code verifies every answer — replaces the label cards and most
+serve cards; cards stay for genuine conflicts.
+Addendum (same night): the DFE balance-sheet block Luna returned (current
+assets 97,562.73, non-current 65,111.46, current liabilities 96,628.36,
+equity 54,449.33) is NOT what the scanned page prints (101,683.68 /
+60,990.51 / 102,323.47 / 48,168.26, vision-read and pinned) — yet both
+sets sum to the same 162,674.19. On an image it could not read exactly,
+Luna produced a self-consistent balance sheet: fabricated, with page
+references. The text-page answers were right. So: Luna reads text like
+an analyst; on scans it can invent numbers that balance. The reader
+stage therefore verifies every answer against a PRINTED number in the
+ledger (text or vision consensus) before anything is written; an
+unverifiable answer is never served, not even red.
+
+## 2026-09-09 (night) — step 2: the reader stage, the roll's shape rule, the matrix rule refined
+- pipeline/reader.py: after the deterministic stages, Luna reads the
+  whole current-vintage disclosure in one call and answers every row
+  still unproven; verify() recomputes each value from the PRINTED digits
+  at the page's scale, ties the cited line's comparative to the model's
+  prior, applies the model's sign, treats a lone number equal to the
+  prior as 0, finds a page slip by the printed name, and refuses any
+  number no printed line carries (the fabricated balance sheet of the
+  reading test). Proven → plain; printed but untied → red with citation.
+- writer.rollover_column: a target formula of the prior's SHAPE is the
+  analyst's own carried-forward structure and is kept (the half-year
+  Model/Driver panels lost 31 cells to a two-column shift of quarterly
+  sums); a forecast formula is still replaced by the prior's structure.
+- reconcile: a period table needs DISTINCT years in its header; repeated
+  years (2025 2024 | 2025 2024) are a segment × year grid — never paired.
+- Step-1 floors on the three ledgers all delivered; open checks are now
+  marked red and delivered, never quarantined.

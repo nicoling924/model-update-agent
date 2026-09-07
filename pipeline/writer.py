@@ -97,6 +97,14 @@ def shift_formula_excel(formula, offset=1):
     return "".join(p if p.startswith("'") else pat.sub(sub, p) for p in parts)
 
 
+def _shape(formula):
+    """A formula's structure with every column letter blanked: '=EY152+EX152'
+    and '=EU152+ET152' share a shape; '=T4*(1+V22)' does not share it with
+    a hardcode or with '=U4'. Rows, operators and functions stay."""
+    import re as _re
+    return _re.sub(r"(?<![A-Za-z_])\$?[A-Z]{1,3}\$?(\d+)", r"C\1", str(formula).replace("$", ""))
+
+
 def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
     """The owner's convention: the new actual column IS the prior actual
     column carried forward. Copies every cell — formulas Excel-shifted one
@@ -117,6 +125,18 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
             dst.value = None
             continue
         if isinstance(v, str) and v.startswith("="):
+            # THE ANALYST'S OWN CARRIED-FORWARD FORMULA IS KEPT (half-year
+            # replay 2026-09-09: the H125 column already held '=EY152+EX152'
+            # — the prior's '=EU152+ET152' one period on, at the QUARTERLY
+            # stride — and the two-column shift wrote '=EW152+EV152', the
+            # wrong half, breaking 31 cells). A target formula of the same
+            # SHAPE as the prior's (same rows and operators, columns moved)
+            # is the same structure already rolled by its author: keep it.
+            tv = dst.value
+            if isinstance(tv, str) and tv.startswith("=") and _shape(tv) == _shape(v):
+                dst._style = copy.copy(src._style)
+                dst.number_format = src.number_format
+                continue
             dst.value = shift_formula_excel(v, offset)
         else:
             dst.value = v

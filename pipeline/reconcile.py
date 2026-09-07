@@ -210,6 +210,26 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         table_serves = {}      # (sheet,row) -> (value, item, kind)
         big_moves = set()      # served, but worth a second look
         exact_rows = set()     # the line's label IS the row's label
+        # A PERIOD TABLE has a header line of consecutive years (2025 2024
+        # 2023 …); its wide rows are periods side by side and may pair. A
+        # table without one is a MATRIX (segments, ageing, roll-forwards):
+        # its columns are not periods, so a wide row there never pairs —
+        # run 257's 57 false 'two readings' and 182 refused ties all came
+        # from segment matrices paired as if they were year tables.
+        period_table = False
+        for it_ in items:
+            yrs = [int(n) for n in it_.nums if isinstance(n, (int, float))
+                   and float(n).is_integer() and 1990 <= n <= 2100]
+            # distinct years across the header = periods side by side; the
+            # same years REPEATED (2025 2024 | 2025 2024 | …) = a segment ×
+            # year grid, whose wide rows never pair (CLP run 257 floor: 35
+            # false readings from the announcement's segment tables)
+            if len(yrs) >= 2 and len(set(yrs)) == len(yrs):
+                period_table = True
+                break
+            if len(yrs) >= 2 and len(set(yrs)) < len(yrs):
+                period_table = False
+                break
         for it in items:
             mapping["lines"] += 1
             # NO WIDE-ROW FENCE (deduction 2026-09-08): a summary table
@@ -220,6 +240,9 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
             # wide row the pair's POSITION is uncertain, so the LABEL must
             # confirm the tie — number first, then the name.
             wide = len([n for n in it.nums if isinstance(n, (int, float))]) >= 4
+            if wide and not period_table:
+                mapping["matrix_rows"] = mapping.get("matrix_rows", 0) + 1
+                continue          # evidence: a wide row in a table with no year header is a matrix row — its columns are not periods
             hit = None
             # THE PAIR IN A WIDE ROW (deduction 2026-09-08, fence-free floor):
             # 'accounts receivable 15,193.79 | 9.34% | 12,000 | 8.1% | +26%'

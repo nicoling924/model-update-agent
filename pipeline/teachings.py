@@ -363,6 +363,11 @@ def oneoff_no_propagate(wb, spec, target_year, writer, log):
                         "roll-forward law; restore the link if the item "
                         "recurs.", "Model Update Agent")
                     writer.log["flags"].append(f"{sheet}!{fc}{r}")
+                    # the gate's driver-roll check exempts FROZEN cells;
+                    # a one-off held at 0 is one (run 257: the law fired and
+                    # the gate refused its own sanctioned action)
+                    writer.log.setdefault("frozen", []).append(
+                        f"{sheet}!{fc}{r}: one-off not propagated (actual {av:,.1f}, prior ~0)")
                     n += 1
                     log(f"[run]   one-off law: {sheet}!{fc}{r} link to "
                         f"{tcol}{r} ({av:,.1f}, prior ~0) -> 0 (orange)")

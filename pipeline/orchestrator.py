@@ -849,11 +849,14 @@ class ObjectiveLoop:
                 if isinstance(v, (int, float))
                 and isinstance(fc_before.get(k), (int, float))
                 and abs(v) > abs(fc_before[k]) + 1.0]
-        if hurt and hold_formula:
-            # the least confident site (the agent's own growth hold) takes
-            # the plug even where the forecast years move — that movement
-            # is the rollover check's business (watch-listed), not a veto
-            # (owner 2026-09-08: never plug a proven value instead)
+        if hurt:
+            # FORECAST DAMAGE IS A WATCH-LIST ITEM, NEVER A VETO (owner
+            # 2026-09-09, run 255: every site of the fixed-asset check was
+            # reverted for moving 2026+, the check stayed open, the gate
+            # refused). The actual year's own checks decide; a forecast
+            # that moves is the analyst's roll-forward question on _FLAGS.
+            # The run-213 share-capital disease is held off by the ladder's
+            # ranking (proven cells last), not by refusing to close the year.
             for k, before_v, after_v in hurt[:6]:
                 try:
                     self.writer.watch(str(k).split("!", 1)[0], str(k).split("!", 1)[1],

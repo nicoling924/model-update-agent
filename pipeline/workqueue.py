@@ -222,11 +222,24 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     from .numerics import kinship as _kin3, to_model_units as _tmu3, norm_label as _norm3
     from .writegate import _SCALES as _SC3, _ties_full_precision as _tfp3
     old_labels = set()
+    _GENERIC = re.compile(r"^(合计|小计|总计|其他|其中|total|subtotal|other|others|sum|net|amount)$", re.IGNORECASE)
+
+    def _specific(lab):
+        # a name is an identity only when it names an item: 'Total', '合计',
+        # 'Other' name nothing (run 255: '合计' matched 23 note totals and the
+        # brain served last year's figure); two words or three CJK characters
+        t = _norm3(str(lab)).replace(" ", "")
+        if not t or _GENERIC.match(t):
+            return False
+        cjk = sum(1 for ch in t if "一" <= ch <= "鿿")
+        return cjk >= 3 or len(str(lab).split()) >= 2
     for it in loop.ledger.items:
         if it.doc not in bad or getattr(it, "channel", "") == "prose":
             continue
         nums0 = [n for n in (it.nums or []) if isinstance(n, (int, float))]
-        if nums0 and any(_tfp3(nums0[0] / f, pv) for f in _SC3):
+        # the line must carry a current AND a comparative: a lone number is
+        # a bare figure, not a line that identifies an item
+        if len(nums0) >= 2 and _specific(it.label) and any(_tfp3(nums0[0] / f, pv) for f in _SC3):
             old_labels.add(_norm3(str(it.label)).replace(" ", ""))
     if old_labels:
         seen_old = {round(c["value"], 1) for c in out}
@@ -241,6 +254,8 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             if not nums1 or not sc:
                 continue
             val = _tmu3(nums1[0], sc)
+            if len(nums1) == 1 and any(_tfp3(nums1[0] / f, pv) for f in _SC3):
+                continue        # a lone number equal to last year's IS last year's — the nil law's line, never a candidate
             if round(val, 1) in seen_old:
                 continue
             seen_old.add(round(val, 1))
@@ -532,6 +547,14 @@ def build_queue(loop):
             continue
         if not str(getattr(t, "label", "") or "").strip():
             continue
+        # the model's own CHECK / difference / balancing rows are never
+        # inputs (run 256: label cards served 0.08 into '投资活动现金流入差额
+        # (合计平衡项目)' and 2,208 into the direct-method difference row)
+        from .discover import _CHECK_LABEL as _CHK
+        if _CHK.search(str(t.label)) or any(
+                c.get("sheet") == sheet and int(c.get("row", -1)) == row
+                for c in (loop.spec.get("check_rows") or [])):
+            continue
         if not _label_only_candidates(loop, sheet, row, t, 1):
             continue
         items.append(WorkItem("LABEL", sheet, row, priority=0.0))
@@ -661,9 +684,25 @@ def render_card(loop, item):
                  (f"  holds: {held!r} (RED: stale/unproven)" if item.kind != "LABEL"
                   else "  holds: nothing — a row the model names but never filled; "
                        "no prior year to tie: judge by the item's meaning (lands red)"),
-                 f"  prior year: {pv:,.2f}" if pv is not None else "",
-                 "  candidates (machine-extracted; warnings are the "
-                 "machine's own doubts):"]
+                 f"  prior year: {pv:,.2f}" if pv is not None else ""]
+        if item.kind == "LABEL":
+            # SCOPE AND COMPETING HOMES (runs 255/257: the group order-intake
+            # sentence landed on a Driver segment row, the group debt on the
+            # India sheet — the brain never saw that a better home existed)
+            from .numerics import kinship as _kin_h
+            lines.append(f"  SCOPE: this row lives on sheet '{sheet}' — a segment or entity "
+                         "sheet takes that entity's own figure, never the group total; "
+                         "qualifiers in the row's label (a product, a region) must match the line")
+            homes = [(f"{s2}!{r2}", str(t2.label)[:40],
+                      (f"{t2.prior_value:,.2f}" if isinstance(t2.prior_value, (int, float)) else "no prior"))
+                     for (s2, r2), t2 in loop.targets.items()
+                     if (s2, r2) != (sheet, row) and _kin_h(str(t2.label or ""), lab)][:6]
+            if homes:
+                lines.append("  OTHER ROWS NAMED LIKE THIS ONE (a figure has ONE home — if a "
+                             "candidate belongs to one of these, answer not_disclosed here): "
+                             + "; ".join(f"{h[0]} '{h[1]}' ({h[2]})" for h in homes))
+        lines.append("  candidates (machine-extracted; warnings are the "
+                     "machine's own doubts):")
         options = {}
         best_fit = None
         if probe:

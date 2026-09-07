@@ -77,7 +77,36 @@ def _year_of(v):
             interim = bool(_INTERIM_TEXT.search(v)
                            or re.search(r"[-/](?:06|6)[-/]30|[-/](?:09|9)[-/]30", v))
             return int(m.group(1)), interim
+        # TWO-DIGIT PERIOD MARKS (run 256: the Model sheet's half-year
+        # panel is headed 'H120 … H125', the Driver's 'H124 H224 H125
+        # H225E' — the sheet was 'left out of this run' and its check row
+        # never gated the unbalanced column): H1yy / 1Hyy / H2yy / Q3yy /
+        # FYyy, an optional trailing A/E
+        m2 = re.fullmatch(r"\s*(?:(H[12]|[12]H|Q[1-4]|[1-4]Q|FY)\s*'?(\d{2}))\s*[AEae]?\s*", str(v))
+        if m2:
+            tag, yy = m2.group(1).upper(), int(m2.group(2))
+            return 2000 + yy, tag != "FY"
     return None, False
+
+
+def period_tag(v):
+    """'FY' | 'H1' | 'H2' | 'Q1'..'Q4' for a header mark, from its text or
+    date; annual marks are 'FY'. The axis groups runs by tag so H1 and H2
+    columns that alternate on one row form two panels, not a broken one."""
+    if hasattr(v, "year") and not isinstance(v, (int, float, bool)):
+        return {3: "Q1", 6: "H1", 9: "Q3"}.get(getattr(v, "month", 12), "FY")
+    t = str(v).upper()
+    m = re.search(r"(?:^|[^A-Z0-9])(H[12]|[12]H|Q[1-4]|[1-4]Q)(?![A-Z])", t)
+    if m:
+        g = m.group(1)
+        return {"1H": "H1", "2H": "H2", "1Q": "Q1", "2Q": "Q2", "3Q": "Q3", "4Q": "Q4"}.get(g, g)
+    if re.search(r"[-/](?:06|6)[-/]30", t):
+        return "H1"
+    if re.search(r"[-/](?:09|9)[-/]30", t):
+        return "Q3"
+    if re.search(r"[-/](?:03|3)[-/]31", t):
+        return "Q1"
+    return "FY"
 
 
 def find_year_axis(ws, period_kind="FY"):
@@ -89,36 +118,55 @@ def find_year_axis(ws, period_kind="FY"):
     run length, then topmost row."""
     from .evaluator import n2col
     want_interim = period_kind.upper() != "FY"
-    cands = []
+    want_tag = {"1H": "H1", "H1": "H1", "2H": "H2", "H2": "H2"}.get(period_kind.upper())
+    # ONE MARK PER COLUMN, THE TEXT MARK WINS (run 256 autopsy): a column's
+    # header rows usually carry a date AND a text mark ('2024-06-30' over
+    # '1H2024'; '2024-06-30' over '2Q2024'). A date is ambiguous — June 30
+    # is a half-year end AND a quarter end — the text says which. Runs
+    # are then built WITHIN a period tag, so H1 | H2 | H1 | H2 alternating
+    # on one row holds two panels and a quarterly block never outvotes
+    # the half-year panel.
+    percol = {}                       # col -> (year, tag, from_text, row)
     for row in ws.iter_rows(min_row=1, max_row=min(_SCAN_ROWS, ws.max_row)):
-        marks = []
         for c in row:
-            y, interim = _year_of(getattr(c, "value", None))
-            if y is not None and getattr(c, "column", None):
-                marks.append((c.column, y, interim))
-        if len(marks) < _MIN_RUN:
+            v = getattr(c, "value", None)
+            y, _interim = _year_of(v)
+            if y is None or not getattr(c, "column", None):
+                continue
+            is_text = isinstance(v, str)
+            cur = percol.get(c.column)
+            if cur is None or (is_text and not cur[2]):
+                percol[c.column] = (y, period_tag(v), is_text, c.row)
+    marks = sorted((col, y, tag, r, t) for col, (y, tag, t, r) in percol.items())
+    runs = []
+    for tag in sorted({m_[2] for m_ in marks}):
+        if want_interim and want_tag and tag != want_tag:
             continue
-        run = [marks[0]]
-        runs = []
-        for prev, cur in zip(marks, marks[1:]):
+        if want_interim and not want_tag and not tag.startswith("Q"):
+            continue
+        if not want_interim and tag != "FY":
+            continue
+        tm = [m_ for m_ in marks if m_[2] == tag]
+
+        def _keep(run):
+            # an interim panel named in TEXT (H124 | H125) is a panel at two
+            # marks — the tag is the evidence; date-only runs keep the bar
+            need = 2 if (want_interim and all(m_[4] for m_ in run)) else _MIN_RUN
+            return len(run) >= need
+        run = [tm[0]]
+        for prev, cur in zip(tm, tm[1:]):
             if cur[1] == prev[1] + 1 and cur[0] > prev[0]:
                 run.append(cur)
             else:
-                if len(run) >= _MIN_RUN:
+                if _keep(run):
                     runs.append(run)
                 run = [cur]
-        if len(run) >= _MIN_RUN:
+        if _keep(run):
             runs.append(run)
-        rowno = next((c.row for c in row if hasattr(c, "row")), 99)
-        for rn in runs:
-            interim_frac = sum(1 for _c, _y, i in rn if i) / len(rn)
-            kind_match = (interim_frac >= 0.5) == want_interim
-            cands.append((kind_match, len(rn), -rowno, rn))
-    if not cands:
+    if not runs:
         return None
-    cands.sort(reverse=True)
-    best = cands[0][3]
-    return {str(y): n2col(col) for col, y, _i in best}
+    best = max(runs, key=lambda rn: (len(rn), -min(m_[3] for m_ in rn)))
+    return {str(y): n2col(col) for col, y, _t, _r, _x in best}
 
 
 def _label(ws, r):
