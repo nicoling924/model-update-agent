@@ -642,6 +642,21 @@ class ObjectiveLoop:
                             f"({residual:,.1f} -> {after_p:,.1f}) — "
                             "wrong map, not a fix; left alone")
                         continue
+                    # TWO PROVEN-GRADE CLAIMS ARE A CONFLICT, NOT A FIX
+                    # (run 244: the cell held a proven nil, the diff
+                    # named another line; apply_diff was refused by the
+                    # proven law and the plug was refused while the
+                    # 'evidence fix remained' — a deadlock). A diff
+                    # against a proven cell is ruled out for the plug
+                    # and listed for the analyst instead.
+                    from .rollover import input_is_proven as _iip2
+                    if _iip2(self.served, sh, coord, cur, (), self.wb):
+                        out.append(f"  CONFLICT {sh}!{int(mm.group(2))} "
+                                   f"'{str(t.label)[:30]}': the cell holds a "
+                                   f"proven {cur:,.2f}; another line prints "
+                                   f"{dv:,.2f} ({it.doc} p{it.page}) — two "
+                                   "readings, the analyst's call; not a fix")
+                        continue
                     guilty += 1
                     out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
                                f"'{str(t.label)[:30]}': model {cur:,.2f} vs "

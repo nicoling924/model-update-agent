@@ -1669,3 +1669,13 @@ cell -> zeroed -> registered proven -> the ladder's evidence fix refused
 so it is trusted only on a registered statement face (pl/bs/cf) —
 museum 123 (the p239 case). True-base FY25 floor: DELIVERED with 3
 genuine nils; 1H25 floor DELIVERED. Re-dispatched as 246/247.
+
+## 2026-09-08 — the plug deadlock (run 244) closed inside the diagnosis
+Rule A (plug only after every evidence fix is applied or ruled out) and
+rule B (never overwrite a proven value) locked when a disclosure line
+disagreed with a cell already proven: apply_diff refused by B, the plug
+refused by A, the gate refused the run. The diagnosis now names such a
+line a CONFLICT (two readings for one cell — the analyst's call), not a
+GUILTY fix, so nothing stays pending and the ladder proceeds to the
+least-confident plug. No new rule; the diagnosis stops asking for what B
+forbids. Museum 123, bench green, true-base FY25 floor DELIVERED.
