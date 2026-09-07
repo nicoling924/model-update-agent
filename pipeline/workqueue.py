@@ -984,10 +984,12 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S):
         if tool is None:
             item.state = "DEFAULTED" if ans == default else "DONE"
             defaulted += ans == default
-            if item.kind == "SERVE":
+            if item.kind == "SERVE" and (item.sheet, item.row) not in (loop.served or {}):
                 # a not_disclosed adjudication IS an examination (the
                 # move-on law): document the look on the cell so the
-                # gate counts a finding, not neglect
+                # gate counts a finding, not neglect — unless the cell
+                # already holds a served value with its own note (the
+                # new-line serve, run 254): a default never overwrites it
                 ncand = text.count("\n    ")
                 loop.TOOLS["flag_cell"](loop, {
                     "cell": f"{item.sheet}!{item.row}",
