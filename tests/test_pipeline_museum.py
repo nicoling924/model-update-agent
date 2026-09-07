@@ -3523,6 +3523,38 @@ def test_label_map_survives_pdf_formatting_2026_09_08():
     assert not kinship("负债合计", "所有者权益合计")          # structure words carry no identity
 
 
+def test_prose_figures_become_lines_2026_09_08():
+    """Owner: a figure stated in a sentence ('新生效订单1172.51亿元，同比增长
+    15.93%') is evidence; the reader keeps the noun with its amount, in
+    base currency units, with the prior the growth rate implies; a
+    non-currency amount keeps its unit word for the brain to convert."""
+    from pipeline.prose import harvest_prose
+    cn = ("2025年，公司新生效订单1172.51亿元，同比增长15.93%，能源装备制造占67.33%。\n"
+          "2025年年末，公司在手订单1403.1亿元。")
+    items = harvest_prose("DFE 2025 AR.pdf", 10, cn)
+    by = {it.label: it for it in items}
+    assert "新生效订单" in by, [it.label for it in items]
+    it = by["新生效订单"]
+    assert abs(it.nums[0] - 117_251_000_000) < 1 and it.unit_dim == "money" and it.channel == "prose"
+    assert abs(it.nums[1] - 117_251_000_000 / 1.1593) < 1        # last year, implied by the growth
+    assert "在手订单" in by and len(by["在手订单"].nums) == 1
+    en = ("Order intake of RMB117.3bn, up 16% year-on-year. Total installed capacity reached\n"
+          "7,688MW at year end. Net profit was HK$10,468 million (2024: HK$11,742 million).")
+    items = harvest_prose("x.pdf", 4, en)
+    by = {it.label.lower(): it for it in items}
+    oi = next(v for k, v in by.items() if "order intake" in k)
+    assert abs(oi.nums[0] - 117.3e9) < 1 and abs(oi.nums[1] - 117.3e9 / 1.16) < 1
+    cap = next(v for k, v in by.items() if "capacity" in k)
+    assert cap.nums[0] == 7688 and cap.unit_dim == "unit:MW"
+    npf = next(v for k, v in by.items() if "net profit" in k)
+    assert abs(npf.nums[0] - 10_468e6) < 1 and abs(npf.nums[1] - 11_742e6) < 1   # stated prior
+    # a wrapped sentence ('同比增' / '长15%' across lines) is joined first
+    wrapped = "2025年，公司实现营业总收入786.15亿元,同比增\n长12.80%。"
+    items = harvest_prose("x.pdf", 9, wrapped)
+    rev = next(it for it in items if "营业总收入" in it.label)
+    assert len(rev.nums) == 2 and abs(rev.nums[1] - 78.615e9 / 1.128) < 1
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

@@ -209,6 +209,44 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
                     "warnings": ["prints LAST year's figure with a BLANK this "
                                  "year — 0 this year IF this line is the same "
                                  "item as the model row (judge the meaning)"]})
+    # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
+    # candidate even without a prior tie — the brain judges the item and
+    # the unit from the sentence printed on the card; code's guard is the
+    # world band against the model's previous period. Money is shown in
+    # the model's units via the document's own ratified scale.
+    from .numerics import kinship as _kin2, to_model_units as _tmu2
+    lab_row = str(getattr(t, "label", "") or "")
+    doc_scale = {}
+    for (d_, p_), sc in scales.items():
+        doc_scale.setdefault(d_, []).append(sc)
+    doc_scale = {d_: max(set(v), key=v.count) for d_, v in doc_scale.items()}
+    seen_prose = set()
+    for it in loop.ledger.items:
+        if getattr(it, "channel", "") != "prose" or it.doc in bad:
+            continue
+        if not lab_row or not _kin2(lab_row, str(it.label)):
+            continue
+        key = (it.doc, it.page, str(it.label)[:40])
+        if key in seen_prose or not it.nums:
+            continue
+        seen_prose.add(key)
+        money = getattr(it, "unit_dim", "") == "money"
+        sc = doc_scale.get(it.doc)
+        val = _tmu2(it.nums[0], sc) if (money and sc) else float(it.nums[0])
+        warns = [f"PROSE: '{str(it.source_line)[:90]}' — judge the item AND the unit"
+                 + ("" if money and sc else f" (printed unit {getattr(it, 'unit_dim', '')[5:] or 'money'}, "
+                    "convert to the model's units)")]
+        if not (abs(val) <= 100 * abs(pv) and abs(val) * 100 >= abs(pv)):
+            warns.append("out of the model's world vs its prior — probably a different unit or item")
+        if len(it.nums) >= 2:
+            pr = _tmu2(it.nums[1], sc) if (money and sc) else float(it.nums[1])
+            off = abs(abs(pr) - abs(pv))
+            if off <= max(0.6, abs(pv) * 5e-3):
+                warns.append("✔ the sentence's own growth/prior implies LAST year = the model's prior")
+        out.append({"value": val, "doc": it.doc, "page": it.page,
+                    "line": str(it.label)[:60], "face": "prose",
+                    "tie_off": (0.0 if any(w.startswith("✔") for w in warns) else 9.0),
+                    "warnings": warns})
     seen, uniq = set(), []
     # EXACT TIE OUTRANKS EVERYTHING (strict-policy audit 2026-09-01:
     # 'Operating costs' twins — the group P&L line on a face page

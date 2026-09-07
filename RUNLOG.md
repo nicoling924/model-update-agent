@@ -1755,3 +1755,25 @@ of same names with restated comparatives). The recipe stands as taught
 (orange), residual in the analyst's designed plug row — and the
 ANALYST reclassifies. The reclassified-block holds stay orange and
 listed in the report; no forecast-mix repair is attempted.
+
+## 2026-09-08 — PROSE FIGURES (owner rulings): the reader keeps a sentence's figure
+Owner: noun + amount (+ growth rate if given) from anywhere in the
+report, this year's and last year's; the brain normalises the unit to
+the model's, accepting only what sits in line with the previous period's
+input; no fixed format rulebook — the LLM reasons over the sentence;
+which figures matter differs per company (DFE: order intake; CLP:
+tariffs); a figure with no tie lands RED; only model rows drive the
+search. Built (pipeline/prose.py): sentences are joined across wrapped
+lines and any 'noun phrase + amount + unit word' becomes a ledger line
+(channel 'prose'); money is normalised to the base currency unit so the
+page-scale machinery converts it exactly like a statement line; a growth
+rate or stated prior gives the comparative, so the generic map (number
+first, label to confirm) applies unchanged; non-currency amounts keep
+their unit word for the brain. On the serve card, prose lines kin to the
+row's label appear with the sentence printed and a unit warning; a line
+whose own growth implies the model's prior is marked ✔. Measured: +100
+to +460 lines per document against 2,500-3,500 table lines; the DFE 2024
+report yields '新生效订单' 101,142 (implied prior 86,535), the 2025 report
+'营业总收入' with an implied prior that ties the model's 69,695. Museum 126;
+bench green; floors deliver (pinned ledgers carry no prose — the live run
+is the proof).

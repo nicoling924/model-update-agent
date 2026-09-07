@@ -430,6 +430,11 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                     face_lines.append((pn, ln.strip()))
             for it in segment_page(doc, pn, text):
                 led.add(it)
+            # PROSE FIGURES (owner 2026-09-08): a figure stated in a sentence
+            # is evidence too — harvested as lines so the same map applies
+            from .prose import harvest_prose
+            for it in harvest_prose(doc, pn, text):
+                led.add(it)
         # -- vision channel
         image_pages = [pn for pn, c in classes.items() if c == "image"]
         unread = []
