@@ -304,6 +304,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             prev = wb[sh][coord].value
             if not (isinstance(prev, (int, float)) and abs(prev) < 0.5):
                 continue                  # only zero-writes auto-revert
+            # a PRINTED nil is a read, not a guess (owner 2026-09-08: "if
+            # 0 then 0"): the disclosure showed last year's figure and a
+            # blank current slot — the forecast that dies with it is the
+            # rollover check's business, never grounds to restore a hold
+            _rr = int("".join(ch for ch in coord if ch.isdigit()) or 0)
+            try:
+                _pe = served.get((sh, _rr))
+            except NameError:
+                _pe = None
+            if isinstance(_pe, dict) and _pe.get("value") == 0.0 \
+                    and int(_pe.get("conf") or 0) >= 4:
+                writer.watch(sh, coord, "printed nil this year; the forecast "
+                                        "row it feeds moved with it")
+                continue
             wb[sh][coord] = old
             now = collapsed_forecasts(wb, spec_d, target_year, fc_base)
             if len(now) < len(cur):
@@ -658,6 +672,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 continue                # a subtotal is never nil-proven
             it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs)
                   if isinstance(pv, (int, float)) else None)
+            if it is not None:
+                log(f"[run]   0 means 0: {ref} — prior {pv:,.2f} printed with a "
+                    f"blank/nil current slot ({it.doc} p{it.page} "
+                    f"{str(getattr(it, 'label', ''))[:24]!r})")
             if it is not None and writer.write(
                     sheet, f"{tcol}{r}", 0.0, prior_coord=f"{pcol}{r}",
                     trusted=True,
@@ -668,7 +686,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 wb[sheet][f"{tcol}{r}"].fill = PatternFill()  # clear red
                 writer.log["flags"] = [
                     x for x in writer.log["flags"] if x != ref]
+                # a printed nil is a READ, not a hold: registered as a
+                # proven serve so no plug or revert lands on it (owner
+                # 2026-09-08: "if 0 then 0"; the 240 replay plugged the
+                # cash gap into the freshly served nil)
+                served[(sheet, r)] = {
+                    "value": 0.0, "doc": it.doc, "page": it.page,
+                    "line": str(getattr(it, "label", ""))[:60], "conf": 4,
+                    "homed": True, "home": (sheet, f"{tcol}{r}"),
+                    "note": (f"reconciliation: printed nil this period beside "
+                             f"the tying prior ({it.doc} p{it.page}) — 0")}
                 n_nil += 1
+            elif it is not None:
+                log(f"[run]   0 means 0: {ref} write REFUSED by the guard "
+                    f"(locked={ref in writer.locked})")
     if n_nil:
         log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
     err_guard("tier-3 + dash-nil")

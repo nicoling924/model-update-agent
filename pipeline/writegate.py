@@ -238,6 +238,23 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None):
         if not page_ok:
             continue
         line = str(_meta(it, "source_line", ""))
+        # A BLANK CURRENT CELL IS NIL TOO (owner 2026-09-08, DFE: 'other
+        # cash received relating to financing' prints the comparative
+        # 593,536,697.59 with the current cell empty — the line carries
+        # exactly ONE number and it is last year's, full precision).
+        # "If not found, back out; if 0, then 0."
+        nums = [n for n in (_meta(it, "nums", None) or []) if isinstance(n, (int, float))]
+        # ... and a PRINTED ZERO in the current slot beside the tying prior
+        # ('0' / '0.00' | 593,536,697.59) is nil the same way
+        if len(nums) == 2 and nums[0] == 0:
+            nums = [nums[1]]
+        if len(nums) == 1:
+            v = nums[0]
+            digits = re.sub(r"[^0-9]", "", ("%.2f" % abs(v)).rstrip("0").rstrip("."))
+            if len(digits.lstrip("0")) >= 4:
+                for f in _SCALES:
+                    if abs(v / f - abs(prior)) <= abs(prior) * 2e-3:
+                        return it
         toks = line.split()
         for i, t in enumerate(toks[:-1]):
             if t not in _NIL_TOKENS:

@@ -798,8 +798,11 @@ class ObjectiveLoop:
         wild_txt = (", WILD — swings the component by more than half; "
                     "a mapped sibling is probably wrong" if wild else "")
         fc_before = self._forecast_check_residuals()
-        plug_value = (f"=({held:g})+({-residual_eff:g})" if hold_formula
-                      else held - residual_eff)
+        plug_value = (f"=({held!r})+({-residual_eff!r})" if hold_formula
+                      else held - residual_eff)     # full precision: a
+                                                    # 6-digit '{:g}' left
+                                                    # the check at -1 and
+                                                    # the plug was reverted
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", plug_value,
             prior_coord=f"{pcol}{i_row}" if pcol else None,

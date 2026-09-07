@@ -1626,3 +1626,27 @@ Every headline read: total assets 156,366, total liabilities 110,962,
 cash 31,259, inventory 27,287, revenue 38,151, net profit 2,061, finance
 costs -0.38 (the 100x move served plain under its own label), closing
 cash 26,342; receivables / payables as plain SUMs of their printed lines.
+
+## 2026-09-08 — "0 means 0" landed (owner's screenshot: comparative printed, current blank)
+The model's 'bond issuance' row is Wind's name for the printed line
+'other cash received relating to financing' (593.5 last year, blank
+this year). Three things stood between the line and a 0: (1) the nil
+law only knew a printed dash — a one-number statement line whose only
+number is last year's (blank current) and a printed '0' beside the
+prior are nil now; (2) the nil landed as a plain write and the ladder
+then plugged the cash gap INTO it — a printed nil is now registered as
+a proven serve; (3) the collapse guard 'auto-disproved' the zero
+because the forecast row growing off it fell to zero and restored the
+growth hold — a proven nil is never restored, the forecast row is
+watch-listed (the tariff lesson, the other way round). Also: the
+composite plug's '{:g}' format left the cash check at -1 and reverted
+the plug — full precision now. Replay of run 240 (real output = the
+QUARANTINE file; an earlier reading of the stale delivered-name file
+misled): nils 0 on 'other financing cash' and 'subsidiary disposals';
+investing cash flow -10,587 and financing 5,102 TIE the print; keys
+8/10 (NP / equity = model definitions); the cash plug lands in the
+growth-held 'investment disposals' at 25,175 (printed 25,156). The
+replay's one open check (Driver!139, -51) is a replay artefact — the
+live brain closed it in run 240. Owner: no new rules — this is the
+existing nil law + key tie doing their job once the nil survives.
+Museum 123.

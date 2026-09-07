@@ -3427,6 +3427,34 @@ def test_owner_statement_laws_2026_09_08():
     assert any("not adopted" in l for l in logs), logs
 
 
+def test_blank_current_cell_is_nil_2026_09_08():
+    """Owner (DFE 240 screenshot): 'other cash received relating to
+    financing' prints 593,536,697.59 in the comparative column and NOTHING
+    in the current column. Not found -> back out; 0 -> 0. A one-number
+    statement line whose only number is last year's proves nil."""
+    from types import SimpleNamespace as NS
+    from pipeline.writegate import nil_current_zero
+    doc = "X 2025 Annual Report.pdf"
+    blank = NS(doc=doc, page=101, label="收到其他与筹资活动有关的现金 五、（六十八）",
+               nums=[593536697.59], source_line="收到其他与筹资活动有关的现金 五、（六十八）  593 536 697.59",
+               stmt_face="cf", scale_hint=None)
+    lost = NS(doc=doc, page=101, label="收回投资收到的现金", nums=[25155704810.83],
+              source_line="收回投资收到的现金 25 155 704 810.83", stmt_face="cf", scale_hint=None)
+    faces = {(doc, 101)}
+    assert nil_current_zero([blank, lost], 593.54, faces, set()) is blank      # ties the prior: nil
+    assert nil_current_zero([lost], 35262.27, faces, set()) is None           # 25,156 is not the prior: a lost comparative, not nil
+    blank_note = NS(doc=doc, page=150, label=blank.label, nums=blank.nums,
+                    source_line=blank.source_line, stmt_face=None, scale_hint=None)
+    assert nil_current_zero([blank_note], 593.54, set(), set()) is None       # not a statement face: proves nothing
+    assert nil_current_zero([blank], 59.35, faces, set()) is None             # a different figure
+    zero = NS(doc=doc, page=101, label="发行债券收到的现金", nums=[0.0, 593536697.59],
+              source_line="发行债券收到的现金 0.00 593 536 697.59", stmt_face="cf", scale_hint=None)
+    slash = NS(doc=doc, page=101, label="发行债券收到的现金", nums=[593536697.59],
+               source_line="发行债券收到的现金 / 593 536 697.59", stmt_face="cf", scale_hint=None)
+    assert nil_current_zero([zero], 593.54, faces, set()) is zero              # printed 0 -> nil
+    assert nil_current_zero([slash], 593.54, faces, set()) is slash            # '/' -> nil
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

@@ -247,6 +247,8 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                 exact = bool(_rl) and _rl == _ll
                 big = (abs(cur) > 30 * max(abs(pv), 1)
                        or (abs(pv) > 30 and abs(cur) * 30 < abs(pv)))
+                if cur == 0:
+                    big = False            # a printed 0 is nil, not a 30x move
                 # ... on a KIN map it is a SUGGESTION, not a gate (owner
                 # 2026-09-08: "this input moved 30x — double check before
                 # you input it"): served and flagged for review; on a
