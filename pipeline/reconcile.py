@@ -335,7 +335,8 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                 _raw = next((n for n in it.nums if isinstance(n, (int, float))), None)
                 _dec = len(repr(round(abs(_raw), 8)).split(".")[1].rstrip("0")) if _raw is not None and "." in repr(round(abs(_raw), 8)) else 0
                 _gran = abs(to_model_units(10.0 ** (-_dec), s)) if _raw is not None else 0.0
-                if abs(prev_v - cur) > max(row_tol(cur, base=1.0), 0.51 * _gran) and (sheet, r) in serves:
+                _parent = (doc, page) in getattr(ledger, "parent_pages", set())
+                if abs(prev_v - cur) > max(row_tol(cur, base=1.0), 0.51 * _gran) and (sheet, r) in serves and not _parent:
                     # TWO PRINTED READINGS (deduction 2026-09-08, F2): the
                     # statement claimed first; a later page prints a
                     # different current for the same tying prior — never
@@ -347,6 +348,9 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                                  f"{cur:,.2f} ({doc} p{page} {str(it.label)[:24]!r}). "
                                  "Kept the statement's — please confirm.")})
                     mapping["two_readings"] = mapping.get("two_readings", 0) + 1
+                    # (a PARENT-company statement's line is not a second reading
+                    # of the consolidated row — docid knows those pages; they
+                    # rank below the consolidated face and never flag it)
                     mapping.setdefault("two_readings_rows", []).append(
                         (sheet, r, round(prev_v, 2), _src, round(cur, 2), f"{doc} p{page} {str(it.label)[:24]}"))
                 continue

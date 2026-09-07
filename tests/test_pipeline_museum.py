@@ -3834,6 +3834,11 @@ def test_fences_removed_deduction_2026_09_08():
     assert got and abs(float(got["value"]) - 25155.70) < 0.01, (got, mapping)     # the statement's reading kept
     assert got.get("flag") == "red" and "Two printed readings" in got.get("note", ""), got
     assert ("Raw", 50) not in serves and mapping.get("wide_unkin", 0) >= 1          # the grid coincidence refused by label
+    # a PARENT-company statement page is not a second reading of the consolidated row
+    led2 = _ledger(_anchors(101, 1e6) + _anchors(30, 1e6) + [face, other], face_pages=((101, "cf"),), parents=(30,))
+    led2._doc_periods = {DOC: "current"}
+    serves2, mapping2 = reconcile(wb, spec, 2025, led2, lambda s: None)
+    assert serves2.get(("Raw", 203), {}).get("flag") != "red" and not mapping2.get("two_readings")
     src = inspect.getsource(reconcile)
     assert "wide_skipped" not in src and "if len(items) > max_lines_per_table" not in src
     assert wq.MAX_CANDS is None
