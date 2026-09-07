@@ -173,6 +173,30 @@ def _pairs(ns, scale):
     return out
 
 
+def table_kind(items):
+    """ONE law for every reader of a table (the walk, the cards, the
+    evidence law). 'period': a header line of distinct consecutive years
+    (2025 2024 2023 …) — its wide rows are periods side by side and pair.
+    'matrix': no year header and a wide row — segments, ageing, roll-
+    forwards; its columns are categories, so no row of it pairs
+    horizontally (run 257: 57 false 'two readings'; run 262: a segment
+    row's first number offered as this year's intangibles). The same
+    years REPEATED (2025 2024 | 2025 2024) is a segment × year grid,
+    also a matrix. 'plain': neither."""
+    period = None
+    for it_ in items:
+        yrs = [int(n) for n in (it_.nums or []) if isinstance(n, (int, float))
+               and float(n).is_integer() and 1990 <= n <= 2100]
+        if len(yrs) >= 2:
+            period = len(set(yrs)) == len(yrs)
+            break
+    if period:
+        return "period"
+    if any(len([n for n in (it_.nums or []) if isinstance(n, (int, float))]) >= 4 for it_ in items):
+        return "matrix"
+    return "plain"
+
+
 def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     """-> (serves, mapping) where serves is the standard serve dict and
     mapping = {"tables": n, "lines": n, "matched": n, "confirmed": n,
@@ -233,29 +257,9 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
         # its columns are not periods, so a wide row there never pairs —
         # run 257's 57 false 'two readings' and 182 refused ties all came
         # from segment matrices paired as if they were year tables.
-        period_table = False
-        for it_ in items:
-            yrs = [int(n) for n in it_.nums if isinstance(n, (int, float))
-                   and float(n).is_integer() and 1990 <= n <= 2100]
-            # distinct years across the header = periods side by side; the
-            # same years REPEATED (2025 2024 | 2025 2024 | …) = a segment ×
-            # year grid, whose wide rows never pair (CLP run 257 floor: 35
-            # false readings from the announcement's segment tables)
-            if len(yrs) >= 2 and len(set(yrs)) == len(yrs):
-                period_table = True
-                break
-            if len(yrs) >= 2 and len(set(yrs)) < len(yrs):
-                period_table = False
-                break
-        # A MATRIX IS A MATRIX IN EVERY ROW (CLP floor 2026-09-09: the
-        # statement of changes in equity has no year header and wide rows;
-        # its 'Balance at 31 December' line came through with three numbers
-        # — a day, total equity, non-controlling interests — and paired
-        # (total equity, NCI) as (current, prior), serving 104,055 into
-        # minority interests). Where a table's columns are categories, no
-        # row of it pairs horizontally, however few numbers the row shows.
-        matrix_table = (not period_table) and any(
-            len([n for n in it_.nums if isinstance(n, (int, float))]) >= 4 for it_ in items)
+        kind = table_kind(items)
+        period_table = kind == "period"
+        matrix_table = kind == "matrix"
         if matrix_table:
             mapping["matrix_rows"] = mapping.get("matrix_rows", 0) + len(items)
             continue          # evidence: no year header and category columns — its rows carry no (current, prior) pair

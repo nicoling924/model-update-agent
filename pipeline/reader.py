@@ -106,9 +106,28 @@ def rows_to_read(wb, spec, target_year, targets, served):
             if isinstance(held, str) and held.startswith("="):
                 continue             # a formula row (a link, a subtotal) is never an input
         pv = getattr(t, "prior_value", None)
+        if tcol and never_filled(wb, sheet, row, tcol):
+            # THE NEVER-FILLED ROW (CLP run 262: 'Dividend', 'Scheme of control
+            # items', the CFI block header and FCFF carry no figure in ANY year
+            # of the model; the reader put printed totals there and every sum
+            # above them moved). A row the analyst never filled is not an
+            # input — the model's own history says what the analyst tracks.
+            continue
         out.append({"row": f"{sheet}!{row}", "sheet": sheet, "r": row, "label": lab,
                     "prior": (round(float(pv), 4) if isinstance(pv, (int, float)) else None)})
     return out
+
+
+def never_filled(wb, sheet, row, tcol):
+    """True when no cell of the row left of the target column ever held a
+    number (or a formula): the analyst never tracked this line."""
+    from openpyxl.utils import column_index_from_string as _ci
+    ws = wb[sheet]
+    for c in range(2, _ci(tcol)):
+        v = ws.cell(row, c).value
+        if (isinstance(v, (int, float)) and v != 0) or (isinstance(v, str) and v.startswith("=")):
+            return False
+    return True
 
 
 def _near(a, b):
@@ -293,6 +312,18 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                         "page": page, "line": str(item.label)[:60],
                         "why": f"read: printed p{page} '{str(item.label)[:30]}', comparative ties the prior"}
         else:
+            _cjk_l = bool(re.search(r"[\u4e00-\u9fff]", str(item.label or "")))
+            _cjk_r = bool(re.search(r"[\u4e00-\u9fff]", str(r["label"])))
+            if _cjk_l == _cjk_r and not kinship(str(item.label or ""), r["label"]):
+                # a read with no prior tie has one piece of evidence left —
+                # the line's name; a line named unlike the row (in the same
+                # script — across scripts the name is the brain's judgment)
+                # is a guess (run 262: 'Fourth interim dividend' -> 'Special
+                # dividend' zeroed the final DPS)
+                if log:
+                    log(f"[read]   {rid}: no prior tie and '{str(item.label)[:30]}' is not named "
+                        f"like '{r['label'][:30]}' — a suggestion for the analyst, not written")
+                continue
             out[rid] = {"value": value, "conf": 3, "flag": "red",
                         "note": (f"Read from the disclosure (p{page} '{str(item.label)[:30]}'); the printed "
                                  "line does not carry last year's figure. Please confirm."),
@@ -302,8 +333,10 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
 
 
 def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledger,
-               served, writer, log, rows=None, chunk=90):
-    """The stage. -> number of rows written."""
+               served, writer, log, rows=None, chunk=None):
+    """The stage. -> number of rows written. One call carries the whole
+    disclosure and every row (CLP run 262: four 90-row chunks re-sent
+    three documents four times — 37 of the run's 60 minutes)."""
     if client is None:
         return 0
     rows = rows if rows is not None else rows_to_read(wb, spec, target_year, targets, served)
@@ -325,6 +358,9 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
     def _val(o):
         return [] if isinstance(o, dict) and isinstance(o.get("rows"), list) else ["rows list required"]
     answers = []
+    import time as _time
+    _t0 = _time.monotonic()
+    chunk = chunk or max(1, len(rows))
     for i in range(0, len(rows), chunk):
         part = rows[i:i + chunk]
         user = (f"MODEL UNITS: {units}\n\nMODEL ROWS (id | label | last-period value):\n"
@@ -337,7 +373,8 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
             log(f"[read] call failed: {e}")
             continue
         answers += [a for a in (obj.get("rows") or []) if isinstance(a, dict)]
-    log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers")
+    log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers "
+        f"({_time.monotonic() - _t0:,.0f}s)")
     verdicts = verify(answers, rows, ledger, page_scales, log, priors=priors)
     # the reading is evidence for the replay and the morning grade
     try:

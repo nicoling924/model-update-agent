@@ -67,16 +67,30 @@ def find_evidence(items, value):
     return out
 
 
-def ties_prior(item, scale, prior):
-    """Does this evidence row also carry the cell's prior-year value?"""
+def ties_prior(item, scale, prior, value=None):
+    """Does this evidence row carry the cell's prior-year value AS THE
+    COMPARATIVE of `value`? With no value: anywhere on the row. With a
+    value: the prior must be the number printed after it in the same
+    magnitude band — the pair (current, prior) the walk reads. A row that
+    merely CONTAINS the prior somewhere (run 262: the segment matrix row
+    '6,359 | 2,852 | 3,128 | 106 | 12,445' holds last year's intangibles
+    total at its end) proves nothing about a number elsewhere on it."""
     if not isinstance(prior, (int, float)) or abs(prior) < 1:
         return False
     # sign-blind like find_evidence (run-227 autopsy: the fund balance
     # prints -370 where the model stores 370 — the row IS the tie; the
     # MODEL owns the sign convention)
-    return any(isinstance(n, (int, float))
-               and _close(abs(n) / scale, abs(prior))
-               for n in _nums(item))
+    ns = [n for n in _nums(item) if isinstance(n, (int, float))]
+    if value is None:
+        return any(_close(abs(n) / scale, abs(prior)) for n in ns)
+    for i, n in enumerate(ns):
+        if not _close(abs(n) / scale, abs(value)):
+            continue
+        comp = next((m for m in ns[i + 1:]
+                     if abs(m) <= 30 * abs(n) and abs(m) * 30 >= abs(n)), None)
+        if comp is not None and _close(abs(comp) / scale, abs(prior)):
+            return True
+    return False
 
 
 def _claim_key(item, value):
@@ -146,7 +160,7 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None):
                 "number must come from the documents. find_line the printed "
                 "row first; if it is not printed, flag_cell an estimate "
                 "instead of writing one", None)
-    tied = [(it, s) for it, s in evidence if ties_prior(it, s, prior)]
+    tied = [(it, s) for it, s in evidence if ties_prior(it, s, prior, value)]
     material = abs(value) >= 50
     tied_free = [(it, s) for it, s in tied
                  if not material or _claim_key(it, value) not in claimed]

@@ -4219,6 +4219,106 @@ def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     print("PASS test_notes_for_the_analyst_owner_rulings_2026_09_07")
 
 
+# ── CLP run 262 (2026-09-10): the reader's rows, the evidence pair, one absorber ──
+
+def test_reader_leaves_never_filled_rows_2026_09_10():
+    """Run 262: 'Dividend', 'Scheme of control items', the CFI block header
+    and FCFF carry no figure in any year of the model; the reader put
+    printed totals there and every sum above them moved. A row the analyst
+    never filled is not an input."""
+    from pipeline.reader import rows_to_read, never_filled
+    wb = _wb({"A5": "Dividend", "A6": "Capex", "T6": 100.0, "A7": "Growth", "H7": "=G7*1.1"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    targets = {("S", 5): TargetRow("S", 5, "Dividend", None),
+               ("S", 6): TargetRow("S", 6, "Capex", 100.0),
+               ("S", 7): TargetRow("S", 7, "Growth", None)}
+    assert never_filled(wb, "S", 5, "U") and not never_filled(wb, "S", 6, "U")
+    assert not never_filled(wb, "S", 7, "U")          # a formula history counts
+    rows = rows_to_read(wb, spec, 2025, targets, {})
+    assert [r["row"] for r in rows] == ["S!6", "S!7"], rows
+    print("PASS test_reader_leaves_never_filled_rows_2026_09_10")
+
+
+def test_reader_no_tie_read_needs_a_kin_name_2026_09_10():
+    """Run 262: the reader wrote the investing-cash-flow total into 'Scheme
+    of control items' — no prior tie, and a line named nothing like the
+    row. The name is the last evidence a no-tie read has: in the same
+    script it must be kin; across scripts (New orders / 新生效订单) the
+    brain's mapping stands, red."""
+    from pipeline.reader import verify
+    lines = [_item(170, 1, "Net cash outflow from investing activities", [14328.0, 16216.0])]
+    led = _ledger(lines, face_pages=((170, "cf"),)); led._doc_periods = {DOC: "current"}
+    rows = [{"row": "S!9", "sheet": "S", "r": 9, "label": "Scheme of control items", "prior": 5000.0},
+            {"row": "S!10", "sheet": "S", "r": 10, "label": "Investing cash outflow", "prior": 5000.0}]
+    answers = [{"row": "S!9", "printed": 14328.0, "page": 170, "line": "Net cash outflow from investing activities"},
+               {"row": "S!10", "printed": 14328.0, "page": 170, "line": "Net cash outflow from investing activities"}]
+    v = verify(answers, rows, led, {(DOC, 170): 1.0}, lambda s: None, priors=[5000.0])
+    assert "S!9" not in v, v
+    assert v["S!10"]["flag"] == "red" and abs(v["S!10"]["value"]) == 14328.0
+    print("PASS test_reader_no_tie_read_needs_a_kin_name_2026_09_10")
+
+
+def test_table_kind_one_law_2026_09_10():
+    from pipeline.reconcile import table_kind
+    assert table_kind([_item(1, 0, "HK$M", [2025.0, 2024.0, 2023.0]),
+                       _item(1, 1, "Revenue", [88018.0, 90964.0, 85000.0, 80000.0])]) == "period"
+    assert table_kind([_item(2, 0, "Goodwill and other intangible assets",
+                             [6359.0, 2852.0, 3128.0, 106.0, 12445.0])]) == "matrix"
+    assert table_kind([_item(3, 0, "Goodwill and other intangible assets", [12685.0, 12445.0])]) == "plain"
+    assert table_kind([_item(4, 0, "h", [2025.0, 2024.0, 2025.0, 2024.0]),
+                       _item(4, 1, "x", [1.0, 2.0, 3.0, 4.0])]) == "matrix"      # repeated years = grid
+    print("PASS test_table_kind_one_law_2026_09_10")
+
+
+def test_evidence_law_prior_is_the_comparative_2026_09_10():
+    """Run 262: the segment matrix row '6,359 | 2,852 | 3,128 | 106 | 12,445'
+    CONTAINS last year's intangibles total, so the evidence law called 6,359
+    'proven' and let a balance card overwrite the face's 12,685. The prior
+    must be the number's own comparative — the pair the walk reads."""
+    from pipeline.writegate import ties_prior, judge_write
+    matrix = _item(30, 0, "Goodwill and other intangible assets", [6359.0, 2852.0, 3128.0, 106.0, 12445.0])
+    face = _item(25, 0, "Goodwill and other intangible assets", [12685.0, 12445.0])
+    wide = _item(17, 0, "Accounts receivable", [15193.79, 9.34, 12000.0, 8.1, 26.0])
+    nci = _item(17, 1, "Non-controlling interests", [6063.0, 26258.0, 9815.0])
+    assert ties_prior(matrix, 1.0, 12445.0)                        # somewhere on the row: legacy question
+    assert not ties_prior(matrix, 1.0, 12445.0, value=6359.0)      # not its comparative
+    assert ties_prior(face, 1.0, 12445.0, value=12685.0)
+    assert ties_prior(wide, 1.0, 12000.0, value=15193.79)          # the percentage between is skipped
+    assert not ties_prior(nci, 1.0, 6063.0, value=9815.0)          # the prior sits BEFORE the number
+    verdict, reason, flag = judge_write(6359.0, 12445.0, True, [(matrix, 1.0)], set())
+    assert verdict == "REFUSE" and "PROVEN" in reason, (verdict, reason)
+    verdict, reason, flag = judge_write(12685.0, 12445.0, False, [(face, 1.0)], set())
+    assert verdict == "ALLOW"
+    print("PASS test_evidence_law_prior_is_the_comparative_2026_09_10")
+
+
+def test_key_tie_one_absorber_per_key_2026_09_10():
+    """Run 262: the gate loop re-tied 'total assets' three times and each
+    pass wrapped a DIFFERENT component — three stacked orange back-outs.
+    A key keeps its absorber: a re-tie unwraps the same cell and re-solves
+    the whole delta there; when the key ties on its own, it is restored."""
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    from pipeline.evaluator import Evaluator
+    wb = _wb({"T2": 100.0, "U2": 90.0,
+              "T3": "=T2*0.5", "U3": "=U2*0.5",
+              "T4": "=T2+T3", "U4": "=U2+U3"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
+    panel = {"total": {"print": 150.0, "prior": 150.0}}
+    w = Writer(wb)
+    assert key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel) == 1
+    assert wb["S"]["U3"].value == "=(U2*0.5)-(-15)", wb["S"]["U3"].value
+    wb["S"]["U2"] = 80.0                                   # the loop moved a component
+    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
+    assert wb["S"]["U3"].value == "=(U2*0.5)-(-30)", wb["S"]["U3"].value   # same cell, one wrap
+    assert abs(Evaluator(wb).cell("S", "U4") - 150.0) <= 0.5
+    wb["S"]["U2"] = 100.0                                  # the key now ties by itself
+    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
+    assert wb["S"]["U3"].value == "=U2*0.5" and "total" not in w.log["key_absorbers"]
+    print("PASS test_key_tie_one_absorber_per_key_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

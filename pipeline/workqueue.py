@@ -835,20 +835,32 @@ def render_card(loop, item):
             periods = getattr(loop.ledger, "_doc_periods", None) or {}
             if pv_l:
                 nline = 0
+                from .reconcile import table_kind as _tkind
+                _tabs = {}
+                for it2 in loop.ledger.items:
+                    _tabs.setdefault((it2.doc, it2.page, it2.table_id), []).append(it2)
+                _tol_l = max(0.6, abs(pv_l) * 5e-4)
                 for it2 in loop.ledger.items:
                     if periods.get(it2.doc) != "current" or nline >= 3:
                         continue
                     ns2 = it2.nums or []
-                    if not any(abs(abs(n) - abs(pv_l))
-                               <= max(0.6, abs(pv_l) * 5e-4) for n in ns2):
+                    if not any(abs(abs(n) - abs(pv_l)) <= _tol_l for n in ns2):
                         continue
+                    if _tkind(_tabs.get((it2.doc, it2.page, it2.table_id), [])) == "matrix":
+                        continue      # evidence: a matrix row's columns are categories — the numbers beside the prior are other segments, not this year (run 262: intangibles served a segment's goodwill)
+                    # THE SIGN OF THE TIE (run 262: the fuel clause closed
+                    # (1,043) where last year's 370 printed as (370) — the
+                    # line negates the model's convention, so its current
+                    # negates too; the held value's sign is a forecast, not
+                    # evidence)
+                    _flip = not any(abs(n - pv_l) <= _tol_l for n in ns2)
                     for n in ns2:
                         if abs(abs(n) - abs(pv_l)) <= 0.6 or abs(n) < 10:
                             continue
                         if not (abs(n) <= 30 * abs(pv_l)
                                 and abs(n) * 30 >= abs(pv_l)):
                             continue
-                        v = abs(n) if cur >= 0 else -abs(n)
+                        v = -n if _flip else n
                         cands.append({
                             "value": v, "doc": it2.doc, "page": it2.page,
                             "line": str(it2.label)[:60],

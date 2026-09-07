@@ -179,7 +179,11 @@ def kinship(a, b):
         return False
     if sa in CJK_STRUCTURAL or sb in CJK_STRUCTURAL:
         return False
-    return sa in sb or sb in sa
+    if sa in sb or sb in sa:
+        return True
+    # (the stem rule below was unreachable behind a bare return until
+    # 2026-09-08 — bilingual model labels ('Dividend 现金分红') never
+    # reached it)
     # CJK labels are one token: kinship is a shared stem of >= 4
     # characters (DFE 2026-09-08: '汇率变动对现金的影响' vs
     # '四、汇率变动对现金及现金等价物的影响'; '应收票据及应收账款' vs

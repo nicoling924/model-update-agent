@@ -184,6 +184,23 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         pcol = prior_column(spec, sheet, target_year)
         if not tcol:
             continue
+        # ONE ABSORBER PER KEY (CLP run 262: the gate loop re-tied 'total
+        # assets' three times and each pass wrapped a DIFFERENT component
+        # — receivables, then investment securities, then non-current
+        # assets — three orange back-outs whose sum was one plug, and the
+        # current-asset block off by their stack). A key keeps its
+        # absorber for the whole run: a re-tie unwraps that cell to its
+        # original formula and re-solves the whole delta there.
+        _abs_log = writer.log.setdefault("key_absorbers", {})
+        prev_c = None
+        prev = _abs_log.get(name)
+        if prev:
+            psh, pcoord, porig = prev
+            held_p = wb[psh][pcoord].value if psh in wb.sheetnames else None
+            if isinstance(held_p, str) and held_p.startswith("=(") \
+                    and held_p[2:].startswith(str(porig)[1:]):
+                wb[psh][pcoord] = porig
+                prev_c = (-1, 0, 0, psh, pcoord, porig)
         try:
             got = Evaluator(wb).cell(sheet, f"{tcol}{row}")
         except Exception:
@@ -192,6 +209,16 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             continue
         delta = got - want
         if abs(delta) <= max(TOL_ABS, abs(want) * TOL_REL):
+            if prev_c is not None:
+                # the key ties on its own now — the back-out is withdrawn
+                _, _, _, psh, pcoord, porig = prev_c
+                writer.write(psh, pcoord, porig,
+                             prior_coord=(f"{prior_column(spec, psh, target_year)}"
+                                          f"{''.join(ch for ch in pcoord if ch.isdigit())}"
+                                          if prior_column(spec, psh, target_year) else None),
+                             trusted=True)
+                _abs_log.pop(name, None)
+                log(f"[run] key tie: '{name}' ties without its back-out — {psh}!{pcoord} restored")
             continue
         if max_delta_frac is not None and abs(delta) > max_delta_frac * max(abs(want), 1.0):
             # THE BOUNDED BACK-OUT (run-231: a subtotal tie on a transient
@@ -313,7 +340,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 red = False
             cands.append((0 if red else 1, 0 if type_violation else 1,
                           -abs(cv), sh, coord, f))
-        for _r, _t, _sz, sh, coord, f in sorted(cands)[:6]:
+        for _r, _t, _sz, sh, coord, f in ([prev_c] if prev_c else []) + sorted(cands)[:6]:
             # probe: wrap the component so it absorbs the delta
             new_f = f"=({f[1:]})-({delta:.6g})"
             old = wb[sh][coord].value
@@ -341,6 +368,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                           f"print. Was: {f[:120]}. ANALYST REVIEW."))
                 if ok:
                     n += 1
+                    _abs_log[name] = [sh, coord, f]
                     log(f"[run] key tie: '{name}' {got:,.2f} -> {want:,.2f} "
                         f"via {sh}!{coord} (orange back-out)")
                 break

@@ -1410,6 +1410,16 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 _key_ties_for_report = [
                     {"name": n_, "ref": ref_, "value": v_, "print": w_, "tied": ok_}
                     for n_, ref_, v_, w_, ok_ in _key_state(wb, spec_d, target_year, _panel_path, panel=_key_panel)]
+                # a key row whose print no line tied is NOT tied (run 262:
+                # operating cash flow had no panel entry and the count
+                # read 8/9 while the row sat 1,308 off the by-hand answer)
+                _have = {k_["name"] for k_ in _key_ties_for_report}
+                for kk_ in (spec_d.get("key_rows") or []):
+                    if kk_.get("name") not in _have:
+                        _key_ties_for_report.append(
+                            {"name": kk_.get("name"), "ref": f"{kk_.get('sheet')}!{kk_.get('row')}",
+                             "value": None, "print": None, "tied": False})
+                        log(f"[run] key '{kk_.get('name')}': no printed line ties its prior — not tied")
             except Exception as _e:
                 _key_ties_for_report = []
                 log(f"[run] key count unavailable for the report: {_e!r}")
