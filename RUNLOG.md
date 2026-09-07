@@ -1895,3 +1895,14 @@ profit 134.68 off, short-term borrowings plug) + the two intended: New
 orders 117,251 from the order-intake sentence and the bond line 0, both
 red for confirmation. CFI/CFF tie plain. 134 cards, none drained.
 First run where both offline-proven cells landed live.
+
+## 2026-09-08 — the key count is code's; the net-profit key was mixed
+Owner: "i thought the key numbers are all written in the rules." They
+are — the pinned panel (10 printed figures) tied 10/10 in 246 and 254,
+8/10 in 252. The report's '14/14' and '12/12' were the brain's prose
+(the prompt example said 'X/14'); the report now prints code's tally.
+Finding: the panel's 'net profit' held the attributable print (3,831.30)
+against the total's prior (3,287.53), so the model's total-net-profit
+row was flagged red every run as '134.68 off' while correct against the
+printed total (3,965.98). Repinned to the total; 'net profit
+attributable' added as its own key. Floor: the false red is gone.

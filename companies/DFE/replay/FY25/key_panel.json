@@ -4,8 +4,8 @@
   "prior": 69695.14
  },
  "net profit": {
-  "print": 3831.301222,
-  "prior": 3287.53
+  "print": 3965.977963,
+  "prior": 3287.525856
  },
  "eps": {
   "print": 1.15,
@@ -38,5 +38,9 @@
  "cash year end": {
   "print": 18980.959403,
   "prior": 22502.86
+ },
+ "net profit attributable": {
+  "print": 3831.301222,
+  "prior": 2922.100908
  }
 }
