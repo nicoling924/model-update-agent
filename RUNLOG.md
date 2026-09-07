@@ -1746,3 +1746,12 @@ ASCII (NFKC) and a note reference glued to the label ('固定资产 五（二十
 'Trade receivables (note 12)') stripped. Museum 125 (formatting
 exhibit); bench green; true-base floors deliver with one more row
 served in each (FY25 128, 1H25 112).
+
+## 2026-09-08 — RULING: no RECLASS card
+The owner declines the RECLASS card: it would load the brain further,
+and a reclassification may rename items entirely (not the DFE pattern
+of same names with restated comparatives). The recipe stands as taught
+— untouched segments mapped, recut segments held at the block's growth
+(orange), residual in the analyst's designed plug row — and the
+ANALYST reclassifies. The reclassified-block holds stay orange and
+listed in the report; no forecast-mix repair is attempted.
