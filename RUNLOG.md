@@ -1608,3 +1608,21 @@ FY25 replay DELIVERED — 收回投资 plugged 35,262 -> 24,088 (true 25,156),
 =SUM plain; CFI/CFF still off ~600 = the bond hold. 1H25 replay
 DELIVERED — total liabilities 110,962 read (the page-2 continuation of
 the balance sheet adopted), finance costs -0.38 plain. Museum 122.
+
+## Runs 240 (DFE FY25) + 241 (DFE 1H25) — 2026-09-08, head cb5155b, dispatched together — both DELIVERED
+240 (32 LLM calls): total assets now exact 162,674; revenue, EPS, current
+assets, CFO, cash exact; NP / equity = model definitions. The cash-check
+plug went into the least confident site — the growth-held 'cash from
+investment disposals' (39,775 -> 23,949; printed 25,156) — and 'cash
+paid for investments' keeps its read 31,456; finance costs 117.69 read
+plain; share placement 5,236 plain; receivables =SUM plain. CFI -11,257 /
+CFF 5,771 vs print -10,587 / 5,102: the remaining 670 is the bond-issuance
+line held at growth (printed nowhere this year; '0 means 0' needs the
+prior-year statement read). Forecast 24/85 rows off vs by-hand (the
+reclassification mix; RECLASS card still proposed). 0 structure changes;
+forecast columns blue only; notes red 24 / orange 49.
+241 (0 LLM calls): 149 read plain, 27 held (was 62 in run 237), 0 red.
+Every headline read: total assets 156,366, total liabilities 110,962,
+cash 31,259, inventory 27,287, revenue 38,151, net profit 2,061, finance
+costs -0.38 (the 100x move served plain under its own label), closing
+cash 26,342; receivables / payables as plain SUMs of their printed lines.
