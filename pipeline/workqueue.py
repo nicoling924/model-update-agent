@@ -100,7 +100,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     from .stage2_join import ratify_page_scales, _tying_pairs, _world_tol
     pv, t = _prior_of(loop, sheet, row)
     if pv is None or pv == 0:
-        return []
+        return _label_only_candidates(loop, sheet, row, t, k)
     p2 = getattr(t, "prior2_value", None) if t is not None else None
     periods = getattr(loop.ledger, "_doc_periods", None) or {}
     # WIDER than join_pool (face authority relaxed): a card is a judged
@@ -264,6 +264,58 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     return uniq[:k]
 
 
+def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
+    """NO PRIOR TO TIE (owner 2026-09-08: 'if there is no past-year number
+    you infer from the item label'): a row the model names but never
+    filled (DFE 'New orders') is offered the report's lines whose label is
+    kin to its own — prose lines first (the sentence is printed), then
+    table lines — every one warned 'no prior tie', for the brain to judge
+    the item and the unit. Nothing lands proven from here."""
+    from .numerics import kinship as _kin, to_model_units as _tmu
+    from .stage2_join import ratify_page_scales
+    lab_row = str(getattr(t, "label", "") or "")
+    if not lab_row:
+        ws = loop.wb[sheet] if sheet in loop.wb.sheetnames else None
+        lab_row = next((str(ws.cell(row, c).value) for c in range(1, 5)
+                        if ws is not None and isinstance(ws.cell(row, c).value, str)
+                        and ws.cell(row, c).value.strip()), "")
+    if not lab_row:
+        return []
+    bad = loop.ledger.noncurrent_docs()
+    periods = getattr(loop.ledger, "_doc_periods", None) or {}
+    priors = [tt.prior_value for tt in loop.targets.values()
+              if isinstance(tt.prior_value, (int, float))]
+    scales = ratify_page_scales([it for it in loop.ledger.items if it.joinable()], priors, [])
+    doc_scale = {}
+    for (d_, p_), sc in scales.items():
+        doc_scale.setdefault(d_, []).append(sc)
+    doc_scale = {d_: max(set(v), key=v.count) for d_, v in doc_scale.items()}
+    out, seen = [], set()
+    for it in loop.ledger.items:
+        if it.doc in bad or not it.nums or periods.get(it.doc) not in (None, "current"):
+            continue
+        if not _kin(lab_row, str(it.label)):
+            continue
+        key = (it.doc, it.page, str(it.label)[:40], round(float(it.nums[0]), 1))
+        if key in seen:
+            continue
+        seen.add(key)
+        prose = getattr(it, "channel", "") == "prose"
+        money = getattr(it, "unit_dim", "") == "money"
+        sc = doc_scale.get(it.doc) or scales.get((it.doc, it.page))
+        val = _tmu(it.nums[0], sc) if (sc and (money or not prose)) else float(it.nums[0])
+        warns = ["NO PRIOR in the model to tie — judged on the label alone; lands red"]
+        if prose:
+            warns.append(f"PROSE: '{str(it.source_line)[:90]}' — judge the item AND the unit"
+                         + ("" if money and sc else f" (printed unit {getattr(it, 'unit_dim', '')[5:] or 'money'})"))
+        out.append({"value": val, "doc": it.doc, "page": it.page,
+                    "line": str(it.label)[:60],
+                    "face": "prose" if prose else (loop.ledger.face(it.doc, it.page) or "no-face"),
+                    "tie_off": 9.0, "no_prior": True, "warnings": warns})
+    out.sort(key=lambda c: (c["face"] != "prose", c["doc"], c["page"]))
+    return out[:k]
+
+
 def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
     """THE POSITIONAL COMPANION GENERATOR (oracle audit 2026-09-01: 33 of
     33 missed truths were PRINTED — in current-year segment tables that
@@ -384,6 +436,30 @@ def build_queue(loop):
         items.append(WorkItem("SERVE", sheet, row,
                               priority=(1e9 if (sheet, row) in lb else 0.0)
                               + abs(pv or 0.0)))
+    # ROWS THE MODEL NAMES BUT NEVER FILLED (owner 2026-09-08): no prior to
+    # tie, no flag to raise — yet the report may state the figure in a
+    # sentence (DFE 'New orders'). Such rows get a label-only card when
+    # the report offers a kin line. They sit LAST in the queue; the call
+    # budget and the balance cards' reserved share decide how many run
+    # (no fixed cap — the owner's ruling against magic numbers).
+    seen_rows = {(w.sheet, w.row) for w in items}
+    added = 0
+    for (sheet, row), t in sorted(loop.targets.items()):
+        if (sheet, row) in seen_rows:
+            continue
+        if isinstance(getattr(t, "prior_value", None), (int, float)):
+            continue
+        col = _tcol(loop, sheet)
+        if not col or sheet not in loop.wb.sheetnames:
+            continue
+        if loop.wb[sheet][f"{col}{row}"].value not in (None, ""):
+            continue
+        if not str(getattr(t, "label", "") or "").strip():
+            continue
+        if not _label_only_candidates(loop, sheet, row, t, 1):
+            continue
+        items.append(WorkItem("SERVE", sheet, row, priority=-1.0))
+        added += 1
     # THE ROLLOVER INVESTIGATION (owner teaching 2026-09-03): strange
     # first-forecast moves become cards with a probed dossier
     est_base = getattr(loop, "est_base", None)
@@ -545,6 +621,8 @@ def render_card(loop, item):
             options[f"serve:{cid}"] = ("set_input", {
                 "cell": f"{sheet}!{col}{row}", "value": c["value"],
                 "nil": bool(c.get("nil")),
+                "flag": "red" if c.get("no_prior") else None,
+                "no_prior": bool(c.get("no_prior")),
                 "why": f"p{c['page']}: '{c['line'][:40]}' ({c['doc'][:28]}) "
                        f"— card-adjudicated"
                        + (" — printed blank this year, judged the same item: 0"

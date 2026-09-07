@@ -216,7 +216,7 @@ class Writer:
         return ref
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
-              flag=None, trusted=False, force_lock=False):
+              flag=None, trusted=False, force_lock=False, allow_empty=False):
         """Write one cell through every guard, then read it back.
 
         trusted=True is for values whose magnitude is PROVEN (a checksummed
@@ -251,7 +251,9 @@ class Writer:
         # actual is EMPTY is furniture — machine writes stay out of it
         # (trusted writes may proceed: folds and proven serves carry
         # their own evidence)
-        if not trusted and prior_coord is not None \
+        # (allow_empty: the brain filled a row the model names but never
+        # held — a label-only card, owner 2026-09-08 — it lands red)
+        if not trusted and not allow_empty and prior_coord is not None \
                 and ws[prior_coord].value in (None, ""):
             self.log.setdefault("empty_row_refused", []).append(ref)
             return False

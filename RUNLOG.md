@@ -1777,3 +1777,18 @@ report yields '新生效订单' 101,142 (implied prior 86,535), the 2025 report
 '营业总收入' with an implied prior that ties the model's 69,695. Museum 126;
 bench green; floors deliver (pinned ledgers carry no prose — the live run
 is the proof).
+
+## 2026-09-08 — rows with no prior get a label-only card; prose is the second stage
+Owner: tables first; prose only for rows still empty, unfound or backed
+out — that is the wiring (prose lines never enter the statement walk or
+the joins; they surface only on cards, which exist only for open rows).
+The one gap: a row the model names but never filled (DFE 'New orders')
+had no prior to tie and no flag, so no card and no way for a sentence to
+reach it. Now: candidates_for returns label-only candidates for a
+no-prior row (prose first, then kin table lines, all warned 'no prior
+tie'); build_queue adds a SERVE card for each such empty row that has a
+candidate, last in the queue; the brain's pick lands RED past the
+empty-row guard (allow_empty). A first fixed cap of 8 was removed at the
+owner's objection — the call budget and the balance cards' reserved
+share decide. Museum 127; bench green; both true-base floors deliver
+(FY25 queue 36 items, 1H25 8, all defaulted with no brain).

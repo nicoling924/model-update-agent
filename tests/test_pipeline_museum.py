@@ -3555,6 +3555,37 @@ def test_prose_figures_become_lines_2026_09_08():
     assert len(rev.nums) == 2 and abs(rev.nums[1] - 78.615e9 / 1.128) < 1
 
 
+def test_no_prior_row_gets_a_label_card_2026_09_08():
+    """Owner: 'if there is no past-year number you infer from the item
+    label.' A row the model names but never filled (DFE 'New orders')
+    gets a card offering the report's kin lines — the prose sentence
+    first — every one marked 'no prior tie'; the brain's pick lands red."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for, build_queue
+    from pipeline.writer import Writer
+    from pipeline.prose import harvest_prose
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["A142"] = "New orders"                       # no prior, empty this year
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    prose = harvest_prose(DOC, 10, "2025年，公司新生效订单1172.51亿元，同比增长15.93%。")
+    pr = next(it for it in prose if "新生效订单" in it.label)
+    led = _ledger(_anchors(95, 1e6) + [pr], face_pages=((95, "pl"),))
+    targets = _anchor_targets() + [TargetRow("Model", 142, "New orders 新生效订单", None)]
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
+    cands = candidates_for(loop, "Model", 142)
+    assert cands and cands[0].get("no_prior") and cands[0]["face"] == "prose", cands
+    assert abs(cands[0]["value"] - 117251.0) < 1                 # yuan -> RMB m via the document's scale
+    assert any("NO PRIOR" in w for w in cands[0]["warnings"])
+    q = build_queue(loop)
+    assert any(w.kind == "SERVE" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
+    r = loop.t_set_input({"cell": "Model!U142", "value": 117251.0, "flag": "red", "no_prior": True,
+                          "why": "p10: 新生效订单1172.51亿元 — card-adjudicated"})
+    assert str(r).startswith("WRITTEN"), r
+    assert ws["U142"].value == 117251.0 and str(ws["U142"].fill.fgColor.rgb).endswith("FFC7CE")
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

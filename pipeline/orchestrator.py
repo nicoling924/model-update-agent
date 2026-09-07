@@ -1460,7 +1460,7 @@ class ObjectiveLoop:
         ok = self.writer.write(sheet, f"{col}{row}", value,
                                prior_coord=f"{pcol}{row}" if pcol else None,
                                note=f"objective loop: {why[:300]}",
-                               flag=flag)
+                               flag=flag, allow_empty=bool(args.get("no_prior")))
         if not ok:
             reason = (self.writer.log["band_refused"][-1]
                       if self.writer.log["band_refused"] else
