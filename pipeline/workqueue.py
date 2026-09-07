@@ -650,6 +650,7 @@ def render_card(loop, item):
                 f"{after:,.1f}{mark}{w}")
             options[f"fix:{j}"] = ("set_input", {
                 "cell": f"{sh}!{coord}", "value": c["value"],
+                "card": "component", "check": f"{sheet}!{row}",
                 "why": f"p{c['page']}: '{c['line'][:40]}' "
                        f"({c['doc'][:26]}) — component card: check "
                        f"residual {residual:,.1f} -> {after:,.1f}"})

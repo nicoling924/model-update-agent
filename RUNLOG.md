@@ -1679,3 +1679,18 @@ line a CONFLICT (two readings for one cell — the analyst's call), not a
 GUILTY fix, so nothing stays pending and the ladder proceeds to the
 least-confident plug. No new rule; the diagnosis stops asking for what B
 forbids. Museum 123, bench green, true-base FY25 floor DELIVERED.
+
+## 2026-09-08 — two readings: the brain judges, the check verifies
+Owner: "if the agent has two proven values it should hold both and judge
+which is better — that is why we use a brain." Built inside the
+existing component card: the card already shows the brain a second
+printed line for a component and what serving it does to the failing
+check; the evidence law had refused the brain's choice outright because
+the cell was proven. Now a component-card choice may replace a proven
+value when the named check verifiably improves (probe before the write;
+the run-39 law still reverts anything that breaks other checks) and
+lands RED with BOTH readings in the note (held value + its evidence,
+chosen line + its page) for the analyst. No card, or no improvement:
+the proven value stays. Museum 124 (exhibit: no card refused; card +
+closing check written red; card + worsening check refused). Bench green;
+true-base FY25 floor DELIVERED.

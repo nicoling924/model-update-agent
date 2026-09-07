@@ -1389,6 +1389,39 @@ class ObjectiveLoop:
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
             claimed_keys(self.served), holders)
+        if verdict == "REFUSE" and args.get("card") == "component" \
+                and "already holds a PROVEN value" in law_reason \
+                and args.get("check"):
+            # TWO READINGS -> THE BRAIN JUDGES, THE CHECK VERIFIES (owner
+            # 2026-09-08: "hold both and judge which is better — that is
+            # why we use a brain"). The cell holds a proven figure; the
+            # component card showed the brain a second printed line and
+            # what it does to the check; the brain chose it. Code's
+            # verification: the named check must actually close or
+            # improve. It lands RED with both readings in the note.
+            rc2 = self._row_ref(str(args.get("check")))
+            if rc2:
+                c_sh, c_r = rc2
+                c_col = self._tcol(c_sh)
+                try:
+                    r_before = Evaluator(self.wb).cell(c_sh, f"{c_col}{c_r}")
+                except Exception:
+                    r_before = None
+                old_v = self.wb[sheet][f"{col}{row}"].value
+                self.wb[sheet][f"{col}{row}"] = value
+                try:
+                    r_after = Evaluator(self.wb).cell(c_sh, f"{c_col}{c_r}")
+                except Exception:
+                    r_after = None
+                self.wb[sheet][f"{col}{row}"] = old_v
+                if isinstance(r_before, (int, float)) and isinstance(r_after, (int, float)) \
+                        and abs(r_after) < abs(r_before) - 1.0:
+                    pe_old = (self.served or {}).get((sheet, row)) or {}
+                    verdict, forced_flag = "ALLOW_FLAGGED", "red"
+                    law_reason = "two readings — the brain's choice, check-verified"
+                    why = (f"TWO READINGS: held {held!r} ({str(pe_old.get('line') or pe_old.get('note') or 'proven read')[:50]}); "
+                           f"the brain chose this line because {args.get('check')} moves "
+                           f"{r_before:,.1f} -> {r_after:,.1f}. Please confirm. " + why)
         if verdict == "REFUSE":
             return "REFUSED by the evidence law: " + law_reason
         evicted = ""
