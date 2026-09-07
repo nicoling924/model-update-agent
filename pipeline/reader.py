@@ -115,6 +115,13 @@ def _near(a, b):
     return abs(abs(a) - abs(b)) <= max(0.02, abs(b) * 1e-4)
 
 
+def _sig_digits(v):
+    return len(re.sub(r"[^0-9]", "", "%.2f" % abs(float(v))).strip("0"))
+
+
+_UNIT_WORDS = (1e8, 1e4, 1e6, 1e3, 1e2)      # 亿 / 万 / million / thousand / 百 — a sentence quotes '1,172.51亿元'
+
+
 def _printed_match(items, page, printed, line, sources):
     """The ledger item on `page` of a current-vintage document that carries
     the quoted number — the proof the number is printed. Label kinship
@@ -126,7 +133,12 @@ def _printed_match(items, page, printed, line, sources):
         if it.doc not in sources:
             continue
         nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
-        if not any(_near(n, printed) for n in nums):
+        # a sentence is harvested in base units while the brain quotes the
+        # printed digits with their unit word ('1,172.51亿元'): both readings
+        # of the same figure
+        prose = getattr(it, "channel", "") == "prose"
+        if not any(_near(n, printed) or (prose and any(_near(n, printed * u) for u in _UNIT_WORDS))
+                   for n in nums):
             continue
         kin = bool(line and kinship(str(it.label or ""), str(line)))
         hits.append((it.page == page, kin, it))
@@ -160,13 +172,17 @@ def _nil_line(items, page, pv, sources):
     return None
 
 
-def verify(answers, rows, ledger, page_scales, log=None):
+def verify(answers, rows, ledger, page_scales, log=None, priors=None):
     """-> {row_id: verdict}; verdict = {"value", "conf", "flag", "note",
     "doc", "page", "line", "why"}. Nothing here trusts the brain's number:
     the value is recomputed from the printed digits at the page's ratified
-    scale; the tie is checked on the printed line; the model's sign wins."""
+    scale; the tie is checked on the printed line; the model's sign wins.
+    `priors`: every model prior (all target rows), so a lone printed number
+    equal to any of them is known for what it is — last year's."""
     from .writegate import _SCALES, _ties_full_precision
     by_row = {r["row"]: r for r in rows}
+    all_priors = [abs(float(p)) for p in (priors if priors is not None else [r["prior"] for r in rows])
+                  if isinstance(p, (int, float)) and abs(p) >= 0.5]
     sources = {it.doc for it in ledger.items} - set(ledger.noncurrent_docs())  # evidence: a prior-vintage document is never a SOURCE of this year's number; it stays readable for ties
     # a document's DOMINANT scale (the one most of its ratified pages carry)
     # answers for pages the anchors never ratified — a sentence page, a
@@ -198,6 +214,7 @@ def verify(answers, rows, ledger, page_scales, log=None):
         raw = nums[idx]
         scale = page_scales.get((item.doc, item.page))
         tied = None
+        specific = _sig_digits(raw) >= 4          # a parameter (15, 1) is never evidence of a nil
         if isinstance(pv, (int, float)) and abs(pv) >= 0.5:
             for j in range(idx + 1, len(nums)):
                 for f in ([scale] if scale else _SCALES):
@@ -207,10 +224,30 @@ def verify(answers, rows, ledger, page_scales, log=None):
                 if tied:
                     break
             if tied is None and len(nums) == 1 and any(_ties_full_precision(raw / f, pv) for f in _SCALES):
-                out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": item.doc,
-                            "page": page, "line": str(item.label)[:60],
-                            "why": "read: the quoted number is last year's, printed alone — 0"}
+                if specific:
+                    out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": item.doc,
+                                "page": page, "line": str(item.label)[:60],
+                                "why": "read: the quoted number is last year's, printed alone — 0"}
+                elif log:
+                    # a parameter (15, 1) printed alone and equal to the prior says
+                    # nothing new — neither a nil nor this year's figure
+                    log(f"[read]   unverified {rid}: a lone parameter equal to the prior — no new evidence")
                 continue
+        if len(nums) == 1 and specific and any(
+                _ties_full_precision(raw / f, p_) for f in _SCALES for p_ in all_priors):
+            # run 260: the brain quoted the bond figure 593.54 — another row's
+            # prior, printed alone — as 'other financing receipts'; a lone
+            # number equal to ANY model prior is a comparative, never this year
+            if log:
+                log(f"[read]   {rid}: the quoted number is a model prior printed alone (last year's) — not written")
+            continue
+        if isinstance(pv, (int, float)) and abs(pv) >= 0.5 and tied is None and not any(
+                abs(raw / f) <= 30 * abs(pv) and abs(raw / f) * 30 >= abs(pv) for f in _SCALES):
+            # run 260: 10,820.82 read as interest income (prior 132.71) — a
+            # no-tie read must live in the row's own world
+            if log:
+                log(f"[read]   unverified {rid}: {raw:,.2f} is out of the row's world (prior {pv:,.2f}) — not written")
+            continue
         f_use = tied or scale or dom.get(item.doc)       # a sentence page, a note: the document's own scale
         if not f_use and isinstance(pv, (int, float)) and abs(pv) >= 0.5:
             f_use = next((f for f in _SCALES if abs(raw / f) <= 30 * abs(pv) and abs(raw / f) * 30 >= abs(pv)), None)
@@ -229,9 +266,21 @@ def verify(answers, rows, ledger, page_scales, log=None):
             other = homes[key]
             mine = kinship(str(item.label or ""), r["label"])
             theirs = kinship(str(item.label or ""), by_row[other]["label"])
+            if mine == theirs:
+                # neither or both names match (a cross-script sentence, say):
+                # the row WITHOUT qualifiers is the broader item — 'New orders'
+                # takes the group figure, 'New orders - clean energy equipment'
+                # does not (its qualifier is not in the line)
+                def _toks(s):
+                    return set(re.findall(r"[A-Za-z]+|[一-鿿]{2,}", str(s).lower()))
+                a, b = _toks(r["label"]), _toks(by_row[other]["label"])
+                if a < b:
+                    mine, theirs = True, False
+                elif b < a:
+                    mine, theirs = False, True
             if theirs and not mine:
                 if log:
-                    log(f"[read]   {rid}: '{str(item.label)[:30]}' already home at {other} (label kin) — skipped")
+                    log(f"[read]   {rid}: '{str(item.label)[:30]}' already home at {other} — skipped")
                 continue
             out.pop(other, None)
             if not (mine and not theirs):
@@ -289,7 +338,17 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
             continue
         answers += [a for a in (obj.get("rows") or []) if isinstance(a, dict)]
     log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers")
-    verdicts = verify(answers, rows, ledger, page_scales, log)
+    verdicts = verify(answers, rows, ledger, page_scales, log, priors=priors)
+    # the reading is evidence for the replay and the morning grade
+    try:
+        import json as _json
+        rp = Path(company_dir) / "replay" / str(period)
+        rp.mkdir(parents=True, exist_ok=True)
+        (rp / "reader.json").write_text(_json.dumps(
+            {"rows": rows, "answers": answers,
+             "verdicts": {k: v for k, v in verdicts.items() if v}}, ensure_ascii=False, indent=1))
+    except Exception:
+        pass
     n = 0
     for r in rows:
         v = verdicts.get(r["row"])

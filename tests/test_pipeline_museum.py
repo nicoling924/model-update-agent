@@ -4032,6 +4032,28 @@ def test_reader_verifies_every_answer_against_print_2026_09_09():
     scales = {(DOC, 20): 1e6, (DOC, 95): 1e6, (DOC, 101): 1e6, (DOC, 2): 1e6}
     v = verify(answers, rows, led, scales, lambda s: None)
     assert abs(v["Raw!203"]["value"] - 25155.70) < 0.01 and v["Raw!203"]["conf"] == 4
+    # run 260 taught three more: a parameter (15) printed alone is never a nil; a
+    # lone number equal to ANOTHER row's prior is last year's, not this year's
+    # for the row that quoted it; a no-tie read must live in the row's world;
+    # and a sentence quoted with its unit word ('1172.51亿元') is verified
+    lines2 = lines + [_item(283, 2, "税率", [15.0]), _item(209, 5, "利息收入", [10820820000.0, 9000000000.0])]
+    from pipeline.prose import harvest_prose
+    lines2 += [it for it in harvest_prose(DOC, 10, "2025年，公司新生效订单1172.51亿元，同比增长15.93%。") if "新生效订单" in it.label]
+    led2 = _ledger(lines2, face_pages=((95, "pl"),)); led2._doc_periods = {DOC: "current"}
+    rows2 = rows + [{"row": "Raw!283", "sheet": "Raw", "r": 283, "label": "税率", "prior": 15.0},
+                    {"row": "Raw!224", "sheet": "Raw", "r": 224, "label": "收到其他与筹资活动有关的现金", "prior": None},
+                    {"row": "Raw!15", "sheet": "Raw", "r": 15, "label": "减：利息收入", "prior": 132.71},
+                    {"row": "Model!142", "sheet": "Model", "r": 142, "label": "New orders", "prior": None}]
+    answers2 = [{"row": "Raw!283", "printed": 15.0, "page": 283, "line": "税率"},
+                {"row": "Raw!224", "printed": 593536697.59, "page": 101, "line": "收到其他与筹资活动有关的现金"},
+                {"row": "Raw!15", "printed": 10820820000.0, "page": 209, "line": "利息收入"},
+                {"row": "Model!142", "printed": 1172.51, "page": 10, "line": "新生效订单"}]
+    scales2 = dict(scales); scales2.update({(DOC, 283): 1.0, (DOC, 209): 1e6})
+    v2 = verify(answers2, rows2, led2, scales2, lambda s: None, priors=[593.54, 132.71, 15.0, 35262.27])
+    assert "Raw!283" not in v2                                   # a parameter is never nil-proven
+    assert "Raw!224" not in v2                                   # another row's prior, printed alone
+    assert "Raw!15" not in v2                                    # 10,820 is out of the row's world (132.71)
+    assert abs(v2["Model!142"]["value"] - 117251.0) < 1 and v2["Model!142"]["flag"] == "red"   # the sentence, by its unit word
     assert abs(v["Raw!207"]["value"] - 19.078) < 0.01 and v["Raw!207"]["flag"] == "red"       # units from the printed digits
     assert v["Raw!225"]["value"] == 0.0 and v["Raw!225"]["conf"] == 4                            # last year's, printed alone
     assert abs(v["Model!38"]["value"] - 1832.93) < 0.01 and v["Model!38"]["flag"] == "red"       # no tie: red with citation

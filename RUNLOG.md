@@ -2008,3 +2008,17 @@ unverifiable answer is never served, not even red.
   row or to the first reading's line); a line whose comparative merely
   equals the prior by coincidence is no reading. CLP floor: 35 → 11 flags,
   delivered, keys 7/8.
+
+## 2026-09-09 (night) — RUN 260 (DFE FY25, head 1d0653f, the reader stage live): DELIVERED, 33 min, keys 8/8
+The reader read the whole report once (182 rows asked, 182 answers) and
+wrote 16 rows: 7 proven — the bond line 0 (plain, from the lone printed
+comparative), 拆出资金 1,016.53, 固定资产清理 11.99, deferred tax −82.32,
+two small P&L lines — and 12 red reads with citations (dividend 1,832.93,
+other investing receipts 19.08, Driver revenue/COGS, …). The verifier
+rejected every fabricated or parent-page answer. Three verifier gaps it
+exposed, all evidence rules, now pinned: a parameter printed alone (tax
+rate 15) is never a nil; a lone number equal to ANY model prior is last
+year's (593.54 had gone into 'other financing receipts', then the ladder
+plugged it); a no-tie read must live in the row's world (10,820 read as
+interest income, prior 132.71). The prose unit word ('1,172.51亿元') now
+verifies. 3 plugs, 34 red cells (12 of them reader reads), 8/8 keys.

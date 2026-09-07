@@ -38,3 +38,16 @@ Verdict: Luna reads text like an analyst and fabricates consistent numbers on a 
 ## 5. Rules added / removed tonight
 Removed: wide-row fence, table-length fence, candidate caps, serve/call caps, statement-pages-only in the walk and the nil check, the prior-year "never read" ban, the ladder's forecast veto, the gate's refusal.
 Added (evidence only): matrix rows never pair; identity needs a specific name and two numbers; lone prior-equal numbers are comparatives; scope words and competing homes on label cards; per-column period tags; the roll's shape rule; the reader stage's verification.
+
+## 6. Live run 260 (DFE annual, the reader stage's first live run) — DELIVERED, 33 min
+
+| | 246 (last good annual) | 254 | 260 |
+|---|---|---|---|
+| Key numbers (code's count) | not counted by code | 10/10 tied (recomputed) | 8/8 tied |
+| Plugs | 3 | 2 | 3 |
+| Bond line | 0 by an old law | 0 (card) | 0, plain, from the printed comparative (reader) |
+| New orders | empty | 117,251 red | 117,251 red |
+| Dividend | held at prior | held at prior, "not found" | 1,832.93 red, cited p45 (reader) |
+| Proceeds from investments | plugged 14,601 | plugged 14,601 | 25,155.70 plain (walk, p20) |
+
+The reader asked 182 rows in one call and wrote 16 (7 proven, 9 red with citations); it rejected every fabricated and parent-page answer. It also exposed three gaps in its own verifier, fixed and pinned the same night: a parameter printed alone is never a nil (the tax rate had gone to 0 — a memo cell, nothing references it); a lone number equal to ANY model prior is last year's (the bond figure had landed on "other financing receipts" and was then plugged); a no-tie read must be within the row's own world (10,820 had been read as interest income). With those, the dry re-verify of the reading-test answers gives 21 verdicts: 17 proven, 4 red, no wrong number.
