@@ -3615,6 +3615,29 @@ def test_no_serve_card_cap_budget_decides_2026_09_08():
     assert len(serves) == 80, len(serves)                 # nothing trimmed by size
     assert serves == sorted(serves, reverse=True)         # biggest first, smallest still there
 
+def test_nil_tie_is_full_precision_significant_digits_2026_09_08():
+    """Run 250 autopsy: six orange holds turned red because the blank-line
+    pre-check tied the tax-rate 15 to '15,000,000' (two significant
+    digits, not eight), the exchange-rate 1 to '1000元' in a CSR sentence,
+    and total liabilities 98,867.0367 to a shareholder count 989,682,463
+    at 0.1%. The tie is at the model's own precision and counts only
+    significant digits; the real ties (593.54, 0.65, 492.57) still hold."""
+    from pipeline.writegate import nil_current_zero, _ties_full_precision
+    assert _ties_full_precision(593.53669759, 593.54)
+    assert _ties_full_precision(0.64888229, 0.65)
+    assert _ties_full_precision(492.57207562, 492.57000000000005)
+    assert not _ties_full_precision(98968.2463, 98867.0367)
+    assert not _ties_full_precision(9943.83, 9954.0676)
+    def it(label, num, page=25):
+        return {"doc": DOC, "page": page, "label": label, "nums": [num],
+                "source_line": f"{label} {num:,.2f}", "stmt_face": None}
+    pages = {(DOC, 25), (DOC, 49), (DOC, 101)}
+    assert nil_current_zero([it("投资金额（万元）", 15000000.0)], 15, pages) is None
+    assert nil_current_zero([it("人均月增收", 1000.0, 49)], 1, pages) is None
+    assert nil_current_zero([it("股东持股数量", 989682463.0)], 98867.0367, pages) is None
+    assert nil_current_zero([it("收到其他与筹资活动有关的现金", 593536697.59, 101)], 593.54, pages) is not None
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

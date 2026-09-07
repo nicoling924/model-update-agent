@@ -1840,3 +1840,18 @@ unused. The call cap and the balance cards' reserved share are gone;
 the queue's deadline is what is left of the hour (target 60 min, 3 min
 finish margin), and the balance cards are asked regardless of the
 clock. Museum 128.
+
+## 2026-09-08 — run 250 was a regression (reds 4 → 14, keys 14 → 11) — cause found
+Against run 246 on the same base, ten rows turned red. Six were orange
+holds in 246 (tax rate, exchange rate, total liabilities, non-current
+liabilities, financial-class operating inflow, interest income): the
+blank-beside-prior pre-check (added after 248) tied their priors to
+junk across the whole report — '15,000,000' counted as eight digits
+for the tax rate 15, '1000元' in a CSR sentence for the exchange rate
+1, a shareholder count for total liabilities at 0.1% — so they were
+not held, went to cards, and the brain rightly refused the junk. Fix
+in nil_current_zero: significant digits only (leading and trailing
+zeros stripped) and the tie at the model's own precision (half a unit
+of the prior's last decimal). The other four: the bond line (the brain
+read the name; card wording taught), and its two key totals (CFI/CFF)
+plus the interest-income plug painted red. Museum 129.

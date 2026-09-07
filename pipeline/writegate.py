@@ -203,6 +203,21 @@ def no_prior_duplicate(value, doc, claimed_vals):
 _NIL_TOKENS = {"-", "–", "—", "―", "/", "不适用"}
 
 
+def _ties_full_precision(x, prior):
+    """The nil tie is at the MODEL'S OWN precision (run 250 autopsy: a
+    shareholder count 989,682,463 tied total liabilities 98,867.0367 at
+    0.1%; a JV balance 99,438,322 tied 9,954.0676 at 0.1% — the old 2e-3
+    band let five-digit coincidences through). A prior stored to d
+    decimals is matched within half a unit of its last decimal (593.54
+    takes 593.5367; 98867.0367 takes nothing but itself), never looser
+    than the old band."""
+    p = abs(float(prior))
+    r = repr(round(p, 8))
+    d = len(r.split(".")[1]) if "." in r else 0
+    tol = 0.5 * 10 ** (-d) + p * 1e-6
+    return abs(abs(x) - p) <= min(tol, p * 2e-3)
+
+
 def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
                      statement_faces=None, row_label=None):
     """The dash-nil law (run-11 pin, treasury shares): a statement line
@@ -262,10 +277,14 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
                 nums = []            # a differently named line is the brain's call (serve card)
         if len(nums) == 1:
             v = abs(nums[0])          # sign-blind: '-8,485,403.24' is the prior -8.49
-            digits = re.sub(r"[^0-9]", "", ("%.2f" % v).rstrip("0").rstrip("."))
-            if len(digits.lstrip("0")) >= 4:
+            # SIGNIFICANT digits (run 250 autopsy): '15,000,000' is two of
+            # them, not eight — the tax-rate parameter 15 tied it and six
+            # orange holds turned red; '1000元' in a CSR sentence tied the
+            # exchange-rate 1. Leading AND trailing zeros are not digits.
+            digits = re.sub(r"[^0-9]", "", ("%.2f" % v)).strip("0")
+            if len(digits) >= 4:
                 for f in _SCALES:
-                    if abs(v / f - abs(prior)) <= abs(prior) * 2e-3:
+                    if _ties_full_precision(v / f, prior):
                         return it
         if row_label is not None:
             from .numerics import kinship as _kin_d
