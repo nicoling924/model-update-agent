@@ -1827,3 +1827,16 @@ reserved share and the deadline, so the cap was a second, size-sorted
 budget. Removed; the queue returns every card in the analyst's order.
 Card proven offline: A = 0 (exact prior tie, improves the checks most).
 Bench green.
+
+## 2026-09-08 — run 250 (DFE FY25, head 685b08b) DELIVERED, 35 min; the budget is time
+Balance gate passed; key numbers 11/14; net profit off +134.68 red;
+CFI/CFF tied by orange back-outs. The two aims missed: (1) the bond
+line's card WAS asked and the brain said 'not the specific bond line'
+— it read the name, not the number tie; the card now teaches that the
+model's own prior sitting on a line makes that line the item's home
+this year, whatever the report calls it. (2) 'New orders' was drained:
+92 cards defaulted on a 60-call cap while 25 minutes of the hour sat
+unused. The call cap and the balance cards' reserved share are gone;
+the queue's deadline is what is left of the hour (target 60 min, 3 min
+finish margin), and the balance cards are asked regardless of the
+clock. Museum 128.

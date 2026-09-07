@@ -2776,17 +2776,19 @@ def test_reading_step_brain_judges_code_verifies():
         identify_key_rows(wb, spec3, Stub2(), lambda s: None, panel_path=pp, target_year=2025)
         assert [(k["sheet"], k["row"]) for k in spec3["key_rows"] if k["name"] == "operating profit"] == [("Final", 15)]
     # exhibit 2c — THE ANALYST'S ORDER (owner 2026-09-04): actuals ->
-    # rollover check -> balance cards -> plugs, with the balance cards'
-    # calls RESERVED so the flood can never starve them (run 230)
+    # rollover check -> balance cards -> plugs. THE BUDGET IS TIME (owner
+    # 2026-09-08, run 250): no call cap, no reserved share — the queue gets
+    # what is left of the hour, and the balance cards are asked regardless
+    # of the clock (they are few and they close the model).
     import inspect
     from pipeline import workqueue as wq
     src = inspect.getsource(wq.build_queue)
     assert '"SERVE": 0' in src and '"ROLLOVER": 1' in src and '"COMPONENT": 2' in src
-    assert wq.CALL_CAP >= 60
-    q = [wq.WorkItem("SERVE", "F", 1), wq.WorkItem("COMPONENT", "F", 99, check="F!99"),
-         wq.WorkItem("PLUG", "F", 99, check="F!99"), wq.WorkItem("ROLLOVER", "F", 5)]
-    assert wq.reserve_for_balance(q) == 3
-    assert "cap_here = call_cap if item.kind in (\"COMPONENT\", \"PLUG\")" in inspect.getsource(wq.run_queue)
+    assert not hasattr(wq, "CALL_CAP") and not hasattr(wq, "reserve_for_balance")
+    rq = inspect.getsource(wq.run_queue)
+    assert 'item.kind not in ("COMPONENT", "PLUG")' in rq and "deadline_s" in rq
+    from pipeline import run as _run
+    assert _run.RUN_TARGET_S == 3600 and "deadline_s=max(60.0, _left)" in inspect.getsource(_run.update)
 
 
 def test_rollover_investigation_owner_teaching_2026_09_03():

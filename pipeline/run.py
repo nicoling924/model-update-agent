@@ -119,6 +119,10 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
         f"({n_redirect} redirected to input sites, {n_skip} derived/skipped)")
 
 
+RUN_TARGET_S = 60 * 60      # the owner's acceptance criterion: one run, one hour
+FINISH_MARGIN_S = 3 * 60    # gate loop + report + save, measured ~1 min on run 250
+
+
 def update(company_dir, period, target_year, client=None, loop_budget=60,
            log=print, stage4_mode=None, stage4_answerer=None,
            pinned_ledger=None, pinned_served=None):
@@ -131,6 +135,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     legacy free agent — byte-identical run-210 behavior, the rollback).
     stage4_answerer: offline driver for the queue (tests/replays) —
     callable(text, options, default) -> answer id; runs without any LLM."""
+    import time as _time
+    _run_t0 = _time.monotonic()
     company_dir = Path(company_dir)
     run_log = []
 
@@ -855,8 +861,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run] objective loop: {loop_summary[:150]}")
         else:
             from .workqueue import run_queue
+            _left = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+            log(f"[run] queue budget: {_left/60:.1f} min of the hour left for cards")
             loop_summary = run_queue(loop, client, log,
-                                     answerer=stage4_answerer)
+                                     answerer=stage4_answerer,
+                                     deadline_s=max(60.0, _left))
             if mode == "queue+loop" and client is not None:
                 # the residual free loop is OPT-IN only (run-224
                 # autopsy: with 10 free actions it plugged proven cells

@@ -40,7 +40,6 @@ from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
 
-CALL_CAP = 60
 DEADLINE_S = 1200
 MAX_CANDS = 4
 
@@ -205,9 +204,15 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
         out.append({"value": 0.0, "doc": it.doc, "page": it.page,
                     "line": str(it.label)[:60], "face": face or "no-face",
                     "tie_off": 0.0, "nil": True,
-                    "warnings": ["prints LAST year's figure with a BLANK this "
-                                 "year — 0 this year IF this line is the same "
-                                 "item as the model row (judge the meaning)"]})
+                    "warnings": ["prints the model's OWN last-year figure with a "
+                                 "BLANK this year. The number tie says this is "
+                                 "where the report keeps the model's item this "
+                                 "year, whatever the report now calls it (a "
+                                 "company folds a bond line into 'other "
+                                 "financing' and the name changes, the item "
+                                 "does not) — so the blank means 0 this year, "
+                                 "unless the same figure is a coincidence on an "
+                                 "unrelated line (judge the meaning)"]})
     # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
     # candidate even without a prior tie — the brain judges the item and
     # the unit from the sentence printed on the card; code's guard is the
@@ -451,7 +456,7 @@ def build_queue(loop):
     # tie, no flag to raise — yet the report may state the figure in a
     # sentence (DFE 'New orders'). Such rows get a label-only card when
     # the report offers a kin line. They sit LAST in the queue; the call
-    # budget and the balance cards' reserved share decide how many run
+    # budget (the hour) decides how many run
     # (no fixed cap — the owner's ruling against magic numbers).
     seen_rows = {(w.sheet, w.row) for w in items}
     added = 0
@@ -506,8 +511,8 @@ def build_queue(loop):
              "LABEL": 5}       # label-only cards for never-filled rows: last, budget-bound
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # NO CAP (owner 2026-09-08, "why is it capped though"): the run budget
-    # decides — run_queue's call cap, its reserved share for the balance
-    # cards and its deadline drain the tail; a size-sorted cap here dropped
+    # decides — run_queue's deadline (what is left of the hour) drains the
+    # tail; a size-sorted cap here dropped
     # the bond line (prior 593) before its card could ask 'same item?'
     return items
 
@@ -876,22 +881,19 @@ def _llm_answer(loop, client, text, options, log):
     return obj.get("answer"), str(obj.get("why", ""))[:120]
 
 
-def reserve_for_balance(queue):
-    """Calls held back for the balance cards: two per COMPONENT (the
-    re-ask) and one per PLUG — the serve/rollover flood may not spend
-    them."""
-    return sum(2 if w.kind == "COMPONENT" else 1 for w in queue
-               if w.kind in ("COMPONENT", "PLUG"))
-
-
-def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
-              call_cap=CALL_CAP):
+def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S):
     """The inverted stage 4. `answerer(text, options, default) -> answer
-    id` overrides the LLM (offline drivers, tests)."""
+    id` overrides the LLM (offline drivers, tests).
+
+    THE BUDGET IS TIME (owner 2026-09-08, run 250): the run's own target
+    is the hour; `deadline_s` is what is left of it when the queue
+    starts. Run 250 drained 92 cards on a 60-call cap while 25 minutes of
+    the hour sat unused — the order-intake card among them. The balance
+    cards (COMPONENT/PLUG) are few and close the model: they are asked
+    regardless of the clock."""
     t0 = time.monotonic()
     n_auto = phase0(loop, log)
     queue = build_queue(loop)
-    reserved = reserve_for_balance(queue)
     # plugs are dealt strictly LAST — a re-dealt COMPONENT card (next
     # receipt after a landed fix) must always outrank the plug decision
     work = [w for w in queue if w.kind != "PLUG"]
@@ -936,10 +938,9 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S,
             continue
         text, options, default = rendered
         ans, why = default, "default"
-        cap_here = call_cap if item.kind in ("COMPONENT", "PLUG") \
-            else max(0, call_cap - reserved)
-        drain = (breaker >= 3 or calls >= cap_here
-                 or time.monotonic() - t0 > deadline_s)
+        drain = (breaker >= 3
+                 or (item.kind not in ("COMPONENT", "PLUG")
+                     and time.monotonic() - t0 > deadline_s))
         if not drain:
             try:
                 if answerer is not None:
