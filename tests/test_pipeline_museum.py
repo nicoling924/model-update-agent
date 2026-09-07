@@ -3505,6 +3505,24 @@ def test_blank_line_judged_by_meaning_2026_09_08():
     assert str(r2).startswith("REFUSED"), r2
 
 
+def test_label_map_survives_pdf_formatting_2026_09_08():
+    """Owner: 'six characters in the model, the same six with spaces and
+    formatting in the PDF — will it map?' The normaliser strips PDF
+    furniture: spaces inside CJK, full-width letters, a note reference
+    glued to the label, numbering prefixes."""
+    from pipeline.numerics import norm_label, kinship
+    def exact(a, b): return norm_label(a).replace(" ", "") == norm_label(b).replace(" ", "")
+    assert exact("在 建 工 程", "在建工程")
+    assert exact("减：库存股 五（四十七）", "减：库存股")
+    assert exact("固定资产 五（二十）", "固定资产")
+    assert exact("Ｎｅｔ ｐｒｏｆｉｔ", "Net profit")
+    assert exact("Trade receivables (note 12)", "Trade receivables")
+    assert exact("Net  finance\ncosts", "Net finance costs")
+    assert kinship("在 建 工 程 五（二十一）", "在建工程(合计)")
+    assert kinship("三、营业利润（亏损以“-”号填列）", "营业利润")
+    assert not kinship("负债合计", "所有者权益合计")          # structure words carry no identity
+
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

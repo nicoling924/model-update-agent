@@ -136,11 +136,21 @@ def to_model_units(n, scale):
     return n / scale if abs(n) >= scale / 1000 else n
 
 
+_NOTE_REF = re.compile(r"[（(]?\s*(?:附注\s*)?[五六七八九十]\s*[（(]\s*[一二三四五六七八九十百]+\s*[)）]\s*[)）]?"
+                       r"|\b(?:note|notes)\s*\d+[a-z]?\b", re.I)
+
+
 def norm_label(s):
     """Script-aware normalizer: lowercase, keep latin + digits + CJK, collapse
     everything else to single spaces. CJK kept because CN filings ARE the
-    primary corpus."""
-    return re.sub(r"[^a-z0-9一-鿿]+", " ", str(s or "").lower()).strip()
+    primary corpus. PDF furniture is removed first (owner 2026-09-08 — the
+    label map must survive formatting): full-width letters/digits become
+    ASCII (NFKC), and a note reference glued to the label ('五（二十一）',
+    'note 12') is not part of the item's name."""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", str(s or ""))
+    t = _NOTE_REF.sub(" ", t)
+    return re.sub(r"[^a-z0-9一-鿿]+", " ", t.lower()).strip()
 
 
 def kinship(a, b):

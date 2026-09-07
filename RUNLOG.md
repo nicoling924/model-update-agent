@@ -1736,3 +1736,13 @@ lands as a proven read (code's proof = the prior tie). The two-column
 table test and every page-type gate on blanks are gone. Museum 124;
 bench green; both true-base floors deliver (floors have no brain, so the
 Wind-named bond line stays held there — the live brain decides it).
+
+## 2026-09-08 — the label map survives PDF formatting
+Owner: "six characters in the model, the same six with spaces and
+formatting in the PDF — will it map?" Spaces inside CJK, line breaks,
+punctuation and numbering already normalised; two gaps closed in
+norm_label for every label path at once: full-width letters/digits ->
+ASCII (NFKC) and a note reference glued to the label ('固定资产 五（二十）',
+'Trade receivables (note 12)') stripped. Museum 125 (formatting
+exhibit); bench green; true-base floors deliver with one more row
+served in each (FY25 128, 1H25 112).
