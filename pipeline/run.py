@@ -625,7 +625,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             # before the card could ask 'same item?') — such rows stay red
             from .writegate import nil_current_zero as _ncz0
             try:
-                _blank = _ncz0(ledger.items, pv, None, set(_vintage_ban(ledger)))
+                _blank = _ncz0(ledger.items, pv,
+                               {(i_.doc, i_.page) for i_ in ledger.items},
+                               set(_vintage_ban(ledger)))
             except Exception:
                 _blank = None
             if _blank is not None:

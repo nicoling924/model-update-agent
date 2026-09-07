@@ -3587,6 +3587,32 @@ def test_no_prior_row_gets_a_label_card_2026_09_08():
     assert ws["U142"].value == 117251.0 and str(ws["U142"].fill.fgColor.rgb).endswith("FFC7CE")
 
 
+def test_no_serve_card_cap_budget_decides_2026_09_08():
+    """Owner: 'why is it capped though' — the run budget decides. Readiness
+    check for run 250: the bond line (prior 593.54) had its blank-line
+    candidate worth 0 but build_queue kept only the largest serve cards
+    and dropped it. Every red hardcode gets its card, in the analyst's
+    order; run_queue's call cap, reserved share and deadline drain the tail."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import build_queue
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    led = _ledger(_anchors(95, 1e6), face_pages=((95, "pl"),))
+    writer = Writer(wb)
+    targets = _anchor_targets()
+    for r in range(10, 90):                       # 80 red hardcodes, sizes 1..80
+        ws[f"A{r}"] = f"row {r}"; ws[f"T{r}"] = float(r); ws[f"U{r}"] = float(r)
+        ws[f"U{r}"].fill = writer.fills["red"]; writer.log["flags"].append(f"Model!U{r}")
+        targets.append(TargetRow("Model", r, f"row {r}", float(r)))
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, writer, None)
+    q = build_queue(loop)
+    serves = [w.row for w in q if w.kind == "SERVE"]
+    assert len(serves) == 80, len(serves)                 # nothing trimmed by size
+    assert serves == sorted(serves, reverse=True)         # biggest first, smallest still there
+
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted

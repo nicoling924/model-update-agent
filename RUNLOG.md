@@ -1815,3 +1815,15 @@ was the fifth. Now: never-filled rows are kind LABEL, dealt after every
 other card so the budget's remainder decides how many run (no cap), and
 a cross-script card lists up to eight sentences that carry their own
 growth or prior. Museum 127.
+
+## 2026-09-08 — the serve-card cap is gone; the budget decides
+Readiness check for the live DFE annual run, on the run-246 ledger: the
+bond line (prior 593.54, printed this year as a blank beside last
+year's figure under 'other cash received relating to financing') had
+its candidate worth 0 but never got a card — build_queue kept only the
+largest serve cards (a fixed cap of 60 minus the rest), and 593 fell
+off the list. The run loop already has the call cap, the balance cards'
+reserved share and the deadline, so the cap was a second, size-sorted
+budget. Removed; the queue returns every card in the analyst's order.
+Card proven offline: A = 0 (exact prior tie, improves the checks most).
+Bench green.

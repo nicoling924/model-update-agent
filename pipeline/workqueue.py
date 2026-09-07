@@ -40,7 +40,6 @@ from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
 
-MAX_CARDS = 60
 CALL_CAP = 60
 DEADLINE_S = 1200
 MAX_CANDS = 4
@@ -506,12 +505,11 @@ def build_queue(loop):
     order = {"SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4,
              "LABEL": 5}       # label-only cards for never-filled rows: last, budget-bound
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
-    # the cap trims only the SERVE flood — check, tripwire and plug
-    # items are few and load-bearing (a cap that silently dropped every
-    # COMPONENT card cost run-211's successor its receipts)
-    serves = [w for w in items if w.kind == "SERVE"]
-    rest = [w for w in items if w.kind != "SERVE"]
-    return serves[:max(10, MAX_CARDS - len(rest))] + rest
+    # NO CAP (owner 2026-09-08, "why is it capped though"): the run budget
+    # decides — run_queue's call cap, its reserved share for the balance
+    # cards and its deadline drain the tail; a size-sorted cap here dropped
+    # the bond line (prior 593) before its card could ask 'same item?'
+    return items
 
 
 def phase0(loop, log):
@@ -562,7 +560,10 @@ def render_card(loop, item):
         col = _tcol(loop, sheet)
         if not col or sheet not in loop.wb.sheetnames:
             return None
-        if f"{sheet}!{col}{row}" not in loop.writer.log.get("flags", []):
+        if item.kind == "LABEL":
+            if loop.wb[sheet][f"{col}{row}"].value not in (None, ""):
+                return None                 # filled since queueing: moot
+        elif f"{sheet}!{col}{row}" not in loop.writer.log.get("flags", []):
             return None                     # cleared since queueing: moot
         cands = candidates_for(loop, sheet, row)
         if not cands:
@@ -592,7 +593,9 @@ def render_card(loop, item):
                     probe[round(c["value"], 1)] = (base, after)
             cell_p.value = held
         lines = [f"CARD SERVE {sheet}!{col}{row} '{lab}'",
-                 f"  holds: {held!r} (RED: stale/unproven)",
+                 (f"  holds: {held!r} (RED: stale/unproven)" if item.kind != "LABEL"
+                  else "  holds: nothing — a row the model names but never filled; "
+                       "no prior year to tie: judge by the item's meaning (lands red)"),
                  f"  prior year: {pv:,.2f}" if pv is not None else "",
                  "  candidates (machine-extracted; warnings are the "
                  "machine's own doubts):"]

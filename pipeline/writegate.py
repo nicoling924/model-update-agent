@@ -267,6 +267,10 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
                 for f in _SCALES:
                     if abs(v / f - abs(prior)) <= abs(prior) * 2e-3:
                         return it
+        if row_label is not None:
+            from .numerics import kinship as _kin_d
+            if not _kin_d(str(row_label), str(_meta(it, "label", ""))):
+                continue             # a dash under another name is the brain's call
         toks = line.split()
         for i, t in enumerate(toks[:-1]):
             if t not in _NIL_TOKENS:
