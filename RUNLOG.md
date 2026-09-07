@@ -1887,3 +1887,11 @@ Worse, the floors had been scoring the live brain's answers as proven
 instead of re-deciding them. Stage-4 products (card-adjudicated,
 objective-loop notes) are dropped from the pin; only the reading
 stages' serves replay. Card refusals now log their reason.
+
+## 2026-09-08 — run 254 (DFE FY25, head 8ba8d27, owner's go) DELIVERED, 35 min
+Keys 12/12 (the panel identified 12 keys this run, 14 before — not the
+same denominator), reds 6 = 246's four (dividend, adjusting factor, net
+profit 134.68 off, short-term borrowings plug) + the two intended: New
+orders 117,251 from the order-intake sentence and the bond line 0, both
+red for confirmation. CFI/CFF tie plain. 134 cards, none drained.
+First run where both offline-proven cells landed live.
