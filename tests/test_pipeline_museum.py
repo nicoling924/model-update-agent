@@ -4400,6 +4400,32 @@ def test_key_panel_interim_balance_sheet_ties_the_year_end_2026_09_10():
     print("PASS test_key_panel_interim_balance_sheet_ties_the_year_end_2026_09_10")
 
 
+def test_a_row_total_is_not_a_comparative_2026_09_10():
+    """CLP live 2026-09-08: the associates note prints 'listed 954 |
+    unlisted 7,532 | total 8,486' for 2024; 8,486 is the model's prior, so
+    7,532 'tied' it as a comparative and a balance card overwrote the
+    face's 9,508. A number that sums the numbers before it is a total."""
+    from pipeline.writegate import ties_prior, is_sum_row, judge_write
+    note = _item(195, 2, "Group's share of net assets", [954.0, 7532.0, 8486.0])
+    face = _item(25, 1, "Interests in associates", [9508.0, 8486.0])
+    assert is_sum_row([954.0, 7532.0, 8486.0], 2) and not is_sum_row([9508.0, 8486.0], 1)
+    assert not ties_prior(note, 1.0, 8486.0, value=7532.0)
+    assert ties_prior(face, 1.0, 8486.0, value=9508.0)
+    # a second line that genuinely ties lands RED beside a proven figure, never clean
+    other = _item(30, 1, "Interests in associates", [9400.0, 8486.0])
+    v, reason, flag = judge_write(9400.0, 8486.0, True, [(other, 1.0)], set(), held_proven=True)
+    assert v == "ALLOW_FLAGGED" and flag == "red" and "two readings" in reason, (v, reason)
+    v, reason, flag = judge_write(9400.0, 8486.0, True, [(other, 1.0)], set(), held_proven=False)
+    assert v == "ALLOW"
+    from pipeline.reader import verify
+    led = _ledger([note, face], face_pages=((25, "bs"),)); led._doc_periods = {DOC: "current"}
+    rows = [{"row": "S!68", "sheet": "S", "r": 68, "label": "Associates", "prior": 8486.0}]
+    v2 = verify([{"row": "S!68", "printed": 7532.0, "page": 195, "line": "Group's share of net assets"}],
+                rows, led, {(DOC, 195): 1.0, (DOC, 25): 1.0}, lambda s: None, priors=[8486.0])
+    assert "S!68" not in v2 or v2["S!68"]["conf"] < 4, v2     # never proven by a row total
+    print("PASS test_a_row_total_is_not_a_comparative_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

@@ -86,11 +86,25 @@ def ties_prior(item, scale, prior, value=None):
     for i, n in enumerate(ns):
         if not _close(abs(n) / scale, abs(value)):
             continue
-        comp = next((m for m in ns[i + 1:]
-                     if abs(m) <= 30 * abs(n) and abs(m) * 30 >= abs(n)), None)
-        if comp is not None and _close(abs(comp) / scale, abs(prior)):
-            return True
+        ci = next((k for k in range(i + 1, len(ns))
+                   if abs(ns[k]) <= 30 * abs(n) and abs(ns[k]) * 30 >= abs(n)), None)
+        if ci is None or not _close(abs(ns[ci]) / scale, abs(prior)):
+            continue
+        if is_sum_row(ns, ci):
+            continue      # the 'comparative' is the row's own total (run 262 live: 'share of net assets 954 | 7,532 | 8,486')
+        return True
     return False
+
+
+def is_sum_row(ns, ci):
+    """The number at `ci` is the SUM of the numbers before it: a
+    components-and-total row, not periods side by side (CLP associates
+    note: 'listed 954 | unlisted 7,532 | total 8,486' — 8,486 is last
+    year's carrying amount and 7,532 'tied' it as a comparative)."""
+    if ci < 2:
+        return False
+    tot = ns[ci]
+    return abs(sum(ns[:ci]) - tot) <= max(0.6, abs(tot) * 5e-4)
 
 
 def _claim_key(item, value):
@@ -146,7 +160,7 @@ def claimed_keys(served):
     return out
 
 
-def judge_write(value, prior, was_served, evidence, claimed, holders=None):
+def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False):
     """Returns (verdict, reason, forced_flag).
     verdict: ALLOW | ALLOW_FLAGGED | REFUSE | EVICT.
 
@@ -165,6 +179,13 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None):
     tied_free = [(it, s) for it, s in tied
                  if not material or _claim_key(it, value) not in claimed]
     if tied_free:
+        if held_proven:
+            # TWO READINGS (owner 2026-09-08): the cell already holds a figure
+            # whose line tied the prior; this is a second line that ties it
+            # with a different current. The brain chose it; it lands RED
+            # with both readings for the analyst, never clean over a proof
+            return ("ALLOW_FLAGGED", "two readings — a second line ties the prior; "
+                    "the brain's choice lands red beside the held figure", "red")
         return ("ALLOW", "proven — the evidence row ties the prior", None)
     if tied:
         if holders is not None and material:

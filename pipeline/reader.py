@@ -240,7 +240,10 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
             # '利息收入 108,208,159.60 132,705,664.58' on a page ratified at
             # 10^4 — the tie at 10^6 was never tried and 10,820.82 was
             # written for 108.21)
+            from .writegate import is_sum_row as _is_sum_row
             for j in range(idx + 1, len(nums)):
+                if _is_sum_row(nums, j):
+                    continue          # the row's own total, not a comparative
                 for f in ([scale] if scale else []) + [s_ for s_ in _SCALES if s_ != scale]:
                     if f and _ties_full_precision(nums[j] / f, pv):
                         tied = f

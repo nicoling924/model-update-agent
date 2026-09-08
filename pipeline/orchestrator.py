@@ -1392,10 +1392,12 @@ class ObjectiveLoop:
         pv_cell = (self.wb[sheet][f"{pcol}{row}"].value if pcol else None)
         evidence = find_evidence(self.ledger.items, value)
         holders = claim_holders(self.served)
+        from .writegate import is_proven as _is_proven
         verdict, law_reason, forced_flag = judge_write(
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
-            claimed_keys(self.served), holders)
+            claimed_keys(self.served), holders,
+            held_proven=_is_proven((self.served or {}).get((sheet, row))))
         if args.get("nil") and value == 0 and isinstance(pv_cell, (int, float)):
             # THE BRAIN JUDGED A BLANK LINE THE SAME ITEM (owner 2026-09-08):
             # code's part is the prior tie — the line must print last
