@@ -2153,3 +2153,11 @@ DFE FY25 36 min, DFE 1H25 15 min, all on one head.
    in the actual column. A plain hardcode is a proven serve and a plain formula of references is the analyst's
    design — neither absorbs. The probe tries both signs (a component may enter the key negatively).
 Museum 181 (fixtures for one-absorber / take-back re-based on a red leaf). Replays + CLP FY25 dispatch next.
+
+## 2026-09-10 — RUN 34209839027 (CLP FY25, 63e8bc9): DELIVERED clean, 40 min — the owner's absorber rule live
+
+Checks 0/0, red 13 / orange 17. Recurring net profit ties 10,909 through Final!AI30 (the carried 94 backed out to
+−441, the by-hand's figure); net profit through Final!AI16 (other income); operating costs' formula untouched.
+Operating profit left red, KEY OFF +148 — every cell in its chain is a plain served figure, so nothing absorbs;
+the analyst's question, not a forced tie. Total assets / liabilities-and-equity still absorb into receivables and
+deferred creditors (orange, one cell each across the gate rounds).

@@ -169,3 +169,12 @@ opposite. What remains open is definitional and sits orange for the analyst (oth
 minority interests without the perpetual securities fold). The untied key roles are the ones with no printed line
 whose comparative equals the model's figure (gross profit, operating profit, DPS on DFE; DPS and one recurring
 definition on CLP) — reported, not estimated.
+
+## 14. Your two CLP points, live (run 34209839027, 40 min, clean)
+
+1. Embedded constants: `Final!AI30` (`=94-AI29-AI28`) is now painted red when the 94 cannot be proven, and it was
+   the cell the recurring-profit tie backed out — to −441, which is the by-hand figure.
+2. Least confident cell, never the formula: net profit tied through the other-income leaf, operating costs' formula
+   is untouched, and operating profit is left red at +148 with "no component could absorb" — every cell in its
+   chain is a plain served figure, so it is your call, not a plug. Totals still back out into receivables and
+   deferred creditors (orange, the same cell each round).
