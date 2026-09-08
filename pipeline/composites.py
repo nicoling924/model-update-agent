@@ -405,7 +405,7 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
                      else ""))
 
 
-def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None):
+def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None, served=None):
     """The deterministic pass: every target-column formula cell with the
     stale fingerprint gets one lawful rewrite attempt. Unproven cells
     get their evidence note. -> (n_rewritten, n_unproven)."""

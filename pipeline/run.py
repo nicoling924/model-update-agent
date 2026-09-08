@@ -596,7 +596,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # rebuilt as a proof-gated law (see composites.py).
     from .composites import sweep as composites_sweep
     n_cw, n_cr = composites_sweep(wb, spec_d, target_year, ledger, writer,
-                                  log, check_rows=spec_d.get("check_rows"))
+                                  log, check_rows=spec_d.get("check_rows"), served=served)
     if n_cw or n_cr:
         log(f"[run] constants law: {n_cw} stale composites rewritten from "
             f"disclosed comparatives (orange), {n_cr} unproven (red, "
