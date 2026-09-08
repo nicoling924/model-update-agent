@@ -100,3 +100,23 @@ closed, 8/8 keys and 7 red cells.
 - Fuel clause (Final!61/81): the live card now offers −1,043 (closing balance moved to a liability); confirm.
 
 Next: CLP annual and DFE annual dispatched together on the fixed head (20eae3b) as the regression pair.
+
+## 10. The two live runs on the fixed head (both delivered) and the morning's fixes
+
+| | CLP annual (run 262, before) | CLP annual (fixed head) | DFE annual (run 260) | DFE annual (fixed head) |
+|---|---|---|---|---|
+| Time | 60 min, open check | 62 min, checks closed | 33 min | 36 min |
+| Keys (code's honest count) | 8/9 | 8/10 | 8/8 | 8/11 (three roles have no print) |
+| Red / orange (actual column) | 117 / 45 | 8 / 15 | — | same as 260 |
+| Reader time | 37 min | 71 s | — | 41 s |
+
+CLP is no longer a regression: checks closed, the intangibles and joint-venture figures on their face values,
+red cells down by more than ninety percent. Two mis-maps remained and are fixed this morning with exhibits: the
+fuel clause sign (the reader forced last year's sign although the comparative printed negated) and the associates
+line (a note's components-and-total row was read as a period pair). Both are evidence rules, not company rules.
+Your two rulings from this morning are in: interim balance-sheet keys take the model's year-end column as the
+prior, and a comparative the model has no column for becomes a question to you, never an estimate.
+
+Time is the open item on CLP: about forty minutes pass before the card queue starts (document reading with vision
+votes, document classification, the walk). The workflow now logs with real timestamps so the next run shows where
+those minutes go; no rule changed for time.
