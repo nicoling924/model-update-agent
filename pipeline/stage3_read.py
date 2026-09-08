@@ -181,6 +181,19 @@ def _page_png(pdf, pn, cache):
     return out
 
 
+def rows_for_region(unserved, homes, doc, grp, out):
+    """A row is read where its evidence is: the region whose pages print
+    its prior (the checksum's comparative). A row whose prior prints on no
+    page has no checksum anywhere — it belongs to the whole-document
+    reader, which already saw every page in one call. (CLP 2026-09-08:
+    'homeless rows ride every region' sent ~600 such rows to each of 11
+    regions in 70-row chunks — 101 image calls, 33 minutes, most of them
+    answering nothing.)"""
+    grp_pages = {(doc, pn) for pn in grp}
+    return [t for t in unserved if t.key not in out
+            and (homes.get(t.key, set()) & grp_pages)]
+
+
 def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
     """-> new served entries for rows Stage 2 left. One call per region
     chunk; every acceptance is checksummed (or block-anchored for no-prior
@@ -213,10 +226,7 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
             log.append(f"stage-3: {doc} skipped (prior-period document)")
             continue
         for grp in regions_from_ledger(ledger, doc):
-            grp_pages = {(doc, pn) for pn in grp}
-            rows = [t for t in unserved if t.key not in out
-                    and (homes.get(t.key, set()) & grp_pages
-                         or not homes.get(t.key))]   # homeless rows ride every region
+            rows = rows_for_region(unserved, homes, doc, grp, out)
             if len(rows) < 3:
                 continue
             rows.sort(key=lambda t: (t.sheet, t.row))

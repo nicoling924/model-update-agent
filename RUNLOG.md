@@ -2105,3 +2105,12 @@ year-end column (the owner's interim rule, live); Model BS column red 3 (261: 6)
 (segment rows with annual history but no interim prior, read red with citations — by design).
 Change: the reader stage now runs BEFORE stage 3, so the per-region image read takes only what the whole-document
 text read left (root cause of the 31 minutes: two brain readers, the slow one first). No rule changed.
+
+## 2026-09-10 — RUN 34186514149 (CLP FY25, 9c2383b): DELIVERED, 60 min — the 33 minutes named
+
+Same quality as the previous CLP run (checks closed, keys 8/10, red 10 / orange 15, fuel clause and associates on
+the face). Reader-first saved nothing: the whole-document reader took 49 s (28 rows of 244), stage 3 still 33 min.
+Its run_log shows why: 101 image calls, most answering nothing — every row with no printed prior ("homeless")
+rode EVERY region in 70-row chunks (~600 rows × 11 regions). Rule: a row is read where its prior prints (the
+checksum's comparative); a homeless row belongs to the whole-document reader, which already saw every page.
+Pinned (rows_for_region); museum 172. Dispatched CLP FY25 on this head.

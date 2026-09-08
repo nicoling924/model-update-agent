@@ -4426,6 +4426,22 @@ def test_a_row_total_is_not_a_comparative_2026_09_10():
     print("PASS test_a_row_total_is_not_a_comparative_2026_09_10")
 
 
+def test_gap_reader_reads_a_row_where_its_prior_prints_2026_09_10():
+    """CLP 2026-09-08: rows with no printed prior rode every region of
+    every document — 101 image calls, 33 of the hour's minutes. A row is
+    read in the region that prints its prior; a homeless row is the
+    whole-document reader's."""
+    from pipeline.stage3_read import rows_for_region
+    homed = TargetRow("F", 5, "Revenue", 90964.0)
+    homeless = TargetRow("D", 9, "Segment capex", None)
+    elsewhere = TargetRow("F", 7, "Tax", 1200.0)
+    homes = {homed.key: {(DOC, 23)}, elsewhere.key: {(DOC, 40)}}
+    rows = rows_for_region([homed, homeless, elsewhere], homes, DOC, [23, 24], {})
+    assert rows == [homed], rows
+    assert rows_for_region([homed, homeless, elsewhere], homes, DOC, [40], {homed.key: 1}) == [elsewhere]
+    print("PASS test_gap_reader_reads_a_row_where_its_prior_prints_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
