@@ -120,3 +120,19 @@ prior, and a comparative the model has no column for becomes a question to you, 
 Time is the open item on CLP: about forty minutes pass before the card queue starts (document reading with vision
 votes, document classification, the walk). The workflow now logs with real timestamps so the next run shows where
 those minutes go; no rule changed for time.
+
+## 11. Second pair on the morning head (both delivered)
+
+| | CLP annual | DFE half-year |
+|---|---|---|
+| Time | 60 min | 18 min |
+| Checks | closed | Model balance 0 |
+| Keys | 8/10 | 8/11 (total assets and equity now tie through the year-end column — your rule, live) |
+| Red / orange | 10 / 15 | 3 / — on the Model balance sheet (run 261: 6) |
+| Fuel clause | −1,043, liability side (was +1,043 asset) | — |
+| Associates | 9,508 on the face (was 7,532 from a note total) | — |
+
+Where CLP's hour goes, now that the log has real timestamps: 4 minutes reading and naming documents, 31 minutes
+in the older image-based gap reader (168 rows), 1 minute in the new whole-document reader (194 rows), 20 minutes
+of cards. The fix is ordering, not a rule: the fast text read now runs first and the image reader takes only what
+it leaves. Dispatched CLP annual on that head as the timing proof.

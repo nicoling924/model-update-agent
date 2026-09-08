@@ -2092,3 +2092,16 @@ comparative ties at 10^6 (108.21) — fixed: every legal scale.
 Owner 2026-09-10: interim balance-sheet keys take the model's year-end column as the prior (run 261 reported total
 assets 'not tied'); a comparative no model column holds becomes an analyst question, never an estimate.
 Commits e42f36c, +1 (row total). Museum 170.
+
+## 2026-09-10 (morning) — RUNS 34182725503 (CLP FY25) and 34182720815 (DFE 1H25) on 20adfd4: both DELIVERED
+
+CLP: 60 min, checks closed, keys 8/10, Final AI red 10 / orange 15; fuel clause on the liability side (−1,043 read
+with the sign of the tie), associates 9,508 on the face. Remaining differences from the by-hand key are back-outs
+(receivables 14,508 vs 14,035; deferred creditors 12,246 vs 8,363 absorbing the equity-side definition) and
+definitions. With unbuffered logs the hour reads: stage 1 + document naming 4 min; stage 2 instant; STAGE 3 (the
+image-based gap reader) 31 silent minutes for 168 rows; the reader stage 58 s for 194 rows; queue 20 min.
+DFE 1H25: 18 min, keys 8/11 — total assets 156,365.52 and total equity 45,403.66 now tie through the model's
+year-end column (the owner's interim rule, live); Model BS column red 3 (261: 6); Driver H1 column red 34
+(segment rows with annual history but no interim prior, read red with citations — by design).
+Change: the reader stage now runs BEFORE stage 3, so the per-region image read takes only what the whole-document
+text read left (root cause of the 31 minutes: two brain readers, the slow one first). No rule changed.

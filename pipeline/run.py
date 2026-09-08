@@ -511,7 +511,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"{pinned_served}")
     _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
 
-    # -- Stage 3 (LLM, checksummed) — only what Stage 2 left
+    # -- THE READER FIRST (CLP 2026-09-08: stage 3 read 168 rows from page
+    # images in 31 silent minutes while the reader stage covered three
+    # documents in 58 seconds from text): the whole-document text read
+    # goes first; the per-region image read then takes only what it left
+    if client is not None:
+        try:
+            from .reader import brain_read as _brain_read_early
+            _n_read0 = _brain_read_early(client, company_dir, period, target_year, wb, spec_d,
+                                         {t.key: t for t in targets}, ledger, served, writer, log)
+            if _n_read0:
+                err_guard("reader")
+        except Exception as _e_read0:
+            log(f"[read] reader stage skipped: {_e_read0!r}")
+    # -- Stage 3 (LLM, checksummed) — only what Stage 2 and the reader left
     if client is not None:
         gap_served = read_gaps(ledger, targets, served, client, docs, run_log)
         served.update(gap_served)
@@ -634,15 +647,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # code verifies each answer against a printed number (tie, units,
     # sign, one home) and writes only what it can prove — plain when the
     # comparative ties the prior, red with its citation otherwise.
-    try:
-        from .reader import brain_read
-        _n_read = brain_read(client, company_dir, period, target_year, wb, spec_d,
-                             {t.key: t for t in targets}, ledger, served, writer, log)
-    except Exception as _e_read:
-        _n_read = 0
-        log(f"[read] reader stage skipped: {_e_read!r}")
-    if _n_read:
-        err_guard("reader")
+    # (the reader ran before stage 3 — see THE READER FIRST above; a second
+    # pass here would re-send the documents for rows the sweeps just held)
+    _n_read = 0
     # else is tier-3: never searched, held at the group's growth as a
     # traceable orange formula, awaiting true-up.
     from .loadbearing import trace as lb_trace
