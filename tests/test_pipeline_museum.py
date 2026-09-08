@@ -4319,6 +4319,24 @@ def test_key_tie_one_absorber_per_key_2026_09_10():
     print("PASS test_key_tie_one_absorber_per_key_2026_09_10")
 
 
+def test_a_proven_figure_is_never_traded_for_a_check_2026_09_10():
+    """Run 262 replay: a component card replaced the face's joint-venture
+    figure (12,125, comparative tied) with a segment number (4,379, no tie)
+    because the balance check moved closer. A number that merely moves a
+    check is not a second reading of the item."""
+    wb = _wb({"T2": 12188.0, "U2": 12125.0, "T3": 100.0, "U3": 100.0,
+              "T9": "=T2+T3-12288", "U9": "=U2+U3-4479"})
+    served = {("S", 2): {"value": 12125.0, "status": "OK", "conf": 4, "doc": "T.PDF", "page": 25,
+                         "line": "Interests in and loans to joint ventures", "homed": True}}
+    lp = _loop(wb, _spec_tiny(), served=served, evidence=[
+        [12125.0, 12188.0], [2152.0, 4379.0, 292.0, 3300.0, 2002.0, 12125.0]])
+    r = lp.t_set_input({"cell": "S!U2", "value": 4379.0, "why": "p29: segment table",
+                        "card": "component", "check": "S!9"})
+    assert r.startswith("REFUSED by the evidence law"), r
+    assert wb["S"]["U2"].value == 12125.0
+    print("PASS test_a_proven_figure_is_never_traded_for_a_check_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
