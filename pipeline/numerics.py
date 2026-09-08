@@ -40,6 +40,12 @@ CJK_STRUCTURAL = {"其他", "合计", "小计", "总计", "其中", "本期", "�
 # Number tokens as filings print them: optional parens (negative), thousands
 # commas, decimals. Fullwidth forms are translated before matching.
 _NUMTOK = re.compile(r"\(?-?\d[\d,]*(?:\.\d+)?\)?")
+# A LINE'S ENUMERATOR IS NOT A NUMBER (DFE 2026-09-10: the fixed-asset note's
+# '（1）上年年末余额 17,915,996.06 …' lost its label because '(1)' tokenised as
+# a negative one and the label became empty — the opening and closing rows
+# of every movement table were dropped). '(1)', '1.', '1、' before a label
+# are the print's own numbering.
+_ENUM = re.compile(r"^\s*(?:\(\s*\d{1,2}\s*\)|\d{1,2}\s*[.、．])\s*(?=[^\d\s(])")
 
 _FULLWIDTH = str.maketrans("０１２３４５６７８９，．（）－", "0123456789,.()-")
 
@@ -90,7 +96,7 @@ def line_numbers(line, skip_years=True):
     size are printed '2,025'. Parenthesised tokens come back negative.
     """
     out = []
-    for m in _NUMTOK.finditer(str(line).translate(_FULLWIDTH)):
+    for m in _NUMTOK.finditer(_ENUM.sub("", str(line).translate(_FULLWIDTH), count=1)):
         tok = m.group(0)
         raw = tok.strip("()")
         if skip_years and "," not in raw and "." not in raw:
@@ -105,7 +111,7 @@ def line_numbers(line, skip_years=True):
 
 def label_of(line):
     """The text before the first number token — the printed line label."""
-    ln = str(line).translate(_FULLWIDTH)
+    ln = _ENUM.sub("", str(line).translate(_FULLWIDTH), count=1)
     m = _NUMTOK.search(ln)
     lab = ln[:m.start()] if m else ln
     return lab.strip(" .|:–—-　")
@@ -118,7 +124,10 @@ def row_tol(prior_value, base=0.6):
     an absolute 1.0 there accepts anything.
     """
     a = abs(prior_value) if isinstance(prior_value, (int, float)) else 0.0
-    return max(a * 5e-3, base if a >= 10 else 0.01)
+    # a RATIO (|prior| < 1: a margin, a rate) ties relative-only — "a cent"
+    # on 0.15 would be 6.7% of it (owner 2026-09-10: the tolerance must
+    # never be wider on a percentage than on an amount)
+    return max(a * 5e-3, base if a >= 10 else (0.01 if a >= 1 else 0.0))
 
 
 def to_model_units(n, scale):

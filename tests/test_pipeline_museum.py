@@ -4575,6 +4575,19 @@ def test_a_page_is_read_in_its_displayed_orientation_2026_09_10():
     print("PASS test_a_page_is_read_in_its_displayed_orientation_2026_09_10")
 
 
+def test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10():
+    from pipeline.numerics import line_numbers, label_of, row_tol
+    ln = "（1）上年年末余额 17,915,996.06 7,375,145,834.43 18,863,557,255.35"
+    assert label_of(ln) == "上年年末余额", label_of(ln)
+    assert line_numbers(ln) == [17915996.06, 7375145834.43, 18863557255.35], line_numbers(ln)
+    assert label_of("1．账面原值") == "账面原值" and label_of("2、 固定资产情况") == "固定资产情况"
+    assert line_numbers("(2,474) 1,200") == [-2474.0, 1200.0]          # a negative amount is not an enumerator
+    assert label_of("Fixed assets 10 166,094 158,532") == "Fixed assets"
+    # a ratio ties relative-only: 'a cent' on 0.15 would be 6.7% of it
+    assert row_tol(0.15) < 0.001 and row_tol(1.15) == 0.01 and row_tol(760.0) > 3
+    print("PASS test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
