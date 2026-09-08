@@ -316,7 +316,17 @@ def serve_literals(wb, spec, target_year, ledger, served, writer, log):
                 ok = writer.write(sheet, f"{tcol}{r}", new_f, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True)
                 if ok:
                     n += 1
-                    served[(sheet, r)] = {"value": None, "status": "OK", "conf": 4, "doc": None, "page": None,
+                    try:
+                        _val = Evaluator(wb).cell(sheet, f"{tcol}{r}")
+                    except Exception:
+                        _val = None
+                    _m = re.search(r"\((.+?\.pdf) p(\d+) ", notes[0])
+                    # a proven serve record (value, document, page): the rollover
+                    # card's dossier reverts only UNPROVEN inputs (DFE live
+                    # 2026-09-08: '=1961.8-J95' was reverted to last year's literal)
+                    served[(sheet, r)] = {"value": float(_val) if isinstance(_val, (int, float)) else None,
+                                          "status": "OK", "conf": 4, "homed": True,
+                                          "doc": _m.group(1) if _m else None, "page": int(_m.group(2)) if _m else None,
                                           "line": "; ".join(notes)[:60], "note": "schedule literals: " + "; ".join(notes)}
                     log(f"[run] schedule literals {sheet}!{tcol}{r}: {'; '.join(notes)}")
             elif new_f != f:

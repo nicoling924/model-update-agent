@@ -173,7 +173,9 @@ def flag_embedded_hardcodes(wb, sheets, year_cols, writer, log):
                       re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)", bare)
                       if _smuggled(x)]
             ref = f"{sheet}!{tcol}{r}"
-            if consts and ref not in writer.log["flags"]:
+            if consts and ref not in writer.log["flags"] and ref not in set(writer.log.get("written", [])):
+                # a formula the update itself rewrote from the print (the
+                # vertical tie, the constants law) carries THIS year's figures
                 cell = ws[f"{tcol}{r}"]
                 cell.fill = writer.fills["red"]
                 cell.comment = Comment(
