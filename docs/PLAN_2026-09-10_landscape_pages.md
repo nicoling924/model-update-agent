@@ -119,7 +119,7 @@ served red with the candidates named, and the run still delivers.
 |---|---|---|
 | J94 Gross PPE beginning | 18,863.33 (= I98; report opens 18,863.56) | p184 |
 | J95 Addition | 249.56 (购置 244.41 + 其他 5.15) | p184 |
-| J96 Transfer from CIP | 1,712.24 (在建工程转入/企业合并增加) | p184 |
+| J96 Transfer from CIP | 1,717.39 — the analyst's own convention: increases less 购置 (`=1265.03-J95` in 2024) | p184 |
 | J97 Disposal | −607.39 (处置或报废 322.91 + 其他 284.47) | p184 |
 | J98 Gross PPE ending | 20,217.74 (printed 20,217.97) | p184 |
 | J101 Acc. dep. beginning | −13,244.38 (report 13,244.44) | p184 |
@@ -132,5 +132,23 @@ served red with the candidates named, and the run still delivers.
 | J112 / J115 CIP beginning / ending | 1,427.33 / 1,223.32 (exact) | p187 |
 | J114 / J113 CIP transfer / addition | −1,712.24 / 1,508.23 | derived |
 | J118 / J122 Intangibles+ROU beginning / ending | 2,479.38 / 2,473.44 (exact) | p95 |
-| J119 Amortisation | −311.11 (无形资产 摊销 158.40 + 使用权资产 折旧 152.71) | p192, p191 |
+| J119 Amortisation | −272.04 — the analyst's own method: net change in accumulated amortisation and ROU depreciation (`=1206.84-1332.46+157.00-293.57` in 2024 → `=1332.46-1480.85+293.57-417.22`) | p192–193, p191 |
 | J121 Increase in intangibles | 305.17 | derived |
+
+
+## 6. Built (night of 2026-09-10) — what the agent does now
+
+Phase 1 (commit 0f62dc1, 8673282): landscape pages read in their displayed orientation; a line's enumerator
+is not a number; ratios tie relative-only. DFE: 43 landscape pages, 0 → 305 numeric lines; portrait unchanged.
+
+Phase 2 (`pipeline/schedules.py`): no rotation or name special-case. The model's schedule blocks are found from
+their formulas (a Beginning that links to last year's Ending). A table is a movement table by its own arithmetic
+(opening + increases − decreases = closing on the totals, components summing to their group). The block is tied
+to the table by the opening total (≤1%, amounts only). Roles: a model row's 2024 value against the 2024 table
+(购置 211.93 → Addition; 388.95 → the whole decrease group; Transfer = the residual), else role words, else the
+residual. The analyst's carried literals (`=1265.03-J95`, `=-128.29+…`, `=1206.84-1332.46+157.00-293.57`) are placed
+by the same evidence: a literal equal to this year's opening is last year's closing (→ this year's closing); a
+literal equal to a role total in last year's table takes that role in this year's table, the two tables linked by
+the identical closing/opening print. Offline on the real DFE files: Addition 244.41, Transfer `=1961.8-J95`,
+Disposal −607.39, Depreciation −853.97, Disposal 434.56, Impairment `=-100.68+固定资产清理`, Amortisation −272.04,
+Net PPE check 0. The answer-key rows the model derives (CIP addition, intangibles increase) follow.

@@ -2161,3 +2161,12 @@ Checks 0/0, red 13 / orange 17. Recurring net profit ties 10,909 through Final!A
 Operating profit left red, KEY OFF +148 — every cell in its chain is a plain served figure, so nothing absorbs;
 the analyst's question, not a forced tie. Total assets / liabilities-and-equity still absorb into receivables and
 deferred creditors (orange, one cell each across the gate rounds).
+
+## 2026-09-10 (night) — landscape pages and roll-forward schedules (the owner's task)
+
+Phase 1: a page is read in its displayed orientation (43 of DFE's 280 pages are /Rotate 270; text came out
+reversed; 0 → 305 numeric lines; 237 portrait pages byte-identical). A line's enumerator ('（1）', '1.') is not a
+number — the opening/closing rows of every movement table had lost their labels. Ratios tie relative-only.
+Phase 2: pipeline/schedules.py — the vertical prior tie (see docs/PLAN_2026-09-10_landscape_pages.md §6).
+Offline on the real DFE model + rebuilt ledger: the PP&E cost and depreciation rolls, the impairment literal
+and the four-literal amortisation formula all served from p184–p193; Net PPE check 0. Museum 184.

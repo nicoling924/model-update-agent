@@ -4588,6 +4588,63 @@ def test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10():
     print("PASS test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10")
 
 
+def test_roll_forward_schedule_vertical_tie_2026_09_10():
+    """Owner 2026-09-10: a movement table has no prior-year column, but its
+    opening row IS last year's closing. The DFE fixed-asset note (p184) in
+    yuan against the Driver block in millions: Addition = 购置 (its 2024
+    value tied 购置 in the 2024 table), Transfer = the rest of the increases
+    (the analyst's own '=1265.03-J95'), Disposal = the whole decrease group;
+    the carried literals in the analyst's formulas take this year's role
+    totals; the roll closes on the printed closing."""
+    from pipeline.schedules import serve_schedules, find_blocks
+    from pipeline.writer import Writer
+    from pipeline.evaluator import Evaluator
+    wb = _wb({"A94": "Beginning value", "T94": 17987.25, "U94": "=T98",
+              "A95": "Addition", "T95": 211.93472192, "U95": 211.93472192,
+              "A96": "Transfer from CIP", "T96": "=1265.02640492-T95", "U96": "=1265.02640492-U95",
+              "A97": "Disposal", "T97": -388.94735586, "U97": -388.94735586,
+              "A98": "Ending value", "T98": "=SUM(T94:T97)", "U98": "=SUM(U94:U97)",
+              "A107": "Impairment", "T107": "=-128.28638909+6.18", "U107": "=-128.28638909+11.99"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
+    blocks = find_blocks(wb, spec, 2025)
+    assert [(b["beg"], b["end"], [r for r, _ in b["rows"]]) for b in blocks] == [(94, 98, [95, 97])], blocks
+    cur = [_item(184, 6, "（1）上年年末余额", [17915996.06, 7375145834.43, 9030745014.97, 330302283.92, 2109448125.97, 18863557255.35]),
+           _item(184, 7, "（2）本期增加金额", [905010560.18, 750551287.10, 31930461.01, 274309678.09, 1961801986.38]),
+           _item(184, 8, "—购置", [43561938.48, 113354614.13, 14732600.18, 72762551.95, 244411704.74]),
+           _item(184, 9, "—在建工程转入", [860636572.44, 636629670.52, 17064559.36, 197913869.90, 1712244672.22]),
+           _item(184, 10, "—其他", [812049.26, 567002.45, 133301.47, 3633256.24, 5145609.42]),
+           _item(184, 12, "（3）本期减少金额", [304987173.69, 180543184.13, 32121474.81, 89734144.53, 607385977.16]),
+           _item(184, 13, "—处置或报废", [43102486.33, 168078217.88, 31977515.69, 79754435.67, 322912655.57]),
+           _item(184, 14, "—其他", [261884687.36, 12464966.25, 143959.12, 9979708.86, 284473321.59]),
+           _item(184, 15, "（4）期末余额", [17915996.06, 7975169220.92, 9600753117.94, 330111270.12, 2294023659.53, 20217973264.57]),
+           _item(185, 3, "（1）上年年末余额", [86088944.90, 35741754.75, 118991.45, 6336697.99, 128286389.09]),
+           _item(185, 4, "（2）本期增加金额", [721616.45, 1836967.49, 2441.14, 85478.90, 2646503.98]),
+           _item(185, 6, "（3）本期减少金额", [14143698.29, 15524571.30, 2441.14, 580273.63, 30250984.36]),
+           _item(185, 9, "（4）期末余额", [72666863.06, 22054150.94, 118991.45, 5841903.26, 100681908.71])]
+    prior = [Item(doc="ar2024.pdf", page=180, table_id=0, row_ord=i, label=l, nums=n) for i, (l, n) in enumerate([
+             ("（1）上年年末余额", [17987480000.0]), ("（2）本期增加金额", [1265026404.92]), ("—购置", [211934721.92]),
+             ("—在建工程转入", [1052050000.0]), ("—其他", [1041683.0]), ("（3）本期减少金额", [388947355.86]),
+             ("—处置或报废", [350000000.0]), ("—其他", [38947355.86]), ("（4）期末余额", [18863557255.35])])]
+    led = _ledger(cur + prior, face_pages=()); led._doc_periods = {DOC: "current", "ar2024.pdf": "prior"}
+    w = Writer(wb); served = {}
+    n = serve_schedules(wb, spec, 2025, led, served, w, lambda s: None)
+    ws = wb["S"]; ev = Evaluator(wb)
+    assert abs(ws["U95"].value - 244.4117) < 0.001, ws["U95"].value                       # 购置 (the 2024 tie)
+    assert ws["U96"].value == "=1961.8-U95", ws["U96"].value                                # the carried increase total
+    assert abs(ws["U97"].value + 607.386) < 0.001, ws["U97"].value                        # the whole decrease group
+    assert abs(ev.cell("S", "U98") - 20217.74) < 0.5                                        # closes on the printed 20,217.97 less the 0.22 opening gap
+    assert ws["U107"].value == "=-100.682+11.99", ws["U107"].value                          # a literal equal to an opening is last year's closing
+    assert str(ws["U97"].fill.fgColor.rgb)[-6:] != "FFC7CE"                                 # the roll closes: nothing red
+    assert (("S", 95) in served) and served[("S", 95)]["conf"] == 4
+    assert any("within the 1% significance margin" in v for v in w.log.get("verdicts", []))
+    # beyond 1% nothing is served
+    wb2 = _wb({"A94": "Beginning value", "T94": 17000.0, "U94": "=T98", "A95": "Addition", "T95": 200.0, "U95": 200.0,
+               "A98": "Ending value", "T98": "=SUM(T94:T95)", "U98": "=SUM(U94:U95)"})
+    n2 = serve_schedules(wb2, spec, 2025, led, {}, Writer(wb2), lambda s: None)
+    assert n2 == 0 and wb2["S"]["U95"].value == 200.0
+    print("PASS test_roll_forward_schedule_vertical_tie_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

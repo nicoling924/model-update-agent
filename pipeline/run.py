@@ -511,6 +511,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"{pinned_served}")
     _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
 
+    # -- ROLL-FORWARD SCHEDULES (owner 2026-09-10): the vertical prior tie —
+    # a movement table's opening row is last year's closing; the model's
+    # schedule blocks and the analyst's carried literals are served from
+    # this year's table, roles settled by the model's own prior-year values
+    if True:
+        try:
+            from .schedules import serve_schedules as _serve_schedules
+            _n_sched = _serve_schedules(wb, spec_d, target_year, ledger, served, writer, log)
+            if _n_sched:
+                log(f"[run] schedules: {_n_sched} cells served by the vertical tie")
+                err_guard("schedules")
+        except Exception as _e_sched:
+            log(f"[run] schedules skipped: {_e_sched!r}")
+
     # -- THE READER FIRST (CLP 2026-09-08: stage 3 read 168 rows from page
     # images in 31 silent minutes while the reader stage covered three
     # documents in 58 seconds from text): the whole-document text read
