@@ -4337,6 +4337,69 @@ def test_a_proven_figure_is_never_traded_for_a_check_2026_09_10():
     print("PASS test_a_proven_figure_is_never_traded_for_a_check_2026_09_10")
 
 
+def test_reader_sign_of_the_tie_2026_09_10():
+    """CLP fuel clause: the presentation prints '1,043 | (370)' where the
+    model holds +370 — the line negates the model's convention, so this
+    year's balance is −1,043 (it moved to the liability side). Forcing the
+    prior's sign wrote +1,043."""
+    from pipeline.reader import verify
+    lines = [_item(37, 1, "Fuel Clause Account (FCA)", [1043.0, -370.0]),
+             _item(209, 1, "减：利息收入", [108208159.6, 132705664.58])]
+    led = _ledger(lines, face_pages=((95, "pl"),)); led._doc_periods = {DOC: "current"}
+    rows = [{"row": "S!7", "sheet": "S", "r": 7, "label": "Closing balance", "prior": 370.0},
+            {"row": "R!15", "sheet": "R", "r": 15, "label": "减：利息收入", "prior": 132.71}]
+    answers = [{"row": "S!7", "printed": 1043.0, "page": 37, "line": "Fuel Clause Account (FCA)"},
+               {"row": "R!15", "printed": 108208159.6, "page": 209, "line": "减：利息收入"}]
+    v = verify(answers, rows, led, {(DOC, 37): 1.0, (DOC, 209): 1e4}, lambda s: None, priors=[370.0, 132.71])
+    assert v["S!7"]["value"] == -1043.0 and v["S!7"]["conf"] == 4, v["S!7"]
+    # DFE p209: the page was ratified at 10^4 but the comparative ties at 10^6 —
+    # the tie is the line's scale (10,820.82 had been written for 108.21)
+    assert abs(v["R!15"]["value"] - 108.21) < 0.01 and v["R!15"]["conf"] == 4, v["R!15"]
+    print("PASS test_reader_sign_of_the_tie_2026_09_10")
+
+
+def test_key_tie_absorber_survives_a_take_back_2026_09_10():
+    """CLP live 2026-09-08: the gate loop's take-back unwrapped the
+    absorber; the next re-tie then wrapped a second cell."""
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    wb = _wb({"T2": 100.0, "U2": 90.0, "T3": "=T2*0.5", "U3": "=U2*0.5",
+              "T5": 10.0, "U5": "=U2*0.1", "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
+    panel = {"total": {"print": 160.0, "prior": 160.0}}
+    w = Writer(wb)
+    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
+    first = w.log["key_absorbers"]["total"][1]
+    wb["S"][first] = w.log["key_absorbers"]["total"][2]          # a take-back unwraps it
+    wb["S"]["U2"] = 80.0
+    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
+    assert w.log["key_absorbers"]["total"][1] == first
+    wrapped = [c for c in ("U3", "U5") if str(wb["S"][c].value).startswith("=(")]
+    assert wrapped == [first], (wrapped, first)
+    print("PASS test_key_tie_absorber_survives_a_take_back_2026_09_10")
+
+
+def test_key_panel_interim_balance_sheet_ties_the_year_end_2026_09_10():
+    """Owner 2026-09-10: a half-year balance sheet compares to the last
+    year-end, so the key panel takes the model's annual column as the
+    prior for such rows (run 261 reported total assets 'not tied')."""
+    from pipeline.keytie import panel_by_prior_tie
+    wb = _wb({"A4": "Total assets", "R4": 142009.28, "T4": 150000.0, "U4": None,
+              "A5": "Revenue", "R5": 69695.14, "T5": 33457.01, "U5": None})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "annual_prior_axis": {"S": "R"},
+            "key_rows": [{"name": "total assets", "sheet": "S", "row": 4},
+                         {"name": "revenue", "sheet": "S", "row": 5}]}
+    lines = [_item(5, 1, "资产总计", [156365.0, 142009.28]),
+             _item(45, 1, "营业收入", [38150.95, 33457.01])]
+    led = _ledger(lines, face_pages=((5, "bs"), (45, "pl"))); led._doc_periods = {DOC: "current"}
+    panel = panel_by_prior_tie(wb, spec, 2025, led)
+    assert panel["total assets"]["print"] == 156365.0 and panel["total assets"]["prior"] == 142009.28, panel
+    assert panel["revenue"]["print"] == 38150.95 and panel["revenue"]["prior"] == 33457.01, panel
+    print("PASS test_key_panel_interim_balance_sheet_ties_the_year_end_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

@@ -235,8 +235,13 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
         tied = None
         specific = _sig_digits(raw) >= 4          # a parameter (15, 1) is never evidence of a nil
         if isinstance(pv, (int, float)) and abs(pv) >= 0.5:
+            # the page's ratified scale first, then every legal scale: the
+            # comparative tying the prior IS the line's scale (DFE p209:
+            # '利息收入 108,208,159.60 132,705,664.58' on a page ratified at
+            # 10^4 — the tie at 10^6 was never tried and 10,820.82 was
+            # written for 108.21)
             for j in range(idx + 1, len(nums)):
-                for f in ([scale] if scale else _SCALES):
+                for f in ([scale] if scale else []) + [s_ for s_ in _SCALES if s_ != scale]:
                     if f and _ties_full_precision(nums[j] / f, pv):
                         tied = f
                         break
@@ -275,8 +280,18 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                 log(f"[read]   unverified {rid}: no ratified scale for p{page} — not written")
             continue
         value = float(raw) / float(f_use)
-        if isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
-            value = -value                                   # the model owns the sign convention
+        if tied and isinstance(pv, (int, float)) and pv != 0:
+            # THE SIGN OF THE TIE (CLP fuel clause: the line prints
+            # 1,043 | (370) where the model holds +370 — the line negates
+            # the model's convention, so this year's balance is −1,043;
+            # forcing the prior's sign would hide a balance that changed
+            # side)
+            comp = next((nums[j] for j in range(idx + 1, len(nums))
+                         if _ties_full_precision(nums[j] / tied, pv)), None)
+            if comp is not None and comp != 0 and (comp < 0) != (pv < 0):
+                value = -value
+        elif isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
+            value = -value                                   # no tie: the model owns the sign convention
         key = (item.doc, item.page, str(item.label)[:40], round(abs(value), 2))
         if key in homes and homes[key] != rid \
                 and not (isinstance(pv, (int, float)) and by_row[homes[key]]["prior"] == pv):

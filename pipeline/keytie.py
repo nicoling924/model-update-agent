@@ -192,7 +192,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         # absorber for the whole run: a re-tie unwraps that cell to its
         # original formula and re-solves the whole delta there.
         _abs_log = writer.log.setdefault("key_absorbers", {})
-        prev_c = None
+        prev_c, prev_wrapped = None, None
         prev = _abs_log.get(name)
         if prev:
             psh, pcoord, porig = prev
@@ -200,6 +200,11 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if isinstance(held_p, str) and held_p.startswith("=(") \
                     and held_p[2:].startswith(str(porig)[1:]):
                 wb[psh][pcoord] = porig
+                prev_c = (-1, 0, 0, psh, pcoord, porig)
+                prev_wrapped = (psh, pcoord, held_p)
+            elif held_p == porig:
+                # the gate loop's take-back already unwrapped it (CLP live
+                # 2026-09-08: 'total assets' then moved to a second cell)
                 prev_c = (-1, 0, 0, psh, pcoord, porig)
         try:
             got = Evaluator(wb).cell(sheet, f"{tcol}{row}")
@@ -236,6 +241,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 writer.log["flags"].append(f"{sheet}!{tcol}{row}")
             log(f"[run] key tie: '{name}' off {delta:+,.2f} — beyond the "
                 "back-out bound, flagged")
+            if prev_wrapped:
+                wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]   # a flagged/confirmed key keeps its standing back-out
             continue
         # THE PRIOR-DELTA PROTOCOL (owner ruling 2026-08-31): the PRIOR
         # year proves the definition. Model prior == printed prior ->
@@ -291,6 +298,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             log(f"[run] key tie: '{name}' off {delta:+,.2f} AND prior "
                 f"off {d_prior:+,.2f} with no closing bridge — red "
                 "question for the analyst")
+            if prev_wrapped:
+                wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]   # a flagged/confirmed key keeps its standing back-out
             continue
         tied_before = {nm for nm, _g, _w, ok in _key_state() if ok}
         # candidates: every FORMULA cell in the key's chain (estimate
@@ -424,7 +433,20 @@ def panel_by_prior_tie(wb, spec, target_year, ledger, log=None, served=None):
             pv = ev.cell(sh, f"{pc}{r}")
         except Exception:
             continue
-        if not isinstance(pv, (int, float)) or abs(pv) < 0.5 or _sig_digits(pv) < 3:
+        # THE INTERIM COMPARATIVE (owner 2026-09-10): a half-year balance
+        # sheet compares to the last YEAR-END, so the model's annual column
+        # is a second prior for the key row; the interim prior is tried
+        # first (P&L and cash-flow rows compare to the same period last year)
+        _acol = (spec.get("annual_prior_axis") or {}).get(sh)
+        pv_a = None
+        if _acol:
+            try:
+                pv_a = ev.cell(sh, f"{_acol}{r}")
+            except Exception:
+                pv_a = None
+        _priors = [p_ for p_ in (pv, pv_a)
+                   if isinstance(p_, (int, float)) and abs(p_) >= 0.5 and _sig_digits(p_) >= 3]
+        if not _priors:
             continue
         # THE WALK'S SERVE WINS (run 256: an equity-statement row tied the
         # equity prior mid-row and offered 3,117.50 as 'total equity'):
@@ -439,26 +461,30 @@ def panel_by_prior_tie(wb, spec, target_year, ledger, log=None, served=None):
         from .numerics import kinship as _kin_p
         row_label = str(wb[sh].cell(r, 1).value or "")
         reads = {}
-        for it in ledger.items:
-            if it.doc in ban or getattr(it, "channel", "") == "prose":
-                continue
-            nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
-            if len(nums) < 2:
-                continue
-            wide = len(nums) >= 4
-            if wide and not _kin_p(str(it.label or ""), row_label):
-                continue                    # a wide row's pair position is uncertain: the label must confirm
-            for f in _SCALES:
-                vals = [n / f for n in nums]
-                for j in range(1, len(vals)):
-                    if _sig_digits(nums[j]) >= 4 and _ties_full_precision(vals[j], pv) \
-                            and (nums[j] < 0) == (pv < 0):
-                        # the current is the nearest EARLIER number of the prior's own magnitude
-                        cur = next((vals[i] for i in range(j - 1, -1, -1)
-                                    if abs(vals[i]) <= 30 * abs(pv) and abs(vals[i]) * 30 >= abs(pv)), None)
-                        if cur is not None:
-                            reads.setdefault(round(cur, 2), (cur, f"{it.doc} p{it.page} '{str(it.label)[:40]}'"))
-                        break
+        for pv in _priors:
+            for it in ledger.items:
+                if it.doc in ban or getattr(it, "channel", "") == "prose":
+                    continue
+                nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+                if len(nums) < 2:
+                    continue
+                wide = len(nums) >= 4
+                if wide and not _kin_p(str(it.label or ""), row_label):
+                    continue                    # a wide row's pair position is uncertain: the label must confirm
+                for f in _SCALES:
+                    vals = [n / f for n in nums]
+                    for j in range(1, len(vals)):
+                        if _sig_digits(nums[j]) >= 4 and _ties_full_precision(vals[j], pv) \
+                                and (nums[j] < 0) == (pv < 0):
+                            # the current is the nearest EARLIER number of the prior's own magnitude
+                            cur = next((vals[i] for i in range(j - 1, -1, -1)
+                                        if abs(vals[i]) <= 30 * abs(pv) and abs(vals[i]) * 30 >= abs(pv)), None)
+                            if cur is not None:
+                                reads.setdefault(round(cur, 2), (cur, f"{it.doc} p{it.page} '{str(it.label)[:40]}'"))
+                            break
+
+            if reads:
+                break         # the prior that tied is the row's prior
         if len(reads) == 1:
             cur, where = next(iter(reads.values()))
             out[nm] = {"print": float(cur), "prior": float(pv), "line": where}

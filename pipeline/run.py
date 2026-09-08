@@ -1419,7 +1419,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                         _key_ties_for_report.append(
                             {"name": kk_.get("name"), "ref": f"{kk_.get('sheet')}!{kk_.get('row')}",
                              "value": None, "print": None, "tied": False})
-                        log(f"[run] key '{kk_.get('name')}': no printed line ties its prior — not tied")
+                        _ask = ""
+                        if spec_d.get("annual_prior_axis") is not None \
+                                and not (spec_d.get("annual_prior_axis") or {}).get(kk_.get("sheet")):
+                            # owner 2026-09-10: an interim statement compares to a
+                            # date this model has no column for — ask, never estimate
+                            _ask = (" — the model has no column holding the comparative the "
+                                    "report prints; the analyst should provide the report for "
+                                    "that date (annual report / prior period)")
+                            writer.log.setdefault("verdicts", []).append(
+                                f"{kk_.get('sheet')}!{kk_.get('row')}: ANALYST — key "
+                                f"'{kk_.get('name')}' has no comparative in this model{_ask}")
+                        log(f"[run] key '{kk_.get('name')}': no printed line ties its prior — not tied{_ask}")
             except Exception as _e:
                 _key_ties_for_report = []
                 log(f"[run] key count unavailable for the report: {_e!r}")
