@@ -2141,3 +2141,15 @@ Balance 0, no ladder plugs, keys 8/11. The digits rule refused two GENUINE round
 it. The earlier 4,117 plug was the ladder's choice of site on an off check, not this read. Rule withdrawn the same
 morning; exhibit replaced by the round-figure acceptance. Museum 175. This closes the night: CLP FY25 clean 40 min,
 DFE FY25 36 min, DFE 1H25 15 min, all on one head.
+
+## 2026-09-10 — owner's two CLP rulings: the absorber is the least confident LEAF; carried constants are unproven
+
+1. Final!AI30 '=94-AI29-AI28' carried last year's 94 into 2025; the constants law logged "stays red" but never
+   painted it. Now an unproven carried constant is painted red with its literal named.
+2. The key tie wrapped whole formulas (=(AI14-AI13-AI12)-(148.345)) and said "no component could absorb" for
+   recurring net profit while two one-off leaves sat red at 0 and AI30 carried the 94. Owner: trace the components
+   and back out the least confident cell, never the formula. Classes, in order: a red cell; a carried constant
+   inside a plain formula (the literal absorbs: =(94-(535))-AI29-AI28); an orange cell; an estimate formula left
+   in the actual column. A plain hardcode is a proven serve and a plain formula of references is the analyst's
+   design — neither absorbs. The probe tries both signs (a component may enter the key negatively).
+Museum 181 (fixtures for one-absorber / take-back re-based on a red leaf). Replays + CLP FY25 dispatch next.

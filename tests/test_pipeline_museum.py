@@ -4300,22 +4300,26 @@ def test_key_tie_one_absorber_per_key_2026_09_10():
     from pipeline.keytie import key_tie
     from pipeline.writer import Writer
     from pipeline.evaluator import Evaluator
+    from openpyxl.styles import PatternFill
     wb = _wb({"T2": 100.0, "U2": 90.0,
               "T3": "=T2*0.5", "U3": "=U2*0.5",
-              "T4": "=T2+T3", "U4": "=U2+U3"})
+              "T5": 10.0, "U5": 5.0,                       # the unproven leaf (red)
+              "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
+    wb["S"]["U5"].fill = PatternFill("solid", fgColor="FFC7CE")
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
             "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
-    panel = {"total": {"print": 150.0, "prior": 150.0}}
+    panel = {"total": {"print": 150.0, "prior": 160.0}}
     w = Writer(wb)
     assert key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel) == 1
-    assert wb["S"]["U3"].value == "=(U2*0.5)-(-15)", wb["S"]["U3"].value
+    assert wb["S"]["U5"].value == "=(5)-(-10)", wb["S"]["U5"].value
+    assert wb["S"]["U3"].value == "=U2*0.5"                # the formula of references is untouched
     wb["S"]["U2"] = 80.0                                   # the loop moved a component
     key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    assert wb["S"]["U3"].value == "=(U2*0.5)-(-30)", wb["S"]["U3"].value   # same cell, one wrap
+    assert wb["S"]["U5"].value == "=(5)-(-25)", wb["S"]["U5"].value   # same cell, one wrap
     assert abs(Evaluator(wb).cell("S", "U4") - 150.0) <= 0.5
-    wb["S"]["U2"] = 100.0                                  # the key now ties by itself
+    wb["S"]["U2"] = 96.6667                                # the key now ties by itself
     key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    assert wb["S"]["U3"].value == "=U2*0.5" and "total" not in w.log["key_absorbers"]
+    assert wb["S"]["U5"].value == 5.0 and "total" not in w.log["key_absorbers"], wb["S"]["U5"].value
     print("PASS test_key_tie_one_absorber_per_key_2026_09_10")
 
 
@@ -4363,14 +4367,17 @@ def test_key_tie_absorber_survives_a_take_back_2026_09_10():
     absorber; the next re-tie then wrapped a second cell."""
     from pipeline.keytie import key_tie
     from pipeline.writer import Writer
+    from openpyxl.styles import PatternFill
     wb = _wb({"T2": 100.0, "U2": 90.0, "T3": "=T2*0.5", "U3": "=U2*0.5",
-              "T5": 10.0, "U5": "=U2*0.1", "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
+              "T5": 10.0, "U5": 9.0, "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
+    wb["S"]["U5"].fill = PatternFill("solid", fgColor="FFC7CE")
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
             "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
     panel = {"total": {"print": 160.0, "prior": 160.0}}
     w = Writer(wb)
     key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
     first = w.log["key_absorbers"]["total"][1]
+    assert first == "U5"
     wb["S"][first] = w.log["key_absorbers"]["total"][2]          # a take-back unwraps it
     wb["S"]["U2"] = 80.0
     key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
@@ -4504,6 +4511,41 @@ def test_a_round_figure_is_a_figure_2026_09_10():
     assert abs(v["R!207"]["value"] - 1.0) < 1e-6 and v["R!207"]["flag"] == "red", v
     assert abs(v["R!148"]["value"] - 0.24) < 1e-6 and v["R!148"]["flag"] == "red", v
     print("PASS test_a_round_figure_is_a_figure_2026_09_10")
+
+
+def test_key_tie_backs_out_the_least_confident_leaf_2026_09_10():
+    """Owner 2026-09-10: when a key formula does not match the print, trace
+    its components and back out the least confident cell — never wrap the
+    formula. CLP: 'net profit' had wrapped operating costs (=AI14-AI13-AI12)
+    while two one-off leaves sat red at 0; 'recurring net profit' said no
+    component could absorb while Final!AI30 carried last year's 94."""
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    from pipeline.evaluator import Evaluator
+    from openpyxl.styles import PatternFill
+    wb = _wb({"T9": 11742.0, "U9": 10468.0,                 # net profit reported (proven)
+              "T8": 0.0, "U8": 0.0,                         # a one-off leaf, red (taken back)
+              "T3": "=94-T8", "U3": "=94-U8",               # other one-offs: last year's 94 carried
+              "T2": "=T9-T3", "U2": "=U9-U3",               # recurring profit (key)
+              "T6": "=T9*2", "U6": "=U9*2"})                # a formula of references, plain
+    wb["S"]["U8"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [], "key_rows": [{"name": "recurring", "sheet": "S", "row": 2}]}
+    w = Writer(wb)
+    assert key_tie(wb, spec, 2025, w, None, lambda s: None,
+                   panel={"recurring": {"print": 10909.0, "prior": 11648.0}}) == 1
+    assert wb["S"]["U8"].value == "=(0)-(-535)", wb["S"]["U8"].value         # the red leaf absorbs (it enters the key positively)
+    assert wb["S"]["U6"].value == "=U9*2" and wb["S"]["U2"].value == "=U9-U3"
+    assert abs(Evaluator(wb).cell("S", "U2") - 10909.0) <= 1.0
+    # no red leaf: the carried constant is the next least confident cell
+    wb2 = _wb({"T9": 11742.0, "U9": 10468.0, "T8": 0.0, "U8": 0.0,
+               "T3": "=94-T8", "U3": "=94-U8", "T2": "=T9-T3", "U2": "=U9-U3"})
+    w2 = Writer(wb2)
+    assert key_tie(wb2, spec, 2025, w2, None, lambda s: None,
+                   panel={"recurring": {"print": 10909.0, "prior": 11648.0}}) == 1
+    assert wb2["S"]["U3"].value == "=(94-(535))-U8", wb2["S"]["U3"].value
+    assert wb2["S"]["U8"].value == 0.0                                        # a plain hardcode is proven
+    print("PASS test_key_tie_backs_out_the_least_confident_leaf_2026_09_10")
 
 
 if __name__ == "__main__":

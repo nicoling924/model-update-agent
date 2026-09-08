@@ -446,6 +446,22 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None):
             elif "UNPROVEN" in msg or "REFUSED" in msg:
                 n_red += 1
                 log(f"[run]   constants law: {msg[:180]}")
+                # the log had said "stays red" while the cell stayed plain
+                # (CLP 2026-09-10, Final!AI30 '=94-AI29-AI28'): a formula
+                # still carrying last year's literal is unproven — painted
+                try:
+                    from openpyxl.comments import Comment as _Cm
+                    from .checks import year_columns as _yc
+                    _tc = _yc(spec, sheet).get(str(target_year))
+                    if _tc:
+                        _cell = wb[sheet][f"{_tc}{r}"]
+                        _cell.fill = writer.fills["red"]
+                        _cell.comment = _Cm(f"Formula still carries last period's constants ({', '.join(lits)}). "
+                                            "Check they still hold.", "Model Update Agent")
+                        if f"{sheet}!{_tc}{r}" not in writer.log["flags"]:
+                            writer.log["flags"].append(f"{sheet}!{_tc}{r}")
+                except Exception:
+                    pass
     return n_ok, n_red
 
 

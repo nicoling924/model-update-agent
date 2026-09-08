@@ -195,17 +195,16 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         prev_c, prev_wrapped = None, None
         prev = _abs_log.get(name)
         if prev:
-            psh, pcoord, porig = prev
+            psh, pcoord, porig, pwrap_f, pwrap = prev
             held_p = wb[psh][pcoord].value if psh in wb.sheetnames else None
-            if isinstance(held_p, str) and held_p.startswith("=(") \
-                    and held_p[2:].startswith(str(porig)[1:]):
+            if held_p == pwrap_f:
                 wb[psh][pcoord] = porig
-                prev_c = (-1, 0, 0, psh, pcoord, porig)
+                prev_c = (-1, 0, psh, pcoord, porig, pwrap)
                 prev_wrapped = (psh, pcoord, held_p)
             elif held_p == porig:
                 # the gate loop's take-back already unwrapped it (CLP live
                 # 2026-09-08: 'total assets' then moved to a second cell)
-                prev_c = (-1, 0, 0, psh, pcoord, porig)
+                prev_c = (-1, 0, psh, pcoord, porig, pwrap)
         try:
             got = Evaluator(wb).cell(sheet, f"{tcol}{row}")
         except Exception:
@@ -216,7 +215,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         if abs(delta) <= max(TOL_ABS, abs(want) * TOL_REL):
             if prev_c is not None:
                 # the key ties on its own now — the back-out is withdrawn
-                _, _, _, psh, pcoord, porig = prev_c
+                _, _, psh, pcoord, porig, _pw = prev_c
                 writer.write(psh, pcoord, porig,
                              prior_coord=(f"{prior_column(spec, psh, target_year)}"
                                           f"{''.join(ch for ch in pcoord if ch.isdigit())}"
@@ -310,27 +309,34 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         seen = set()
         _leaves(wb, sheet, f"{tcol}{row}", seen=seen)
         cands = []
+        # THE ABSORBER IS THE LEAST CONFIDENT LEAF (owner 2026-09-10: "trace
+        # the components within the formula and back out or plug the least
+        # confident cell instead of plugging the entire formula"). Classes,
+        # in order: (0) a red cell — an answer the run could not prove;
+        # (1) a constant carried inside a formula from last year's column
+        # (=94-AI29-AI28: the 94 is last year's one-off total); (2) an
+        # orange cell — already backed out, still unproven; (3) an estimate
+        # formula left in the actual column (formula over a hardcode prior,
+        # run 203). A plain hardcode is a proven serve and a plain formula
+        # of references is the analyst's design — neither absorbs.
         for (sh, coord) in seen - {(sheet, f"{tcol}{row}")}:
             m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not m or m.group(1) != year_columns(spec, sh).get(
                     str(target_year)):
                 continue
-            f = wb[sh][coord].value
-            if not (isinstance(f, str) and f.startswith("=")):
-                continue
-            if _SUBTOTAL.match(f.replace("$", "")):
-                continue      # a subtotal row is never the absorber (run-231)
             if (sh, coord) in key_cells:
                 continue      # never absorb into another key's row
-            if absorbers == "unproven":
-                # the owner's rule: back out only the numbers the run
-                # could NOT find — a red (unresolved) component
-                try:
-                    rgb = str(wb[sh][coord].fill.fgColor.rgb or "")
-                except Exception:
-                    rgb = ""
-                if not rgb.endswith("FFC7CE"):
-                    continue
+            f = wb[sh][coord].value
+            is_formula = isinstance(f, str) and f.startswith("=")
+            if is_formula and _SUBTOTAL.match(f.replace("$", "")):
+                continue      # a subtotal row is never the absorber (run-231)
+            try:
+                rgb = str(wb[sh][coord].fill.fgColor.rgb or "")
+            except Exception:
+                rgb = ""
+            red, orange = rgb.endswith("FFC7CE"), rgb.endswith("FFC000")
+            if absorbers == "unproven" and not red:
+                continue      # the owner's rule: only the numbers the run could NOT find
             pc = prior_column(spec, sh, target_year)
             pv = wb[sh][f"{pc}{m.group(2)}"].value if pc else None
             try:
@@ -339,30 +345,67 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 continue
             if not isinstance(cv, (int, float)):
                 continue
-            type_violation = isinstance(pv, (int, float))
-            # THE OWNER'S RULE (2026-09-04): back out into the numbers the
-            # run could NOT find — a red (unresolved) component absorbs
-            # first; then the estimate-in-actual class; then by size
-            try:
-                red = str(wb[sh][coord].fill.fgColor.rgb or "").endswith("FFC7CE")
-            except Exception:
-                red = False
-            cands.append((0 if red else 1, 0 if type_violation else 1,
-                          -abs(cv), sh, coord, f))
-        for _r, _t, _sz, sh, coord, f in ([prev_c] if prev_c else []) + sorted(cands)[:6]:
-            # probe: wrap the component so it absorbs the delta
-            new_f = f"=({f[1:]})-({delta:.6g})"
+            lit = None
+            if is_formula:
+                # the composites law's own reading of a formula's literals: a
+                # modelling constant (0.5, 2, 100) is design; a carried actual
+                # (94, 4976) that the prior column's formula also holds is last
+                # year's number living in this year's cell
+                from .composites import literals_of as _lits, MODELING_CONSTANTS as _MC, VINTAGE_FLOOR as _VF
+                pf = str(pv) if isinstance(pv, str) else ""
+                for x in _lits(f):
+                    try:
+                        xv = abs(float(x))
+                    except ValueError:
+                        continue
+                    if xv not in _MC and xv >= _VF and pf.startswith("=") and x in pf:
+                        lit = x
+                        break
+            if red:
+                rank = 0
+            elif lit is not None:
+                rank = 1
+            elif orange:
+                rank = 2
+            elif is_formula and isinstance(pv, (int, float)):
+                rank = 3      # the estimate-in-actual class
+            else:
+                continue
+            if is_formula and lit is not None and not red:
+                # a plain formula whose only doubt is the carried literal: the
+                # literal absorbs; a RED formula is unproven as a whole
+                def _wrap(d, f=f, lit=lit):
+                    return re.sub(r"(?<![A-Za-z0-9_.])" + re.escape(lit) + r"(?![\d.])",
+                                  f"({lit}-({d:.6g}))", f, count=1)
+            elif is_formula:
+                def _wrap(d, f=f):
+                    return f"=({f[1:]})-({d:.6g})"
+            else:
+                def _wrap(d, v=cv):
+                    return f"=({v:g})-({d:.6g})"
+            cands.append((rank, -abs(cv), sh, coord, f, _wrap))
+        for _r, _sz, sh, coord, f, _wrap in ([prev_c] if prev_c else []) + sorted(cands, key=lambda c: (c[0], c[1]))[:8]:
+            # probe: the component absorbs the delta — either sign, since a
+            # component may enter the key negatively (one-offs are deducted)
             old = wb[sh][coord].value
-            wb[sh][coord] = new_f
-            try:
-                after = Evaluator(wb).cell(sheet, f"{tcol}{row}")
-            except Exception:
-                after = None
-            untied = {nm for nm, _g, _w, ok in _key_state()
-                      if not ok} & tied_before
-            if isinstance(after, (int, float)) \
-                    and abs(after - want) <= max(TOL_ABS, abs(want) * TOL_REL) \
-                    and not untied:
+            landed = None
+            for _sgn in (1, -1):
+                new_f = _wrap(_sgn * delta)
+                wb[sh][coord] = new_f
+                try:
+                    after = Evaluator(wb).cell(sheet, f"{tcol}{row}")
+                except Exception:
+                    after = None
+                untied = {nm for nm, _g, _w, ok in _key_state()
+                          if not ok} & tied_before
+                if isinstance(after, (int, float)) \
+                        and abs(after - want) <= max(TOL_ABS, abs(want) * TOL_REL) \
+                        and not untied:
+                    landed = new_f
+                    break
+                wb[sh][coord] = old
+            if landed is not None:
+                new_f = landed
                 wb[sh][coord] = old       # land it through the chokepoint
                 ok = writer.write(
                     sh, coord, new_f,
@@ -374,14 +417,13 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                     note=(f"KEY-TIE back-out: '{name}' computed {got:,.2f} "
                           f"vs disclosed {want:,.2f} — this component "
                           f"absorbed the {delta:,.2f} so the key ties the "
-                          f"print. Was: {f[:120]}. ANALYST REVIEW."))
+                          f"print. Was: {str(f)[:120]}. ANALYST REVIEW."))
                 if ok:
                     n += 1
-                    _abs_log[name] = [sh, coord, f]
+                    _abs_log[name] = [sh, coord, f, new_f, _wrap]
                     log(f"[run] key tie: '{name}' {got:,.2f} -> {want:,.2f} "
                         f"via {sh}!{coord} (orange back-out)")
                 break
-            wb[sh][coord] = old           # try the next candidate
         else:
             log(f"[run] key tie: '{name}' OFF {delta:+,.2f} vs print "
                 f"{want:,.2f} and no component could absorb it — "
