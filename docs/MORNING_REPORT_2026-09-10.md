@@ -154,3 +154,18 @@ cells errored; the rule that a row unchanged for two years is a parameter, never
 differs from the by-hand key is definitional and flagged orange: other income inside operating profit, and
 minority interests without the perpetual securities fold. DFE annual and half-year are running on this head as the
 regression pair.
+
+## 13. Closing state (07:50 UTC) — three models clean on one head
+
+| Model | Time | Checks | Keys (honest count) | Red / orange | vs 19:00 yesterday |
+|---|---|---|---|---|---|
+| CLP annual | 40 min | closed, no error cells | 8/10 | 12 / 16 | 60 min, open check, 117 red |
+| DFE annual | 36 min | closed | 8/11 | Model column unchanged; interest income 108.21 plain | 33 min, interest income 10,820 red |
+| DFE half-year | 15 min | Model balance 0, no plugs | 8/11 (total assets and equity via the year-end column) | 4 red on the Model balance sheet | 23 min, 51 red |
+
+Head 0003d8b, museum 175, bench green, four offline floors delivered. The last rule tried (a digit count on
+no-tie reads) was withdrawn within the hour because it refused genuine round figures; its exhibit now pins the
+opposite. What remains open is definitional and sits orange for the analyst (other income inside operating profit;
+minority interests without the perpetual securities fold). The untied key roles are the ones with no printed line
+whose comparative equals the model's figure (gross profit, operating profit, DPS on DFE; DPS and one recurring
+definition on CLP) — reported, not estimated.
