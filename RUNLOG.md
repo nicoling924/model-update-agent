@@ -2133,3 +2133,11 @@ red — the every-scale tie). One plug (Driver!J102), as before. Driver segment 
 no longer read by the image gap reader, the whole-document reader took them — and quoted '1' (a note reference,
 五(六十九)) as a no-prior cash figure; the cash check then plugged 4,117 over it. Rule: a no-tie read needs at least
 three significant digits (a reference or a parameter is not a figure). Museum 175. Re-running DFE 1H25.
+
+## 2026-09-10 — RUN 34199950949 (DFE 1H25, d102c33): DELIVERED clean, 15 min — and the digits rule withdrawn
+
+Balance 0, no ladder plugs, keys 8/11. The digits rule refused two GENUINE round figures ('收到其他与投资活动有关的现金
+1,000,000.00' = RMB 1m; '专项应付款 240,000.00'); the LABEL card then wrote the same 1.0 and the cash check closed on
+it. The earlier 4,117 plug was the ladder's choice of site on an off check, not this read. Rule withdrawn the same
+morning; exhibit replaced by the round-figure acceptance. Museum 175. This closes the night: CLP FY25 clean 40 min,
+DFE FY25 36 min, DFE 1H25 15 min, all on one head.

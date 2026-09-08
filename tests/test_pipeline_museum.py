@@ -4486,22 +4486,24 @@ def test_a_nameless_unchanged_tie_is_no_evidence_2026_09_10():
     print("PASS test_a_nameless_unchanged_tie_is_no_evidence_2026_09_10")
 
 
-def test_a_no_tie_read_needs_digits_2026_09_10():
-    """DFE half-year 2026-09-08: the reader quoted '1' from '收到其他与投资
-    活动有关的现金 五(六十九)' — a note reference — for a no-prior cash row;
-    the cash check then plugged 4,117 over it. A figure has digits."""
+def test_a_round_figure_is_a_figure_2026_09_10():
+    """Withdrawn rule (2026-09-10): a no-tie read was refused for having
+    fewer than three significant digits. '收到其他与投资活动有关的现金
+    1,000,000.00' (RMB 1m) and '专项应付款 240,000.00' are genuine round
+    figures. A read is judged by the print, the tie and the name — never
+    by how round its digits are."""
     from pipeline.reader import verify
-    lines = [_item(51, 3, "收到其他与投资活动有关的现金 五(六十九)", [1.0, 41170000.0]),
-             _item(51, 4, "收到其他与经营活动有关的现金", [253000000.0])]
+    lines = [_item(51, 3, "收到其他与投资活动有关的现金 五(六十九)", [1000000.0]),
+             _item(155, 2, "专项应付款", [240000.0])]
     led = _ledger(lines, face_pages=((51, "cf"),)); led._doc_periods = {DOC: "current"}
     rows = [{"row": "R!207", "sheet": "R", "r": 207, "label": "收到其他与投资活动有关的现金", "prior": None, "prior2": None},
-            {"row": "R!190", "sheet": "R", "r": 190, "label": "收到其他与经营活动有关的现金", "prior": None, "prior2": None}]
-    answers = [{"row": "R!207", "printed": 1.0, "page": 51, "line": "收到其他与投资活动有关的现金 五(六十九)"},
-               {"row": "R!190", "printed": 253000000.0, "page": 51, "line": "收到其他与经营活动有关的现金"}]
-    v = verify(answers, rows, led, {(DOC, 51): 1e6}, lambda s: None, priors=[])
-    assert "R!207" not in v, v
-    assert abs(v["R!190"]["value"] - 253.0) < 0.01 and v["R!190"]["flag"] == "red"
-    print("PASS test_a_no_tie_read_needs_digits_2026_09_10")
+            {"row": "R!148", "sheet": "R", "r": 148, "label": "专项应付款", "prior": None, "prior2": None}]
+    answers = [{"row": "R!207", "printed": 1000000.0, "page": 51, "line": "收到其他与投资活动有关的现金 五(六十九)"},
+               {"row": "R!148", "printed": 240000.0, "page": 155, "line": "专项应付款"}]
+    v = verify(answers, rows, led, {(DOC, 51): 1e6, (DOC, 155): 1e6}, lambda s: None, priors=[])
+    assert abs(v["R!207"]["value"] - 1.0) < 1e-6 and v["R!207"]["flag"] == "red", v
+    assert abs(v["R!148"]["value"] - 0.24) < 1e-6 and v["R!148"]["flag"] == "red", v
+    print("PASS test_a_round_figure_is_a_figure_2026_09_10")
 
 
 if __name__ == "__main__":
