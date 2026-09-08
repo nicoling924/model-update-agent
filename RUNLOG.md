@@ -2170,3 +2170,13 @@ number — the opening/closing rows of every movement table had lost their label
 Phase 2: pipeline/schedules.py — the vertical prior tie (see docs/PLAN_2026-09-10_landscape_pages.md §6).
 Offline on the real DFE model + rebuilt ledger: the PP&E cost and depreciation rolls, the impairment literal
 and the four-literal amortisation formula all served from p184–p193; Net PPE check 0. Museum 184.
+
+## 2026-09-09 — RUN 34245296925 (DFE FY25, e75803c): DELIVERED, 38 min — the Driver PP&E schedule filled from landscape notes
+
+Driver rows 94–122 match the hand-mapped answer key 17/17, no red cell in the block, no plug: Addition 244.41,
+Transfer =1961.8-J95 (1,717.39), Disposal −607.39, Gross PPE 20,217.74, Depreciation −853.97, Disposal 434.56,
+Impairment =-100.682+固定资产清理 (−88.69), Net PPE 6,465.27 = balance sheet (check 0), CIP 1,427.33 → 1,223.32
+with transfer −1,717.39 and addition 1,513.38 by the analyst's own formulas, Amortisation −272.04 by the analyst's
+own method. Balance 0, cash 0, keys 8/11. The previous run (47ccbc2) had served the same cells and then a
+rollover card reverted the Transfer literal (my serve records lacked value/document/page) — fixed in e75803c.
+Elsewhere: one rollover revert on Driver!J11 (Hydro, red, analyst to confirm) — not the night's topic.

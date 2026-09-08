@@ -178,3 +178,12 @@ definition on CLP) — reported, not estimated.
    is untouched, and operating profit is left red at +148 with "no component could absorb" — every cell in its
    chain is a plain served figure, so it is your call, not a plug. Totals still back out into receivables and
    deferred creditors (orange, the same cell each round).
+
+## 15. Night of 2026-09-10: landscape pages and the Driver PP&E schedule — done
+
+Read: 43 landscape pages of DFE's report now read in their displayed orientation (0 → 305 numeric lines);
+portrait pages unchanged; the print's row numbering no longer swallows a table's opening and closing rows.
+Map: a movement table is recognised by its own arithmetic, tied to the model's schedule block by its opening row
+(last year's closing, 1% on amounts only), roles settled by the model's 2024 values against the 2024 table, the
+analyst's carried literals placed at their own precision. Live (run 34245296925, 38 min): the Driver PP&E, CIP and
+intangible rows match the answer key 17/17 with no red and no plug; balance and cash checks 0.
