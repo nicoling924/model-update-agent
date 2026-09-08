@@ -255,6 +255,56 @@ def vision_items(doc, page_no, title, rows, locked_scale):
 # VISION CHANNEL — document-facing parts (lazy heavy imports)
 # ---------------------------------------------------------------------------
 
+def rotated_text(pg, tol=3.0):
+    """A PAGE IS READ IN ITS DISPLAYED ORIENTATION (owner 2026-09-10: 43 of
+    DFE's 280 annual-report pages are landscape; pdfplumber lines their
+    vertical characters up on the wrong axis and every string arrives
+    reversed — '53.552,755,368,81' for 18,863,557,255.35, so the fixed-asset,
+    CIP and intangible notes were invisible). The PDF says how the page is
+    displayed (/Rotate) and each character carries its position: on a
+    90/270 page a LINE is a run of characters sharing x, read along y in
+    the direction the rotation implies; lines follow each other along x.
+    Portrait pages never come here."""
+    rot = int(getattr(pg, "rotation", 0) or 0) % 360
+    if rot not in (90, 270):
+        return None
+    chars = [c for c in pg.chars if str(c.get("text", "")).strip() or c.get("text") == " "]
+    if not chars:
+        return ""
+    # cluster on the fixed axis (x): a line
+    chars.sort(key=lambda c: ((c["x0"] + c["x1"]) / 2.0))
+    lines, cur, cur_x = [], [], None
+    for c in chars:
+        xm = (c["x0"] + c["x1"]) / 2.0
+        if cur and abs(xm - cur_x) > tol:
+            lines.append(cur)
+            cur = []
+        if not cur:
+            cur_x = xm
+        cur.append(c)
+    if cur:
+        lines.append(cur)
+    # 270: the top of the displayed page is the smallest x, and a line reads
+    # from large y to small y; 90: the mirror of both
+    if rot == 90:
+        lines.reverse()
+    out = []
+    for ln in lines:
+        ln.sort(key=lambda c: -c["top"] if rot == 270 else c["top"])
+        s, prev = [], None
+        for c in ln:
+            if prev is not None:
+                gap = (prev["top"] - c["bottom"]) if rot == 270 else (c["top"] - prev["bottom"])
+                if gap > tol:
+                    s.append(" ")
+            s.append(c["text"])
+            prev = c
+        text = "".join(s).strip()
+        if text:
+            out.append(text)
+    return "\n".join(out)
+
+
 def page_texts(pdf_path, cache_dir=".cache/pipeline-text"):
     """[(page_no, text, cls)] for a document, disk-cached by content hash.
 
@@ -268,7 +318,7 @@ def page_texts(pdf_path, cache_dir=".cache/pipeline-text"):
     h = hashlib.sha1()
     h.update(p.name.encode())
     h.update(str(p.stat().st_size).encode())
-    h.update(b"text-v1")
+    h.update(b"text-v2")      # v2: landscape pages read in their displayed orientation
     ck = Path(cache_dir) / f"{h.hexdigest()[:20]}.json"
     if ck.exists():
         return [(pn, t, c) for pn, t, c in json.loads(ck.read_text())]
@@ -276,7 +326,8 @@ def page_texts(pdf_path, cache_dir=".cache/pipeline-text"):
     out = []
     with pdfplumber.open(pdf_path) as pdf:
         for i, pg in enumerate(pdf.pages):
-            txt = (pg.extract_text() or "").strip()
+            rt = rotated_text(pg)
+            txt = (rt if rt is not None else (pg.extract_text() or "")).strip()
             digits = sum(ch.isdigit() for ch in txt)
             big = any(im["srcsize"][0] * im["srcsize"][1] >= MIN_PAGE_IMAGE_PIXELS
                       for im in pg.images)
@@ -293,7 +344,7 @@ def classify_pages(pdf_path):
     return {pn: cls for pn, _t, cls in page_texts(pdf_path)}
 
 
-def _page_image(pg):
+def _page_image_raw(pg):
     """Best PIL image for a scanned page: CCITT text mask first, JPEG second.
 
     Scanned CN filings are layered (MRC): a 1-bit CCITT mask carries every
@@ -329,6 +380,15 @@ def _page_image(pg):
             except Exception:
                 jpeg = None
     return mask or jpeg
+
+
+def _page_image(pg):
+    """The scan, turned the way the page is displayed (see rotated_text)."""
+    im = _page_image_raw(pg)
+    rot = int(getattr(pg, "rotation", 0) or 0) % 360
+    if im is not None and rot:
+        im = im.rotate(-rot, expand=True)     # PIL rotates counter-clockwise; /Rotate is clockwise
+    return im
 
 
 def _encode(img, long_edge):

@@ -4548,6 +4548,33 @@ def test_key_tie_backs_out_the_least_confident_leaf_2026_09_10():
     print("PASS test_key_tie_backs_out_the_least_confident_leaf_2026_09_10")
 
 
+def test_a_page_is_read_in_its_displayed_orientation_2026_09_10():
+    """Owner 2026-09-10: 43 of DFE's 280 annual-report pages are landscape
+    (/Rotate 270); their characters run vertically and the extractor lined
+    them up on the wrong axis — every string reversed, the fixed-asset,
+    CIP and intangible notes invisible. Read on the real page."""
+    import pdfplumber
+    from pathlib import Path
+    from pipeline.stage1_read import rotated_text
+    pdf_path = Path("companies/DFE/disclosures/FY25/DFE 2025 Annual Report (CN).pdf")
+    if not pdf_path.exists():
+        print("SKIP test_a_page_is_read_in_its_displayed_orientation_2026_09_10 (no DFE report)")
+        return
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        pg = pdf.pages[183]
+        assert pg.rotation == 270
+        lines = rotated_text(pg).splitlines()
+        assert lines[0] == "东方电气股份有限公司", lines[0]
+        key = [l for l in lines if l.startswith("（1）上年年末余额")]
+        assert key and key[0].endswith("2,109,448,125.97 18,863,557,255.35"), key[:1]
+        assert any(l.startswith("—在建工程转入") and l.endswith("1,712,244,672.22") for l in lines)
+        assert rotated_text(pdf.pages[0]) is None                # a portrait page never comes here
+        from pipeline.stage1_read import _page_image
+        im = _page_image(pg)
+        assert im is None or im.size[0] > im.size[1]             # a scan of a landscape page is landscape
+    print("PASS test_a_page_is_read_in_its_displayed_orientation_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

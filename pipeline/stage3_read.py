@@ -172,8 +172,12 @@ def _page_png(pdf, pn, cache):
                 out = _encode(img, 2200)
         if out is None:
             im = pg.to_image(resolution=150)
+            pil = im.original.convert("RGB")
+            _rot = int(getattr(pg, "rotation", 0) or 0) % 360
+            if _rot:
+                pil = pil.rotate(-_rot, expand=True)     # the render ignores /Rotate; show the page as displayed
             buf = io.BytesIO()
-            im.original.convert("RGB").save(buf, "PNG")
+            pil.save(buf, "PNG")
             out = ("image/png", base64.b64encode(buf.getvalue()).decode())
     except Exception:
         out = None
