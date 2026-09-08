@@ -2114,3 +2114,12 @@ Its run_log shows why: 101 image calls, most answering nothing — every row wit
 rode EVERY region in 70-row chunks (~600 rows × 11 regions). Rule: a row is read where its prior prints (the
 checksum's comparative); a homeless row belongs to the whole-document reader, which already saw every page.
 Pinned (rows_for_region); museum 172. Dispatched CLP FY25 on this head.
+
+## 2026-09-10 — RUN 34193572830 (CLP FY25, b2f9f2f): DELIVERED clean, 40 min
+
+Checks closed, no error cells, keys 8/10, Final AI red 12 / orange 16; Yangjiang 570 (named line), capacity 1,108
+kept, unit cost computes. Timeline: documents 4 min, reader 1.5 min, gap reader 4.5 min, cards 28 min (327 calls,
+0 drained). Remaining differences from the by-hand key are definitional (other income inside operating profit;
+minority interests without the PCS fold) plus the two back-outs that absorb them (receivables, deferred creditors).
+Preceding run 34190407637 (e99da58): 41 min but 888 error cells from one card zeroing a constant capacity —
+root cause of the constant-row rule. Next: DFE FY25 + 1H25 on b2f9f2f as the regression pair, then stop.

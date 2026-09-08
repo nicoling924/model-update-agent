@@ -136,3 +136,21 @@ Where CLP's hour goes, now that the log has real timestamps: 4 minutes reading a
 in the older image-based gap reader (168 rows), 1 minute in the new whole-document reader (194 rows), 20 minutes
 of cards. The fix is ordering, not a rule: the fast text read now runs first and the image reader takes only what
 it leaves. Dispatched CLP annual on that head as the timing proof.
+
+## 12. CLP annual on the final head: delivered clean in 40 minutes
+
+| | Run 262 (start of night) | Now (b2f9f2f) |
+|---|---|---|
+| Time | 60 min, open check | 40 min, clean |
+| Checks | ROAFNA −184 | both 0, no error cells |
+| Keys | 8/9 (flattered) | 8/10 (honest count) |
+| Red / orange | 117 / 45 | 12 / 16 |
+| Cards' share of the hour | 15 min, 160 drained | 28 min, nothing drained |
+
+Where the last twenty minutes went: the image-based gap reader had been sending every row with no printed prior
+to every statement region (101 calls, 33 minutes); now a row is read where its prior prints (13 calls, 4.5 minutes).
+With the extra card time one card zeroed a plant's constant capacity (a lone printed 1,108 read as a nil) and 888
+cells errored; the rule that a row unchanged for two years is a parameter, never a nil, closed that. What still
+differs from the by-hand key is definitional and flagged orange: other income inside operating profit, and
+minority interests without the perpetual securities fold. DFE annual and half-year are running on this head as the
+regression pair.
