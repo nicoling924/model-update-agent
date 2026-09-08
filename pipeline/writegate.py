@@ -253,8 +253,19 @@ def _ties_full_precision(x, prior):
     return abs(abs(x) - p) <= min(tol, p * 2e-3)
 
 
+def row_is_constant(prior, prior2):
+    """THE CONSTANT ROW (CLP 2026-09-08: a plant's capacity, 1,108 MW,
+    printed alone in the presentation's plant list, was read as 'last
+    year's figure beside a blank' and zeroed — the divisor of every year's
+    unit cost). A row whose last two years hold the same figure is a
+    parameter; a lone printed number equal to it is the parameter again,
+    never a nil. The model's own history is the evidence."""
+    return (isinstance(prior, (int, float)) and isinstance(prior2, (int, float))
+            and prior != 0 and abs(prior2 - prior) <= max(0.005, abs(prior) * 1e-6))
+
+
 def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
-                     statement_faces=None, row_label=None):
+                     statement_faces=None, row_label=None, prior2=None):
     """The dash-nil law (run-11 pin, treasury shares): a statement line
     printing a standalone nil mark IMMEDIATELY before a number that ties
     the model's prior to full precision proves the current value is zero
@@ -269,6 +280,8 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
     - the nil token must sit DIRECTLY before the tying number — the
       empty current slot, then the comparative, nothing between.
     Returns the proving item or None."""
+    if row_is_constant(prior, prior2):
+        return None                     # a constant printed alone is the constant
     if not isinstance(prior, (int, float)) or abs(prior) < 0.5:
         return None
     # a year-like prior can never nil-prove (run CLP-1: the 2024 YEAR

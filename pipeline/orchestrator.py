@@ -1406,9 +1406,11 @@ class ObjectiveLoop:
             # the verifier judges the SAME evidence the card showed (run
             # 252: the brain answered 0 on the bond line and was refused
             # because a vision-read statement line carries no face tag)
+            _t_nil = self.targets.get((sheet, row))
             _hit = _ncz(self.ledger.items, pv_cell,
                         {(i.doc, i.page) for i in self.ledger.items},
-                        self.ledger.noncurrent_docs())
+                        self.ledger.noncurrent_docs(),   # evidence: a prior-vintage document is never a SOURCE of this year's figure (unchanged argument)
+                        prior2=getattr(_t_nil, "prior2_value", None))
             if _hit is not None:
                 verdict, forced_flag = "ALLOW", None
                 law_reason = "proven — the blank line's one figure is the prior"

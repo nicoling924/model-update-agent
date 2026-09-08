@@ -744,8 +744,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             import re as _re
             if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
                 continue                # a subtotal is never nil-proven
+            from .checks import year_columns as _yc_nil
+            _p2c = _yc_nil(spec_d, sheet).get(str(target_year - 2))
+            _p2 = wb[sheet][f"{_p2c}{r}"].value if _p2c else None
             it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs,
-                                   row_label=lab)
+                                   row_label=lab, prior2=_p2)
                   if isinstance(pv, (int, float)) else None)
             # an interim balance sheet prints the YEAR-END comparative:
             # the annual prior is the second figure a nil may sit beside

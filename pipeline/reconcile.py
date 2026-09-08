@@ -314,6 +314,17 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                     if not _kin_w(str(it.label or ""), str(wb[sheet].cell(r, 1).value or "")):
                         mapping["wide_unkin"] = mapping.get("wide_unkin", 0) + 1
                         continue
+                # A NAMELESS LINE PRINTING LAST YEAR'S NUMBER TWICE (CLP
+                # 2026-09-08: 'Tallawarra A & B Power Stations 760 | 760'
+                # claimed the Yangjiang row, prior 760, and held it at 760
+                # while the named line printed 570): a bare number tie is
+                # evidence only when it carries news — an unchanged figure
+                # under another name is a coincidence, and says nothing
+                from .numerics import kinship as _kin_u
+                if abs(cur - pv) <= row_tol(pv) \
+                        and not _kin_u(str(it.label or ""), str(wb[sheet].cell(r, 1).value or "")):
+                    mapping["nameless_unchanged"] = mapping.get("nameless_unchanged", 0) + 1
+                    continue
                 tol = row_tol(by_row[(sheet, r)])
                 # THE OUT-OF-WORLD GUARD FIRES ONLY ON A WEAK MAP (owner
                 # 2026-09-08): on a ratified face where the line's label

@@ -196,7 +196,8 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
         nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
         if len(nums) != 1:
             continue
-        hit = nil_current_zero([it], pv, {(it.doc, it.page)}, bad)
+        hit = nil_current_zero([it], pv, {(it.doc, it.page)}, bad,
+                               prior2=getattr(t, "prior2_value", None))
         if hit is None or (it.doc, it.page, str(it.label)[:40]) in seen_nil:
             continue
         seen_nil.add((it.doc, it.page, str(it.label)[:40]))

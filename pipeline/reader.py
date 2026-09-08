@@ -113,8 +113,10 @@ def rows_to_read(wb, spec, target_year, targets, served):
             # above them moved). A row the analyst never filled is not an
             # input — the model's own history says what the analyst tracks.
             continue
+        p2 = getattr(t, "prior2_value", None)
         out.append({"row": f"{sheet}!{row}", "sheet": sheet, "r": row, "label": lab,
-                    "prior": (round(float(pv), 4) if isinstance(pv, (int, float)) else None)})
+                    "prior": (round(float(pv), 4) if isinstance(pv, (int, float)) else None),
+                    "prior2": (round(float(p2), 4) if isinstance(p2, (int, float)) else None)})
     return out
 
 
@@ -219,8 +221,10 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
             continue
         printed, line, pv = a.get("printed"), str(a.get("line") or ""), r["prior"]
         item = _printed_match(ledger.items, page, printed, line, sources)
+        from .writegate import row_is_constant as _const
+        constant = _const(pv, r.get("prior2"))
         if item is None:
-            nil = _nil_line(ledger.items, page, pv, sources) if printed in (None, 0, 0.0) else None
+            nil = _nil_line(ledger.items, page, pv, sources) if printed in (None, 0, 0.0) and not constant else None
             if nil is not None:
                 out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": nil.doc,
                             "page": page, "line": str(nil.label)[:60],
@@ -251,6 +255,13 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                 if tied:
                     break
             if tied is None and len(nums) == 1 and any(_ties_full_precision(raw / f, pv) for f in _SCALES):
+                if constant:
+                    # the row's own history says this figure does not move: the
+                    # lone number IS this year's value (a capacity, a rate)
+                    out[rid] = {"value": float(pv), "conf": 4, "flag": None, "note": None, "doc": item.doc,
+                                "page": page, "line": str(item.label)[:60],
+                                "why": "read: a constant row — the printed figure is the parameter again"}
+                    continue
                 if specific:
                     out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": item.doc,
                                 "page": page, "line": str(item.label)[:60],

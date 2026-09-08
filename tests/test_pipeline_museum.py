@@ -4442,6 +4442,50 @@ def test_gap_reader_reads_a_row_where_its_prior_prints_2026_09_10():
     print("PASS test_gap_reader_reads_a_row_where_its_prior_prints_2026_09_10")
 
 
+def test_a_constant_row_is_never_nil_2026_09_10():
+    """CLP 2026-09-08: Yangjiang's capacity (1,108 MW, the same every year)
+    printed alone in the plant list was read as 'last year's figure beside
+    a blank' and zeroed — the divisor of every year's unit cost (888 error
+    cells). The model's own history says the figure does not move."""
+    from pipeline.writegate import nil_current_zero, row_is_constant
+    from pipeline.reader import verify
+    assert row_is_constant(1108.0, 1108.0) and not row_is_constant(1108.0, 1090.0)
+    line = _item(41, 3, "Guangdong Yangjiang Nuclear", [1108.0])
+    led = _ledger([line], face_pages=((41, "pl"),)); led._doc_periods = {DOC: "current"}
+    assert nil_current_zero([line], 1108.0, {(DOC, 41)}, set()) is not None          # no history: the old law
+    assert nil_current_zero([line], 1108.0, {(DOC, 41)}, set(), prior2=1108.0) is None
+    rows = [{"row": "CN!136", "sheet": "CN", "r": 136, "label": "Yangjiang", "prior": 1108.0, "prior2": 1108.0}]
+    v = verify([{"row": "CN!136", "printed": 1108.0, "page": 41, "line": "Guangdong Yangjiang Nuclear"}],
+               rows, led, {(DOC, 41): 1.0}, lambda s: None, priors=[1108.0])
+    assert v["CN!136"]["value"] == 1108.0 and v["CN!136"]["conf"] == 4, v
+    v0 = verify([{"row": "CN!136", "printed": None, "page": 41, "line": "Guangdong Yangjiang Nuclear"}],
+                rows, led, {(DOC, 41): 1.0}, lambda s: None, priors=[1108.0])
+    assert "CN!136" not in v0, v0
+    print("PASS test_a_constant_row_is_never_nil_2026_09_10")
+
+
+def test_a_nameless_unchanged_tie_is_no_evidence_2026_09_10():
+    """CLP 2026-09-08: 'Tallawarra A & B Power Stations 760 | 760' claimed
+    the Yangjiang row (prior 760) and held it at 760; the named line
+    printed 570. A bare number tie carries news or it is a coincidence."""
+    import openpyxl
+    from pipeline.reconcile import reconcile
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "CN"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T3"], ws["T4"] = 58000.0, 39000.0
+    ws["A31"], ws["T31"] = "Yangjiang", 760.0
+    ws["A32"], ws["T32"] = "Share capital", 500.0
+    spec = {"year_axis": {"CN": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    nameless = _item(247, 9, "Tallawarra A & B Power Stations New South Wales", [760.0, 760.0])
+    named = _item(25, 4, "Share capital", [500.0, 500.0])
+    led = _ledger(_anchors(247) + _anchors(25) + [nameless, named], face_pages=())
+    led._doc_periods = {DOC: "current"}
+    serves, mapping = reconcile(wb, spec, 2025, led, lambda s: None)
+    assert ("CN", 31) not in serves and mapping.get("nameless_unchanged", 0) >= 1, (serves.get(("CN", 31)), mapping)
+    assert serves.get(("CN", 32), {}).get("value") == 500.0          # the named unchanged line still serves
+    print("PASS test_a_nameless_unchanged_tie_is_no_evidence_2026_09_10")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
