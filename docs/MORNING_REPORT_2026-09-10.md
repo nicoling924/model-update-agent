@@ -57,3 +57,46 @@ The reader asked 182 rows in one call and wrote 16 (7 proven, 9 red with citatio
 - **The column roll overwrote the analyst's header.** 'H124' was copied over 'H125', leaving two H124 columns; the header roll only knew four-digit years. A target header marking another period is the author's and stays; two-digit marks move one period on.
 - **Note pages without anchors were never walked.** The dividends-payable note (p153) tied the model's year-end prior exactly but could not ratify its own scale. A page without anchors now takes the scale most of its document's ratified pages carry (81 pages on the half-year, 93 on the annual joined the walk).
 - Result on the half-year ledger: the Model's balance check closes (only the cash-difference row is off by 1, a rounding), dividends payable 1,371.19 and fixed assets 5,472.69 served from the notes, headers intact. Annual ledger: delivered, 134 rows served.
+
+## 8. Live run 261 (DFE half-year, head 08f5ba2) — DELIVERED, 23 min, the Model column balances
+
+| | 256 (last half-year) | 261 |
+|---|---|---|
+| Model H125 balance check | −1,389 (never gated: panel unrecognised) | 0 |
+| Cash difference row | 8,188 | 0 |
+| Investing cash flow (Model) | −9,064 (parent cash mis-served) | −876.58 (print −876.50) |
+| Attributable profit | 947 (wrong column) | 1,909.80 (print) |
+| Dividends payable | stale 1,485 | 1,371.19 from the note (p153) |
+| Key numbers (code's count) | 7/8 | 6/6 |
+| Plugs | 0 | 1 (3m, a receivables line) |
+| Red cells in the half-year columns | 13 | 51 |
+
+The reader answered 227 rows and wrote 41 (3 proven, 38 red with citations). Most of the reds are Driver-sheet rows that were empty in the prior half-year too (segment revenues from the segment note, balance-sheet lines): they land red with a page reference, exactly as the no-prior rule says, but they are probably reference rows the analyst never fills. One ruling for you: should the agent read rows that were never filled in the interim panel, or leave them empty? (Boss doc §A: some interim breakdowns are reference only.)
+
+## 9. Live run 262 (CLP annual, head 08f5ba2) — DELIVERED WITH OPEN CHECKS at the hour, and what it taught
+
+| | 234 (last CLP annual) | 262 | 262 replayed on the fixed head (no brain) |
+|---|---|---|---|
+| Time | ~40 min | 60 min (reader 37 min) | — |
+| Balance / ROAFNA checks | 0 / 0 | 0 / −184 open | 0 / 0 |
+| Keys (code's count) | — | 8/9 | 8/8 |
+| Against the by-hand key (11 lines) | 10/11 | 7/11 | intangibles, JVs, total assets back on the face values |
+| Red / orange in the actual columns | — | 117 / 45 | 7 / 14 |
+
+What went wrong, in order of damage: the reader re-sent the three documents four times (37 minutes, the queue
+starved); it wrote printed totals into rows you never fill and every sum above them moved; a balance card was
+allowed to replace the face's intangibles figure with a segment's goodwill because the segment row happened to
+contain last year's total; the fuel clause's sign was dropped; the key tie stacked three different back-outs on
+total assets across gate rounds; and the report counted a key that had no print at all. All fixed as evidence
+rules (RUNLOG 2026-09-10, museum 163, commits 7e4d383 and 20eae3b); the fixed head replays run 262 with checks
+closed, 8/8 keys and 7 red cells.
+
+**Rulings needed from you (not fixed, by design):**
+- Operating profit: the print (14,272, its comparative = your 14,903) vs the by-hand's 13,812 with other income
+  460 split out. The agent follows the print by the prior tie. Which is your definition?
+- Minority interests: 5,943 (other NCI, the prior tie) vs the by-hand 9,815 (NCI + perpetual capital securities).
+- One-offs (185 disposal, 608 write-down): read from the announcement's bridge, red; the by-hand left them 0.
+- Never-filled rows (also the 39 Driver rows in run 261): the agent now leaves them empty. Say if any should be read.
+- Fuel clause (Final!61/81): the live card now offers −1,043 (closing balance moved to a liability); confirm.
+
+Next: CLP annual and DFE annual dispatched together on the fixed head (20eae3b) as the regression pair.

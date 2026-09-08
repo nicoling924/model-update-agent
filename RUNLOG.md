@@ -2040,3 +2040,38 @@ verifies. 3 plugs, 34 red cells (12 of them reader reads), 8/8 keys.
   8/8; one open check (ROAFNA 2025, 1,405) delivered red. Half-year
   floor: Model balance 0, dividends payable 1,371.19 from the note. Head
   proven on all three ledgers; museum 151.
+
+## 2026-09-10 (early morning) — RUN 262 (CLP FY25, head 08f5ba2): DELIVERED WITH OPEN CHECKS, 60 min — autopsy and fix set (7e4d383, 20eae3b)
+
+Live: delivered at the hour with ROAFNA!AI31 open (−184); keys 8/9 by the report; 7/11 against the by-hand key;
+117 red / 45 orange in the AI columns. The reader took 37 of the 60 minutes (332 rows in four 90-row chunks, each
+re-sending all three documents); the queue got 15 minutes and drained 160 cards.
+
+Root causes (each fixed as an evidence rule, pinned, museum 163):
+1. Reader chunking multiplied the document text — one call now carries every row.
+2. Reader wrote printed totals into rows the analyst never fills (CFI block header, FCFF, 'Dividend', 'Scheme of
+   control items') and every sum above them moved — a row with no number in any year is not an input.
+3. A no-tie read into 'Special dividend' from 'Fourth interim dividend declared' zeroed the final DPS — a no-tie
+   read must be named like its row (same script; across scripts the brain's mapping stands, red).
+4. writegate.ties_prior counted a row as 'tying the prior' when the prior appeared ANYWHERE on it: the segment
+   matrix row '6,359 | 2,852 | 3,128 | 106 | 12,445' made 6,359 'proven' and a balance card overwrote the face's
+   12,685 (Final!66). The prior must be the number's own comparative — the pair the walk reads.
+5. The balance card's co-printed candidates ignored the matrix rule and the sign of the tie: the fuel clause closed
+   (1,043) where 370 had printed as (370); +1,043 was written. reconcile.table_kind is now the one period/matrix
+   law for the walk, the cards and the evidence gate; candidates carry the tie's sign.
+6. The key tie stacked back-outs: each gate round wrapped a DIFFERENT component of total assets (receivables, then
+   investment securities, then non-current assets). One absorber per key; a re-tie unwraps the same cell.
+7. The component card's 'two readings' override let an untied number replace a proven one when a check moved
+   (replay: joint ventures 12,125 -> 4,379 red). Removed — a reading of an item is a line whose comparative is the
+   prior, and such a line passes the evidence law on its own.
+8. Report count: a key row with no printed tie is now counted as untied (operating cash flow had no panel entry and
+   the count read 8/9 while the row sat 1,308 off).
+9. numerics.kinship: the CJK shared-stem rule (2026-09-08) was unreachable behind a bare return.
+
+Offline: run 262 replayed on 20eae3b — delivered, Final!AI99 = 0, ROAFNA!AI31 = 0, keys 8/8, Final AI red 117 -> 7,
+orange 45 -> 14; intangibles and joint ventures on the face values. Remaining differences from the by-hand key are
+definitional (other income 460 split out of operating profit; one-offs; minority interests with the PCS fold) or
+card-dependent (the fuel clause side — the replay scripts 'not_disclosed'; live the card now offers −1,043).
+Floors: DFE FY25 (254) delivered, 9/12 (three roles have no print: gross profit, operating profit, DPS); the bond
+line's ladder plug (−0.46) is identical on the old head (baseline replay) — the live reader serves that line 0.
+DFE 1H25 (256) delivered, Model balance off by 1 (rounding), 9/10. CLP 257 delivered, 8/8.
