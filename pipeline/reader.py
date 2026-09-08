@@ -286,6 +286,15 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
             if log:
                 log(f"[read]   unverified {rid}: {raw:,.2f} is out of the row's world (prior {pv:,.2f}) — not written")
             continue
+        if tied is None and _sig_digits(raw) < 3:
+            # DFE half-year 2026-09-08: '收到其他与投资活动有关的现金 五(六十九)' was
+            # read as 1.00 — the note reference, not a figure — and the cash
+            # check then plugged 4,117 over it. A printed figure has digits;
+            # one or two significant digits with no prior tie is a reference
+            # or a parameter, never this year's amount
+            if log:
+                log(f"[read]   unverified {rid}: {raw!r} has fewer than three significant digits and no prior tie — a reference, not a figure")
+            continue
         f_use = tied or scale or dom.get(item.doc)       # a sentence page, a note: the document's own scale
         if not f_use and isinstance(pv, (int, float)) and abs(pv) >= 0.5:
             f_use = next((f for f in _SCALES if abs(raw / f) <= 30 * abs(pv) and abs(raw / f) * 30 >= abs(pv)), None)

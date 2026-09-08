@@ -2123,3 +2123,13 @@ kept, unit cost computes. Timeline: documents 4 min, reader 1.5 min, gap reader 
 minority interests without the PCS fold) plus the two back-outs that absorb them (receivables, deferred creditors).
 Preceding run 34190407637 (e99da58): 41 min but 888 error cells from one card zeroing a constant capacity —
 root cause of the constant-row rule. Next: DFE FY25 + 1H25 on b2f9f2f as the regression pair, then stop.
+
+## 2026-09-10 — RUNS 34196724937 (DFE FY25) and 34196731369 (DFE 1H25) on b2f9f2f: both DELIVERED
+
+FY25: 36 min, keys 8/11, Model column identical to the morning run; interest income 108.21 plain (was 10,820.82
+red — the every-scale tie). One plug (Driver!J102), as before. Driver segment reads differ run to run (red 36 vs
+23) — no by-hand key for the Driver tab; the delivered statements are unchanged.
+1H25: 18 min, keys 8/11 (total assets and equity via the year-end column). One regression: with homeless rows
+no longer read by the image gap reader, the whole-document reader took them — and quoted '1' (a note reference,
+五(六十九)) as a no-prior cash figure; the cash check then plugged 4,117 over it. Rule: a no-tie read needs at least
+three significant digits (a reference or a parameter is not a figure). Museum 175. Re-running DFE 1H25.
