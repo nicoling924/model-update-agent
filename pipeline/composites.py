@@ -430,6 +430,8 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None, served=No
             if not lits or not any(abs(float(x)) >= VINTAGE_FLOOR
                                    for x in lits):
                 continue
+            if served is not None and (sheet, r) in served:
+                continue          # a formula the vertical tie already rewrote (schedules.py) is proven; its literals are this year's
             ok, msg = rewrite_cell(wb, spec, target_year, ledger, writer,
                                    sheet, r)
             if not ok and ("UNPROVEN" in msg or "REFUSED" in msg):
