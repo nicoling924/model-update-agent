@@ -2075,3 +2075,20 @@ card-dependent (the fuel clause side — the replay scripts 'not_disclosed'; liv
 Floors: DFE FY25 (254) delivered, 9/12 (three roles have no print: gross profit, operating profit, DPS); the bond
 line's ladder plug (−0.46) is identical on the old head (baseline replay) — the live reader serves that line 0.
 DFE 1H25 (256) delivered, Model balance off by 1 (rounding), 9/10. CLP 257 delivered, 8/8.
+
+## 2026-09-10 (morning) — RUNS 34178023348 (CLP FY25) and 34178028408 (DFE FY25) on 2e333e8: both DELIVERED
+
+CLP: 62 min, checks closed (Final!AI99 0, ROAFNA!AI31 0), keys 8/10, Final AI red 8 / orange 15 (run 262: 117 / 45);
+reader 71 s (run 262: 37 min); intangibles and joint ventures on the face values. Still off the by-hand key:
+fuel clause +1,043 (the reader forced the prior's sign although the comparative printed negated — fixed: the sign
+of the tie carries); associates 7,532 (a balance card took 'listed 954 | unlisted 7,532 | total 8,486' as a period
+pair because 8,486 is the prior — fixed: a row total is not a comparative; a second tying line now lands red beside
+a proven figure); the key tie moved to a second absorber after the gate loop's take-back (fixed: the recorded
+absorber is reused). Queue budget 17.4 min: ~40 min pass before the queue (stage-1 vision votes, docid, the walk);
+workflow logs now unbuffered so the next run shows real stage timestamps.
+DFE: 36 min, keys 8/11 (gross profit, operating profit, DPS have no printed tie), reader 41 s, same two plugs as
+run 260. Interest income 10,820.82 red: the reader tried the tie only at the page's ratified scale (10^4) while the
+comparative ties at 10^6 (108.21) — fixed: every legal scale.
+Owner 2026-09-10: interim balance-sheet keys take the model's year-end column as the prior (run 261 reported total
+assets 'not tied'); a comparative no model column holds becomes an analyst question, never an estimate.
+Commits e42f36c, +1 (row total). Museum 170.
