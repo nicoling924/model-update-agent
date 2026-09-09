@@ -2180,3 +2180,22 @@ with transfer −1,717.39 and addition 1,513.38 by the analyst's own formulas, A
 own method. Balance 0, cash 0, keys 8/11. The previous run (47ccbc2) had served the same cells and then a
 rollover card reverted the Transfer literal (my serve records lacked value/document/page) — fixed in e75803c.
 Elsewhere: one rollover revert on Driver!J11 (Hydro, red, analyst to confirm) — not the night's topic.
+
+## 2026-09-09 — THE SENSE CHECK (owner's rule), five live pairs to settle it
+
+Rule: the report's mini P&L, updated model vs the analyst's pre-update model; a line whose next-year change is
+more than 10 points away from its actual-year change is suspicious. Checkpoint after the automatic fill (chain
+cells to the queue's front as review cards, red first; rolled-into-zero rows back to zero); final pass after the
+checks (one review card per line, then keys and balance again). Lessons from the live pairs, each pinned:
+- cash-flow lines swing by nature — the check reads the mini P&L roles only;
+- a review that opened a check was taken back even when the check was already open — now only NEW failures;
+- a review served an unproven line (Australia revenue 1,801) and next year's revenue went to −95 billion while
+  the balance closed — a review now serves only a figure whose line ties the prior, and a review that widens any
+  headline gap is taken back (the review is judged by its own measure);
+- the sense-check lines have their own section on the report tab (they had been cut off a 40-line verdict list).
+Final pair (580c300): CLP FY25 48 min, clean, keys 8/10, red 14 / orange 17 — checkpoint clean, four lines out of
+line after the cards (operating profit −4.0% / +35.4%; net profit −5.8% / +21.5%), reviews refused as unproven,
+written up with the cells to look at; next year's revenue sane. DFE FY25 36 min, clean (the 11-unit interest-roll
+gap closed this time), schedule 17/17, keys 8/11; operating profit (+21.2% / −4.8%) and EPS written up.
+Live so far the sense check detects, reviews and gives up safely; it has not yet resolved a line by itself — the
+review candidates were second readings without a prior tie. Museum 185.

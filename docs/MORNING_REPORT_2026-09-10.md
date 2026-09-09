@@ -187,3 +187,15 @@ Map: a movement table is recognised by its own arithmetic, tied to the model's s
 (last year's closing, 1% on amounts only), roles settled by the model's 2024 values against the 2024 table, the
 analyst's carried literals placed at their own precision. Live (run 34245296925, 38 min): the Driver PP&E, CIP and
 intangible rows match the answer key 17/17 with no red and no plug; balance and cash checks 0.
+
+## 16. The sense check (9 September, your rule)
+
+What it does: after the automatic fill and again after the checks, it reads the report's mini P&L against your
+pre-update model. A line whose next-year change sits more than 10 points from its actual-year change is reviewed:
+its inputs go to the front of the card queue, your own red cells first; a review may land only a proven figure and
+is taken back if it widens any headline gap or opens a check; what remains is written on the report tab with the
+cells to look at. Live: CLP flags operating profit (−4% actual, +35% forecast) and net profit (−6% / +22%) after
+the cards; DFE flags operating profit (+21% / −5%) and EPS. Neither resolved by the agent yet — the candidates it
+was offered did not tie the prior — but nothing it tried was allowed to make the model worse, and both runs
+delivered clean (CLP 48 min, DFE 36 min with the interest-roll gap closed). Next, when you are back on the report
+page: the REPORT tab revamp you asked to be reminded of.
