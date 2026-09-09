@@ -215,6 +215,7 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         if time.monotonic() - t0 > max(30.0, deadline_s - 60):
             lines.append("UNRESOLVED (no time left) " + reason_text(d))
             continue
+        rolled_into_zero(wb, pre_wb, spec, ty, chain_cells(wb, spec, ty, d, writer), writer, log)
         verdict, text, _leaf = investigate_line(loop, pre_wb, d, log, rerun=rerun)
         lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
     changed = writer.log.get("writes_all", [])[mark:]

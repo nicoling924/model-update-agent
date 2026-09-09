@@ -92,6 +92,8 @@ def contributors(wb, pre_wb, sheet, coord):
         mc = re.match(r"^([A-Z]{1,3})(\d+)$", c)
         pre_v = _pre_val(pre_wb, sh, int(mc.group(2)), _ci(mc.group(1))) if mc else None
         cur_v = _val(wb, sh, c)
+        if pre_v in (None, "") and isinstance(cur_v, (int, float)):
+            pre_v = 0.0          # blank before the update, a number now: exactly a swing factor
         if not isinstance(pre_v, (int, float)) or cur_v is None or abs(cur_v - pre_v) < 1e-9:
             continue
         wb[sh][c].value = pre_v
@@ -120,6 +122,11 @@ def trace(wb, pre_wb, sheet, coord, depth=30, floor=0.2):
         if not (isinstance(v, str) and v.startswith("=")):
             return trail, cur                      # a typed cell: the swing factor
         cs = contributors(wb, pre_wb, cur[0], cur[1])
+        if (not cs or abs(cs[0][2]) < floor) and str(_pre_content(pre_wb, cur[0], cur[1])) != str(v):
+            # the formula itself was rewritten by the update (a key-tie back-out,
+            # a constants-law rewrite) and no input explains the swing: the
+            # rewritten formula IS the swing factor
+            return trail, cur
         if not cs or abs(cs[0][2]) < floor:
             # spread across inputs — no single factor; name the largest few
             trail.append((cur[0], cur[1], "SPREAD: " + ", ".join(
@@ -153,18 +160,29 @@ def unusual_by_history(wb, spec, sheet, row, target_year):
 
 
 def _parent_of(wb, spec, sheet, row, target_year):
-    """The actual-column formula cell on the same sheet that sums this row
-    (its group total) and the sibling rows it sums. -> (parent_row, [rows])"""
+    """The actual-column formula cell, on any sheet, that sums this row
+    (its group total) and the sibling cells it sums. A segment sheet's
+    revenue is summed on the group sheet (CLP: Final's 'Others' adds India,
+    SEA and CN), so the search crosses sheets.
+    -> (parent (sheet, coord), [(sheet, coord) siblings])"""
     tcol = year_columns(spec, sheet).get(str(target_year))
-    ws = wb[sheet]
-    for r in range(1, ws.max_row + 1):
-        f = ws[f"{tcol}{r}"].value
-        if not (isinstance(f, str) and f.startswith("=")):
+    leaf = (sheet, f"{tcol}{row}")
+    for psh in (spec.get("year_axis") or {}):
+        if psh not in wb.sheetnames:
             continue
-        refs = [(s, c) for s, c in _refs(f, sheet, wb) if s == sheet and c.startswith(tcol)]
-        rows = [int(c[len(tcol):]) for _s, c in refs]
-        if row in rows and len(rows) >= 2 and re.fullmatch(r"=\s*(SUM\([^)]*\)|[A-Z]{1,3}\d+(\s*\+\s*[A-Z]{1,3}\d+)+)\s*", f.replace("$", "")):
-            return r, [x for x in rows if x != row]
+        pcol_t = year_columns(spec, psh).get(str(target_year))
+        if not pcol_t:
+            continue
+        ws = wb[psh]
+        for r in range(1, ws.max_row + 1):
+            f = ws[f"{pcol_t}{r}"].value
+            if not (isinstance(f, str) and f.startswith("=")) or not re.fullmatch(
+                    r"=\s*\+?(SUM\([^)]*\)|(?:'[^']+'!|[A-Za-z0-9_]+!)?[A-Z]{1,3}\d+(\s*\+\s*(?:'[^']+'!|[A-Za-z0-9_]+!)?[A-Z]{1,3}\d+)+)\s*",
+                    f.replace("$", "")):
+                continue
+            refs = _refs(f, psh, wb)
+            if leaf in refs and len(refs) >= 2:
+                return (psh, f"{pcol_t}{r}"), [x for x in refs if x != leaf]
     return None, []
 
 
@@ -187,6 +205,25 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     unusual, this_move, band = unusual_by_history(wb, spec, sh, r, ty)
     entry = served.get((sh, r))
     proven = colour == "plain" and (isinstance(entry, dict) and is_proven(entry))
+    # OUT OF THE LINE'S WORLD (CLP: India's revenue held 88,018,000,000 — the
+    # group's revenue in dollars — while the line itself, tied to the print,
+    # is 88,018): an input feeding a headline line that dwarfs the line by
+    # the run's own 30x band is not a figure of this model; it goes back to
+    # what the analyst had, red, with the trail
+    leaf_v = _val(wb, sh, coord)
+    line_v = d.get("new0")
+    if isinstance(leaf_v, (int, float)) and isinstance(line_v, (int, float)) and abs(line_v) >= 1 \
+            and abs(leaf_v) > 30 * abs(line_v):
+        from .execreport import _pre_val
+        from openpyxl.utils import column_index_from_string as _ci
+        pre_v = _pre_val(pre_wb, sh, r, _ci(tcol))
+        back = pre_v if isinstance(pre_v, (int, float)) else 0.0
+        writer.write(sh, coord, back, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="red",
+                     note=(f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); its figure {leaf_v:,.0f} "
+                           f"dwarfs the line itself ({line_v:,.0f}) — not a figure of this model; put back to what you had. Please look here."))
+        served.pop((sh, r), None)
+        return "fixed", (f"'{d['name']}': swing traced to {path} ({ref}) — {leaf_v:,.0f} dwarfs the line ({line_v:,.0f}); "
+                         f"put back to {back:,.2f}, red")
     if proven or colour == "plain":
         if unusual:
             return "unusual", (f"'{d['name']}': swing traced to {path} ({ref}) — genuine per the print, unusual per history "
@@ -220,22 +257,50 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     ranked.sort(key=lambda x: (x[0], x[1], x[2]))
     for _e, _p, _t, c in ranked[:1]:
         attempts.append(("printed line " + str(c.get("line", ""))[:30] + f" p{c.get('page')}", float(c["value"]), None))
-    # (b) the residual of a printed total it belongs to
-    prow, sibs = _parent_of(wb, spec, sh, r, ty)
-    if prow and sibs:
-        p_entry = served.get((sh, prow))
+    # (b) the residual of a printed total it belongs to — the parent is the
+    # node the trail came through (it references the leaf directly); the
+    # leaf must enter it one-for-one (probed), else the residual is meaningless
+    parent, sibs = None, []
+    if len(trail) >= 2:
+        p_sh, p_c = trail[-2][0], trail[-2][1]
+        refs = [x for x in _refs(wb[p_sh][p_c].value, p_sh, wb) if x != (sh, coord)]
+        base = _val(wb, p_sh, p_c)
+        held = wb[sh][coord].value
+        lv = _val(wb, sh, coord)
+        if isinstance(base, (int, float)) and isinstance(lv, (int, float)) and abs(lv) > 1e-9:
+            wb[sh][coord].value = 0.0
+            try:
+                t0 = _val(wb, p_sh, p_c)
+            finally:
+                wb[sh][coord].value = held
+            if isinstance(t0, (int, float)) and abs(abs(base - t0) - abs(lv)) <= max(0.6, abs(lv) * 1e-3):
+                parent, sibs = (p_sh, p_c), refs
+    if parent is None:
+        parent, sibs = _parent_of(wb, spec, sh, r, ty)
+
+    def _q(s_, c_):
+        return (f"'{s_}'!" if s_ != sh else "") + c_
+    if parent and sibs:
+        p_sh, p_c = parent
+        p_row = int(re.sub(r"[A-Z]", "", p_c))
+        p_entry = served.get((p_sh, p_row))
         p_ok = isinstance(p_entry, dict) and is_proven(p_entry)
-        s_ok = all(isinstance(served.get((sh, s)), dict) and is_proven(served.get((sh, s))) for s in sibs)
-        if (p_ok or isinstance(wb[sh][f"{tcol}{prow}"].value, (int, float))) and s_ok:
-            formula = f"={tcol}{prow}" + "".join(f"-{tcol}{s}" for s in sibs)
-            attempts.append((f"the residual of its total (row {prow}) less the proven parts", None, formula))
+        s_ok = all(isinstance(served.get((s_, int(re.sub(r"[A-Z]", "", c_)))), dict)
+                   and is_proven(served.get((s_, int(re.sub(r"[A-Z]", "", c_))))) for s_, c_ in sibs)
+        if (p_ok or isinstance(wb[p_sh][p_c].value, (int, float))) and s_ok:
+            formula = "=" + _q(p_sh, p_c) + "".join("-" + _q(s_, c_) for s_, c_ in sibs)
+            attempts.append((f"the residual of its total ({p_sh}!{p_c}) less the proven parts", None, formula))
     # (c) last year's share of the parent
-    if prow and pcol:
+    if parent and pcol:
+        p_sh, p_c = parent
+        p_row = int(re.sub(r"[A-Z]", "", p_c))
+        p_pcol = prior_column(spec, p_sh, ty)
         pv_leaf = _val(wb, sh, f"{pcol}{r}")
-        pv_par = _val(wb, sh, f"{pcol}{prow}")
-        cur_par = _val(wb, sh, f"{tcol}{prow}")
+        pv_par = _val(wb, p_sh, f"{p_pcol}{p_row}") if p_pcol else None
+        cur_par = _val(wb, p_sh, p_c)
         if isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and isinstance(cur_par, (int, float)):
-            attempts.append((f"last year's share of its total (row {prow})", None, f"={pcol}{r}/{pcol}{prow}*{tcol}{prow}"))
+            attempts.append((f"last year's share of its total ({p_sh}!{p_c})", None,
+                             f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c)))
     for what, value, formula in attempts:
         val = formula if formula else value
         ok = writer.write(sh, coord, val, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True,
