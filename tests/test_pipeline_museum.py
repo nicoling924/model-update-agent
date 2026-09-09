@@ -4645,6 +4645,73 @@ def test_roll_forward_schedule_vertical_tie_2026_09_10():
     print("PASS test_roll_forward_schedule_vertical_tie_2026_09_10")
 
 
+def test_sense_check_checkpoint_and_final_pass_2026_09_09():
+    """Owner 2026-09-09: the report's mini P&L, new vs old — net profit
+    −5.8% against the estimate but +15.7% against the old forecast is a
+    rollover error to hunt. The chain's actual-year cells (the agent's
+    own red first) go to the queue's front; a row whose forecast was zero
+    before the update goes back to zero; the final pass reviews, re-runs
+    the checks, and writes up what it could not resolve."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import build_queue
+    from pipeline.writer import Writer
+    from pipeline.sensecheck import headline_deltas, suspicious, checkpoint, final_pass
+    from pipeline.evaluator import Evaluator
+    def model(u4, u7, u9):
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+        ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+        ws["A4"], ws["T4"], ws["U4"], ws["V4"] = "Revenue", 1000.0, u4, "=U4*1.05"
+        ws["A5"], ws["T5"], ws["U5"], ws["V5"] = "Group tax", -300.0, -320.0, "=U5*1.02"
+        ws["A6"], ws["T6"], ws["U6"], ws["V6"] = "Net profit", "=T4+T5", "=U4+U5", "=V4+V5+U7*1.02+V9"
+        ws["A7"], ws["T7"], ws["U7"] = "Australia tax (driver)", -100.0, u7
+        ws["A9"], ws["T9"], ws["U9"], ws["V9"] = "Memo item", None, u9, "=U9"
+        return wb
+    pre = model(1080.0, -110.0, None)          # the analyst's estimate: tax driver -110, memo blank
+    wb = model(1050.0, -900.0, 50.0)           # the run: the group's whole tax landed on the driver; memo filled
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}},
+            "check_rows": [], "key_rows": [{"name": "revenue", "sheet": "Model", "row": 4},
+                                           {"name": "net profit", "sheet": "Model", "row": 6}]}
+    led = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-110.0, -100.0]),
+                                  _item(95, 8, "Group income tax", [-320.0, -300.0])], face_pages=((95, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    targets = _anchor_targets() + [TargetRow("Model", 4, "Revenue", 1000.0), TargetRow("Model", 7, "Australia tax", -100.0),
+                                   TargetRow("Model", 9, "Memo item", None)]
+    w = Writer(wb)
+    served = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
+    w.log["written"] += ["Model!U4", "Model!U7", "Model!U9"]
+    from openpyxl.styles import PatternFill
+    wb["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w.log["flags"].append("Model!U7")
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, served, w, None)
+    d = {x["name"]: x for x in headline_deltas(wb, pre, spec, 2025)}
+    assert abs(d["revenue"]["d0"] + 0.0278) < 0.001 and abs(d["revenue"]["d1"] + 0.0278) < 0.001
+    assert d["net profit"]["d1"] - d["net profit"]["d0"] < -0.10          # the forecast collapsed, the actual did not
+    assert [x["name"] for x in suspicious(headline_deltas(wb, pre, spec, 2025))] == ["net profit"]
+    logs = []
+    prio = checkpoint(loop, pre, logs.append)
+    assert ("Model", 7) in prio and "SENSE CHECK 'net profit'" in prio[("Model", 7)][0], prio
+    assert wb["Model"]["U9"].value == 0.0                                  # forecast was zero before: kept at zero
+    q = build_queue(loop)
+    assert q and q[0].kind == "SENSE" and (q[0].sheet, q[0].row) == ("Model", 7), [(x.kind, x.row) for x in q[:3]]
+    # the final pass: the review card serves the line that ties the prior and names the item
+    def answer(text, options, default):
+        return next((k for k in options if k.startswith("serve:")), default)
+    reruns = []
+    n = final_pass(loop, pre, logs.append, None, answer, 600.0, lambda: (reruns.append(1) or True))
+    assert n >= 1 and reruns, (n, reruns, logs[-3:])
+    assert abs(wb["Model"]["U7"].value + 110.0) < 0.01, wb["Model"]["U7"].value
+    assert not suspicious(headline_deltas(wb, pre, spec, 2025))
+    assert any(x.startswith("RESOLVED") for x in w.log["sense_check"]), w.log["sense_check"]
+    # a review that breaks a check is taken back and written up
+    wb2 = model(1050.0, -900.0, None); w2 = Writer(wb2); w2.log["written"] += ["Model!U4", "Model!U7"]
+    wb2["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w2.log["flags"].append("Model!U7")
+    loop2 = ObjectiveLoop(wb2, spec, 2025, led, targets, dict(served), w2, None)
+    n2 = final_pass(loop2, pre, logs.append, None, answer, 600.0, lambda: False)
+    assert n2 == 0 and abs(wb2["Model"]["U7"].value + 900.0) < 0.01
+    assert any(x.startswith("UNRESOLVED") for x in w2.log["sense_check"]), w2.log["sense_check"]
+    print("PASS test_sense_check_checkpoint_and_final_pass_2026_09_09")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

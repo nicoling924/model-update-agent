@@ -1012,6 +1012,16 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             log(f"[run] objective loop: {loop_summary[:150]}")
         else:
             from .workqueue import run_queue
+            # THE SENSE CHECK'S CHECKPOINT (owner 2026-09-09): the headline
+            # lines against the analyst's pre-update model — a forecast that
+            # moved out of line with the actual sends its inputs to the front
+            try:
+                from .sensecheck import checkpoint as _sense_checkpoint
+                _pre_wb_sense = load(str(archive))
+                _sense_checkpoint(loop, _pre_wb_sense, log)
+            except Exception as _e_sc:
+                _pre_wb_sense = None
+                log(f"[sense] checkpoint skipped: {_e_sc!r}")
             _left = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
             log(f"[run] queue budget: {_left/60:.1f} min of the hour left for cards")
             loop_summary = run_queue(loop, client, log,
@@ -1347,6 +1357,23 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 ok, failures, card = ok3, failures3, card3
                 log(f"[run] gate loop (final repair): "
                     f"{'gate PASSED' if ok else 'improved, still refused'}")
+    # THE SENSE CHECK'S FINAL PASS (owner 2026-09-09): the last look — one
+    # review card per line still out of line if time allows, then keys and
+    # balance again; a change that breaks them is taken back; the rest is
+    # written up. The agent gives up with the objectives intact.
+    if (client is not None or stage4_answerer is not None) and locals().get("_pre_wb_sense") is not None:
+        try:
+            from .sensecheck import final_pass as _sense_final
+
+            def _sense_rerun():
+                nonlocal ok, failures, card
+                repair_round("sense")
+                ok, failures, card = gate_once()
+                return ok
+            _left_s = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+            _sense_final(loop, _pre_wb_sense, log, client, stage4_answerer, _left_s, _sense_rerun)
+        except Exception as _e_sf:
+            log(f"[sense] final pass skipped: {_e_sf!r}")
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
     for line in card.get("moveon_reported", []):
@@ -1361,6 +1388,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     except Exception as e:              # the report never blocks delivery
         rollover = []
         log(f"[run] rollover report skipped: {e}")
+    for _sl in writer.log.get("sense_check", []):
+        writer.log.setdefault("verdicts", []).append("SENSE CHECK: " + _sl)
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
                             pre_estimates, failures, loop_summary,
                             documents=[d["line"] for d in documents],
@@ -1465,6 +1494,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                               str(archive), client, str(out_path),
                               target_year=target_year,
                               extra={"key_ties": _key_ties_for_report,
+                                     "sense_check": writer.log.get("sense_check", []),
                                      "open_checks": open_checks,
                                      "documents": [d["line"] for d in documents],
                                      "rollover": rollover,

@@ -67,6 +67,7 @@ class WorkItem:
     refs: list = field(default_factory=list)   # tripwire chain members
     priority: float = 0.0
     state: str = "OPEN"       # OPEN | DONE | DEFAULTED | MOOT
+    note: str = ""            # SENSE: the reason the line is under review
 
 
 def _tcol(loop, sheet):
@@ -591,7 +592,15 @@ def build_queue(loop):
     # The balance cards (COMPONENT/PLUG) keep a RESERVED share of the
     # call budget so the serve/rollover flood can never starve them
     # (run 230's failure mode).
-    order = {"SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4,
+    # THE SENSE CHECK'S REVIEW ITEMS (owner 2026-09-09): the actual-year
+    # cells feeding a headline line whose forecast moved out of line with
+    # the actual go FIRST, whatever their colour, with the reason on the card
+    prio = getattr(loop, "sense_priority", None) or {}
+    have = {(w.sheet, w.row) for w in items if w.kind == "SERVE"}
+    for (sh, r), (why, pr) in prio.items():
+        items = [w for w in items if not (w.kind == "SERVE" and (w.sheet, w.row) == (sh, r))]
+        items.append(WorkItem("SENSE", sh, r, priority=pr, note=why))
+    order = {"SENSE": -1, "SERVE": 0, "ROLLOVER": 1, "COMPONENT": 2, "TRIPWIRE": 3, "PLUG": 4,
              "LABEL": 5}       # label-only cards for never-filled rows: last, budget-bound
     items.sort(key=lambda w: (order[w.kind], -w.priority, w.sheet, w.row))
     # NO CAP (owner 2026-09-08, "why is it capped though"): the run budget
@@ -644,7 +653,7 @@ def phase0(loop, log):
 def render_card(loop, item):
     """The card, from LIVE state. -> (text, options) where options maps
     answer-id -> (tool_name, args). None = item is moot."""
-    if item.kind in ("SERVE", "LABEL"):
+    if item.kind in ("SERVE", "LABEL", "SENSE"):
         sheet, row = item.sheet, item.row
         col = _tcol(loop, sheet)
         if not col or sheet not in loop.wb.sheetnames:
@@ -652,7 +661,7 @@ def render_card(loop, item):
         if item.kind == "LABEL":
             if loop.wb[sheet][f"{col}{row}"].value not in (None, ""):
                 return None                 # filled since queueing: moot
-        elif f"{sheet}!{col}{row}" not in loop.writer.log.get("flags", []):
+        elif item.kind == "SERVE" and f"{sheet}!{col}{row}" not in loop.writer.log.get("flags", []):
             return None                     # cleared since queueing: moot
         cands = candidates_for(loop, sheet, row)
         if not cands:
@@ -681,8 +690,12 @@ def render_card(loop, item):
                 if isinstance(after, (int, float)):
                     probe[round(c["value"], 1)] = (base, after)
             cell_p.value = held
-        lines = [f"CARD SERVE {sheet}!{col}{row} '{lab}'",
-                 (f"  holds: {held!r} (RED: stale/unproven)" if item.kind != "LABEL"
+        lines = [f"CARD {'SENSE' if item.kind == 'SENSE' else 'SERVE'} {sheet}!{col}{row} '{lab}'"]
+        if item.kind == "SENSE":
+            lines.append("  " + item.note)
+            lines.append("  This cell feeds that line. Review it: keep the held figure only if its source is right; "
+                         "otherwise serve the candidate whose printed line ties the prior AND names this item.")
+        lines += [(f"  holds: {held!r}" + (" (RED: stale/unproven)" if item.kind == "SERVE" else "") if item.kind != "LABEL"
                   else "  holds: nothing — a row the model names but never filled; "
                        "no prior year to tie: judge by the item's meaning (lands red)"),
                  f"  prior year: {pv:,.2f}" if pv is not None else ""]
@@ -993,7 +1006,7 @@ def _llm_answer(loop, client, text, options, log):
     return obj.get("answer"), str(obj.get("why", ""))[:120]
 
 
-def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S):
+def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=None):
     """The inverted stage 4. `answerer(text, options, default) -> answer
     id` overrides the LLM (offline drivers, tests).
 
@@ -1004,8 +1017,12 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S):
     cards (COMPONENT/PLUG) are few and close the model: they are asked
     regardless of the clock."""
     t0 = time.monotonic()
-    n_auto = phase0(loop, log)
-    queue = build_queue(loop)
+    if items is not None:                 # the sense check's final pass: its own short list
+        n_auto = 0
+        queue = list(items)
+    else:
+        n_auto = phase0(loop, log)
+        queue = build_queue(loop)
     # plugs are dealt strictly LAST — a re-dealt COMPONENT card (next
     # receipt after a landed fix) must always outrank the plug decision
     work = [w for w in queue if w.kind != "PLUG"]
