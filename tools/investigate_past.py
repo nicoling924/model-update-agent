@@ -72,7 +72,7 @@ def main(argv):
             before = suspicious(headline_deltas(wb, pre, spec, year))
             for d in before:
                 v, t, _leaf = investigate_line(loop, pre, d, lambda s: None, rerun=None)
-                print(f"  {d['name']:22} {d['d0']*100:+6.1f}% / {d['d1']*100:+6.1f}%  {v.upper():7} {t[:230]}")
+                print(f"  {d['name']:22} {d['d0']*100:+6.1f}% / {d['d1']*100:+6.1f}%  {v.upper():7} {t}")
             after = suspicious(headline_deltas(wb, pre, spec, year))
             print(f"  -> suspicious lines {len(before)} → {len(after)}: {[(x['name'], round(abs(x['d1']-x['d0'])*100)) for x in after]}")
             continue

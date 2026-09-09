@@ -164,7 +164,12 @@ def checkpoint(loop, pre_wb, log):
     prio = {}
     lines = writer.log.setdefault("sense_check", [])
     from .investigate import trace, judge_and_fix
+    import time as _t
+    _t0 = _t.monotonic()
     for d in sus:
+        if _t.monotonic() - _t0 > 240:                      # the checkpoint's slice: four minutes of the hour
+            lines.append("NOT INVESTIGATED (checkpoint time slice used) " + reason_text(d))
+            continue
         cells = chain_cells(wb, spec, ty, d, writer)
         rolled_into_zero(wb, pre_wb, spec, ty, cells, writer, log)
         txt = reason_text(d)

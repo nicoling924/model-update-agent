@@ -212,7 +212,8 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     # what the analyst had, red, with the trail
     leaf_v = _val(wb, sh, coord)
     line_v = d.get("new0")
-    if isinstance(leaf_v, (int, float)) and isinstance(line_v, (int, float)) and abs(line_v) >= 1 \
+    per_share = str(d.get("name", "")).lower() in ("eps", "dps")     # a per-share line is no world for an amount
+    if not per_share and isinstance(leaf_v, (int, float)) and isinstance(line_v, (int, float)) and abs(line_v) >= 1 \
             and abs(leaf_v) > 30 * abs(line_v):
         from .execreport import _pre_val
         from openpyxl.utils import column_index_from_string as _ci
