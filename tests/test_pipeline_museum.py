@@ -4689,38 +4689,82 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     assert [x["name"] for x in suspicious(headline_deltas(wb, pre, spec, 2025))] == ["net profit"]
     logs = []
     prio = checkpoint(loop, pre, logs.append)
-    assert ("Model", 7) in prio and "SENSE CHECK 'net profit'" in prio[("Model", 7)][0], prio
+    # the checkpoint investigates: net profit's swing traces to the red tax driver, whose
+    # printed segment line ties the prior — replaced, orange, and the line is back in line
+    assert abs(wb["Model"]["U7"].value + 110.0) < 0.01, wb["Model"]["U7"].value
     assert wb["Model"]["U9"].value == 0.0                                  # forecast was zero before: kept at zero
+    assert not suspicious(headline_deltas(wb, pre, spec, 2025))
+    assert not prio                                                         # nothing left for the queue's front
+    assert any("swing traced to" in x and "replaced by printed line" in x for x in w.log["sense_check"]), w.log["sense_check"]
     q = build_queue(loop)
-    assert q and q[0].kind == "SENSE" and (q[0].sheet, q[0].row) == ("Model", 7), [(x.kind, x.row) for x in q[:3]]
-    # the final pass: the review card serves the line that ties the prior and names the item
+    assert not any(x.kind == "SENSE" for x in q)
+    # the final pass: a fix that opens a check is taken back and the line written up
     def answer(text, options, default):
         return next((k for k in options if k.startswith("serve:")), default)
-    reruns = []
-    n = final_pass(loop, pre, logs.append, None, answer, 600.0, lambda: (reruns.append(1) or True))
-    assert n >= 1 and reruns, (n, reruns, logs[-3:])
-    assert abs(wb["Model"]["U7"].value + 110.0) < 0.01, wb["Model"]["U7"].value
-    assert not suspicious(headline_deltas(wb, pre, spec, 2025))
-    assert any(x.startswith("RESOLVED") for x in w.log["sense_check"]), w.log["sense_check"]
-    # a review that breaks a check is taken back and written up
     wb2 = model(1050.0, -900.0, None); w2 = Writer(wb2); w2.log["written"] += ["Model!U4", "Model!U7"]
     wb2["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w2.log["flags"].append("Model!U7")
     loop2 = ObjectiveLoop(wb2, spec, 2025, led, targets, dict(served), w2, None)
     n2 = final_pass(loop2, pre, logs.append, None, answer, 600.0, lambda: False)
-    assert n2 == 0 and abs(wb2["Model"]["U7"].value + 900.0) < 0.01
+    assert n2 == 0 and abs(wb2["Model"]["U7"].value + 900.0) < 0.01, (n2, wb2["Model"]["U7"].value)
     assert any(x.startswith("UNRESOLVED") for x in w2.log["sense_check"]), w2.log["sense_check"]
-    # a review that WIDENS a headline gap is taken back even though every check still closes
-    # (CLP live 2026-09-09: next year's revenue went to −95,225,646%)
+    # the final pass: a fix that keeps the checks closed and closes the gap is kept
+    wb4 = model(1050.0, -900.0, None); w4 = Writer(wb4); w4.log["written"] += ["Model!U4", "Model!U7"]
+    wb4["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w4.log["flags"].append("Model!U7")
+    served4 = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
+    loop4 = ObjectiveLoop(wb4, spec, 2025, led, targets, served4, w4, None)
+    reruns = []
+    n4 = final_pass(loop4, pre, logs.append, None, answer, 600.0, lambda: (reruns.append(1) or True))
+    assert n4 >= 1 and reruns and abs(wb4["Model"]["U7"].value + 110.0) < 0.01, (n4, wb4["Model"]["U7"].value)
+    assert any(x.startswith("RESOLVED") for x in w4.log["sense_check"]), w4.log["sense_check"]
+    # the only candidate widens the gap: reverted, written up
     wb3 = model(1050.0, -900.0, None); w3 = Writer(wb3); w3.log["written"] += ["Model!U4", "Model!U7"]
     wb3["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w3.log["flags"].append("Model!U7")
     led3 = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-2500.0, -100.0])], face_pages=((95, "pl"),))
     led3._doc_periods = {DOC: "current"}
     served3 = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
-    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, served3, w3, None)   # scenario 1's loop wrote into `served`
+    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, served3, w3, None)
     n3 = final_pass(loop3, pre, logs.append, None, answer, 600.0, lambda: True)
     assert n3 == 0 and abs(wb3["Model"]["U7"].value + 900.0) < 0.01, (n3, wb3["Model"]["U7"].value)
-    assert any("widened" in l for l in logs), logs[-4:]
+    assert any(x.startswith("UNRESOLVED") for x in w3.log["sense_check"]), w3.log["sense_check"]
     print("PASS test_sense_check_checkpoint_and_final_pass_2026_09_09")
+
+
+def test_investigator_traces_the_swing_and_judges_it_2026_09_10():
+    """Owner 2026-09-10: 'press into net profit, then associates, then
+    Australia, then income tax' — the input that explains the swing, level
+    by level, judged by its colour and its history. A proven figure moving
+    outside its own history is reported, never changed; a spread swing
+    names its largest contributors."""
+    import openpyxl
+    from pipeline.investigate import contributors, trace, unusual_by_history
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "M"
+    ws["A2"], ws["R2"], ws["S2"], ws["T2"], ws["U2"], ws["V2"] = "", 2022, 2023, 2024, 2025, 2026
+    # net profit = HK + Australia; Australia = EBIT + tax; tax typed; associates typed with a history
+    ws["A4"], ws["U4"], ws["V4"] = "Net profit", "=U5+U6+U9", "=V5+V6+V9"
+    ws["A5"], ws["U5"], ws["V5"] = "Hong Kong", 500.0, "=U5*1.02"
+    ws["A6"], ws["U6"], ws["V6"] = "Australia", "=U7+U8", "=V7+V8"
+    ws["A7"], ws["U7"], ws["V7"] = "Australia EBIT", 300.0, "=U7*1.03"
+    ws["A8"], ws["U8"], ws["V8"] = "Australia income tax", -900.0, "=U8*1.03"
+    ws["A9"], ws["R9"], ws["S9"], ws["T9"], ws["U9"], ws["V9"] = "Associates", 100.0, 104.0, 99.0, 700.0, "=U9"
+    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "M"
+    for c in ("A2","R2","S2","T2","U2","V2","A4","U4","V4","A5","U5","V5","A6","U6","V6","A7","U7","V7","A8","V8","A9","R9","S9","T9","V9"):
+        pw[c] = ws[c].value
+    pw["U8"] = -90.0; pw["U9"] = 100.0
+    cs = contributors(wb, pre, "M", "V4")
+    assert cs and cs[0][0:2] == ("M", "V6"), cs                          # Australia explains the swing (tax −900 vs −90; associates +600)
+    trail, leaf = trace(wb, pre, "M", "V4")
+    assert leaf == ("M", "U8"), (trail, leaf)                              # … down to the typed tax cell
+    assert [t[2] for t in trail] == ["Australia", "Australia income tax", "Australia income tax"] or trail[-1][1] == "U8", trail
+    spec = {"year_axis": {"M": {"columns": {"2022": "R", "2023": "S", "2024": "T", "2025": "U", "2026": "V"}}}}
+    un, mv, band = unusual_by_history(wb, spec, "M", 9, 2025)
+    assert un and mv > 5 and band[1] < 0.1, (un, mv, band)                # 100, 104, 99 then 700: unusual, no margin
+    un2, _m, _b = unusual_by_history(wb, spec, "M", 5, 2025)
+    assert not un2                                                         # no history: never 'unusual'
+    # a spread swing: two inputs of equal weight — no single factor, both named
+    ws["U8"] = -90.0; ws["U5"] = 800.0; ws["U9"] = 400.0
+    trail2, leaf2 = trace(wb, pre, "M", "V4", floor=0.6)
+    assert leaf2 is None and trail2 and trail2[-1][2].startswith("SPREAD:"), trail2
+    print("PASS test_investigator_traces_the_swing_and_judges_it_2026_09_10")
 
 
 if __name__ == "__main__":

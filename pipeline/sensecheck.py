@@ -163,16 +163,18 @@ def checkpoint(loop, pre_wb, log):
     sus = suspicious(deltas)
     prio = {}
     lines = writer.log.setdefault("sense_check", [])
+    from .investigate import trace, judge_and_fix
     for d in sus:
         cells = chain_cells(wb, spec, ty, d, writer)
-        n0 = rolled_into_zero(wb, pre_wb, spec, ty, cells, writer, log)
-        cells = [c for c in cells if not (n0 and False)]
+        rolled_into_zero(wb, pre_wb, spec, ty, cells, writer, log)
         txt = reason_text(d)
-        lines.append(txt + (f"; inputs to review: {', '.join(c[2] for c in cells[:8])}" if cells else "; no input of this run feeds it"))
-        log("[sense] " + txt + f" — {len(cells)} chain cell(s) to the front of the queue")
-        for sh, r, ref, colour in cells:
-            # the agent's own red first, then orange, then the rest
-            prio.setdefault((sh, r), (txt, {"red": 3e9, "orange": 2e9}.get(colour, 1e9)))
+        log("[sense] " + txt)
+        verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=None)
+        lines.append(txt + " | " + text)
+        if verdict == "red" and leaf is not None:
+            # the swing factor is the agent's own figure and nothing better proved:
+            # its normal card goes first in the queue, with the trail on it
+            prio[(leaf[0], int(re.sub(r"[A-Z]", "", leaf[1])))] = (text, 3e9)
     if not sus:
         log(f"[sense] checkpoint: {len(deltas)} headline lines, none out of line")
     loop.sense_priority = prio
@@ -199,14 +201,6 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
             lines.append("UNRESOLVED (no time left) " + reason_text(d) + f"; look at: {', '.join(c[2] for c in cells[:8])}")
         log(f"[sense] final: {len(sus)} line(s) still out of line, no time left — written up")
         return 0
-    items, prio = [], {}
-    for d in sus:
-        for sh, r, ref, colour in chain_cells(wb, spec, ty, d, writer)[:4]:
-            if (sh, r) in prio:
-                continue
-            prio[(sh, r)] = (reason_text(d), {"red": 3e9, "orange": 2e9}.get(colour, 1e9))
-            items.append(WorkItem("SENSE", sh, r, priority=prio[(sh, r)][1], note=reason_text(d)))
-    loop.sense_priority = prio
     mark = len(writer.log.get("writes_all", []))
     t0 = time.monotonic()
     # the objectives before the review: a check already open is not the
@@ -216,9 +210,22 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         fails_before = {s for s, _r, _v in loop._failing_target_checks()}
     except Exception:
         fails_before = set()
-    if items:
-        run_queue(loop, client, log, answerer=answerer, deadline_s=max(60.0, deadline_s - 30), items=items)
+    from .investigate import trace, judge_and_fix
+    for d in sus:
+        if time.monotonic() - t0 > max(30.0, deadline_s - 60):
+            lines.append("UNRESOLVED (no time left) " + reason_text(d))
+            continue
+        verdict, text, _leaf = investigate_line(loop, pre_wb, d, log, rerun=rerun)
+        lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
     changed = writer.log.get("writes_all", [])[mark:]
+    # cells whose content actually differs from before the pass (a write
+    # the investigator itself reverted is not a change)
+    first_old, last_new = {}, {}
+    for sh, coord, old, new in changed:
+        first_old.setdefault((sh, coord), old)
+        last_new[(sh, coord)] = new
+    changed = [(sh, coord, first_old[(sh, coord)], last_new[(sh, coord)]) for (sh, coord) in last_new
+               if last_new[(sh, coord)] != first_old[(sh, coord)]]
     n = len(changed)
     ok = rerun()
     try:
@@ -245,12 +252,38 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
     still = suspicious(deltas2)
     for d in sus:
         now = next((x for x in still if x["name"] == d["name"]), None)
-        if now is None:
-            lines.append(f"RESOLVED by the final sense check: '{d['name']}' was {d['d0']*100:+.1f}% / {d['d1']*100:+.1f}%")
-        else:
-            cells = chain_cells(wb, spec, ty, now, writer)
-            lines.append("UNRESOLVED " + reason_text(now) + f"; look at: {', '.join(c[2] for c in cells[:8])}")
+        if now is not None:
+            lines.append("UNRESOLVED " + reason_text(now))
             log("[sense] " + lines[-1])
     log(f"[sense] final: {len(sus)} line(s) reviewed, {len(sus) - len(still)} resolved, {len(still)} written up "
         f"({time.monotonic() - t0:,.0f}s)")
     return n
+
+
+def investigate_line(loop, pre_wb, d, log, rerun=None):
+    """One suspicious headline line, the analyst's way: trace the swing to
+    its factor, judge it, fix it if a better answer proves. -> (verdict, text)"""
+    from .investigate import trace, judge_and_fix
+    wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
+    sh1, c1 = d["ref1"].split("!")
+
+    def gap_of():
+        dd = next((x for x in headline_deltas(wb, pre_wb, spec, ty) if x["name"] == d["name"]), None)
+        return abs(dd["d1"] - dd["d0"]) if dd else 0.0
+    texts, verdict, last_leaf = [], "spread", None
+    seen_leaves = set()
+    for _round in range(3):                     # after a fix, the next factor — the analyst presses in again
+        trail, leaf = trace(wb, pre_wb, sh1, c1)
+        last_leaf = leaf or last_leaf
+        path = " → ".join(t[2] or t[1] for t in trail)
+        if leaf is None or leaf in seen_leaves:
+            texts.append(f"'{d['name']}': the swing is spread across several inputs" + (f" ({path})" if path else "") + " — no single factor")
+            verdict = "spread" if not texts[:-1] else verdict
+            break
+        seen_leaves.add(leaf)
+        verdict, text = judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=rerun)
+        log(f"[sense] {verdict.upper()}: {text}")
+        texts.append(text)
+        if verdict != "fixed" or gap_of() <= SENSE_GAP:
+            break
+    return verdict, " || ".join(texts), last_leaf
