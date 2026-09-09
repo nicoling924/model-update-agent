@@ -1388,8 +1388,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     except Exception as e:              # the report never blocks delivery
         rollover = []
         log(f"[run] rollover report skipped: {e}")
-    for _sl in writer.log.get("sense_check", []):
-        writer.log.setdefault("verdicts", []).append("SENSE CHECK: " + _sl)
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
                             pre_estimates, failures, loop_summary,
                             documents=[d["line"] for d in documents],

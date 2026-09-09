@@ -209,16 +209,27 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
     loop.sense_priority = prio
     mark = len(writer.log.get("writes_all", []))
     t0 = time.monotonic()
+    # the objectives before the review: a check already open is not the
+    # review's doing (DFE live 2026-09-09: three good review writes were
+    # taken back because an 11-unit gap elsewhere had the gate refusing)
+    try:
+        fails_before = {s for s, _r, _v in loop._failing_target_checks()}
+    except Exception:
+        fails_before = set()
     if items:
         run_queue(loop, client, log, answerer=answerer, deadline_s=max(60.0, deadline_s - 30), items=items)
     changed = writer.log.get("writes_all", [])[mark:]
     n = len(changed)
     ok = rerun()
-    if not ok and changed:
-        # the review broke a check: take every review write back, re-run
+    try:
+        fails_after = {s for s, _r, _v in loop._failing_target_checks()}
+    except Exception:
+        fails_after = set()
+    if changed and (fails_after - fails_before):
+        # the review OPENED a check that was closed: take every review write back, re-run
         for sh, coord, old, _new in reversed(changed):
             writer.write(sh, coord, old, trusted=True, force_lock=True)
-        log(f"[sense] final: {n} review write(s) taken back — they opened a check")
+        log(f"[sense] final: {n} review write(s) taken back — they opened {sorted(fails_after - fails_before)[:3]}")
         rerun()
         n = 0
     deltas2 = headline_deltas(wb, pre_wb, spec, ty)
@@ -230,6 +241,7 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         else:
             cells = chain_cells(wb, spec, ty, now, writer)
             lines.append("UNRESOLVED " + reason_text(now) + f"; look at: {', '.join(c[2] for c in cells[:8])}")
+            log("[sense] " + lines[-1][:220])
     log(f"[sense] final: {len(sus)} line(s) reviewed, {len(sus) - len(still)} resolved, {len(still)} written up "
         f"({time.monotonic() - t0:,.0f}s)")
     return n

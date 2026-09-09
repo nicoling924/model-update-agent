@@ -139,6 +139,15 @@ def build_report(wb, spec, target_year, writer_log, served, pre_estimates,
                 r += 1
         r += 1
 
+    sense = writer_log.get("sense_check", [])
+    if sense:
+        head("SENSE CHECK — headline lines, updated model vs your pre-update model "
+             "(owner ruling 2026-09-09: a forecast out of line with the actual by >10 points is reviewed)")
+        for s_ in sense[:20]:
+            ws[f"A{r}"] = str(s_)[:400]
+            r += 1
+        r += 1
+
     head("4. CORE FIGURES — actual vs the model's own pre-update estimate")
     for name, ref, est in pre_estimates:
         sheet, coord = ref.split("!", 1)
