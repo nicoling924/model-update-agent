@@ -29,6 +29,12 @@ from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 
 SENSE_GAP = 0.10          # owner 2026-09-09: 10 points between the two changes
+# the report's mini P&L lines (owner 2026-09-09: "rows in the REPORT tab mini
+# P&L for now"): the P&L roles among the agent's key-row vocabulary. Cash
+# flows swing by nature and balance-sheet totals are checked by the balance
+# itself — neither is sense-checked here.
+PL_ROLES = ("revenue", "gross profit", "operating profit", "net profit", "net profit attributable",
+            "recurring net profit", "eps", "dps")
 
 
 def headline_deltas(wb, pre_wb, spec, target_year, key_rows=None):
@@ -40,6 +46,8 @@ def headline_deltas(wb, pre_wb, spec, target_year, key_rows=None):
     out = []
     for kk in (key_rows if key_rows is not None else (spec.get("key_rows") or [])):
         sh, r, nm = kk.get("sheet"), int(kk.get("row")), kk.get("name")
+        if str(nm or "").lower() not in PL_ROLES:
+            continue
         if sh not in wb.sheetnames or pre_wb is None or sh not in pre_wb.sheetnames:
             continue
         cols = year_columns(spec, sh)
@@ -134,7 +142,7 @@ def rolled_into_zero(wb, pre_wb, spec, target_year, cells, writer, log):
         if not (pre_act in (None, "", 0, 0.0)):
             continue
         cur = wb[sh][f"{tcol}{r}"].value
-        if not (isinstance(cur, (int, float)) and cur != 0):
+        if not (isinstance(cur, (int, float)) and abs(cur) > 0.005):
             continue
         ok = writer.write(sh, f"{tcol}{r}", 0.0, prior_coord=f"{prior_column(spec, sh, target_year)}{r}",
                           trusted=True, force_lock=True, flag="red",
