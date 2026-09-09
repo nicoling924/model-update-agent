@@ -4709,6 +4709,16 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     n2 = final_pass(loop2, pre, logs.append, None, answer, 600.0, lambda: False)
     assert n2 == 0 and abs(wb2["Model"]["U7"].value + 900.0) < 0.01
     assert any(x.startswith("UNRESOLVED") for x in w2.log["sense_check"]), w2.log["sense_check"]
+    # a review that WIDENS a headline gap is taken back even though every check still closes
+    # (CLP live 2026-09-09: next year's revenue went to −95,225,646%)
+    wb3 = model(1050.0, -900.0, None); w3 = Writer(wb3); w3.log["written"] += ["Model!U4", "Model!U7"]
+    wb3["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w3.log["flags"].append("Model!U7")
+    led3 = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-2500.0, -100.0])], face_pages=((95, "pl"),))
+    led3._doc_periods = {DOC: "current"}
+    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, dict(served), w3, None)
+    n3 = final_pass(loop3, pre, logs.append, None, answer, 600.0, lambda: True)
+    assert n3 == 0 and abs(wb3["Model"]["U7"].value + 900.0) < 0.01, (n3, wb3["Model"]["U7"].value)
+    assert any("widened" in l for l in logs), logs[-4:]
     print("PASS test_sense_check_checkpoint_and_final_pass_2026_09_09")
 
 

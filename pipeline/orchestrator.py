@@ -1429,6 +1429,14 @@ class ObjectiveLoop:
         # shows two tying lines, not one tying line and a plug.
         if verdict == "REFUSE":
             return "REFUSED by the evidence law: " + law_reason
+        if args.get("card") == "sense" and verdict != "ALLOW" and not args.get("nil"):
+            # A REVIEW SERVES ONLY A PROVEN FIGURE (CLP live 2026-09-09: a
+            # review card landed Australia's revenue at 1,801 — a line whose
+            # comparative did not tie — and next year's revenue went absurd).
+            # A review exists to replace a doubtful number with a proven one;
+            # an unproven one is a second guess, not a fix.
+            return ("REFUSED: a review serves only a figure whose printed line ties "
+                    "the prior — this one does not (" + law_reason[:80] + ")")
         evicted = ""
         if verdict == "EVICT":
             # PROOF OUTRANKS ARRIVAL (run-227 autopsy): the unproven

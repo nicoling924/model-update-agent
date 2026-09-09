@@ -757,8 +757,9 @@ def render_card(loop, item):
                 "nil": bool(c.get("nil")),
                 "flag": "red" if c.get("no_prior") else None,
                 "no_prior": bool(c.get("no_prior")),
+                "card": "sense" if item.kind == "SENSE" else None,
                 "why": f"p{c['page']}: '{c['line'][:40]}' ({c['doc'][:28]}) "
-                       f"— card-adjudicated"
+                       f"— {'sense-check review' if item.kind == 'SENSE' else 'card-adjudicated'}"
                        + (" — printed blank this year, judged the same item: 0"
                           if c.get("nil") else "")})
         options["not_disclosed"] = (None, None)

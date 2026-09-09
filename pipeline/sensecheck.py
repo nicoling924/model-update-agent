@@ -225,11 +225,20 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         fails_after = {s for s, _r, _v in loop._failing_target_checks()}
     except Exception:
         fails_after = set()
-    if changed and (fails_after - fails_before):
-        # the review OPENED a check that was closed: take every review write back, re-run
+    # THE REVIEW MUST NOT MAKE IT WORSE (CLP live 2026-09-09: a review write
+    # sent next year's revenue to −95,225,646% while the balance still
+    # closed). The review is judged by its own measure too: no headline
+    # line's gap may widen and no new line may go out of line.
+    gaps_before = {d["name"]: abs(d["d1"] - d["d0"]) for d in deltas}
+    gaps_after = {d["name"]: abs(d["d1"] - d["d0"]) for d in headline_deltas(wb, pre_wb, spec, ty)}
+    worse = [nm for nm, g in gaps_after.items()
+             if g > gaps_before.get(nm, 0.0) + 0.01 and g > SENSE_GAP]
+    if changed and ((fails_after - fails_before) or worse):
+        # the review OPENED a check or WIDENED a gap: take every review write back, re-run
         for sh, coord, old, _new in reversed(changed):
             writer.write(sh, coord, old, trusted=True, force_lock=True)
-        log(f"[sense] final: {n} review write(s) taken back — they opened {sorted(fails_after - fails_before)[:3]}")
+        log(f"[sense] final: {n} review write(s) taken back — "
+            + (f"they opened {sorted(fails_after - fails_before)[:3]}" if (fails_after - fails_before) else f"they widened {worse[:3]}"))
         rerun()
         n = 0
     deltas2 = headline_deltas(wb, pre_wb, spec, ty)
