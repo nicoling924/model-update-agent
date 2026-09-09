@@ -250,7 +250,7 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         else:
             cells = chain_cells(wb, spec, ty, now, writer)
             lines.append("UNRESOLVED " + reason_text(now) + f"; look at: {', '.join(c[2] for c in cells[:8])}")
-            log("[sense] " + lines[-1][:220])
+            log("[sense] " + lines[-1])
     log(f"[sense] final: {len(sus)} line(s) reviewed, {len(sus) - len(still)} resolved, {len(still)} written up "
         f"({time.monotonic() - t0:,.0f}s)")
     return n

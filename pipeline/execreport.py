@@ -457,9 +457,16 @@ def render(wb, summary, pre_wb=None, cols=None, primary=None):
             cell(r, 1, str(line)[:220], SMALL)
             r += 1
         gap(10)
-    # (owner 2026-09-04: no rollover table on the page — the mini P&L
-    # old-vs-new already shows the forecast path; the check's verdicts
-    # live in the flags and the log)
+    # THE SENSE CHECK (owner 2026-09-09): headline lines whose next-year
+    # change sits more than 10 points from the actual-year change, what the
+    # review did, and the cells to look at — on page one
+    sense = summary.get("sense_check") or []
+    if sense:
+        sect("0b · Sense check   (updated model vs your pre-update model; a forecast out of line with the actual is reviewed)")
+        for line in sense[:12]:
+            cell(r, 1, str(line)[:400], SMALL)
+            r += 1
+        gap(10)
     sect(f"1 · Key number snapshot   ({summary.get('units') or 'model units'})")
     hdr = ["", "FY prior A", "FY actual A", "YoY", "Your estimate",
            "A vs E", "Next yr before", "Next yr after"]
