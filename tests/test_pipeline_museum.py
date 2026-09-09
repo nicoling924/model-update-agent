@@ -4715,7 +4715,8 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     wb3["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w3.log["flags"].append("Model!U7")
     led3 = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-2500.0, -100.0])], face_pages=((95, "pl"),))
     led3._doc_periods = {DOC: "current"}
-    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, dict(served), w3, None)
+    served3 = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
+    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, served3, w3, None)   # scenario 1's loop wrote into `served`
     n3 = final_pass(loop3, pre, logs.append, None, answer, 600.0, lambda: True)
     assert n3 == 0 and abs(wb3["Model"]["U7"].value + 900.0) < 0.01, (n3, wb3["Model"]["U7"].value)
     assert any("widened" in l for l in logs), logs[-4:]
