@@ -199,3 +199,20 @@ the cards; DFE flags operating profit (+21% / −5%) and EPS. Neither resolved b
 was offered did not tie the prior — but nothing it tried was allowed to make the model worse, and both runs
 delivered clean (CLP 48 min, DFE 36 min with the interest-roll gap closed). Next, when you are back on the report
 page: the REPORT tab revamp you asked to be reminded of.
+
+## 17. Night of 10 September: the investigator — your trace, done by the agent
+
+The rule you described: from a suspicious line on the report page, press in level by level to the input that
+explains the swing, judge it, correct it if something better is proven, otherwise write up the trail. Built,
+pinned, practised on the last five CLP runs, then live.
+
+| | Result |
+|---|---|
+| Your tax case, on a past run | Traced net profit → Others → Australia → Earnings → income tax → the cell holding the group's tax; replaced by Australia's own printed tax line; three suspicious lines → none |
+| CLP live | Two fixes at the checkpoint (Australia income tax, Australia finance costs, both from printed lines); revenue's factor flagged red with the trail; India EBITDAF +742% reported as genuine but unusual |
+| DFE live | Schedule 17/17; the flagged lines traced to proven figures within their history: reported, untouched |
+| Safety | Every correction obeys the cell rules, lands orange with the trail, and is kept only if the gap shrinks and no check opens |
+
+Open: CLP's ROAFNA check was left open by 968 this run (a card served a different tariff-stabilisation balance;
+not the investigator), and DFE's small interest-roll gap (11) comes and goes. Both are on the report tab.
+Reminder you asked for: the REPORT page revamp is next.

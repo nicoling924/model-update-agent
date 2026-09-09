@@ -2199,3 +2199,22 @@ written up with the cells to look at; next year's revenue sane. DFE FY25 36 min,
 gap closed this time), schedule 17/17, keys 8/11; operating profit (+21.2% / −4.8%) and EPS written up.
 Live so far the sense check detects, reviews and gives up safely; it has not yet resolved a line by itself — the
 review candidates were second readings without a prior tie. Museum 185.
+
+## 2026-09-10 (night) — THE INVESTIGATOR (owner's rule): the analyst's trace, built, practised on past runs, live
+
+Rule: a suspicious headline line (next-year change >10 points from the actual-year change vs the pre-update
+model) is traced level by level — put each input's pre-update value back and measure how much of the swing goes —
+down to a typed cell; that cell is judged: the agent's own red/orange → a better answer (a printed line that ties
+the prior and is named like the row; the residual of its total; last year's share), kept only if the gap shrinks
+and no check opens; a proven figure outside its own history → reported, untouched; else red with the trail.
+Practice (tools/investigate_past.py over the last five CLP deliveries): the owner's tax case traced exactly —
+net profit → Total → Others → Australia → Earnings → income tax → Aus!AI27 holding the group's tax −2,655 —
+and fixed from Australia's own printed line (−226, p29): 3 suspicious lines → 0. India revenue 88,018,000,000
+(the group figure in dollars) traced and put back. Practice also caught two of my own errors before going live:
+a per-share line used as the 'world' for an amount, and pass-through links taken as parents.
+Live (cf8dca4): CLP FY25 48 min — at the checkpoint the investigator FIXED recurring net profit twice
+(Australia income tax −284 from p29; Australia finance costs −185 from the printed line) and flagged revenue's
+factor (Aus!AI5, no proof); at the final pass it judged India EBITDAF +742% genuine-but-unusual. Balance closed;
+ROAFNA open by 968 this run (card variance in the tariff-stabilisation closing balance, not the investigator).
+DFE FY25 30 min — schedule 17/17; operating profit's factor (Wind) judged genuine within history; the intermittent
+interest-roll gap (11) open. Museum 186.
