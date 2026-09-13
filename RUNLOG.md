@@ -2287,3 +2287,12 @@ with its note, the header rows blank ('New orders' too), the sense check over 14
 at the checkpoint from the printed 长期借款, capex / investing / FCF traced to the CIP closing and judged genuine,
 operating profit red → J10). Replay limit, same on cf8dca4: the saved ledger serves only one schedule row, so the
 PP&E check sits open by 725 in replays where the live run closed it.
+
+## 2026-09-14 (night) — DFE FY25 run 34771914611 (23 min) and CLP FY25 run 34772986687 (30 min), head 70bb04b
+Both delivered clean, checks closed every year; DFE keys 8/11, CLP 8/10. The four fixes verified live on DFE
+(J10 red with note; header rows and 'New orders' empty; DPS and cash-flow lines sense-checked; schedule intact).
+Scores (tools/score_inputs.py, docs/scores/): CLP vs the analyst's finished model — 282 judged, 191 correct
+(68%), wrong 91 = red 46 / orange 22 / unhighlighted 23; DFE vs the prior agent run (no hand-filled FY25 key) —
+214 judged, 207 correct (97%), wrong 7 = red 6 / unhighlighted 1 (a 差额 difference row). Full report:
+docs/MORNING_REPORT_2026-09-14.md. Wasted hour first: tools/dispatch.sh dispatches the previous-gen 'updater';
+the root dispatch.sh with 'pipeline' is the only command (memory + RUNLOG).

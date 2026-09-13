@@ -1,0 +1,12 @@
+reference: Dongfang Electric Claude Fable 5.xlsx
+1. filled input cells judged: 214; correct: 207 (97%)
+2. wrong: 7 — red 6, orange 0
+3. wrong and NOT highlighted: 1
+per sheet (judged, correct): {'Model': [5, 5], 'Raw financials': [163, 161], 'Driver': [42, 37], 'Cons': [4, 4]}
+   none   Raw financials!U266               间接法-经营活动现金流量净额差额 agent=        152.71 ref=             0
+   red    Driver!J10    Wind                         agent=      13269.35 ref=      18224.19
+   red    Driver!J155   =A6                          agent=      44163.06 ref=       78945.1
+   red    Driver!J159   New Energy (Mostly Wind & Hy agent=      29879.37 ref=             0
+   red    Driver!J160   =A12                         agent=       9891.34 ref=       25971.1
+   red    Driver!J43    =+A10                        agent=     -13320.17 ref=     -17707.91
+   red    Raw financials!U32                其中：非流动资产处置净损失    agent=        594.51 ref=             0
