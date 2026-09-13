@@ -37,17 +37,48 @@ PL_ROLES = ("revenue", "gross profit", "operating profit", "net profit", "net pr
             "recurring net profit", "eps", "dps")
 
 
+def sense_rows(wb, spec, target_year):
+    """The lines the sense check watches (owner 2026-09-14: every P&L and
+    cash-flow line of the report's fixed table, plus the key rows in the
+    P&L roles): [{name, sheet, row}], one per cell. A row that is a spec
+    key keeps the key's name."""
+    from .reportpage import ROLES, resolve_rows
+    keys = spec.get("key_rows") or []
+    by_cell = {(k.get("sheet"), int(k.get("row"))): k.get("name") for k in keys if isinstance(k.get("row"), int)}
+    out, seen = [], set()
+    try:
+        found, _primary = resolve_rows(wb, spec, target_year, "FY")
+    except Exception:
+        found = {}
+    for role in ROLES:
+        key, label, group = role[0], role[1], role[2]
+        if group not in ("P&L", "Cash flow") or key not in found:
+            continue
+        sh, r, _lab = found[key]
+        if (sh, r) in seen:
+            continue
+        seen.add((sh, r))
+        out.append({"name": by_cell.get((sh, r)) or label.lower(), "sheet": sh, "row": r})
+    for k in keys:
+        if str(k.get("name") or "").lower() in PL_ROLES and (k.get("sheet"), int(k.get("row"))) not in seen \
+                and isinstance(k.get("row"), int):
+            seen.add((k["sheet"], int(k["row"])))
+            out.append({"name": k.get("name"), "sheet": k["sheet"], "row": int(k["row"])})
+    return out
+
+
 def headline_deltas(wb, pre_wb, spec, target_year, key_rows=None):
     """[{name, sheet, row, ref0, ref1, d0, d1, old0, new0, old1, new1}] for
-    every key row whose actual and first-forecast cells are numeric in
-    both models. Ratios (percent-formatted or |old| < 1) are skipped."""
+    every watched line (sense_rows) whose actual and first-forecast cells
+    are numeric in both models. Percent-formatted ratios are skipped; a
+    per-share line is an amount whatever its size."""
     from .execreport import _pre_val
+    if key_rows is None:
+        key_rows = sense_rows(wb, spec, target_year)
     ev = Evaluator(wb)
     out = []
-    for kk in (key_rows if key_rows is not None else (spec.get("key_rows") or [])):
+    for kk in key_rows:
         sh, r, nm = kk.get("sheet"), int(kk.get("row")), kk.get("name")
-        if str(nm or "").lower() not in PL_ROLES:
-            continue
         if sh not in wb.sheetnames or pre_wb is None or sh not in pre_wb.sheetnames:
             continue
         cols = year_columns(spec, sh)
@@ -68,7 +99,11 @@ def headline_deltas(wb, pre_wb, spec, target_year, key_rows=None):
         (o0, n0), (o1, n1) = vals["0"], vals["1"]
         if not all(isinstance(x, (int, float)) for x in (o0, n0, o1, n1)):
             continue
-        if abs(o0) < 1 or abs(o1) < 1:
+        # a tiny base explodes a ratio — but a per-share line (DPS 0.60) is an
+        # amount whatever its size (DFE live 2026-09-10: DPS −11.9% / −30.4%
+        # went unreviewed)
+        per_share = any(w in str(nm or "").lower() for w in ("eps", "dps", "per share"))
+        if (abs(o0) < 1 or abs(o1) < 1) and not per_share:
             continue
         d0 = (n0 - o0) / abs(o0)
         d1 = (n1 - o1) / abs(o1)
@@ -154,6 +189,19 @@ def rolled_into_zero(wb, pre_wb, spec, target_year, cells, writer, log):
             continue
         cur = wb[sh][f"{tcol}{r}"].value
         if not (isinstance(cur, (int, float)) and abs(cur) > 0.005):
+            continue
+        # THE FORECAST MUST HAVE MOVED (DFE faithful replay 2026-09-14: the
+        # schedule's proven disposal 434.56 was zeroed although the forecast
+        # years were typed zeros that never moved — and the opened check was
+        # then plugged over the proven figure). Typed zeros stay zero by
+        # themselves; only a forecast that now computes from the fill is
+        # 'rolled into', and only then is the fill taken back.
+        try:
+            ev = Evaluator(wb)
+            now_fut = [ev.cell(sh, f"{c}{r}") for c in fut]
+        except Exception:
+            now_fut = []
+        if not any(isinstance(v, (int, float)) and abs(v) > 0.005 for v in now_fut):
             continue
         ok = writer.write(sh, f"{tcol}{r}", 0.0, prior_coord=f"{prior_column(spec, sh, target_year)}{r}",
                           trusted=True, force_lock=True, flag="red",
@@ -261,8 +309,10 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
              if g > gaps_before.get(nm, 0.0) + 0.01 and g > SENSE_GAP]
     if changed and ((fails_after - fails_before) or worse):
         # the review OPENED a check or WIDENED a gap: take every review write back, re-run
+        journal = writer.log.get("style_journal", [])[mark:]
         for sh, coord, old, _new in reversed(changed):
-            writer.write(sh, coord, old, trusted=True, force_lock=True)
+            style = next((j for j in journal if (j[0], j[1]) == (sh, coord)), (sh, coord, "", None, False))
+            writer.take_back(sh, coord, old, style)
         log(f"[sense] final: {n} review write(s) taken back — "
             + (f"they opened {sorted(fails_after - fails_before)[:3]}" if (fails_after - fails_before) else f"they widened {worse[:3]}"))
         rerun()

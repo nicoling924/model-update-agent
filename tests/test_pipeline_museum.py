@@ -617,7 +617,7 @@ def _wb(cells):
 
 def test_112b_world_band_guard_new_chokepoint():
     from pipeline.writer import Writer
-    w = Writer(_wb({"T5": 0.94}))
+    w = Writer(_wb({"T5": 0.94, "V6": 2.0}))
     assert w.write("S", "U5", 3831.3, prior_coord="T5") is False
     assert w.write("S", "U5", 1.15, prior_coord="T5") is True
     assert w.write("S", "U6", 3831.3, prior_coord="T5", trusted=True) is True
@@ -1735,6 +1735,7 @@ def test_203_error_guard_reverts_the_breaking_write():
     ws.title = "S"
     ws["T5"], ws["U5"] = 1577.0, 1577.0
     ws["T6"], ws["U6"] = "=100/T5", "=100/U5"
+    ws["T7"] = 4.0
     spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
     base = error_cells(wb, spec)
     w = Writer(wb)
@@ -1833,11 +1834,15 @@ def test_203_empty_row_law():
     """A row whose prior actual is empty is furniture — untrusted
     machine writes are refused there."""
     from pipeline.writer import Writer
-    wb = _wb({"T5": 100.0})
+    wb = _wb({"T5": 100.0, "V9": "=U9*1.1"})
     w = Writer(wb)
     assert w.write("S", "U9", 5.0, prior_coord="T9") is False
     assert w.log["empty_row_refused"] == ["S!U9"]
     assert w.write("S", "U5", 105.0, prior_coord="T5") is True
+    # THE NEVER-FILLED ROW LAW (owner 2026-09-14): a row with no number
+    # anywhere, past or future, takes no write from any step — trusted or not
+    assert w.write("S", "U12", 5.0, prior_coord="T12", trusted=True, allow_empty=True) is False
+    assert w.log["never_filled_refused"] == ["S!U12"] and wb["S"]["U12"].value is None
 
 
 def test_204_teachings_twin_collapse_plugmeter():
@@ -3557,10 +3562,12 @@ def test_prose_figures_become_lines_2026_09_08():
 
 
 def test_no_prior_row_gets_a_label_card_2026_09_08():
-    """Owner: 'if there is no past-year number you infer from the item
-    label.' A row the model names but never filled (DFE 'New orders')
-    gets a card offering the report's kin lines — the prose sentence
-    first — every one marked 'no prior tie'; the brain's pick lands red."""
+    """Owner 2026-09-08: 'if there is no past-year number you infer from
+    the item label' — SUPERSEDED by the owner's 2026-09-14 law: a row that
+    holds no number in any period, past or future ('New orders' in the
+    DFE model), is not an input; no card is dealt and the writer refuses
+    it from every step. The prose candidate is still found (the report
+    names the figure) — it is the ROW that is not the analyst's."""
     import openpyxl
     from pipeline.orchestrator import ObjectiveLoop
     from pipeline.workqueue import candidates_for, build_queue
@@ -3568,7 +3575,7 @@ def test_no_prior_row_gets_a_label_card_2026_09_08():
     from pipeline.prose import harvest_prose
     wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
     ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-    ws["A142"] = "New orders"                       # no prior, empty this year
+    ws["A142"] = "New orders"                       # no prior, no future, empty this year
     spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
     prose = harvest_prose(DOC, 10, "2025年，公司新生效订单1172.51亿元，同比增长15.93%。")
     pr = next(it for it in prose if "新生效订单" in it.label)
@@ -3578,14 +3585,12 @@ def test_no_prior_row_gets_a_label_card_2026_09_08():
     cands = candidates_for(loop, "Model", 142)
     assert cands and cands[0].get("no_prior") and cands[0]["face"] == "prose", cands
     assert abs(cands[0]["value"] - 117251.0) < 1                 # yuan -> RMB m via the document's scale
-    assert any("NO PRIOR" in w for w in cands[0]["warnings"])
     q = build_queue(loop)
-    assert any(w.kind == "LABEL" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
-    assert q[-1].kind == "LABEL"                       # dealt last, after every balance card
+    assert not any(w.kind == "LABEL" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
     r = loop.t_set_input({"cell": "Model!U142", "value": 117251.0, "flag": "red", "no_prior": True,
                           "why": "p10: 新生效订单1172.51亿元 — card-adjudicated"})
-    assert str(r).startswith("WRITTEN"), r
-    assert ws["U142"].value == 117251.0 and str(ws["U142"].fill.fgColor.rgb).endswith("FFC7CE")
+    assert not str(r).startswith("WRITTEN"), r
+    assert ws["U142"].value is None and "Model!U142" in loop.writer.log.get("never_filled_refused", [])
 
 
 def test_no_serve_card_cap_budget_decides_2026_09_08():
@@ -4856,6 +4861,83 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
     assert "1H24A" in text2 and "1H25A" in text2 and "no half-year forecast found in this model" in text2, text2
     assert "FY26E" not in text2 and "Updated to 1H25" in text2
     print("PASS test_report_page_fixed_table_period_follows_the_run_2026_09_13")
+
+
+def test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14():
+    """DFE live 2026-09-10, owner's findings. (1) Label cards had filled
+    'Revenue' over the segment lines and 'Hydro-generating unit 兆瓦' over
+    Production/Sales/Inventory: rows with no number in any period. Owner
+    2026-09-14: one law for the whole run, the writer's — such a row takes
+    no write from any step, and no card is dealt for it. (2) A per-share
+    line is an amount whatever its size: DPS 0.60 → 0.53 is sense-checked
+    like EPS."""
+    import openpyxl
+    from pipeline.reader import never_filled
+    from pipeline.writer import Writer, row_never_filled
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import build_queue
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
+    ws["A3"] = "Revenue"                                   # caption: children hold the numbers
+    ws["A4"], ws["T4"] = "  Gas turbine", 500.0
+    ws["A5"], ws["T5"] = "  Nuclear", 300.0
+    ws["A150"] = "Hydro-generating unit 兆瓦"               # caption over a block
+    ws["A151"], ws["T151"] = "Production", "=T4*2"
+    ws["A160"], ws["V160"] = "Forecast-only driver", "=U160*1.1"   # tracked in the future: not never-filled
+    assert never_filled(wb, "Model", 3, "U") and never_filled(wb, "Model", 150, "U")
+    assert row_never_filled(ws, "U3") and not row_never_filled(ws, "U4") and not row_never_filled(ws, "U160")
+    w = Writer(wb)
+    assert w.write("Model", "U3", 78615.0, prior_coord="T3", trusted=True, allow_empty=True) is False
+    assert w.write("Model", "U150", 0.008, prior_coord="T150", trusted=True, flag="red") is False
+    assert w.log["never_filled_refused"] == ["Model!U3", "Model!U150"] and ws["U3"].value is None
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
+    led = _ledger(_anchors(95, 1e6), face_pages=((95, "pl"),))
+    targets = _anchor_targets() + [TargetRow("Model", 3, "Revenue", None),
+                                   TargetRow("Model", 150, "Hydro-generating unit 兆瓦", None)]
+    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
+    labels = [(x.sheet, x.row) for x in build_queue(loop) if x.kind == "LABEL"]
+    assert ("Model", 3) not in labels and ("Model", 150) not in labels, labels
+    # (2) DPS under 1 is still a headline line
+    from pipeline.sensecheck import headline_deltas, suspicious
+    wb2 = openpyxl.Workbook(); w2 = wb2.active; w2.title = "M"
+    w2["A2"], w2["U2"], w2["V2"] = "", 2025, 2026
+    w2["A4"], w2["U4"], w2["V4"] = "DPS", 0.53, 0.42
+    w2["A5"], w2["U5"], w2["V5"] = "Payout ratio", 0.40, 0.30
+    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "M"
+    pw["U4"], pw["V4"], pw["U5"], pw["V5"] = 0.60, 0.60, 0.45, 0.45
+    spec2 = {"year_axis": {"M": {"columns": {"2025": "U", "2026": "V"}}},
+             "key_rows": [{"name": "dps", "sheet": "M", "row": 4}, {"name": "net profit", "sheet": "M", "row": 5}]}
+    d = {x["name"]: x for x in headline_deltas(wb2, pre, spec2, 2025)}
+    assert "dps" in d and abs(d["dps"]["d0"] + 0.1167) < 0.01, d      # −11.7% then −30%: 18 points apart
+    assert "net profit" not in d                                        # a base under 1 that is not per share: skipped as before
+    assert [x["name"] for x in suspicious(list(d.values()))] == ["dps"]
+    print("PASS test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14")
+
+
+def test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14():
+    """DFE faithful replay 2026-09-14: with cash flow in the sense check's
+    scope, the schedule's proven disposal (Driver!J104 434.56) sat on a
+    chain and was zeroed because its forecast years were typed zeros —
+    which had not moved at all; the opened check was then plugged over
+    the proven figure (1,159). A fill is taken back only when a forecast
+    cell now computes from it; typed zeros stay zero by themselves."""
+    import openpyxl
+    from pipeline.sensecheck import rolled_into_zero
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "D"
+    ws["A2"], ws["T2"], ws["U2"], ws["V2"], ws["W2"] = "", 2024, 2025, 2026, 2027
+    ws["A4"], ws["T4"], ws["U4"], ws["V4"], ws["W4"] = "Disposal", 344.9, 434.56, 0, 0        # typed zeros: untouched
+    ws["A5"], ws["T5"], ws["U5"], ws["V5"], ws["W5"] = "Rolled line", 10.0, 50.0, "=U5", "=V5"  # formulas: moved by the fill
+    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "D"
+    for c in ("A2", "T2", "U2", "V2", "W2", "A4", "T4", "V4", "W4", "A5", "T5", "V5", "W5"):
+        pw[c] = ws[c].value
+    pw["U4"], pw["U5"] = 0, 0
+    pw["V5"], pw["W5"] = 0, 0                    # before the update the rolled line's forecasts were zero
+    spec = {"year_axis": {"D": {"columns": {"2024": "T", "2025": "U", "2026": "V", "2027": "W"}}}}
+    w = Writer(wb)
+    n = rolled_into_zero(wb, pre, spec, 2025, [("D", 4, "D!U4", "orange"), ("D", 5, "D!U5", "red")], w, lambda s: None)
+    assert n == 1 and ws["U4"].value == 434.56 and ws["U5"].value == 0.0, (n, ws["U4"].value, ws["U5"].value)
+    print("PASS test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14")
 
 
 if __name__ == "__main__":

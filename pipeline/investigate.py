@@ -304,6 +304,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
                              f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c)))
     for what, value, formula in attempts:
         val = formula if formula else value
+        mark = len(writer.log.get("writes_all", []))
         ok = writer.write(sh, coord, val, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True,
                           force_lock=True, flag="orange",
                           note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); replaced by {what}. Please confirm.")
@@ -316,7 +317,9 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
                                "doc": None, "page": None, "line": what[:60], "note": "sense check: " + what}
             return "fixed", (f"'{d['name']}': swing traced to {path} ({ref}); replaced by {what} — gap "
                              f"{gap0*100:.0f} → {gap1*100:.0f} points")
-        writer.write(sh, coord, old, trusted=True, force_lock=True)
+        # the trial failed: the old value AND the old look come back (the
+        # red the constants law painted is the analyst's 'look here')
+        writer.take_back(sh, coord, old, writer.log["style_journal"][mark])
         if rerun is not None:
             rerun()
     return "red", f"'{d['name']}': swing traced to {path} ({ref}) — the agent's own {colour} figure; no better source proved. Please look here first."

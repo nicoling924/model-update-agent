@@ -284,6 +284,17 @@ class Writer:
                 self.log["band_refused"].append(
                     f"{ref}: {value!r} (≈{guard_v:,.1f}) vs prior {pv!r}")
                 return False
+        # THE NEVER-FILLED ROW LAW (owner 2026-09-14, "an overall check for
+        # the whole run"): a row that holds no number and no formula in ANY
+        # other cell — nothing in the past, nothing in the future — is a
+        # caption or a line the analyst never tracked; no step of the run
+        # writes into it (DFE live 2026-09-10: label cards filled 'Revenue'
+        # over the segment lines and MW headings with fractions). Trusted
+        # writes are refused too: the law is the writer's, not a step's.
+        if (isinstance(value, (int, float)) or (isinstance(value, str) and value.startswith("="))) \
+                and row_never_filled(ws, coord):
+            self.log.setdefault("never_filled_refused", []).append(ref)
+            return False
         # the empty-row law (owner ruling 2026-08-31): a row whose prior
         # actual is EMPTY is furniture — machine writes stay out of it
         # (trusted writes may proceed: folds and proven serves carry
@@ -302,6 +313,14 @@ class Writer:
         # consumed
         self.log.setdefault("writes_all", []).append(
             (sheet, coord, cell.value, value))
+        # the style journal, parallel to writes_all: what the cell LOOKED
+        # like before this write, so a take-back restores the colour and
+        # the note with the value (DFE live 2026-09-10: the investigator's
+        # restore of Driver!J10 wiped the constants law's red)
+        self.log.setdefault("style_journal", []).append(
+            (sheet, coord, _fill_rgb(cell),
+             str(cell.comment.text) if cell.comment is not None else None,
+             ref in self.log["flags"]))
         cell.value = value
         if prior_coord is not None:      # inherit the prior actual's look
             prior = ws[prior_coord]
@@ -328,6 +347,26 @@ class Writer:
             self.log["flags"].append(ref)
         return True
 
+    def restore_style(self, sheet, coord, style):
+        """Put a cell's colour, note and flag standing back as the journal
+        recorded them before a write that is now taken back."""
+        _sh, _co, rgb, note, flagged = style
+        cell = self.wb[sheet][coord]
+        ref = f"{sheet}!{coord}"
+        by_rgb = {v.fgColor.rgb[-6:]: v for v in self.fills.values()}
+        cell.fill = copy.copy(by_rgb[rgb]) if rgb in by_rgb else PatternFill()
+        cell.comment = Comment(note[:700], AUTHOR) if note else None
+        self.log["flags"] = [f for f in self.log["flags"] if f != ref]
+        if flagged:
+            self.log["flags"].append(ref)
+
+    def take_back(self, sheet, coord, old, style):
+        """A write undone: the old value AND the old look."""
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        if ok:
+            self.restore_style(sheet, coord, style)
+        return ok
+
     def restate(self, sheet, coord, new_value, why):
         """Restatement write: prior-period history corrected to the new
         disclosure's comparatives, always annotated, always logged."""
@@ -353,6 +392,31 @@ class Writer:
             cell.number_format = src.number_format
             if keep:
                 cell.fill = fill
+
+
+def _fill_rgb(cell):
+    try:
+        f = cell.fill
+        return (f.fgColor.rgb or "")[-6:] if f is not None and f.fill_type == "solid" else ""
+    except Exception:
+        return ""
+
+
+def row_never_filled(ws, coord):
+    """True when no cell of the row but the one addressed holds a number
+    (a typed zero counts: the analyst typed it) or a formula: the analyst
+    never tracked this line, in any period, past or future."""
+    row = int(re.sub(r"[A-Z]+", "", coord))
+    for c in range(2, ws.max_column + 1):
+        cell = ws.cell(row, c)
+        if cell.coordinate == coord:
+            continue
+        v = cell.value
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)) or (isinstance(v, str) and v.startswith("=")):
+            return False
+    return True
 
 
 # -- honesty instruments ------------------------------------------------------

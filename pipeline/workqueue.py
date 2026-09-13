@@ -557,6 +557,12 @@ def build_queue(loop):
                 c.get("sheet") == sheet and int(c.get("row", -1)) == row
                 for c in (loop.spec.get("check_rows") or [])):
             continue
+        # THE NEVER-FILLED ROW (owner 2026-09-14, superseding the 2026-09-08
+        # label-card exception): a row holding no number in any period is
+        # not an input — the writer refuses it; no card is dealt for it
+        from .reader import never_filled
+        if never_filled(loop.wb, sheet, row, col):
+            continue
         if not _label_only_candidates(loop, sheet, row, t, 1):
             continue
         items.append(WorkItem("LABEL", sheet, row, priority=0.0))

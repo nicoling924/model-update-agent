@@ -122,7 +122,10 @@ def rows_to_read(wb, spec, target_year, targets, served):
 
 def never_filled(wb, sheet, row, tcol):
     """True when no cell of the row left of the target column ever held a
-    number (or a formula): the analyst never tracked this line."""
+    number (or a formula): the analyst never tracked this line. (The
+    writer's own law, row_never_filled, refuses the whole-row case from
+    every step — owner 2026-09-14; this reader-side rule also keeps the
+    reader off rows that hold only typed zeros in the past.)"""
     from openpyxl.utils import column_index_from_string as _ci
     ws = wb[sheet]
     for c in range(2, _ci(tcol)):

@@ -2256,3 +2256,34 @@ profit). Floors on the repo's pinned ledgers (no pinned key rows, so key counts 
 DFE FY25 delivered with the standing magnitude check open (as before), DFE 1H25 delivered with open checks (as
 before) on the interim panel with the no-forecast note, CLP FY25 delivered clean, keys 7/8 (was 1 open check).
 Bench green, museum 187, head committed as the report revamp.
+
+## 2026-09-14 — Owner's three findings on the DFE file, each to its cause
+
+1. Header rows filled (Driver 'Revenue' over the segment lines, 'Hydro-generating unit 兆瓦' over
+   Production/Sales/Inventory, Raw financials '非流动资产：'): label cards (the 2026-09-08 'infer from the
+   label' exception) had no never-filled check. Owner 2026-09-14: "an overall check for the whole run" — THE
+   NEVER-FILLED ROW LAW is the writer's: a row holding no number (a typed zero counts) and no formula in any
+   other cell, past or future, takes no numeric write from any step, trusted or not
+   (writer.row_never_filled; log key never_filled_refused); no label card is dealt for it. The 09-08 exception
+   is superseded — 'New orders' stays blank (owner: "1 yes").
+2. Driver!J10 '=16602.97-J11' plain, not flagged: the constants law HAD painted it red; the investigator then
+   tried a fix on it (last year's share, orange), the gap did not close, and its restore was a plain write —
+   which clears the standing flag — so the red went, the format rollover copied the prior column's look, and
+   the final pass judged the now-unflagged cell "a proven figure within its history". Fix: the writer keeps a
+   style journal beside writes_all (fill, note, flag standing before each write) and take_back() restores the
+   look with the value; the investigator's trial restore and the final pass's take-back use it.
+3. The sense check ran (operating profit 26 pts → traced to J10; EPS 17 pts → impairment losses, genuine) but
+   skipped DPS (−11.9% / −30.4%) because a base under 1 was treated as a ratio: a per-share line is an amount
+   whatever its size. Owner 2026-09-14: scope extended to every P&L AND cash-flow line of the report's fixed
+   table (sensecheck.sense_rows via reportpage.resolve_rows; a spec key row keeps its name).
+Museum 195 (three exhibits rewritten/added: 203 empty-row law + the writer's law; 09-08 label card superseded;
+09-14 never-filled + DPS). Bench green.
+4. Found by the faithful replay once cash flow was in scope: the schedule's proven disposal (Driver!J104 434.56,
+   p184) was zeroed by rolled_into_zero — its forecast years were typed zeros that had never moved — and the
+   opened PP&E check was then plugged over the proven figure (1,159). The rule now fires only when a forecast
+   cell actually computes from the fill; typed zeros stay zero by themselves. Museum 197.
+Faithful replay of the live DFE run (run 34386953100 artifact + its card answers) on this head: Driver!J10 red
+with its note, the header rows blank ('New orders' too), the sense check over 14 lines (net finance costs fixed
+at the checkpoint from the printed 长期借款, capex / investing / FCF traced to the CIP closing and judged genuine,
+operating profit red → J10). Replay limit, same on cf8dca4: the saved ledger serves only one schedule row, so the
+PP&E check sits open by 725 in replays where the live run closed it.
