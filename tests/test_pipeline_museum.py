@@ -4767,6 +4767,97 @@ def test_investigator_traces_the_swing_and_judges_it_2026_09_10():
     print("PASS test_investigator_traces_the_swing_and_judges_it_2026_09_10")
 
 
+def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
+    """THE REPORT REVAMP (owner 2026-09-13): one fixed table on every model,
+    lines found from the model's own labels (a shared word is no evidence:
+    'gross profit' is not 'profit after tax', 'tax' is not 'deferred tax
+    assets'), explicit period headers, the printed figure beside the
+    actual, the key numbers below, look-here with the trail's cell — and on
+    an interim run the interim panel, saying so when it has no forecast."""
+    import openpyxl
+    from pipeline.reportpage import build, resolve_rows, period_axis, period_kind
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "M"
+    for i, y in enumerate((2023, 2024, 2025, 2026, 2027, 2028)):
+        ws.cell(row=2, column=2 + i, value=y)
+    labels = ["P&L", "Revenue", "Gross Profit", "GPM", "Profit after tax", "EBIT", "Deferred tax assets", "Tax",
+              "Reported net profit", "EPS - basic", "DPS", "Cash flow", "Operating cash flow", "CAPEX",
+              "Investing cash flow", "Financing cash flow", "Dividend payment", "Balance sheet", "Cash",
+              "Net debt/(cash)", "Total equity", "Share capital", "BPS - YE"]
+    for i, lab in enumerate(labels):
+        r = 3 + i
+        ws.cell(row=r, column=1, value=lab)
+        if lab not in ("P&L", "Cash flow", "Balance sheet"):
+            for c in range(2, 8):
+                ws.cell(row=r, column=c, value=float(100 * (c - 1) + r))
+    ws["D4"] = 1200.0; ws["E4"] = "=D4*1.1"
+    ws["D5"] = 300.0; ws["D6"] = 0.25
+    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "M"
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row):
+        for c in row:
+            pw[c.coordinate] = c.value
+    pw["D4"] = 1000.0; pw["E4"] = 1050.0
+    spec = {"year_axis": {"M": {"columns": {str(y): chr(ord("B") + i) for i, y in enumerate(range(2023, 2029))}}},
+            "key_rows": [{"name": "revenue", "sheet": "M", "row": 4}, {"name": "net profit", "sheet": "M", "row": 11}],
+            "check_rows": [], "units": "RMB m"}
+    rows, primary = resolve_rows(wb, spec, 2025, "FY25")
+    assert primary == "M"
+    assert rows["gross_profit"][1] == 5 and rows["tax"][1] == 10 and rows["bvps"][1] == 25, rows
+    assert rows["net_profit"][1] == 11 and rows["div_paid"][1] == 19 and rows["cash"][1] == 21, rows
+    for missing in ("ebitda", "associates", "recurring", "fcf"):
+        assert missing not in rows, (missing, rows.get(missing))            # a shared word is no evidence
+    assert [a[0] for a in period_axis(spec, "M", 2025, "FY25")] == ["FY24A", "FY25A", "FY26E", "FY27E", "FY28E"]
+    extra = {"key_ties": [{"name": "revenue", "ref": "M!D4", "value": 1200.0, "print": 1200.0, "tied": True},
+                          {"name": "net profit", "ref": "M!D11", "value": 111.0, "print": 999.0, "tied": False}],
+             "provenance": {"M!4": {"value": 1200.0, "doc": "RA.pdf", "page": 5, "conf": 4}},
+             "sense_rows": [{"name": "net profit", "d0": -0.05, "d1": 0.18, "ref1": "M!E11", "verdict": "red",
+                             "text": "swing traced to Tax", "leaf": "M!D10", "stage": "final"}],
+             "open_checks": [], "elapsed_min": 12.0, "period": "FY25", "units": "RMB m"}
+    res = build(wb, pre, spec, 2025, "FY25", extra, log=lambda *_a, **_k: None)
+    assert wb.sheetnames[0] == "_REPORT" and "_FLAGS" in wb.sheetnames
+    rp = wb["_REPORT"]
+    text = "\n".join(str(c.value) for row in rp.iter_rows() for c in row if c.value is not None)
+    assert "FY24A" in text and "FY25A" in text and "FY28E" in text and "FY0" not in text and "FY+1" not in text
+    assert "Documents received" not in text and "Why it moved" not in text and "SENSE CHECK" not in text
+    assert "Next yr" not in text and "not in this model" in text
+    assert "1,200 · p5" in text and "not tied" in text, text                # the printed figure beside the actual
+    assert "12 min" in text and "key numbers tied to the print 1/2" in text
+    # the table's cells are LIVE (formulas) for NEW, the pre model's VALUES for OLD, a change formula, the check
+    hdr_row = next(r for r in range(1, 12) if rp.cell(row=r, column=2).value == "FY24A")
+    rev_row = next(r for r in range(hdr_row, hdr_row + 6) if str(rp.cell(row=r, column=1).value or "").startswith("=HYPERLINK") and "Revenue" in str(rp.cell(row=r, column=1).value))
+    new0 = next(c for c in range(2, 30) if rp.cell(row=hdr_row - 1, column=c).value == "NEW — after the update")
+    old0 = next(c for c in range(2, 30) if rp.cell(row=hdr_row - 1, column=c).value == "OLD — before the update")
+    assert rp.cell(row=rev_row, column=new0 + 1).value == "=M!D4"
+    assert rp.cell(row=rev_row, column=old0 + 1).value == 1000.0 and rp.cell(row=rev_row, column=old0 + 2).value == 1050.0
+    assert str(rp.cell(row=rev_row, column=2).value).startswith("=IFERROR(")
+    chk = next(c for c in range(2, 30) if rp.cell(row=hdr_row, column=c).value == "check")
+    assert "0.1" in str(rp.cell(row=rev_row, column=chk).value) and "sign flip" in str(rp.cell(row=rev_row, column=chk).value)
+    # key numbers: prior, actual, YoY, estimate, actual vs estimate — no next-year, no printed column;
+    # names in proper case (owner 2026-09-14)
+    assert "Your estimate" in text and "Actual vs estimate" in text and "Printed" not in text
+    from pipeline.reportpage import proper_name
+    assert proper_name("eps") == "EPS" and proper_name("net profit") == "Net profit"
+    assert proper_name("total liabilities and equity") == "Total liabilities and equity"
+    assert any("Net profit" in str(c.value) and "HYPERLINK" in str(c.value) for row in rp.iter_rows() for c in row if isinstance(c.value, str))
+    # statements in the order P&L, balance sheet, cash flow, one empty row between them
+    g = [r for r in range(1, rp.max_row + 1) if rp.cell(row=r, column=1).value in ("P&L", "Balance sheet", "Cash flow")]
+    assert [rp.cell(row=r, column=1).value for r in g] == ["P&L", "Balance sheet", "Cash flow"], g
+    assert all(rp.cell(row=r - 1, column=1).value is None for r in g[1:]), "an empty row before each statement"
+    # look here: the sense verdict with the trail's cell as a link
+    assert "red, your ruling" in text and "swing traced to Tax" in text
+    assert any("M'!D10" in str(c.value) for row in rp.iter_rows() for c in row if isinstance(c.value, str)), "leaf link"
+    assert res["rows"]["revenue"] == ("M", 4) and res["tied"] == 1 and res["panel"] == 2
+    # THE PERIOD FOLLOWS THE RUN: a half-year panel with no forecast columns says so
+    assert period_kind("1H25") == "1H" and period_kind("H125") == "1H" and period_kind("3Q25") == "3Q" and period_kind("FY25") == "FY"
+    spec_h = {"year_axis": {"M": {"columns": {"2024": "C", "2025": "D"}}}, "key_rows": spec["key_rows"], "check_rows": []}
+    assert [a[0] for a in period_axis(spec_h, "M", 2025, "1H25")] == ["1H24A", "1H25A"]
+    wb2 = openpyxl.load_workbook  # noqa: F841 (openpyxl already imported)
+    build(wb, pre, spec_h, 2025, "1H25", {"period": "1H25"}, log=lambda *_a, **_k: None)
+    text2 = "\n".join(str(c.value) for row in wb["_REPORT"].iter_rows() for c in row if c.value is not None)
+    assert "1H24A" in text2 and "1H25A" in text2 and "no half-year forecast found in this model" in text2, text2
+    assert "FY26E" not in text2 and "Updated to 1H25" in text2
+    print("PASS test_report_page_fixed_table_period_follows_the_run_2026_09_13")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

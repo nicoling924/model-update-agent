@@ -1493,17 +1493,18 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                               target_year=target_year,
                               extra={"key_ties": _key_ties_for_report,
                                      "sense_check": writer.log.get("sense_check", []),
+                                     "sense_rows": list(writer.log.get("sense_rows", [])),
+                                     "period": str(period),
+                                     "elapsed_min": (_time.monotonic() - _run_t0) / 60.0,
+                                     "provenance": {f"{sh_}!{r_}": {k_: e_.get(k_) for k_ in
+                                                                    ("value", "doc", "page", "conf")}
+                                                    for (sh_, r_), e_ in served.items() if isinstance(e_, dict)},
                                      "open_checks": open_checks,
                                      "documents": [d["line"] for d in documents],
                                      "rollover": rollover,
                                      "forecast_watch": list(
                                          writer.log.get("forecast_watch", []))})
             log(f"[run] executive report coverage line: {rep.get('coverage')!r}")
-            log(f"[run] executive report: {rep['bridges']} bridges, "
-                f"{rep['refused']} refused, "
-                f"{len(rep.get('corrections', []))} corrected, sense "
-                f"verdicts: "
-                f"{len((rep['summary'].get('sense') or {}).get('verdicts', []))}")
         except Exception as ex:
             log(f"[run] executive report FAILED (old-style report kept): "
                 f"{ex}")

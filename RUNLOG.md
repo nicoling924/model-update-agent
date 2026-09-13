@@ -2218,3 +2218,41 @@ factor (Aus!AI5, no proof); at the final pass it judged India EBITDAF +742% genu
 ROAFNA open by 968 this run (card variance in the tariff-stabilisation closing balance, not the investigator).
 DFE FY25 30 min — schedule 17/17; operating profit's factor (Wind) judged genuine within history; the intermittent
 interest-roll gap (11) open. Museum 186.
+
+## 2026-09-13 — THE REPORT PAGE REVAMP (owner + boss): one fixed table, rendered by code
+
+Owner's list: the analyst does not read the documents list, the sense-check paragraphs, the key-number
+snapshot as it was, or "why it moved" — all gone. The boss's idea: fold the snapshot into the mini P&L, give
+the mini P&L a FIXED structure on every model, and add the cash flow (and a little balance sheet).
+The page now (pipeline/reportpage.py; execreport.report_only renders it, the brain composes nothing):
+1. Verdict strip — updated to which period, minutes, balance and cash checks (the run's own years), key
+   numbers tied n/m, red · orange · plugs (all counted by code from the file).
+2. The table — 22 fixed lines: P&L (revenue, gross profit, EBITDA, EBIT, net finance costs, associates and
+   JVs, pre-tax profit, tax, net profit attributable, recurring net profit, EPS, DPS), cash flow (operating,
+   capex, investing, financing, free cash flow, dividends paid), balance sheet (cash, net debt, total equity,
+   book value per share). Blocks: WHAT CHANGED (new ÷ old − 1) with the ten-point check, NEW (live formulas)
+   with the PRINTED figure and page beside the actual and YoY, OLD (the pre-update model's values). A line the
+   model has no row for says "not in this model" and keeps its place.
+3. Key numbers — the model's own key rows: prior actual, actual, YoY, your estimate, actual vs estimate,
+   tied to the print or not (the next-year columns removed at the owner's request).
+4. Look here — the investigator's verdict per suspicious line with the cell its trail ended at as a link,
+   open checks, plugs, and the flagged cells that sit on the page's own rows; the rest as a count per sheet
+   (the analyst will not read a full list — it stays on _FLAGS).
+THE PERIOD FOLLOWS THE RUN (owner): headers are explicit (FY24A · FY25A · FY26E; 1H24A · 1H25A) and the
+columns are the model's own panel for the period updated. A half-year or quarterly panel that carries no
+forecast columns says "no half-year forecast found in this model" where they would be; one that does shows
+them. Case by case, from the model's structure — no rule about which models forecast interims.
+HOW A LINE FINDS ITS ROW (generic): the run's proven key rows first; then the sheet's own labels — an exact
+name, a whole-phrase name, or every word of a name present; a label carrying a word of another meaning is
+another line (a 'tax' line is not 'deferred tax assets'); a shared word alone is no evidence (the first cut
+put 'gross profit' on 'Profit after tax' and 'book value per share' on 'Share capital'); the sheet carrying
+the fuller period axis wins, then the row nearest the lines of the same statement already placed.
+Offline on the last deliveries: CLP 20/22 lines (no gross profit, no BVPS in that model), DFE 21/22 (no
+recurring line), DFE 1H25 19/22 on the interim panel with the no-forecast note. Museum 187 (exhibit:
+fixed table, period headers, print column, look-here link, interim panel). Floors: see below.
+Owner's changes on seeing it (2026-09-14): statements in the order P&L, balance sheet, cash flow with one empty
+row between them; the key-number section drops the Printed column and shows names in proper case (EPS, Net
+profit). Floors on the repo's pinned ledgers (no pinned key rows, so key counts read 0/0 there except CLP 7/8):
+DFE FY25 delivered with the standing magnitude check open (as before), DFE 1H25 delivered with open checks (as
+before) on the interim panel with the no-forecast note, CLP FY25 delivered clean, keys 7/8 (was 1 open check).
+Bench green, museum 187, head committed as the report revamp.

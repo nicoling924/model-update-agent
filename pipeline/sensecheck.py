@@ -90,6 +90,17 @@ def reason_text(d):
             f"({abs(d['d1']-d['d0'])*100:.0f} points apart) — an update or rollover error is likely in this line's inputs")
 
 
+def _sense_row(writer, d, verdict, text, leaf, stage):
+    """The report's record of one investigated line: what moved, the
+    verdict, the cell the trail ended at (the page links to it)."""
+    ref = None
+    if isinstance(leaf, (list, tuple)) and len(leaf) >= 2:
+        ref = f"{leaf[0]}!{leaf[1]}"
+    writer.log.setdefault("sense_rows", []).append(
+        {"name": d.get("name"), "d0": d.get("d0"), "d1": d.get("d1"), "ref1": d.get("ref1"),
+         "verdict": verdict, "text": str(text or "")[:400], "leaf": ref, "stage": stage})
+
+
 def chain_cells(wb, spec, target_year, d, writer):
     """The actual-year cells this run wrote that feed the line's FY+1 cell,
     the agent's own red first, then orange, then the rest.
@@ -176,6 +187,7 @@ def checkpoint(loop, pre_wb, log):
         log("[sense] " + txt)
         verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=None)
         lines.append(txt + " | " + text)
+        _sense_row(writer, d, verdict, text, leaf, "checkpoint")
         if verdict == "red" and leaf is not None:
             # the swing factor is the agent's own figure and nothing better proved:
             # its normal card goes first in the queue, with the trail on it
@@ -223,6 +235,7 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         rolled_into_zero(wb, pre_wb, spec, ty, chain_cells(wb, spec, ty, d, writer), writer, log)
         verdict, text, _leaf = investigate_line(loop, pre_wb, d, log, rerun=rerun)
         lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
+        _sense_row(writer, d, verdict, text, _leaf, "final")
     changed = writer.log.get("writes_all", [])[mark:]
     # cells whose content actually differs from before the pass (a write
     # the investigator itself reverted is not a change)

@@ -1,30 +1,21 @@
-"""The executive _REPORT page — Luna COMPOSES it, the code RENDERS and
-REFEREES it.
+"""The executive _REPORT page.
 
-Owner's design lock (2026-08-28, REPORT_REQUIREMENTS.md in studio-native/):
-a management page readable in one minute, three blocks —
+Owner's revamp (2026-09-13): the page is rendered by CODE from the model
+itself — see pipeline/reportpage.py — one fixed table (P&L, cash flow,
+balance sheet; new vs old, the printed figure, YoY), the key numbers,
+and a short look-here list. The period follows the run (annual columns
+on an annual run, the half-year or quarterly panel on an interim one).
+The brain composes nothing on this page.
 
-  1. Key number snapshot  — the mindmap objective list, live formulas
-  2. Why it moved         — bridges: P&L keys EVERY time, BS/CF keys only
-                            when the move is material (~20%+). Composed by
-                            the agent's REASONING, never a word search.
-                            Every walk line is a traceable FORMULA; each
-                            bridge ends in a self-balancing residual.
-  3. Needs your attention — plugs, then red rulings (as questions), then
-                            orange derivations. A few words per note.
+What remains here: the header roll (rollforward_headers), the fact
+gatherer and the referee/compose machinery kept for the offline
+selftest, and the sense check's value reader (_pre_val).
 
-Division of labour (the referee rule): the LLM decides WHAT the page says
-— which rows are the key numbers in THIS model, what actually drove each
-change, how each ruling is phrased. The code draws the format and REFUSES
-what does not tie: a walk line whose formula does not evaluate to its
-claimed value, or a bridge whose lines do not sum to its claimed change.
-A wrong story rendered confidently is worse than no story.
-
-Report-only mode regenerates the page on an ALREADY-updated model without
-re-running the update:
+Report-only mode regenerates the page on an ALREADY-updated model:
 
     python -m pipeline.execreport "<company_dir>" \
-        --model=<updated model.xlsx> --pre=<archived pre-update model.xlsx>
+        --model=<updated model.xlsx> --pre=<archived pre-update model.xlsx> \
+        [--period=1H25] [--out=<path>]
 
 --selftest runs the offline museum (no LLM, no files touched).
 """
@@ -1125,88 +1116,48 @@ def _deterministic_summary(wb, facts, primary):
 
 
 def report_only(company_dir, model_path, pre_path, client, out_path=None,
-                target_year=None, extra=None):
+                target_year=None, extra=None, period=None):
+    """Render the _REPORT page on an updated model (owner's revamp of
+    2026-09-13: one fixed table, key numbers, look-here — all code's;
+    the brain composes nothing). `client` is accepted and unused."""
     import openpyxl
     wb = openpyxl.load_workbook(model_path)
     # THE OLD-ESTIMATE SNAPSHOT (owner 2026-09-02: the _REPORT's OLD
     # block was empty): the archive IS the pre-update model, so timing
     # is right — but a data_only load of a manual-calc model caches
-    # NOTHING; load the FORMULAS so _pre_val can evaluate them (the
+    # NOTHING; load the FORMULAS so the values can be evaluated (the
     # no-cached-values disease, once more)
     pre_wb = (openpyxl.load_workbook(pre_path, data_only=False)
               if pre_path else None)
+    extra = dict(extra or {})
+    if period:
+        extra["period"] = str(period)
+    from .spec import read_spec_tab
+    spec = None
+    try:
+        spec = read_spec_tab(wb) if "_SPEC" in wb.sheetnames else None
+    except Exception:
+        spec = None
+    if not spec:
+        from .spec import load as _spec_load
+        spec = _spec_load(company_dir, wb)
+    period = str(extra.get("period") or (spec.get("_last_run") or {}).get("period") or "")
     if target_year is None:
         # report-only reruns: the workbook's own spec tab remembers the
-        # period it was updated to (report-only was collapsing to the
-        # DFE 'Model' default without this — run-203 lesson)
-        try:
-            from .spec import read_spec_tab
-            period = str(read_spec_tab(wb).get("_last_run", {})
-                         .get("period", ""))
-            m = re.search(r"(\d{2})$", period)
-            if m:
-                target_year = int("20" + m.group(1))
-        except Exception:
-            pass
-    cols, primary = _cols_from_spec(wb, company_dir, target_year)
-    headers_fixed = rollforward_headers(wb, cols, primary)
-    facts = gather_facts(wb, pre_wb, cols, primary)
-    if client is None:
-        # NO-CLIENT PATH (owner 2026-09-02: the OLD-estimate block must
-        # exist on every delivered file, LLM or not): the deterministic
-        # parts of the report — snapshot rows, the mini P&L old-vs-new
-        # table, every flag — are code's to render; only the composed
-        # prose and the sense check need a brain.
-        summary = _deterministic_summary(wb, facts, primary)
-        kept, refusals, corrections = summary["bridges"], [], []
-    else:
-        summary = compose(client, facts)
-        kept, refusals, corrections = referee(summary, wb)
-        tries = 0
-        while refusals and tries < 3:  # the referee teaches; Luna retries
-            tries += 1
-            summary = compose(client, facts,
-                              feedback=json.dumps(refusals,
-                                                  ensure_ascii=False))
-            kept, refusals, corrections = referee(summary, wb)
-    summary["bridges"] = kept
-    for k, v in (extra or {}).items():     # documents received, rollover check
-        summary[k] = v
+        # period it was updated to (run-203 lesson)
+        m = re.search(r"(\d{2})$", period)
+        if m:
+            target_year = int("20" + m.group(1))
+    if target_year is None:
+        raise ValueError("report_only: no target year (pass target_year or a period)")
+    headers_fixed = rollforward_headers(wb, *_cols_from_spec(wb, company_dir, target_year))
+    extra.setdefault("units", str(spec.get("units") or ""))
+    from .reportpage import build
+    page = build(wb, pre_wb, spec, int(target_year), period, extra)
     # THE COUNT IS CODE'S (owner 2026-09-08): key numbers tied, from the
-    # pinned key panel; plugs and rulings from the flag lists — never the
-    # brain's arithmetic
-    kt = summary.get("key_ties") or []
-    if kt:
-        att = summary.get("attention") or {}
-        n_plug = len(att.get("plugs") or [])
-        n_red = len(att.get("red") or [])
-        summary["coverage"] = (f"key numbers tied {sum(1 for k in kt if k.get('tied'))}/{len(kt)} "
-                               f"to the print · {n_plug} plugs · {n_red} rulings")
-    mini_rows = summary.get("mini_pl", {}).get("rows", [])
-    value_of = None
-    try:
-        from .evaluator import Evaluator
-        ev = Evaluator(wb)
-        value_of = (lambda sheet, coord: ev.cell(sheet, coord))
-    except Exception:
-        pass                        # cached values remain the fallback
-    dflags = collect_delta_flags(wb, pre_wb, mini_rows, cols, primary,
-                                 value_of=value_of)
-    # the sense check is the agent's own note (owner 2026-09-04): not
-    # rendered and not run — the rollover cards carry that judgment
-    summary["sense"] = {}
-    if refusals:                       # surviving refusals: honest note
-        summary["skipped_note"] = (
-            (summary.get("skipped_note", "") + "  ·  REFUSED bridges: "
-             + "; ".join(r["bridge"] or "?" for r in refusals)).strip())
-    # the snapshot's unit label is the model's own (run-233: the page said
-    # 'RMB mn' on a HK$ model — a DFE literal left in the furniture)
-    try:
-        from .spec import load as _spec_load
-        summary["units"] = str(_spec_load(company_dir, wb).get("units") or "")
-    except Exception:
-        summary["units"] = ""
-    render(wb, summary, pre_wb=pre_wb, cols=cols, primary=primary)
+    # pinned key panel; never the brain's arithmetic
+    coverage = (f"key numbers tied {page['tied']}/{page['panel']} to the print · "
+                f"{page['plugs']} plugs · {page['red']} red · {page['orange']} orange")
     # notes for the analyst (owner rulings, run 233): none on plain
     # cells, short plain words on flagged ones — the last step before
     # the file is written, after every law has read what it needed
@@ -1216,12 +1167,11 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     except Exception as _e:
         print(f"[run] note hygiene skipped: {_e}")
     out = Path(out_path) if out_path else Path(model_path).with_name(
-        Path(model_path).stem + " (Luna REPORT).xlsx")
+        Path(model_path).stem + " (REPORT).xlsx")
     wb.save(out)
-    return {"ok": True, "out": str(out), "bridges": len(kept), "coverage": summary.get("coverage"),
-            "headersFixed": headers_fixed,
-            "refused": len(refusals), "corrections": corrections,
-            "refusals": refusals, "summary": summary}
+    return {"ok": True, "out": str(out), "coverage": coverage, "page": page,
+            "headersFixed": headers_fixed, "bridges": 0, "refused": 0,
+            "corrections": [], "refusals": [], "summary": {"coverage": coverage}}
 
 # ------------------------------------------------------------ selftest
 
@@ -1364,25 +1314,10 @@ def main(argv=None):
     if not args or "--model" not in "".join(argv):
         print(__doc__)
         return 2
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from pipeline.cli import _load_env
-    _load_env()
-    from pipeline.llm import env_ready, make_client
-    if not env_ready():
-        print("needs LLM_BASE_URL / LLM_API_KEY / LLM_MODEL in env or .env")
-        return 2
-    client = make_client()
-    res = report_only(args[0], kv["--model"], kv.get("--pre"), client,
-                      kv.get("--out"))
+    res = report_only(args[0], kv["--model"], kv.get("--pre"), None,
+                      kv.get("--out"), period=kv.get("--period"))
     print("DELIVERED:", res["out"])
-    print("bridges kept:", res["bridges"], "refused:", res["refused"])
-    for c in res.get("corrections", []):
-        print("  corrected:", c)
-    for rr in res["refusals"]:
-        print("  refused:", rr)
-    u = getattr(client, "usage", None)
-    if u:
-        print("engine:", u.get("model"), "calls:", u.get("calls"))
+    print(res["coverage"])
     return 0
 
 
