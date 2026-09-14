@@ -108,12 +108,18 @@ def contributors(wb, pre_wb, sheet, coord):
     return out
 
 
-def trace(wb, pre_wb, sheet, coord, depth=30, floor=0.2):
-    """Follow the largest contributor down to a typed cell.
+def trace(wb, pre_wb, sheet, coord, depth=30, floor=0.2, stable=(), flagged=()):
+    """Follow the swing down to a typed cell, the analyst's way (owner
+    2026-09-14): a line that is itself STABLE (its own sense check passed)
+    is proven — the swing sits between it and the line above it, so the
+    trace never enters it; among the contributors that carry the swing,
+    the agent's OWN flagged cells (red, orange) are looked at first, then
+    the largest swing.
     -> (trail [(sheet, coord, label, share)], leaf (sheet, coord) or None)"""
     trail = []
     cur = (sheet, coord)
     seen = set()
+    stable, flagged = set(stable) - {cur}, set(flagged)
     for _ in range(depth):
         if cur in seen:
             break
@@ -121,7 +127,10 @@ def trace(wb, pre_wb, sheet, coord, depth=30, floor=0.2):
         v = wb[cur[0]][cur[1]].value
         if not (isinstance(v, str) and v.startswith("=")):
             return trail, cur                      # a typed cell: the swing factor
-        cs = contributors(wb, pre_wb, cur[0], cur[1])
+        cs = [c for c in contributors(wb, pre_wb, cur[0], cur[1]) if (c[0], c[1]) not in stable]
+        own = [c for c in cs if (c[0], c[1]) in flagged and abs(c[2]) >= floor]
+        if own:
+            cs = own + [c for c in cs if c not in own]
         if (not cs or abs(cs[0][2]) < floor) and str(_pre_content(pre_wb, cur[0], cur[1])) != str(v):
             # the formula itself was rewritten by the update (a key-tie back-out,
             # a constants-law rewrite) and no input explains the swing: the

@@ -17,7 +17,7 @@ no reading the ledger's shape fallback stands (table_kind_of).
 import re
 from pathlib import Path
 
-KINDS = ("periods", "segments", "categories", "movement", "grid", "other")
+KINDS = ("periods", "segments", "categories", "movement", "grid", "single")
 _MAX_TABLES_PER_CALL = 300
 _HEADER_LINES = 5
 
@@ -39,7 +39,11 @@ Kinds:
   (opening | additions | disposals | closing).
 - "grid": segments or categories crossed with periods (Hong Kong 2025 |
   Hong Kong 2024 | Australia 2025 | ...).
-- "other": anything else, or you cannot tell.
+- "single": ONE number column (a KPI box, a one-column note). Name the
+  column as the document means it (FY2025, or its own heading).
+There is no undecided kind: every table has a structure — read it from the
+header lines and, when the header is missing, from the rows themselves
+(years, segment names, category words inside the rows). Decide.
 
 For "periods" and "grid", name each column's period exactly as the document
 means it, in the form FY2025, FY2024, 1H2025, 2H2024, 3Q2025, and for a grid
@@ -134,13 +138,29 @@ def describe_tables(client, ledger, docs, target_year, period, log=print):
     """The brain reads every table once; the verdicts are stamped on the
     ledger's lines (Item.table_kind = period|matrix, Item.columns) and
     kept in ledger.table_readings. -> number of tables read."""
-    if client is None:
-        return 0
     cards = table_cards(ledger, docs)
     if not cards:
         return 0
+    # THE PIN (2026-09-14, run 34820388690): a replay stamps from the live
+    # run's readings, so the stamping code runs offline exactly as it ran
+    # live; only tables the pin does not cover are asked of the brain
+    pinned = getattr(ledger, "table_readings", None) or {}
     readings = {}
+    for key, _c in cards:
+        rd = pinned.get(f"{key[0]}#p{key[1]}#t{key[2]}")
+        if isinstance(rd, dict) and rd.get("kind"):
+            readings[key] = {"kind": rd.get("kind"), "columns": [str(c) for c in (rd.get("columns") or [])],
+                             "note": str(rd.get("note") or "")[:120]}
+    n_pinned = len(readings)
+    cards_to_ask = [(k, c) for k, c in cards if k not in readings]
+    if client is None and not readings:
+        log("[tables] no brain and no pinned readings — the shape stamps stand")
+        return 0
     n_calls = 0
+    if client is None:
+        cards_to_ask = []
+    cards_total = len(cards)
+    cards = cards_to_ask
     for start in range(0, len(cards), _MAX_TABLES_PER_CALL):
         dl = getattr(client, "deadline", None)
         if dl is not None:
@@ -166,29 +186,32 @@ def describe_tables(client, ledger, docs, target_year, period, log=print):
             readings[key] = {"kind": t.get("kind"), "columns": [str(c) for c in (t.get("columns") or [])],
                              "note": str(t.get("note") or "")[:120]}
     # the stamp: a periods table pairs; every other kind never does
-    changed = {"period": 0, "matrix": 0}
+    changed = {}
     disagreed = []
     for it in ledger.items:
         rd = readings.get((it.doc, it.page, it.table_id))
         if rd is None:
             continue
-        # periods pair; segments/categories/movement/grid never; "other" is
-        # undecided — stamped plain so the evidence law decides by the tie alone
+        # periods pair; segments/categories/movement/grid never; a single
+        # column has nothing to pair — stamped plain, the evidence law
+        # decides by the tie alone (owner 2026-09-14: no "other" — the brain
+        # reads every table's structure by itself)
         kind = ("period" if rd["kind"] == "periods" else
-                "plain" if rd["kind"] == "other" else "matrix")
+                "plain" if rd["kind"] == "single" else "matrix")
         if it.table_kind is not None and it.table_kind != kind and (it.doc, it.page, it.table_id) not in disagreed:
             disagreed.append((it.doc, it.page, it.table_id))
         it.table_kind = kind
         it.columns = list(rd["columns"])
-        changed[kind] += 1
+        changed[kind] = changed.get(kind, 0) + 1
     ledger.table_readings = {f"{d}#p{p}#t{t}": v for (d, p, t), v in readings.items()}
     kinds = {}
     for v in readings.values():
         kinds[v["kind"]] = kinds.get(v["kind"], 0) + 1
-    log(f"[tables] the brain read {len(readings)}/{len(cards)} tables in {n_calls} call(s): "
+    log(f"[tables] the brain read {len(readings)}/{cards_total} tables in {n_calls} call(s)"
+        + (f" ({n_pinned} from the pin)" if n_pinned else "") + ": "
         + ", ".join(f"{k} {n}" for k, n in sorted(kinds.items()))
-        + f"; lines stamped period {changed['period']}, no-pair {changed['matrix']}; "
-        f"{len(disagreed)} table(s) read differently from their shape")
+        + f"; lines stamped period {changed.get('period', 0)}, no-pair {changed.get('matrix', 0)}, "
+        f"plain {changed.get('plain', 0)}; {len(disagreed)} table(s) read differently from their shape")
     for d, p, t in disagreed[:12]:
         rd = readings[(d, p, t)]
         log(f"[tables]   {d} p{p} t{t}: {rd['kind']} — {', '.join(rd['columns'][:6])}" + (f" ({rd['note']})" if rd['note'] else ""))

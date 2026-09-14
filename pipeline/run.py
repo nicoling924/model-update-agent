@@ -440,12 +440,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # THE TABLE READER (owner 2026-09-14): the brain says what every
     # table's columns are — periods, segments, categories, movements, a
     # grid — before any stage pairs a current with a prior; no shape rule
-    if client is not None:
-        try:
-            from .tables import describe_tables
-            describe_tables(client, ledger, docs, target_year, period, log)
-        except Exception as _e_tab:
-            log(f"[tables] table reader skipped: {_e_tab!r}")
+    try:
+        from .tables import describe_tables
+        describe_tables(client, ledger, docs, target_year, period, log)
+    except Exception as _e_tab:
+        # deliver-never-refuse: the run goes on with the shape stamps, but
+        # the loss is loud — the bench refuses a floor whose log carries it
+        log(f"[tables] STAGE LOST: table reader crashed ({_e_tab!r}) — the shape stamps stand")
+        run_log.append(f"[tables] STAGE LOST: table reader crashed ({_e_tab!r})")
     _ban = _vintage_ban(ledger)
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
@@ -1273,9 +1275,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # same take-back loop
         for nm, ref, then, now in _key_violations(wb, spec_d, target_year,
                                                   ledger, _panel_path, keys_before, panel=_key_panel):
-            fails_g.append(f"KEY {nm} at {ref}: was proven-printed "
-                           f"{then:,.1f}, now {now if now is None else f'{now:,.1f}'}"
-                           " — printed nowhere (rule 2)")
+            _msg = (f"KEY {nm} at {ref}: was proven-printed "
+                    f"{then:,.1f}, now {now if now is None else f'{now:,.1f}'}"
+                    " — printed nowhere (rule 2)")
+            if _msg not in fails_g:
+                fails_g.append(_msg)
             ok_g = False
         return ok_g, fails_g, card_g
 

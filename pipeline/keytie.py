@@ -70,15 +70,40 @@ def _printed(ledger, v):
     # CURRENT-document FACE pages only, tight tolerance — a loose
     # whole-ledger search excused every wrong key via coincidental ties
     # in the prior-year AR (measured on run-203's file)
-    prior_docs = _vintage_ban(ledger)
     tol = max(0.6, abs(v) * 1e-4)
     for it in ledger.items:
         if not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
             continue                 # any period line, wherever printed (owner 2026-09-14)
-        for n in it.nums:
-            if abs(abs(n) - abs(v)) <= tol:
-                return f"{it.doc} p{it.page}"
+        # THE CURRENT COLUMN ONLY (run 34820388690: last year's total equity
+        # 104,055 sits in the comparative column of this year's balance
+        # sheet and was taken as this year's print): a period line proves
+        # a value in its current-period position — the brain's column
+        # names when read, else the first number (the join's convention)
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if not nums:
+            continue
+        cur = _current_index(it)
+        if cur is None or cur >= len(nums):
+            continue
+        if abs(abs(nums[cur]) - abs(v)) <= tol:
+            return f"{it.doc} p{it.page}"
     return None
+
+
+def _current_index(item):
+    """Position of the current period among a line's numbers: the brain's
+    column that names no earlier year than the others (a comparative names
+    the earlier year), else 0."""
+    cols = [str(c) for c in (getattr(item, "columns", None) or [])]
+    years = []
+    for i, c in enumerate(cols):
+        m = re.search(r"(20\d\d)", c)
+        years.append((int(m.group(1)) if m else None, i))
+    named = [(y, i) for y, i in years if y is not None]
+    if named:
+        best = max(y for y, _i in named)
+        return next(i for y, i in named if y == best)
+    return 0
 
 
 def _bridge_rows(wb, spec, target_year, sheet, key_coord, pcol,
@@ -174,8 +199,42 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if kk.get("sheet") in wb.sheetnames else None
         if tc_k:
             key_cells.add((kk.get("sheet"), f"{tc_k}{int(kk.get('row'))}"))
+    # THE ORDER (run 34820388690: 'total liabilities and equity' tied first
+    # and absorbed its whole gap into retained earnings — a leaf of 'total
+    # equity', which then had nothing left to absorb): a key that is a leaf
+    # of another key ties before it, and the leaves of a key that ties its
+    # print are never another key's absorber
+    leaf_sets = {}
+    for kk in key_rows:
+        sh_k = kk.get("sheet")
+        tc_k = year_columns(spec, sh_k).get(str(target_year)) if sh_k in wb.sheetnames else None
+        if not tc_k:
+            continue
+        seen_k = set()
+        try:
+            _leaves(wb, sh_k, f"{tc_k}{int(kk.get('row'))}", seen=seen_k)
+        except Exception:
+            seen_k = set()
+        leaf_sets[(sh_k, f"{tc_k}{int(kk.get('row'))}")] = seen_k
+
+    def _cell_of(kk):
+        sh_k = kk.get("sheet")
+        tc_k = year_columns(spec, sh_k).get(str(target_year)) if sh_k in wb.sheetnames else None
+        return (sh_k, f"{tc_k}{int(kk.get('row'))}") if tc_k else None
+
+    def _contains(outer, inner):
+        return inner in leaf_sets.get(outer, set()) and inner != outer
+
+    ordered, pending = [], list(key_rows)
+    while pending:
+        pick = next((kk for kk in pending
+                     if not any(_contains(_cell_of(kk), _cell_of(o)) for o in pending
+                                if o is not kk and _cell_of(o) and _cell_of(kk))), pending[0])
+        ordered.append(pick)
+        pending.remove(pick)
+
     n = 0
-    for k in key_rows:
+    for k in ordered:
         name, sheet, row = k.get("name"), k.get("sheet"), int(k.get("row"))
         want = (panel.get(name) or {}).get("print")
         if not isinstance(want, (int, float)) or sheet not in wb.sheetnames:
@@ -312,6 +371,12 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         # formula left in the actual column (formula over a hardcode prior,
         # run 203). A plain hardcode is a proven serve and a plain formula
         # of references is the analyst's design — neither absorbs.
+        tied_leaves = set()
+        for nm_t, _g, _w, ok_t in _key_state():
+            if ok_t and nm_t != name:
+                for kk in key_rows:
+                    if kk.get("name") == nm_t and _cell_of(kk):
+                        tied_leaves |= leaf_sets.get(_cell_of(kk), set())
         for (sh, coord) in seen - {(sheet, f"{tcol}{row}")}:
             m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not m or m.group(1) != year_columns(spec, sh).get(
@@ -319,6 +384,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 continue
             if (sh, coord) in key_cells:
                 continue      # never absorb into another key's row
+            if (sh, coord) in tied_leaves:
+                continue      # a leaf of a key that ties its print is proven by that print
             f = wb[sh][coord].value
             is_formula = isinstance(f, str) and f.startswith("=")
             if is_formula and _SUBTOTAL.match(f.replace("$", "")):

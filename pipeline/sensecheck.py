@@ -309,8 +309,21 @@ def investigate_line(loop, pre_wb, d, log, rerun=None):
         return abs(dd["d1"] - dd["d0"]) if dd else 0.0
     texts, verdict, last_leaf = [], "spread", None
     seen_leaves = set()
+    # THE BRACKET (owner 2026-09-14: "operating income swings but gross
+    # profit is stable — the issue is between the two; look at my own
+    # flags first, then the biggest swing"): the headline lines whose own
+    # check passed are proven; the agent's flagged cells are looked at first
+    stable = set()
+    for x in headline_deltas(wb, pre_wb, spec, ty):
+        if x["name"] != d["name"] and abs(x["d1"] - x["d0"]) <= SENSE_GAP and x.get("ref1"):
+            stable.add(tuple(x["ref1"].split("!")))
+    flagged = {tuple(ref.split("!")) for _sh, _r, ref, colour in
+               chain_cells(wb, spec, ty, d, loop.writer) if colour in ("red", "orange")}
+    if stable:
+        log(f"[sense] bracket for '{d['name']}': {len(stable)} stable headline line(s) are proven; "
+            f"{len(flagged)} own flagged cell(s) looked at first")
     for _round in range(3):                     # after a fix, the next factor — the analyst presses in again
-        trail, leaf = trace(wb, pre_wb, sh1, c1)
+        trail, leaf = trace(wb, pre_wb, sh1, c1, stable=stable, flagged=flagged)
         last_leaf = leaf or last_leaf
         path = " → ".join(t[2] or t[1] for t in trail)
         if leaf is None or leaf in seen_leaves:

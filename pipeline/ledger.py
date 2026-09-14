@@ -533,6 +533,9 @@ class Ledger:
             "doc_periods": getattr(self, "_doc_periods", None),
             "pv_tables": sorted(list(k) for k in
                                 (getattr(self, "_pv_tables", None) or ())),
+            # the brain's table readings travel with the pin so a replay
+            # runs the reader's stamping offline (run 34820388690)
+            "table_readings": getattr(self, "table_readings", None) or {},
             "items": [asdict(it) for it in self.items],
         }, ensure_ascii=False, indent=1)
 
@@ -548,6 +551,8 @@ class Ledger:
         if obj.get("doc_periods"):
             led._doc_periods = dict(obj["doc_periods"])
             led._pv_tables = {tuple(k) for k in obj.get("pv_tables") or []}
+        if obj.get("table_readings"):
+            led.table_readings = dict(obj["table_readings"])
         for d in obj.get("items") or []:
             led.items.append(Item(**{k: v for k, v in d.items()
                                      if k in Item.__dataclass_fields__}))

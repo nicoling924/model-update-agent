@@ -2408,3 +2408,27 @@ nothing to rewrite). Root fixes: the last resort applies the evidence fixes it d
 through the evidence law; a refused one is ruled out), a card's not-disclosed verdict on a row is recorded as
 ruled out and no longer counts as a fix that remains, and a reference-only formula is never a stale composite.
 CLP floor clean again; museum 211.
+
+## 2026-09-14 — CLP FY25 live run 34820388690 (head 225232d, 39 min): delivered with 1 open check
+Keys 7/10, 4 plugs; score vs the analyst's workbook: 229 judged, 153 correct (67%), wrong 76 = red 53 /
+orange 14 / unhighlighted 9 (docs/scores/CLP_FY25_run34820388690_vs_analyst.txt). Three causes, all root:
+1. **The table reader crashed on its first "other" table** (`changed[kind]` knew two kinds, the stamp has three
+   since the "other → plain" change) and the whole stage was skipped — every segment-table miss came back.
+   Undetected offline because the reader runs only with a brain and replays run without one, and the exhibit's
+   fake brain never answered "other". Fixes: the counter counts what it sees; the readings travel with the
+   ledger pin and a replay stamps from them with no brain (the stamping code now runs offline); a crash logs
+   STAGE LOST and the bench refuses any floor log carrying it; "other" is gone from the prompt — every table
+   has a structure, the brain decides ("single" = one number column, named).
+2. **Keys tied in the wrong order**: 'total liabilities and equity' tied before 'total equity' and absorbed its
+   whole 9,513 gap into retained earnings (a leaf of total equity), which then sat at 113,568 vs 107,610 with
+   nothing left. Fix: a key that is a leaf of another key ties first; the leaves of a key that ties its print
+   never absorb for another key (the gap is between the two totals — the analyst's reasoning). Retained
+   earnings backs out to 84,367 = the analyst's figure.
+3. **Rule 2 armed a comparative**: `_printed` accepted any number on a current-document line, so last year's
+   104,055 in the 2024 column of the 2025 balance sheet counted as this year's print. Fix: the current-period
+   position only (the brain's column names when read, else the first number). The gate lists a failure once.
+Also built (owner): the sense tracer's BRACKET — a headline line whose own check passed is proven and never
+entered; among the contributors that carry the swing the agent's own flagged cells are looked at first, then
+the largest swing ("operating income swings, gross profit stable → the issue is between; my flags first").
+Museum 219, bench green; floors: CLP FY25 8/8 · 4 plugs (identical to the unchanged head), DFE FY25 8/11 · 0
+plugs, DFE 1H25 one rounding check (1.0). Lesson recorded: a brain-only stage is untested until it replays.

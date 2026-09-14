@@ -5154,6 +5154,134 @@ def test_a_fix_the_cards_ruled_out_no_longer_blocks_the_plug_2026_09_14():
     print("PASS test_a_fix_the_cards_ruled_out_no_longer_blocks_the_plug_2026_09_14")
 
 
+def test_the_table_reader_reads_every_kind_and_replays_from_the_pin_2026_09_14():
+    """Run 34820388690: the reader's stamp counter knew two kinds while the
+    stamp has three — the first 'other' table raised, the stage was skipped,
+    and no offline check had run the reader (replays run without a brain).
+    The reader accepts every kind its own prompt allows, its readings travel
+    with the pin, and a replay stamps from the pin with no brain at all."""
+    from pipeline.tables import describe_tables
+    from pipeline.ledger import Ledger
+    from pipeline.tables import KINDS, _SYSTEM
+    assert "other" not in KINDS and '"other"' not in _SYSTEM          # every table has a structure; the brain decides
+    kinds = ["periods", "segments", "categories", "movement", "grid", "single"]
+    items = [_item(10 + i, 1, f"Line {i}", [float(i + 1), float(i + 2)], table_id=i + 1) for i in range(6)]
+    led = _ledger(items)
+    class FakeClient:
+        calls = 0
+        def json(self, system, user, validate, repair_retries=1, images=None):
+            FakeClient.calls += 1
+            out = []
+            for blk in user.split("### id ")[1:]:
+                n = int(blk.split("\n", 1)[0])
+                pg = int(blk.split(" p", 1)[1].split(" ", 1)[0])
+                out.append({"id": n, "kind": kinds[pg - 10], "columns": ["a", "b"]})
+            return {"tables": out}
+    n = describe_tables(FakeClient(), led, [], 2025, "FY25", log=lambda *_a, **_k: None)
+    assert n == 6 and FakeClient.calls == 1
+    assert [it.table_kind for it in items] == ["period", "matrix", "matrix", "matrix", "matrix", "plain"], \
+        [it.table_kind for it in items]
+    # the pin carries the readings; a replay with no brain stamps from them
+    led2 = Ledger.from_json(led.to_json())
+    assert len(led2.table_readings) == 6
+    for it in led2.items:
+        it.table_kind = None
+    lines = []
+    assert describe_tables(None, led2, [], 2025, "FY25", log=lines.append) == 6
+    assert [it.table_kind for it in sorted(led2.items, key=lambda i: i.page)] == \
+        ["period", "matrix", "matrix", "matrix", "matrix", "plain"]
+    assert any("6 from the pin" in ln for ln in lines), lines
+    # no brain and no pin: the shape stamps stand, nothing is lost
+    led3 = _ledger([_item(5, 1, "x", [1.0, 2.0])])
+    lines = []
+    assert describe_tables(None, led3, [], 2025, "FY25", log=lines.append) == 0
+    assert not any("STAGE LOST" in ln for ln in lines)
+    print("PASS test_the_table_reader_reads_every_kind_and_replays_from_the_pin_2026_09_14")
+
+
+def test_keys_tie_in_dependency_order_2026_09_14():
+    """Run 34820388690: 'total liabilities and equity' tied first and
+    absorbed its whole 9,513 gap into retained earnings — a leaf of 'total
+    equity', which then sat at 113,568 against a print of 107,610 with
+    nothing left to absorb. A key that is a leaf of another key ties first,
+    and the leaves of a key that ties its print never absorb for another."""
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    from pipeline.evaluator import Evaluator
+    from openpyxl.styles import PatternFill
+    wb = _wb({"T2": 23243.0, "U2": 23243.0,                 # share capital (proven)
+              "T3": 80812.0, "U3": 80812.0,                 # retained earnings (rolled, red)
+              "T4": "=T3+T2", "U4": "=U3+U2",               # total equity (key)
+              "T5": 6063.0, "U5": 5943.0,                   # minority interests (served)
+              "T6": 123595.0, "U6": 120000.0,               # liabilities (red)
+              "T7": "=T4+T5+T6", "U7": "=U4+U5+U6"})        # total liabilities and equity (key)
+    wb["S"]["U3"].fill = PatternFill("solid", fgColor="FFC7CE")
+    wb["S"]["U6"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "total liabilities and equity", "sheet": "S", "row": 7},   # the failing order
+                         {"name": "total equity", "sheet": "S", "row": 4}]}
+    panel = {"total liabilities and equity": {"print": 238644.0, "prior": 233713.0},
+             "total equity": {"print": 107610.0, "prior": 104055.0}}
+    w = Writer(wb)
+    assert key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel) == 2
+    ev = Evaluator(wb)
+    assert abs(ev.cell("S", "U4") - 107610.0) <= 0.5, ev.cell("S", "U4")
+    assert abs(ev.cell("S", "U7") - 238644.0) <= 0.5, ev.cell("S", "U7")
+    assert wb["S"]["U3"].value == "=(80812)-(-3555)", wb["S"]["U3"].value     # the analyst's 84,367
+    assert wb["S"]["U6"].value == "=(120000)-(-5091)", wb["S"]["U6"].value
+    assert w.log["key_absorbers"]["total liabilities and equity"][1] == "U6"
+    print("PASS test_keys_tie_in_dependency_order_2026_09_14")
+
+
+def test_a_comparative_is_not_this_years_print_2026_09_14():
+    """Run 34820388690: rule 2 armed 'total equity' as proven-printed at
+    104,055 — last year's figure, sitting in the comparative column of this
+    year's balance sheet. A period line proves a value only in its
+    current-period position (the brain's column names when read, else the
+    first number)."""
+    from pipeline.keytie import _printed, key_snapshot
+    led = _ledger([_item(178, 1, "Total equity", [107610.0, 104055.0], table_id=3)])
+    led._doc_periods = {DOC: "current"}; led.stamp_vintages()
+    assert _printed(led, 107610.0) and not _printed(led, 104055.0)
+    wb = _wb({"T4": 104055.0, "U4": 104055.0})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "total equity", "sheet": "S", "row": 4}]}
+    panel = {"total equity": {"print": 107610.0, "prior": 104055.0}}
+    assert "total equity" not in key_snapshot(wb, spec, 2025, led, None, panel=panel)
+    wb["S"]["U4"] = 107610.0
+    assert "total equity" in key_snapshot(wb, spec, 2025, led, None, panel=panel)
+    # the brain's reading names the columns: the current position follows the names
+    rev = _item(179, 1, "Total equity", [104055.0, 107610.0], table_id=4, columns=["FY2024", "FY2025"], table_kind="period")
+    led2 = _ledger([rev]); led2._doc_periods = {DOC: "current"}; led2.stamp_vintages()
+    assert _printed(led2, 107610.0) and not _printed(led2, 104055.0)
+    print("PASS test_a_comparative_is_not_this_years_print_2026_09_14")
+
+
+def test_the_swing_is_traced_between_the_stable_line_and_the_flag_2026_09_14():
+    """Owner 2026-09-14: "operating income has a big swing but gross profit
+    is stable — the issue is in between; I look at my own flags first, then
+    the biggest swing." The tracer never enters a stable line and, among
+    the contributors that carry the swing, takes the agent's flagged cell
+    before the largest one."""
+    from pipeline.investigate import trace
+    pre = _wb({"U2": 100.0, "U3": 60.0, "U4": "=U2-U3", "U5": 10.0, "U7": 5.0, "U6": "=U4-U5+U7"})
+    wb = _wb({"U2": 156.0, "U3": 110.0, "U4": "=U2-U3", "U5": 18.0, "U7": 17.0, "U6": "=U4-U5+U7"})
+    # gross profit moved +6 (revenue +56, cost +50); opex (red) +8; other income +12
+    trail, leaf = trace(wb, pre, "S", "U6")
+    assert leaf == ("S", "U7"), (trail, leaf)                       # the largest swing, blind
+    trail, leaf = trace(wb, pre, "S", "U6", flagged={("S", "U5")})
+    assert leaf == ("S", "U5"), (trail, leaf)                       # the agent's own flag first
+    wb["S"]["U5"] = 10.0                                            # opex unchanged: the flag carries no swing
+    trail, leaf = trace(wb, pre, "S", "U6", flagged={("S", "U5")})
+    assert leaf == ("S", "U7"), (trail, leaf)                       # a flag without a swing is not the factor
+    wb["S"]["U7"] = 5.0                                             # now only gross profit moved
+    trail, leaf = trace(wb, pre, "S", "U6")
+    assert leaf == ("S", "U2"), (trail, leaf)                       # blind: into gross profit, to revenue
+    trail, leaf = trace(wb, pre, "S", "U6", stable={("S", "U4")})
+    assert leaf is None and trail and "SPREAD" in trail[-1][2], (trail, leaf)   # gross profit is proven: never entered
+    print("PASS test_the_swing_is_traced_between_the_stable_line_and_the_flag_2026_09_14")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
