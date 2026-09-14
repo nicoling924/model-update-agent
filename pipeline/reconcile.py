@@ -148,15 +148,36 @@ def is_statement_line(item):
 SMALL_PRIOR = 50.0   # below this a prior ties by coincidence (the one-home bar)
 
 
-def small_prior_needs_kinship(pv, line_label, row_label):
-    """THE SMALL-PRIOR LAW for reconciliation (run-229 autopsy: with the
-    wide rows gone, priors of -23, 105, -12, -10 found 'homes' on
-    'Short-term deposits', 'India', 'Joint ventures', 'Meters' — label-
-    unrelated coincidences, all wrong). A material prior (>= 50) is its
-    own identity; a small one needs the line's label to be kin to the
-    model row's. Returns True when the pair is acceptable."""
+def prior_carriers(items):
+    """{rounded |prior|: set of normalized labels printing it} over the
+    documents — how many DIFFERENT lines carry each number. A number's
+    identity is its uniqueness in print, not its size (CLP live
+    2026-09-14: 294 printed on 14 lines tied 'Finance charges' for the
+    Australia solar row; 120 tied 'hedge accounting' for India coal while
+    'Thermal (Jhajjar) 112 | 120' sat one page on)."""
+    from .numerics import norm_label
+    out = {}
+    for it in items:
+        lab = norm_label(getattr(it, "label", "") or "")
+        for n in (getattr(it, "nums", None) or []):
+            if isinstance(n, (int, float)) and n != 0:
+                out.setdefault(round(abs(n), 1), set()).add(lab)
+    return out
+
+
+def small_prior_needs_kinship(pv, line_label, row_label, carriers=None):
+    """THE COINCIDENCE LAW for reconciliation (run-229 autopsy: priors of
+    -23, 105, -12, -10 found 'homes' on 'Short-term deposits', 'India',
+    'Joint ventures', 'Meters' — label-unrelated coincidences). A prior
+    that is its own identity — printed under ONE name in the documents
+    and material — ties bare; a prior printed under several names, or a
+    small one, needs the line's label to be kin to the model row's.
+    Returns True when the pair is acceptable."""
     from .numerics import kinship
-    if not isinstance(pv, (int, float)) or abs(pv) >= SMALL_PRIOR:
+    if not isinstance(pv, (int, float)):
+        return True
+    ambiguous = carriers is not None and len(carriers.get(round(abs(pv), 1), ())) >= 2
+    if abs(pv) >= SMALL_PRIOR and not ambiguous:
         return True
     return bool(kinship(str(line_label or ""), str(row_label or "")))
 
@@ -175,8 +196,14 @@ def _pairs(ns, scale):
 
 def table_kind(items):
     """ONE law for every reader of a table (the walk, the cards, the
-    evidence law, the nil rule, the page reads) — see ledger.table_kind_of;
-    the ledger stamps it on every line (Item.table_kind)."""
+    evidence law, the nil rule, the page reads): the brain's reading when
+    the lines carry it (Item.table_kind, tables.py — CLP live 2026-09-14:
+    the walk recomputed the shape and paired 'Solar 2 | 294 | 45' of a
+    capacity table the brain had called categories), else the shape."""
+    stamped = [getattr(it, "table_kind", None) for it in items]
+    stamped = [k for k in stamped if k in ("period", "matrix", "plain")]
+    if stamped:
+        return max(set(stamped), key=stamped.count)
     from .ledger import table_kind_of
     return table_kind_of(items)
 
@@ -194,6 +221,7 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     except TypeError:                               # a face-only stub ledger (museum)
         pool = ledger.join_pool()
     priors = list(by_row.values())
+    carriers = prior_carriers(pool)
     page_scales = ratify_page_scales(pool, priors, [])
     # A DOCUMENT'S SCALE IS PRINTED ONCE (half-year replay 2026-09-09: the
     # dividends-payable note on p153 tied the model's year-end prior
@@ -290,7 +318,7 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
                     pv = -pv
                 (sheet, r) = rows[0]
                 if not small_prior_needs_kinship(
-                        pv, it.label, wb[sheet].cell(r, 1).value):
+                        pv, it.label, wb[sheet].cell(r, 1).value, carriers):
                     mapping["small_unkin"] = mapping.get("small_unkin", 0) + 1
                     continue
                 if wide:

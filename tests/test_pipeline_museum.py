@@ -5013,7 +5013,53 @@ def test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14():
     led2 = Ledger.from_json(led.to_json()); led2.corroborate()
     again = next(it for it in led2.items if it.page == 245)
     assert again.table_kind == "matrix" and again.columns == ["units", "MW"], "the pin keeps the brain's reading"
+    # the walk asks the same stamp (CLP live: it had recomputed the shape and paired 'Solar 2 | 294 | 45')
+    from pipeline.reconcile import table_kind
+    assert table_kind(cap) == "matrix" and table_kind(note) == "period"
+    # a tie is at the number's own world: statement rounding never makes 1.61 into 2
+    from pipeline.writegate import _close
+    assert not _close(1.61, 2.0) and _close(2.0, 2.0) and _close(1000.4, 1000.0) and _close(4.143, 4.14)
+    # a prior-period document never proves a current value on a card
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["A52"], ws["T52"] = "Renewables (NED solar)", 21.0
+    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
+    old_doc = [Item(doc="e_2024 Annual Report.pdf", page=198, table_id=2, row_ord=1, label="Cash flow hedges", nums=[-161.0, -2102.0])]
+    led3 = _ledger(_anchors(95, 1e6) + old_doc, face_pages=((95, "pl"),))
+    led3._doc_periods = {DOC: "current", "e_2024 Annual Report.pdf": "prior"}
+    targets = _anchor_targets() + [TargetRow("Model", 52, "Renewables (NED solar)", 21.0)]
+    loop = ObjectiveLoop(wb, spec, 2025, led3, targets, {}, Writer(wb), None)
+    r = loop.t_set_input({"cell": "Model!U52", "value": 2.0, "why": "p198 hedges — card-adjudicated"})
+    assert not (str(r).startswith("WRITTEN") and not str(ws["U52"].fill.fgColor.rgb).endswith("FFC7CE")), r
     print("PASS test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14")
+
+
+def test_a_prior_printed_under_several_names_needs_kinship_2026_09_14():
+    """CLP live 2026-09-14: eight cells took a bare prior tie on a number
+    printed on 10–50 lines of the documents (294 → 'Finance charges' for
+    the Australia solar row; 120 → 'hedge accounting' for India coal while
+    'Thermal (Jhajjar) 112 | 120' was one page on). The old law let any
+    prior of 50 or more tie bare. Identity is uniqueness in print: a prior
+    carried under several names needs the line's label to be kin to the
+    row's; a prior printed under one name still ties bare."""
+    from pipeline.reconcile import prior_carriers, small_prior_needs_kinship
+    items = [_item(48, 1, "Thermal (Jhajjar)", [112.0, 120.0]),
+             _item(23, 2, "hedge accounting", [-85.0, 120.0]),
+             _item(51, 3, "Solar Projects #", [362.0, 294.0, 240.0, 120.0]),
+             _item(181, 4, "Finance charges", [257.0, 294.0]),
+             _item(29, 5, "Operating Earnings", [9559.0, 1598.0, 294.0]),
+             _item(60, 6, "Deferred creditors", [13278.0, 8363.0])]
+    c = prior_carriers(items)
+    assert len(c[120.0]) == 3 and len(c[294.0]) == 3 and len(c[8363.0]) == 1
+    assert small_prior_needs_kinship(120.0, "hedge accounting", "Coal (Jhajjar)", c) is False
+    assert small_prior_needs_kinship(120.0, "Thermal (Jhajjar)", "Coal (Jhajjar)", c) is True
+    assert small_prior_needs_kinship(294.0, "Finance charges", "Solar", c) is False
+    assert small_prior_needs_kinship(8363.0, "Deferred creditors", "Other payables", c) is True   # unique in print: its own identity
+    assert small_prior_needs_kinship(12.0, "Meters", "Short-term deposits", c) is False            # small: kinship as before
+    print("PASS test_a_prior_printed_under_several_names_needs_kinship_2026_09_14")
 
 
 if __name__ == "__main__":

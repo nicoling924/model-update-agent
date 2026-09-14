@@ -43,7 +43,11 @@ def _meta(item, field, default=None):
 
 
 def _close(a, b, tol=_TOL):
-    return abs(a - b) <= max(0.5, abs(b) * tol)
+    """A tie at the number's own world: statement rounding (0.5) absorbs
+    nothing on a small figure — 1.61 is not 2 (CLP live 2026-09-14: a
+    hedge line at scale 100 tied NED solar's 2 | 21 that way)."""
+    floor = 0.5 if abs(b) >= 50 else max(0.01, abs(b) * 0.005)
+    return abs(a - b) <= max(floor, abs(b) * tol)
 
 
 def find_evidence(items, value):

@@ -2319,3 +2319,20 @@ drifted to 88; the ROAFNA check 'opened' with no code cause). A replay now write
 8,355 items / 254 serves; DFE FY25 run 34771914611: 5,539 / 250; DFE 1H25 keeps the drifted copy — no live
 artifact survives). Still open from the trace: the ambiguous-prior rule (uniqueness, not size) and the small
 carried literals.
+
+## 2026-09-14 — CLP FY25 run 34799733381 (33 min, clean, keys 8/10): the table reader live, and what it left
+The brain read all 2,456 tables in 9 calls (periods 347, categories 472, segments 58, grid 34, movement 6,
+other 1,539 — mostly one-number prose lines). Of the seven segment-table cells: Aus finance income 24 red (was 14
+plain), CN associates 1,607 red (was 0), Ho-Ping 231 twice (was 181) — right. Score vs the analyst: 276 judged,
+202 correct (73%, was 68%), wrong 74 = red 37 / orange 17 / unhighlighted 20 (was 23).
+Three more causes found on the run and fixed the same day (museum 203, bench green):
+- the WALK recomputed the table's shape instead of asking the brain's stamp — a capacity table 'Solar 2 | 294 |
+  45' (categories) paired 2 | 294 → reconcile.table_kind honours Item.table_kind;
+- a CARD 'proved' NED solar 2 with a 2024 hedge line at scale 100 (−161 | −2,102 → 1.61 | 21.0): the card path
+  now excludes prior-vintage documents from its evidence (the vintage law — never a source), and a tie is at the
+  number's own world (1.61 is not 2; the 0.5 rounding floor applies from 50 up);
+- THE COINCIDENCE LAW: a prior's identity is its uniqueness in print, not its size — a prior printed under
+  several names (294 on 14 lines, 120 on 13) needs the line's label kin to the row's (reconcile.prior_carriers);
+  offline on the stamped ledger the walk serves 59 rows instead of 81 — the 22 coincidences now go to the reader
+  and the cards, red where nothing proves them.
+Floors re-pinned from the stamped live ledger (CLP FY25: 8,355 items, all stamped, 259 serves); replay clean.
