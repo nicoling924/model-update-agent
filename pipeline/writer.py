@@ -295,6 +295,15 @@ class Writer:
                 and row_never_filled(ws, coord):
             self.log.setdefault("never_filled_refused", []).append(ref)
             return False
+        # THE UNFORECAST ROW LAW (owner 2026-09-14, CLP Aus!AI71 'Tallawarra
+        # (gas)': last year typed, this year and every forecast year empty —
+        # a row the analyst stopped carrying; the tier-3 sweep held it at
+        # the group's growth): an ESTIMATE of the agent's own (a hold, a
+        # back-out — the orange writes) never lands in a row whose forecast
+        # cells are all empty or zero. A proven printed figure still may.
+        if flag == "orange" and self._row_unforecast(sheet, coord):
+            self.log.setdefault("unforecast_refused", []).append(ref)
+            return False
         # the empty-row law (owner ruling 2026-08-31): a row whose prior
         # actual is EMPTY is furniture — machine writes stay out of it
         # (trusted writes may proceed: folds and proven serves carry
@@ -345,6 +354,22 @@ class Writer:
             self.log["flags"] = [f for f in self.log["flags"] if f != ref]
         if flag in self.fills:
             self.log["flags"].append(ref)
+        return True
+
+    def _row_unforecast(self, sheet, coord):
+        """True when the sheet has forecast columns and every forecast cell
+        of this row is empty or zero: the analyst does not forecast it."""
+        fcols = (getattr(self, "forecast_cols", None) or {}).get(sheet) or []
+        if not fcols:
+            return False
+        ws = self.wb[sheet]
+        row = int(re.sub(r"[A-Z]+", "", coord))
+        for c in fcols:
+            v = ws[f"{c}{row}"].value
+            if isinstance(v, str) and v.startswith("="):
+                return False
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v != 0:
+                return False
         return True
 
     def restore_style(self, sheet, coord, style):

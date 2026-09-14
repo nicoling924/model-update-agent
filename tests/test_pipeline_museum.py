@@ -5059,6 +5059,24 @@ def test_a_prior_printed_under_several_names_needs_kinship_2026_09_14():
     print("PASS test_a_prior_printed_under_several_names_needs_kinship_2026_09_14")
 
 
+def test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14():
+    """CLP run 34799733381, owner: Aus!AI71 'Tallawarra (gas)' — 1,721 typed
+    last year, nothing this year and nothing in any forecast year — and the
+    tier-3 sweep rolled a hold-at-growth estimate into it. A row whose
+    forecast cells are all empty or zero is one the analyst stopped
+    carrying: the agent's own estimates (orange) stay out; a proven printed
+    figure (no flag) may still land."""
+    from pipeline.writer import Writer
+    wb = _wb({"AH71": 1721.0, "AH72": 500.0, "AJ72": "=AI72*1.02", "AH73": 9.0, "AJ73": 0, "AK73": 0})
+    w = Writer(wb); w.forecast_cols = {"S": ["AJ", "AK"]}
+    assert w.write("S", "AI71", "=AH71*1.05", prior_coord="AH71", trusted=True, flag="orange") is False
+    assert w.log["unforecast_refused"] == ["S!AI71"] and wb["S"]["AI71"].value is None
+    assert w.write("S", "AI72", "=AH72*1.05", prior_coord="AH72", trusted=True, flag="orange") is True   # forecast: an estimate may hold it
+    assert w.write("S", "AI73", "=AH73*1.05", prior_coord="AH73", trusted=True, flag="orange") is False  # typed zeros: not forecast
+    assert w.write("S", "AI73", 434.56, prior_coord="AH73", trusted=True) is True                        # a proven figure still lands
+    print("PASS test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
