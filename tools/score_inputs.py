@@ -20,7 +20,9 @@ def is_input(v):
     if isinstance(v, bool): return False
     if isinstance(v, (int, float)): return True
     if isinstance(v, str) and v.startswith("="):
-        try: return bool(literals_of(v))
+        try:
+            from pipeline.composites import MODELING_CONSTANTS
+            return any(abs(float(x)) not in MODELING_CONSTANTS for x in literals_of(v))
         except Exception: return False
     return False
 tot = ok = 0; wrong = []; colours = {"FFC7CE": "red", "FFC000": "orange"}
