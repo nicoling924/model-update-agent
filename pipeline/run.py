@@ -619,8 +619,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         for r in rows:
             if (sheet, r) in served or f"{sheet}!{tcol}{r}" in writer.log["written"]:
                 continue
-            if (sheet, r) in (getattr(writer, "unforecast_rows", None) or ()):
-                continue              # rolled in as the analyst's own 0 — not stale
             cell = wb[sheet][f"{tcol}{r}"]
             if not isinstance(cell.value, (int, float)):
                 continue

@@ -5074,7 +5074,9 @@ def test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_
     z = unforecast_rows(wb2, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co))
     assert z == {71}, z                                  # 72 forecasts 310; 73 has nothing at all in those cells
     hard = rollover_column(wb2, "S", "AH", "AI", zero_rows=z)
-    assert wb2["S"]["AI71"].value == 0 and 71 in hard and wb2["S"]["AI72"].value == 300.0 and 72 in hard   # still an input: a proven read may land
+    # the analyst's own 2025 figures stand (0 on row 71, 310 on row 72); a blank target takes the prior (row 73)
+    assert wb2["S"]["AI71"].value == 0 and 71 in hard and wb2["S"]["AI72"].value == 310.0 and 72 in hard
+    assert wb2["S"]["AI73"].value == 9.0 and 73 in hard
     print("PASS test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14")
 
 

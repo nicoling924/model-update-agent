@@ -56,7 +56,8 @@ class WriteError(RuntimeError):
 
 
 def load(path, data_only=False):
-    return openpyxl.load_workbook(path, data_only=data_only)
+    # a macro workbook keeps its macros (audit 2026-09-14): keep_vba for .xlsm
+    return openpyxl.load_workbook(path, data_only=data_only, keep_vba=str(path).lower().endswith(".xlsm"))
 
 
 def save(wb, path):
@@ -140,9 +141,9 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
     column carried forward. Copies every cell — formulas Excel-shifted one
     column, hardcodes as-is, styles and number formats — and returns the
     rows that arrived as HARDCODES: the input census the disclosed actuals
-    must then overwrite. A row in `zero_rows` (the analyst had it at zero
-    this year and every forecast year) rolls in as 0, the analyst's own
-    figure — still an input a proven read may overwrite, never a stale one."""
+    must then overwrite. A target cell the analyst already typed keeps
+    their figure (their estimate for the year) — still an input the
+    disclosed actual overwrites; `zero_rows` is kept for the callers."""
     ws = wb[sheet]
     offset = col_to_num(to_col) - col_to_num(from_col)
     hardcode_rows = []
@@ -156,11 +157,14 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
         if v is None:
             dst.value = None
             continue
-        if r in zero_rows and isinstance(v, (int, float)) and not isinstance(v, bool):
-            dst.value = 0                      # the analyst's own figure this year
+        if isinstance(v, (int, float)) and not isinstance(v, bool) \
+                and isinstance(dst.value, (int, float)) and not isinstance(dst.value, bool):
+            # THE ANALYST'S OWN ESTIMATE STANDS (owner 2026-09-14, ROAFNA!AI71: 2025 typed 0
+            # and the roll carried −1,050 in): a typed target-year cell is the analyst's
+            # starting figure; the disclosure overwrites it, last year's number never does
             dst._style = copy.copy(src._style)
             dst.number_format = src.number_format
-            hardcode_rows.append(r)            # still an input: a PROVEN printed figure may land
+            hardcode_rows.append(r)            # still an input the disclosed actual must overwrite
             continue
         # THE ANALYST'S OWN PERIOD MARK IS KEPT (half-year replay 2026-09-09:
         # the roll copied 'H124' over the analyst's 'H125' header and the

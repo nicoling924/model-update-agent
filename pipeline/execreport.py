@@ -1121,7 +1121,7 @@ def report_only(company_dir, model_path, pre_path, client, out_path=None,
     2026-09-13: one fixed table, key numbers, look-here — all code's;
     the brain composes nothing). `client` is accepted and unused."""
     import openpyxl
-    wb = openpyxl.load_workbook(model_path)
+    wb = openpyxl.load_workbook(model_path, keep_vba=str(model_path).lower().endswith(".xlsm"))
     # THE OLD-ESTIMATE SNAPSHOT (owner 2026-09-02: the _REPORT's OLD
     # block was empty): the archive IS the pre-update model, so timing
     # is right — but a data_only load of a manual-calc model caches
