@@ -2501,3 +2501,11 @@ brain's back-out that had closed ROAFNA!31. Fixes in the loop itself: CHECK_TOL 
 rounding); the loop verifies against its own objective set, not the gate's strings; a pick aimed at a check
 or key must close most of it or is taken back; a widened swing line vetoes a SENSE pick only (balance is rule
 1, keys rule 2, swing lines rule 3). Floors clean. docs/scores/CLP_FY25_run34880517810_vs_analyst.txt
+
+## 2026-09-15 — CLP FY25 live run 34887799324 (head d3d7756, 47 min): delivered, 1 open check (the analyst's own ROAFNA!31, −968 vs −1,264 pre-update; the brain: a question), keys 9/10
+Score 254 judged, 155 correct (61%), unhighlighted 10. The rollover loop ran 9 rounds; it caught Driver!AI17
+221,000,000 (dwarfs the line, put back red). Root cause found for the biggest remaining forecast distortion:
+Final!AI28 'Disposal or tax consolidation' = 390,000,000 — the prose 'net gain of HK$390 million' harvested
+in base currency units and offered unconverted (the page scale of a millions document is 1). Fix at the
+cause: a prose money figure is converted with the MODEL's stated units (numerics.model_unit_mult /
+prose_money_value; spec 'HK$ millions' -> 390). Museum 237. docs/scores/CLP_FY25_run34887799324_vs_analyst.txt

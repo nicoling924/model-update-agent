@@ -311,7 +311,8 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
         seen_prose.add(key)
         money = getattr(it, "unit_dim", "") == "money"
         sc = doc_scale.get(it.doc)
-        val = _tmu2(it.nums[0], sc) if (money and sc) else float(it.nums[0])
+        from .numerics import prose_money_value as _pmv
+        val = _pmv(float(it.nums[0]), loop.spec, sc) if money else float(it.nums[0])
         warns = [f"PROSE: '{str(it.source_line)[:90]}' — judge the item AND the unit"
                  + ("" if money and sc else f" (printed unit {getattr(it, 'unit_dim', '')[5:] or 'money'}, "
                     "convert to the model's units)")]
@@ -394,7 +395,9 @@ def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
         prose = getattr(it, "channel", "") == "prose"
         money = getattr(it, "unit_dim", "") == "money"
         sc = doc_scale.get(it.doc) or scales.get((it.doc, it.page))
-        val = _tmu(it.nums[0], sc) if (sc and (money or not prose)) else float(it.nums[0])
+        from .numerics import prose_money_value as _pmv0
+        val = (_pmv0(float(it.nums[0]), loop.spec, sc) if (prose and money)
+               else _tmu(it.nums[0], sc) if (sc and (money or not prose)) else float(it.nums[0]))
         warns = ["NO PRIOR in the model to tie — judged on the label alone; lands red"]
         if prose:
             warns.append(f"PROSE: '{str(it.source_line)[:90]}' — judge the item AND the unit"

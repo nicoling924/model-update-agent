@@ -206,3 +206,27 @@ def kinship(a, b):
             if seg in long_:
                 return True
     return False
+
+
+def model_unit_mult(units_text):
+    """The model's stated units -> base-currency multiplier ('HK$ millions'
+    -> 1e6; 'RMB 万元' -> 1e4). None when the text names no unit word."""
+    import re as _re
+    t = str(units_text or "").lower()
+    for pat, mult in ((r"亿", 1e8), (r"千万", 1e7), (r"百万", 1e6), (r"万", 1e4), (r"千元|thousand|\bk\b|'000|000s", 1e3),
+                      (r"billion|\bbn\b", 1e9), (r"million|\bmn\b|\bm\b|\bmm\b", 1e6)):
+        if _re.search(pat, t):
+            return mult
+    return None
+
+
+def prose_money_value(n, spec, page_scale=None):
+    """A prose money figure (harvested in BASE currency units: 'HK$390
+    million' -> 390,000,000) in the MODEL's units (owner 2026-09-15, CLP:
+    390,000,000 landed in a HK$-million model as a one-off gain). The
+    model's stated units convert it; without them the page's ratified
+    scale is the fallback."""
+    mult = model_unit_mult((spec or {}).get("units")) if isinstance(spec, dict) else None
+    if isinstance(n, (int, float)) and mult:
+        return n / mult
+    return to_model_units(n, page_scale) if page_scale else n

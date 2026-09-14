@@ -5540,6 +5540,21 @@ def test_the_consequence_card_brain_decides_code_verifies_2026_09_15():
     print("PASS test_the_consequence_card_brain_decides_code_verifies_2026_09_15")
 
 
+def test_a_prose_money_figure_lands_in_the_models_units_2026_09_15():
+    """CLP live 34887799324: 'a net gain of HK$390 million' was served as
+    390,000,000 into a HK$-million model (prose is harvested in base
+    currency units; the page scale of a millions document is 1). The
+    model's own stated units convert a prose money figure."""
+    from pipeline.numerics import model_unit_mult, prose_money_value
+    assert model_unit_mult("HK$ millions") == 1e6 and model_unit_mult("RMB 万元") == 1e4 and model_unit_mult("US$ bn") == 1e9
+    assert model_unit_mult("") is None
+    assert prose_money_value(390_000_000.0, {"units": "HK$ millions"}, 1.0) == 390.0
+    assert prose_money_value(390_000_000.0, {"units": "HK$ millions"}, 1e6) == 390.0
+    assert prose_money_value(390_000_000.0, {}, 1e6) == 390.0            # no stated units: the page scale
+    assert prose_money_value(390_000_000.0, {}, None) == 390_000_000.0    # nothing known: unchanged, warned on the card
+    print("PASS test_a_prose_money_figure_lands_in_the_models_units_2026_09_15")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
