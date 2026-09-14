@@ -4835,14 +4835,11 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
     assert rp.cell(row=rev_row, column=old0 + 1).value == 1000.0 and rp.cell(row=rev_row, column=old0 + 2).value == 1050.0
     assert str(rp.cell(row=rev_row, column=2).value).startswith("=IFERROR(")
     chk = next(c for c in range(2, 30) if rp.cell(row=hdr_row, column=c).value == "check")
-    assert "0.1" in str(rp.cell(row=rev_row, column=chk).value) and "sign flip" in str(rp.cell(row=rev_row, column=chk).value)
-    # key numbers: prior, actual, YoY, estimate, actual vs estimate — no next-year, no printed column;
-    # names in proper case (owner 2026-09-14)
-    assert "Your estimate" in text and "Actual vs estimate" in text and "Printed" not in text
+    assert "0.1" in str(rp.cell(row=rev_row, column=chk).value) and "sign flip" not in str(rp.cell(row=rev_row, column=chk).value)
+    # the key-number section is gone (owner 2026-09-14: it repeated the table); the check is ten points only
+    assert "Your estimate" not in text and "Key numbers" not in text
     from pipeline.reportpage import proper_name
     assert proper_name("eps") == "EPS" and proper_name("net profit") == "Net profit"
-    assert proper_name("total liabilities and equity") == "Total liabilities and equity"
-    assert any("Net profit" in str(c.value) and "HYPERLINK" in str(c.value) for row in rp.iter_rows() for c in row if isinstance(c.value, str))
     # statements in the order P&L, balance sheet, cash flow, one empty row between them
     g = [r for r in range(1, rp.max_row + 1) if rp.cell(row=r, column=1).value in ("P&L", "Balance sheet", "Cash flow")]
     assert [rp.cell(row=r, column=1).value for r in g] == ["P&L", "Balance sheet", "Cash flow"], g

@@ -8,9 +8,7 @@ every model, rendered by code from the model itself. No prose.
                          >10-point check, NEW with the printed figure
                          and YoY, OLD. A line this model has no row for
                          says so and keeps its place.
-  3. Key numbers       — the model's own key rows: prior actual, actual,
-                         YoY, the analyst's estimate, actual vs estimate.
-  4. Look here         — the sense check's verdicts with the cell each
+  3. Look here         — the sense check's verdicts with the cell each
                          trail ended at, open checks, plugs, and the
                          flagged cells that sit on the page's own rows;
                          everything else as a count per sheet. The
@@ -543,8 +541,8 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
             c0 = get_column_letter(D0 + len(ah) - 1)
             c1 = get_column_letter(D0 + len(ah))
             cell(r, CHK,
-                 f'=IF(COUNT({c0}{r},{c1}{r})<2,"",IF({c0}{r}*{c1}{r}<0,"⚠ sign flip",'
-                 f'IF(ABS({c1}{r}-{c0}{r})>{SENSE_GAP},"⚠ "&TEXT(ABS({c1}{r}-{c0}{r})*100,"0")&" pts","")))',
+                 f'=IF(COUNT({c0}{r},{c1}{r})<2,"",IF(ABS({c1}{r}-{c0}{r})>{SENSE_GAP},'
+                 f'"⚠ "&TEXT(ABS({c1}{r}-{c0}{r})*100,"0")&" pts",""))',
                  WARNF)
         # the printed figure: the key panel's print for a key row, a proven serve otherwise
         kname = next((k.get("name") for k in (spec.get("key_rows") or [])
@@ -564,42 +562,11 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     ws.row_dimensions[r].height = 10
     r += 1
 
-    # ---- 3. key numbers -----------------------------------------
-    keys = sorted([k for k in (spec.get("key_rows") or [])
-                   if k.get("sheet") in wb.sheetnames and isinstance(k.get("row"), int)],
-                  key=lambda k: (0 if k.get("sheet") == primary else 1, str(k.get("sheet")), int(k["row"])))
-    if keys:
-        sect(f"2 · Key numbers   ({plabel} actual vs the prior period and vs your estimate)")
-        hdr = ["", "Prior actual", f"{plabel} actual", "YoY", "Your estimate", "Actual vs estimate"]
-        for i, h in enumerate(hdr):
-            cell(r, i + 1, h, GREY, HEAD, None, THIN)
-        r += 1
-        for k in keys:
-            sh, mr = k["sheet"], int(k["row"])
-            ax = period_axis(spec, sh, target_year, period)
-            pcol = next((a[1] for a in ax if a[2] == "prior"), None)
-            tcol = next((a[1] for a in ax if a[2] == "actual"), None)
-            if not tcol:
-                continue
-            # an interim balance sheet compares to the last year end (owner 2026-09-10)
-            apx = (spec.get("annual_prior_axis") or {}).get(sh)
-            nm = str(k.get("name") or "")
-            if apx and any(w in nm.lower() for w in ("asset", "liabilit", "equity", "debt", "cash year end")):
-                pcol = apx
-            q = _q(sh)
-            cell(r, 1, _link(sh, f"{tcol}{mr}", proper_name(nm)), SMALL)
-            cell(r, 2, f"={q}!{pcol}{mr}" if pcol else "", SMALL, None, NUM)
-            cell(r, 3, f"={q}!{tcol}{mr}", SMALL, None, NUM)
-            cell(r, 4, f'=IFERROR(IF(B{r}<=0,"n/m",C{r}/B{r}-1),"")', SMALL, None, PCT)
-            est = pre_value(pre_wb, sh, mr, tcol)
-            cell(r, 5, round(est, 4) if isinstance(est, (int, float)) else "", SMALL, None, NUM)
-            cell(r, 6, f'=IFERROR(IF(E{r}<=0,"n/m",C{r}/E{r}-1),"")', SMALL, None, PCT)
-            r += 1
-        ws.row_dimensions[r].height = 10
-        r += 1
-
+    # (the key-number section was removed on 2026-09-14: it repeated the table)
+    keys = [k for k in (spec.get("key_rows") or [])
+            if k.get("sheet") in wb.sheetnames and isinstance(k.get("row"), int)]
     # ---- 4. look here -------------------------------------------
-    sect("3 · Look here")
+    sect("2 · Look here")
     n_items = 0
     sense = [s for s in (extra.get("sense_rows") or []) if isinstance(s, dict)]
     final = [s for s in sense if s.get("stage") == "final"]
