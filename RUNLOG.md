@@ -2373,3 +2373,15 @@ the join reads Item.table_kind (its own shape test is the fallback), the key tie
 stamp, a brain reading of "other" is stamped plain so the tie decides. Also: a refused absorber falls through
 to the next candidate and to KEY OFF (it had broken out silently); the sense check's final pass takes back a
 review that fails the full check run. Museum 209, bench green.
+
+## 2026-09-14 — THE ZERO FORECAST, as the owner stated it
+"2025 same as other cells, mapped by our rules; it's just that 2026 → if the original forecast is 0 for 2026
+onwards, then 2026 should be marked as 0." Built: the zero-forecast rows are the rows whose forecast cells all
+evaluate 0 in the analyst's model (check rows excluded — 0 by construction); after the update, every forecast
+cell of such a row that computes non-zero is held at 0 (blue, journaled, a sanctioned freeze the gate
+accepts), before the repair rounds and again after the final sense pass with a repair round after it. The
+estimate refusal and the rollover special case of the morning are withdrawn: the actual year rolls and maps
+like every other cell. First cut held check rows and opened 20 checks; second cut held after the final pass
+with no repair and opened the forecast balance — both caught by the floors. CLP replay: clean, keys 8/8,
+ROAFNA!AI71 red (not found, last year's kept), AJ71/AK71 0 blue; score 226 judged, 147 correct, wrong 79 =
+red 52 / orange 17 / unhighlighted 10. Museum 209, bench green.

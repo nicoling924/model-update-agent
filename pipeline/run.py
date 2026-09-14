@@ -491,7 +491,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         if tcol and sheet in wb.sheetnames:
-            for r_ in _unforecast_rows(wb, sheet, tcol, sorted(writer.forecast_cols.get(sheet) or ()), _eval0):
+            _chk_rows = {int(c_.get("row")) for c_ in (spec_d.get("check_rows") or []) if c_.get("sheet") == sheet and c_.get("row") is not None}
+            for r_ in _unforecast_rows(wb, sheet, tcol, sorted(writer.forecast_cols.get(sheet) or ()), _eval0, skip_rows=_chk_rows):
                 writer.unforecast_rows.add((sheet, r_))
     if writer.unforecast_rows:
         log(f"[run] zero forecast: {len(writer.unforecast_rows)} rows whose forecast years are all 0 in the "
@@ -1419,6 +1420,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             _left_s = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
             _sense_final(loop, _pre_wb_sense, log, client, stage4_answerer, _left_s, _sense_rerun)
             if _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log):
+                repair_round("zero forecast")          # the hold moves the forecast balance: the repairs re-solve
                 ok, failures, card = gate_once()
         except Exception as _e_sf:
             log(f"[sense] final pass skipped: {_e_sf!r}")

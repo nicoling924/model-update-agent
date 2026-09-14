@@ -106,7 +106,7 @@ def _shape(formula):
     return _re.sub(r"(?<![A-Za-z_])\$?[A-Z]{1,3}\$?(\d+)", r"C\1", str(formula).replace("$", ""))
 
 
-def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None):
+def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None, skip_rows=()):
     """THE ZERO FORECAST (owner 2026-09-14, CLP ROAFNA!AI71 'Coal-fired
     (CAPCO)': every forecast year linked to the actual, all 0 before the
     update; the roll carried −1,050 into the actual and the forecasts
@@ -126,10 +126,13 @@ def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None):
             except Exception:
                 return None
         return v
+    from .discover import _CHECK_LABEL
     for r in range(1, ws.max_row + 1):
         lab = ws.cell(r, 1).value
         if not (isinstance(lab, str) and lab.strip()):
             continue
+        if r in skip_rows or _CHECK_LABEL.search(lab):
+            continue                 # the model's own check / difference rows are 0 by construction, not a forecast
         vals = [_val(f"{c}{r}") for c in forecast_cols]
         if all(v in (None, "", 0, 0.0) or (isinstance(v, float) and abs(v) < 1e-9) for v in vals) \
                 and any(v is not None for v in vals):
@@ -159,6 +162,8 @@ def hold_zero_forecasts(writer, evaluate, log=print):
         for coord in moved:
             if writer.write(sheet, coord, 0, trusted=True, force_lock=True, flag="blue",
                             note="Your forecast here was 0; held at 0 (the update had moved it through a link to the actual)."):
+                # a sanctioned hold: the gate's driver-roll check reads this list
+                writer.log.setdefault("frozen", []).append(f"{sheet}!{coord}: held at 0 — the analyst's forecast was 0 (owner 2026-09-14)")
                 n += 1
     if n:
         log(f"[run] zero forecast: {n} forecast cell(s) held at 0 — the analyst's own forecast was nil")

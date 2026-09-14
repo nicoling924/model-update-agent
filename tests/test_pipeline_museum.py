@@ -5059,10 +5059,12 @@ def test_the_zero_forecast_stays_zero_2026_09_14():
     from pipeline.writer import Writer, unforecast_rows, hold_zero_forecasts, rollover_column
     from pipeline.evaluator import Evaluator
     wb = _wb({"A71": "Coal-fired (CAPCO)", "AH71": -1050.0, "AI71": 0, "AJ71": "=+AI71", "AK71": "=+AJ71",
-              "A72": "Gas", "AH72": 300.0, "AI72": 310.0, "AJ72": "=+AI72", "AK72": "=+AJ72"})
+              "A72": "Gas", "AH72": 300.0, "AI72": 310.0, "AJ72": "=+AI72", "AK72": "=+AJ72",
+              "A95": "Check", "AH95": 0, "AI95": "=AI71-AI71", "AJ95": "=AJ71-AJ71", "AK95": "=AK71-AK71",
+              "A96": "Balancing item", "AH96": 0, "AI96": 0, "AJ96": "=AJ71", "AK96": "=AK71"})
     ev = Evaluator(wb)
-    z = unforecast_rows(wb, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co))
-    assert z == {71}, z                                            # row 72 forecasts 310: not a zero forecast
+    z = unforecast_rows(wb, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co), skip_rows={96})
+    assert z == {71}, z                     # 72 forecasts 310; 95 is a check row by label; 96 a spec check row: never held
     hard = rollover_column(wb, "S", "AH", "AI")                    # the standard recipe: the actual year rolls like any row
     assert wb["S"]["AI71"].value == -1050.0 and 71 in hard
     w = Writer(wb); w.forecast_cols = {"S": {"AJ", "AK"}}; w.unforecast_rows = {("S", 71)}
@@ -5072,6 +5074,7 @@ def test_the_zero_forecast_stays_zero_2026_09_14():
     n = hold_zero_forecasts(w, lambda sh, co: Evaluator(wb).cell(sh, co), log=lambda *_a, **_k: None)
     assert n == 2 and wb["S"]["AJ71"].value == 0 and wb["S"]["AK71"].value == 0
     assert str(wb["S"]["AJ71"].fill.fgColor.rgb).endswith("BDD7EE") and "S!AJ71" in w.log["flags"]
+    assert any(x.startswith("S!AJ71:") for x in w.log["frozen"])      # a sanctioned hold the gate accepts
     assert wb["S"]["AJ72"].value == "=+AI72"                       # a forecast that was not 0 is untouched
     print("PASS test_the_zero_forecast_stays_zero_2026_09_14")
 
