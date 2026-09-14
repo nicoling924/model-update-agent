@@ -5048,36 +5048,32 @@ def test_a_prior_printed_under_several_names_needs_kinship_2026_09_14():
     print("PASS test_a_prior_printed_under_several_names_needs_kinship_2026_09_14")
 
 
-def test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14():
-    """CLP run 34799733381, owner: Aus!AI71 'Tallawarra (gas)' — 1,721 typed
-    last year, nothing this year and nothing in any forecast year — and the
-    tier-3 sweep rolled a hold-at-growth estimate into it. A row whose
-    forecast cells are all empty or zero is one the analyst stopped
-    carrying: the agent's own estimates (orange) stay out; a proven printed
-    figure (no flag) may still land."""
-    from pipeline.writer import Writer
-    wb = _wb({"AH71": 1721.0, "AH72": 500.0, "AJ72": "=AI72*1.02", "AH73": 9.0, "AJ73": 0, "AK73": 0})
-    w = Writer(wb); w.forecast_cols = {"S": ["AJ", "AK"]}
-    assert w.write("S", "AI71", "=AH71*1.05", prior_coord="AH71", trusted=True, flag="orange") is False
-    assert w.log["unforecast_refused"] == ["S!AI71"] and wb["S"]["AI71"].value is None
-    assert w.write("S", "AI72", "=AH72*1.05", prior_coord="AH72", trusted=True, flag="orange") is True   # forecast: an estimate may hold it
-    assert w.write("S", "AI73", "=AH73*1.05", prior_coord="AH73", trusted=True, flag="orange") is False  # typed zeros: not forecast
-    assert w.write("S", "AI73", 434.56, prior_coord="AH73", trusted=True) is True                        # a proven figure still lands
-    # THE ZERO-FORECAST ROW rolls in as 0 (CLP ROAFNA!AI71 'Coal-fired (CAPCO)': 2025 typed 0, forecasts
-    # '=+AI71' — the rollover had carried −1,050 in and every forecast followed)
-    from pipeline.writer import rollover_column, unforecast_rows
+def test_the_zero_forecast_stays_zero_2026_09_14():
+    """Owner 2026-09-14 (CLP ROAFNA!AI71 'Coal-fired (CAPCO)'): the actual
+    year is mapped like every other cell; but where the analyst's forecast
+    from next year on was 0, it stays 0 after the update — the update had
+    carried −1,050 into the actual and every forecast year followed through
+    '=+AI71'. The zero-forecast rows are measured on the analyst's model;
+    after the update, a forecast cell of such a row that computes non-zero
+    is held at 0 (blue) through the gate."""
+    from pipeline.writer import Writer, unforecast_rows, hold_zero_forecasts, rollover_column
     from pipeline.evaluator import Evaluator
-    wb2 = _wb({"A71": "Coal-fired (CAPCO)", "AH71": -1050.0, "AI71": 0, "AJ71": "=+AI71", "AK71": "=+AJ71",
-               "A72": "Gas", "AH72": 300.0, "AI72": 310.0, "AJ72": "=+AI72", "AK72": "=+AJ72",
-               "A73": "Hydro", "AH73": 9.0, "AI73": None, "AJ73": None, "AK73": None})
-    ev = Evaluator(wb2)
-    z = unforecast_rows(wb2, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co))
-    assert z == {71}, z                                  # 72 forecasts 310; 73 has nothing at all in those cells
-    hard = rollover_column(wb2, "S", "AH", "AI", zero_rows=z)
-    # the analyst's own 2025 figures stand (0 on row 71, 310 on row 72); a blank target takes the prior (row 73)
-    assert wb2["S"]["AI71"].value == 0 and 71 in hard and wb2["S"]["AI72"].value == 310.0 and 72 in hard
-    assert wb2["S"]["AI73"].value == 9.0 and 73 in hard
-    print("PASS test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14")
+    wb = _wb({"A71": "Coal-fired (CAPCO)", "AH71": -1050.0, "AI71": 0, "AJ71": "=+AI71", "AK71": "=+AJ71",
+              "A72": "Gas", "AH72": 300.0, "AI72": 310.0, "AJ72": "=+AI72", "AK72": "=+AJ72"})
+    ev = Evaluator(wb)
+    z = unforecast_rows(wb, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co))
+    assert z == {71}, z                                            # row 72 forecasts 310: not a zero forecast
+    hard = rollover_column(wb, "S", "AH", "AI")                    # the standard recipe: the actual year rolls like any row
+    assert wb["S"]["AI71"].value == -1050.0 and 71 in hard
+    w = Writer(wb); w.forecast_cols = {"S": {"AJ", "AK"}}; w.unforecast_rows = {("S", 71)}
+    w.write("S", "AI71", 2910.0, prior_coord="AH71", trusted=True)  # the mapping lands whatever it proves
+    ev2 = Evaluator(wb)
+    assert abs(ev2.cell("S", "AJ71") - 2910.0) < 0.01              # the link carried it into 2026
+    n = hold_zero_forecasts(w, lambda sh, co: Evaluator(wb).cell(sh, co), log=lambda *_a, **_k: None)
+    assert n == 2 and wb["S"]["AJ71"].value == 0 and wb["S"]["AK71"].value == 0
+    assert str(wb["S"]["AJ71"].fill.fgColor.rgb).endswith("BDD7EE") and "S!AJ71" in w.log["flags"]
+    assert wb["S"]["AJ72"].value == "=+AI72"                       # a forecast that was not 0 is untouched
+    print("PASS test_the_zero_forecast_stays_zero_2026_09_14")
 
 
 def test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14():

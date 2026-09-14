@@ -494,8 +494,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             for r_ in _unforecast_rows(wb, sheet, tcol, sorted(writer.forecast_cols.get(sheet) or ()), _eval0):
                 writer.unforecast_rows.add((sheet, r_))
     if writer.unforecast_rows:
-        log(f"[run] zero-forecast rows: {len(writer.unforecast_rows)} rows the analyst holds at zero this year "
-            f"and every forecast year — rolled in as 0, no estimate lands there")
+        log(f"[run] zero forecast: {len(writer.unforecast_rows)} rows whose forecast years are all 0 in the "
+            f"analyst's model — they stay 0 whatever the actual (held after the update)")
     hardcode_census = {}          # sheet -> rows that arrived as hardcodes
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
@@ -1185,6 +1185,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from openpyxl.comments import Comment as _Cmt
 
     writer.plugs_allowed = True                  # THE PLUG LAW: the repair rounds are the last resort
+    from .writer import hold_zero_forecasts as _hold_zero
+    try:
+        _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log)
+    except Exception as _e_hz:
+        log(f"[run] zero forecast hold skipped: {_e_hz!r}")
     def repair_round(tag):
         """THE REPAIR SUITE — everything that closes checks after the
         actual column is marked: roll-base re-anchoring, forecast plugs,
@@ -1413,6 +1418,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 return ok
             _left_s = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
             _sense_final(loop, _pre_wb_sense, log, client, stage4_answerer, _left_s, _sense_rerun)
+            if _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log):
+                ok, failures, card = gate_once()
         except Exception as _e_sf:
             log(f"[sense] final pass skipped: {_e_sf!r}")
     for line in card.get("inherited_breaks", []):

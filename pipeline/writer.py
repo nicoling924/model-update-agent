@@ -107,12 +107,13 @@ def _shape(formula):
 
 
 def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None):
-    """THE ZERO-FORECAST ROW (owner 2026-09-14, CLP ROAFNA!AI71 'Coal-fired
-    (CAPCO)': 2025 typed 0 and every forecast year linked to it — the
-    rollover carried last year's −1,050 in and the forecasts followed):
-    the rows whose target-year cell and every forecast cell all evaluate
-    to zero or blank BEFORE the update — the analyst's own decision that
-    the item is nil from here on. -> set of row numbers."""
+    """THE ZERO FORECAST (owner 2026-09-14, CLP ROAFNA!AI71 'Coal-fired
+    (CAPCO)': every forecast year linked to the actual, all 0 before the
+    update; the roll carried −1,050 into the actual and the forecasts
+    followed): the rows whose forecast cells ALL evaluate to zero or blank
+    before the update — the analyst's own forecast is nil, whatever the
+    actual turns out to be. -> set of row numbers. (target_col is accepted
+    for the callers; the actual year is mapped like every other cell.)"""
     ws = wb[sheet]
     out = set()
     if not forecast_cols:
@@ -129,11 +130,39 @@ def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None):
         lab = ws.cell(r, 1).value
         if not (isinstance(lab, str) and lab.strip()):
             continue
-        vals = [_val(f"{target_col}{r}")] + [_val(f"{c}{r}") for c in forecast_cols]
+        vals = [_val(f"{c}{r}") for c in forecast_cols]
         if all(v in (None, "", 0, 0.0) or (isinstance(v, float) and abs(v) < 1e-9) for v in vals) \
                 and any(v is not None for v in vals):
             out.add(r)
     return out
+
+
+def hold_zero_forecasts(writer, evaluate, log=print):
+    """THE ZERO FORECAST, enforced: a forecast cell of a zero-forecast row
+    that now computes non-zero (the update moved it through a link to
+    the actual) is held at 0 — blue, the analyst's own forecast. Runs
+    through the gate; called before the gate loop and after the final
+    sense pass. -> number of cells held."""
+    n = 0
+    rows = getattr(writer, "unforecast_rows", None) or set()
+    fcols = getattr(writer, "forecast_cols", None) or {}
+    for (sheet, r) in sorted(rows):
+        moved = []
+        for c in sorted(fcols.get(sheet) or ()):        # read the whole row first: a hold on 2026 must not hide 2027's move
+            coord = f"{c}{r}"
+            try:
+                v = evaluate(sheet, coord)
+            except Exception:
+                continue
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) > 1e-9:
+                moved.append(coord)
+        for coord in moved:
+            if writer.write(sheet, coord, 0, trusted=True, force_lock=True, flag="blue",
+                            note="Your forecast here was 0; held at 0 (the update had moved it through a link to the actual)."):
+                n += 1
+    if n:
+        log(f"[run] zero forecast: {n} forecast cell(s) held at 0 — the analyst's own forecast was nil")
+    return n
 
 
 def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
@@ -141,9 +170,9 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
     column carried forward. Copies every cell — formulas Excel-shifted one
     column, hardcodes as-is, styles and number formats — and returns the
     rows that arrived as HARDCODES: the input census the disclosed actuals
-    must then overwrite. A target cell the analyst already typed keeps
-    their figure (their estimate for the year) — still an input the
-    disclosed actual overwrites; `zero_rows` is kept for the callers."""
+    must then overwrite. (`zero_rows` is accepted and ignored: the actual
+    year is mapped like every other cell — owner 2026-09-14; the zero
+    forecast is held by hold_zero_forecasts.)"""
     ws = wb[sheet]
     offset = col_to_num(to_col) - col_to_num(from_col)
     hardcode_rows = []
@@ -156,15 +185,6 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
         v = src.value
         if v is None:
             dst.value = None
-            continue
-        if isinstance(v, (int, float)) and not isinstance(v, bool) \
-                and isinstance(dst.value, (int, float)) and not isinstance(dst.value, bool):
-            # THE ANALYST'S OWN ESTIMATE STANDS (owner 2026-09-14, ROAFNA!AI71: 2025 typed 0
-            # and the roll carried −1,050 in): a typed target-year cell is the analyst's
-            # starting figure; the disclosure overwrites it, last year's number never does
-            dst._style = copy.copy(src._style)
-            dst.number_format = src.number_format
-            hardcode_rows.append(r)            # still an input the disclosed actual must overwrite
             continue
         # THE ANALYST'S OWN PERIOD MARK IS KEPT (half-year replay 2026-09-09:
         # the roll copied 'H124' over the analyst's 'H125' header and the
@@ -346,15 +366,6 @@ class Writer:
                 and row_never_filled(ws, coord):
             self.log.setdefault("never_filled_refused", []).append(ref)
             return False
-        # THE UNFORECAST ROW LAW (owner 2026-09-14, CLP Aus!AI71 'Tallawarra
-        # (gas)': last year typed, this year and every forecast year empty —
-        # a row the analyst stopped carrying; the tier-3 sweep held it at
-        # the group's growth): an ESTIMATE of the agent's own (a hold, a
-        # back-out — the orange writes) never lands in a row whose forecast
-        # cells are all empty or zero. A proven printed figure still may.
-        if flag == "orange" and self._row_unforecast(sheet, coord):
-            self.log.setdefault("unforecast_refused", []).append(ref)
-            return False
         # the empty-row law (owner ruling 2026-08-31): a row whose prior
         # actual is EMPTY is furniture — machine writes stay out of it
         # (trusted writes may proceed: folds and proven serves carry
@@ -449,26 +460,6 @@ class Writer:
             served.pop((sheet, int(re.sub(r"[A-Z]+", "", coord))), None)
         if colour:
             self.flag(sheet, coord, colour, note)
-        return True
-
-    def _row_unforecast(self, sheet, coord):
-        """True when the analyst does not forecast this row: it is in the
-        run's zero-forecast set (measured on the pre-update model), or —
-        without that set — every forecast cell of the row is empty or zero."""
-        row = int(re.sub(r"[A-Z]+", "", coord))
-        zset = getattr(self, "unforecast_rows", None)
-        if zset is not None:
-            return (sheet, row) in zset
-        fcols = (getattr(self, "forecast_cols", None) or {}).get(sheet) or []
-        if not fcols:
-            return False
-        ws = self.wb[sheet]
-        for c in fcols:
-            v = ws[f"{c}{row}"].value
-            if isinstance(v, str) and v.startswith("="):
-                return False
-            if isinstance(v, (int, float)) and not isinstance(v, bool) and v != 0:
-                return False
         return True
 
     def restore_style(self, sheet, coord, style):
