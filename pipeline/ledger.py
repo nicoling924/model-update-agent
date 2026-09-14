@@ -243,6 +243,7 @@ class Item:
     source_line: str = ""       # the verbatim printed line (audit trail)
     table_kind: str = None      # period | matrix | plain — the brain's reading (tables.py), else the shape
     columns: list = None        # the brain's names for the number columns (FY2025, Hong Kong, MW …)
+    sourceable: bool = None     # the vintage law's verdict: may this line source a current value?
 
     @property
     def item_id(self):
@@ -341,14 +342,13 @@ class Ledger:
         held at growth and then plugged by 14,601): `all_pages=True`
         returns the faces FIRST (first claim wins) and then every other
         page of the current documents."""
-        bad = self.noncurrent_docs()
         faces = [it for it in self.items
-                 if it.joinable() and it.doc not in bad
+                 if it.joinable() and sourceable(it)
                  and self.faces.get((it.doc, it.page)) in JOIN_FACES]
         if not all_pages:
             return faces
         rest = [it for it in self.items
-                if it.joinable() and it.doc not in bad
+                if it.joinable() and sourceable(it)
                 and self.faces.get((it.doc, it.page)) not in JOIN_FACES]
         return faces + rest
 
@@ -476,7 +476,19 @@ class Ledger:
                     elif f2 >= 0.15 and f2 > 1.5 * f1:
                         out[doc] = "current"
         self._doc_periods = out
+        self.stamp_vintages()
         return out
+
+    def stamp_vintages(self):
+        """THE VINTAGE LAW, stamped once on every line (owner 2026-09-14:
+        the ban had lived in thirty places and the card path missed it):
+        a line of a document that may not source current values carries
+        sourceable=False; the evidence finder, the pairing law and the nil
+        rule refuse it wherever they are called from."""
+        bad = self.noncurrent_docs()   # evidence: the vintage law itself — last year's report is never a SOURCE of this year's number; identity reads stay open (docid reads every document)
+        for it in self.items:
+            it.sourceable = it.doc not in bad
+        return len(bad)
 
     def prior_period_docs(self):
         return {d for d, k in (getattr(self, "_doc_periods", None) or {}).items()
@@ -539,6 +551,8 @@ class Ledger:
         for d in obj.get("items") or []:
             led.items.append(Item(**{k: v for k, v in d.items()
                                      if k in Item.__dataclass_fields__}))
+        if getattr(led, "_doc_periods", None):
+            led.stamp_vintages()
         return led
 
     def save(self, path):
@@ -550,6 +564,13 @@ class Ledger:
     def load(cls, path):
         from pathlib import Path
         return cls.from_json(Path(path).read_text(encoding="utf-8"))
+
+
+def sourceable(item):
+    """The stamp, read the one way: a line not yet judged is sourceable;
+    a line judged prior-vintage never is."""
+    s = getattr(item, "sourceable", None) if not isinstance(item, dict) else item.get("sourceable")
+    return True if s is None else bool(s)
 
 
 def table_kind_of(items):

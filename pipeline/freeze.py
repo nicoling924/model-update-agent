@@ -100,7 +100,7 @@ def plan_freezes(wb, pre_wb, sheets, target_col, horizon=8, max_row=300,
     return plans
 
 
-def apply_freezes(wb, plans):
+def apply_freezes(wb, plans, writer=None):
     """Hardcode each planned cell at its pre-update value, orange fill.
     Returns report lines: 'Sheet!C5: frozen at 0.30 — was =U5'."""
     from openpyxl.styles import PatternFill
@@ -108,7 +108,12 @@ def apply_freezes(wb, plans):
     lines = []
     for p in plans:
         c = wb[p["sheet"]][p["coord"]]
-        c.value = p["value"]
+        if writer is not None:
+            # through the writer, so every law of the run applies (2026-09-14)
+            if not writer.write(p["sheet"], p["coord"], p["value"], trusted=True, force_lock=True, flag="blue"):
+                continue
+        else:
+            c.value = p["value"]
         c.fill = fill
         lines.append("%s!%s: frozen at %s — was %s"
                      % (p["sheet"], p["coord"], p["value"], p["oldFormula"]))

@@ -32,6 +32,8 @@ replacement.
 """
 import re
 
+from .ledger import sourceable as _sourceable
+
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import SCALES, row_tol, to_model_units
@@ -45,7 +47,7 @@ AXIS_BAND = 3             # header rows, never swept
 # factors, hours-in-a-year — they stay in the formula untouched and
 # neither trigger nor fail a cell (run-198 offline proof: 1000, 100 and
 # 8760 all tried to "prove" and poisoned the sweep)
-MODELING_CONSTANTS = {2.0, 3.0, 4.0, 10.0, 12.0, 24.0, 52.0, 100.0,
+MODELING_CONSTANTS = {0.5, 1.0, 2.0, 3.0, 4.0, 10.0, 12.0, 24.0, 52.0, 100.0,
                       365.0, 366.0, 1000.0, 8760.0, 10000.0, 100000.0,
                       1000000.0}
 
@@ -88,7 +90,7 @@ def already_current(ledger, lit, row_label=""):
     first, second = None, 0
     for it in ledger.items:
         if ledger.faces.get((it.doc, it.page)) not in ("pl", "bs", "cf") \
-                or it.doc in prior_docs or not it.joinable() \
+                or not _sourceable(it) or not it.joinable() \
                 or (it.doc, it.page, it.table_id) in pv_tabs:
             continue
         ns = [float(n) for n in it.nums if isinstance(n, (int, float))]
@@ -125,7 +127,7 @@ def candidates(ledger, lit, row_label=""):
         pv_tabs = getattr(ledger, "_pv_tables", set())
         for it in ledger.items:
             if (it.doc, it.page) not in ledger.faces \
-                    or it.doc in prior_docs or not it.joinable() \
+                    or not _sourceable(it) or not it.joinable() \
                     or (it.doc, it.page, it.table_id) in pv_tabs:
                 continue
             for s in scales:
@@ -240,7 +242,7 @@ def prove_cell(ledger, lits, row_label=""):
         pv_tabs = getattr(ledger, "_pv_tables", set())
         for it in ledger.items:
             if (it.doc, it.page) not in ledger.faces \
-                    or it.doc in prior_docs or not it.joinable() \
+                    or not _sourceable(it) or not it.joinable() \
                     or (it.doc, it.page, it.table_id) in pv_tabs:
                 continue
             if any(abs(abs(n) - v) <= tol for n in it.nums):
@@ -339,10 +341,8 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
     if not lits:
         return False, (f"{sheet}!{tcol}{row} embeds no carried-actual "
                        "literals (structural scalers don't count)")
-    if not any(abs(float(x)) >= VINTAGE_FLOOR for x in lits):
-        return False, (f"{sheet}!{tcol}{row}: all literals below "
-                       f"{VINTAGE_FLOOR:g} — modeling constants, not "
-                       "carried actuals")
+    # (the size floor went 2026-09-14: a carried 34 or −40+29 is last
+    # year's figure as much as 16,602.97 — owner, CLP Aus!AI17 / Final!AI125)
     ev = Evaluator(wb)
     try:
         cur = ev.cell(sheet, f"{tcol}{row}")
@@ -358,18 +358,11 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
         # the cell does not evaluate to its prior). Qualify only when
         # EVERY large literal individually ties a prior-position print;
         # the page-coherence proof below still decides.
-        big = [x for x in lits if abs(float(x)) >= VINTAGE_FLOOR]
-        if not big:
-            return False, (f"{sheet}!{tcol}{row} evaluates {cur:,.2f} vs "
-                           f"prior {pv:,.2f} — no stale fingerprint and no "
-                           "vintage literals")
-        for x in big:
+        for x in lits:
             if not candidates(ledger, x):
                 return False, (f"{sheet}!{tcol}{row}: literal {x} ties no "
                                "prior-position print — not a carried "
                                "actual; cell untouched")
-        lits = big + [x for x in lits if abs(float(x)) < VINTAGE_FLOOR
-                      and candidates(ledger, x)]
     row_label = ""
     for lc in ("A", "B", "C", "D", "E"):
         lv = wb[sheet][f"{lc}{row}"].value
@@ -542,7 +535,7 @@ def recompose_cell(wb, spec, target_year, ledger, writer, sheet, row):
         # ('Issue of perpetual capital securities  3,872'), which the
         # join's two-number rule rightly ignores — recomposition needs
         # structure (table, row order), not a pair
-        if it.doc in bad_docs or it.disputed \
+        if not _sourceable(it) or it.disputed \
                 or it.table_id is None or it.row_ord is None \
                 or (it.doc, it.page) not in ledger.faces \
                 or (it.doc, it.page, it.table_id) in pv_tabs:

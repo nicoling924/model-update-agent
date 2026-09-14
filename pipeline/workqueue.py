@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
-from .ledger import vintage_ban as _vintage_ban
+from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
 
 DEADLINE_S = 1200
 MAX_CANDS = None      # no cap (deduction 2026-09-08): every candidate, ordered; the brain judges
@@ -111,7 +111,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     bad = loop.ledger.noncurrent_docs()
     pv_tabs = getattr(loop.ledger, "_pv_tables", set())
     pool = [it for it in loop.ledger.items
-            if it.joinable() and it.doc not in bad
+            if it.joinable() and _sourceable(it)
             and (it.doc, it.page, it.table_id) not in pv_tabs]
     priors = [tt.prior_value for tt in loop.targets.values()
               if isinstance(tt.prior_value, (int, float))]
@@ -375,7 +375,7 @@ def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):
     import re as _re
     cjk_row = bool(_re.search(r"[一-鿿]", lab_row))
     for it in loop.ledger.items:
-        if it.doc in bad or not it.nums or periods.get(it.doc) not in (None, "current"):
+        if not _sourceable(it) or not it.nums or periods.get(it.doc) not in (None, "current"):
             continue
         kin = _kin(lab_row, str(it.label))
         if not kin:
@@ -993,7 +993,7 @@ def _residual_hypotheses(loop, residual):
     prior_docs = _vintage_ban(loop.ledger)
     hits = []
     for it in loop.ledger.items:
-        if it.doc in prior_docs:
+        if not _sourceable(it):
             continue
         if any(abs(abs(n) - abs(residual)) <= max(1.0, abs(residual) * 5e-3)
                for n in (it.nums or [])):

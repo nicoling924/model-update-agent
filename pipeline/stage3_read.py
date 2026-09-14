@@ -32,7 +32,7 @@ from collections import Counter, defaultdict
 
 from .numerics import SCALES, parse_number, row_tol, to_model_units
 from .stage2_join import ratify_page_scales
-from .ledger import vintage_ban as _vintage_ban
+from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
 
 MAX_ROWS_PER_CALL = 70
 MAX_IMAGES_PER_CALL = 5
@@ -52,7 +52,7 @@ _CONTRACT = """Below: (1) page images and/or table text from the company's new f
 
 For each row, find the SAME line in the pages and return BOTH columns:
 
-{"rows":[{"id":"<sheet>!<row>","current":"<new-period figure exactly as printed>","comparative":"<prior-period figure exactly as printed on the same line, or null if the line has none>","status":"OK"}, ...]}
+{"rows":[{"id":"<sheet>!<row>","label":"<the printed line's label, verbatim>","current":"<new-period figure exactly as printed>","comparative":"<prior-period figure exactly as printed on the same line, or null if the line has none>","status":"OK"}, ...]}
 
 - status "OK" only when you located the row's line and read it.
 - status "NOT_HERE" when these pages do not contain that row's figure. Never guess.
@@ -156,7 +156,7 @@ def row_homes(ledger, targets):
         return homes
     prior_docs = _vintage_ban(ledger)
     for it in ledger.items:
-        if it.disputed or it.doc in prior_docs:
+        if it.disputed or not _sourceable(it):
             continue
         page = (it.doc, it.page)
         for n in it.nums:
@@ -319,6 +319,13 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
                             v = no_prior_value(a.get("current"), anchors)
                             if v is None:
                                 continue    # no proven scale -> stays a loud hole
+                            # no tie to judge by: the printed line's NAME must be kin to the
+                            # row's (the reader's law, now the page read's too — 2026-09-14)
+                            from .numerics import kinship as _kin_np
+                            if not _kin_np(str(a.get("label") or ""), str(getattr(t, "label", "") or "")):
+                                log.append(f"stage-3 REFUSED no-prior {t.key}: printed line "
+                                           f"{str(a.get('label'))[:40]!r} is not named like the row")
+                                continue
                             from .writegate import (claimed_values,
                                                     no_prior_duplicate)
                             reg = claimed_values(served)

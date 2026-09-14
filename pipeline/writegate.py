@@ -50,10 +50,19 @@ def _close(a, b, tol=_TOL):
     return abs(a - b) <= max(floor, abs(b) * tol)
 
 
+def _sourceable(item):
+    s = _meta(item, "sourceable", None)
+    return True if s is None else bool(s)
+
+
 def find_evidence(items, value):
-    """Ledger rows carrying `value` under a legal scale: [(item, scale)]."""
+    """Ledger rows carrying `value` under a legal scale: [(item, scale)].
+    A line the vintage law stamped unsourceable (last year's report) is
+    never evidence for a current value, whoever asks."""
     out = []
     for it in items:
+        if not _sourceable(it):
+            continue
         for n in _nums(it):
             if not isinstance(n, (int, float)) or n == 0:
                 continue
@@ -87,6 +96,8 @@ def ties_prior(item, scale, prior, value=None):
     # number beside the prior is another segment, not this year
     if value is not None and _meta(item, "table_kind") == "matrix":
         return False
+    if value is not None and not _sourceable(item):
+        return False                 # the vintage law: last year's report never sources this year
     # sign-blind like find_evidence (run-227 autopsy: the fund balance
     # prints -370 where the model stores 370 — the row IS the tie; the
     # MODEL owns the sign convention)
@@ -299,9 +310,8 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
     if float(prior).is_integer() and 1900 <= prior <= 2100:
         return None
     for it in items:
-        if banned_docs and _meta(it, "doc") in banned_docs:
-            continue                 # prior-period documents prove nothing
-                                     # about THIS period's nils
+        if not _sourceable(it) or (banned_docs and _meta(it, "doc") in banned_docs):
+            continue                 # the vintage law: last year's report proves nothing about this year's nils
         # NO PAGE RULE (owner 2026-09-08: "these kind of rules make the
         # agent unable to adapt to other kinds of statements"). The old
         # 'statement faces only' guard was the safety before the test

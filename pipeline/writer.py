@@ -142,7 +142,7 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
     rows that arrived as HARDCODES: the input census the disclosed actuals
     must then overwrite. A row in `zero_rows` (the analyst had it at zero
     this year and every forecast year) rolls in as 0, the analyst's own
-    figure, and is not a stale input."""
+    figure — still an input a proven read may overwrite, never a stale one."""
     ws = wb[sheet]
     offset = col_to_num(to_col) - col_to_num(from_col)
     hardcode_rows = []
@@ -157,9 +157,10 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
             dst.value = None
             continue
         if r in zero_rows and isinstance(v, (int, float)) and not isinstance(v, bool):
-            dst.value = 0
+            dst.value = 0                      # the analyst's own figure this year
             dst._style = copy.copy(src._style)
             dst.number_format = src.number_format
+            hardcode_rows.append(r)            # still an input: a PROVEN printed figure may land
             continue
         # THE ANALYST'S OWN PERIOD MARK IS KEPT (half-year replay 2026-09-09:
         # the roll copied 'H124' over the analyst's 'H125' header and the

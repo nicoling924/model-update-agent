@@ -195,7 +195,8 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                 c2 = ws.cell(row=prow,
                              column=column_index_from_string(pcol))
                 if isinstance(c2.value, (int, float)):
-                    c2.value = round(c2.value - pdelta, 6)
+                    writer.write(ws.title, f"{pcol}{prow}", round(c2.value - pdelta, 6),
+                                 trusted=True, force_lock=True)          # through the writer (2026-09-14)
                     c2.comment = Comment(
                         "forecast plug UNWOUND: the plug series was "
                         "escalating (cascade) — see collapse flags for "

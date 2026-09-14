@@ -354,8 +354,8 @@ def oneoff_no_propagate(wb, spec, target_year, writer, log):
                 if isinstance(f, str) and re.match(
                         r"^=\s*\+?\s*" + tcol + str(r) + r"\s*$",
                         f.replace("$", "")):
-                    ws[f"{fc}{r}"].value = 0
-                    ws[f"{fc}{r}"].fill = writer.fills["blue"]
+                    if not writer.write(ws.title, f"{fc}{r}", 0, trusted=True, force_lock=True, flag="blue"):
+                        continue                                        # through the writer (2026-09-14)
                     ws[f"{fc}{r}"].comment = Comment(
                         f"ONE-OFF NOT PROPAGATED: the actual {av:,.1f} "
                         f"is new this year (prior ~0); this cell linked "

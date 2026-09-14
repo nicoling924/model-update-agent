@@ -2336,3 +2336,24 @@ Three more causes found on the run and fixed the same day (museum 203, bench gre
   offline on the stamped ledger the walk serves 59 rows instead of 81 — the 22 coincidences now go to the reader
   and the cards, red where nothing proves them.
 Floors re-pinned from the stamped live ledger (CLP FY25: 8,355 items, all stamped, 259 serves); replay clean.
+
+## 2026-09-14 — GLOBAL LAWS (owner: "I want them applied in the entirety of the run")
+Audit: six rules lived in one step only. Moved to the two gates every write passes — the writer and the
+evidence finder — and the local copies removed:
+1. The vintage law: `Item.sourceable` stamped on every printed line the moment a document's vintage is decided
+   (classify_doc_periods, docid, from_json); `find_evidence`, `ties_prior` and `nil_current_zero` refuse an
+   unsourceable line whoever calls them. The per-site `it.doc in prior_docs` filters in the walk, the join,
+   the page reads, the key tie, the composites, the cards and the run now read the stamp; the card path's
+   local ban of this morning is gone.
+2. The sense check's `rolled_into_zero` retired: the zero-forecast row is the writer's law (measured on the
+   analyst's model before the roll; rollover → 0; no estimate; not stale).
+3. Every delivered write goes through the writer: forecast freezes, forecast-plug unwinds and the forecast-
+   link zeroing had set cells directly and skipped every law (never-filled, zero-forecast, the style journal).
+4. The constants law's size floor (50) is gone: a carried literal is last year's figure whatever its size
+   (Aus!AI17 '=34-…', Final!AI125 '=-40+29+0'); 0.5 and 1 join the modeling constants so ratio formulas are
+   untouched.
+5. A page read with no prior tie must be named like the row (the reader's law, now the page read's; the
+   brain returns the printed line's label).
+Still local, by design or pending: the one-figure-one-home claim registry (cards and the walk each keep one;
+the reader and the page reads use the shared `claimed_values`); the coincidence law (walk only — the reader
+and cards prove by tie or label, not by bare number). Museum 207, bench green.

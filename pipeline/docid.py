@@ -337,6 +337,7 @@ def identify_documents(paths, ledger, client, target_year, period_kind, log):
     if company:
         log(f"[run] company per the documents: {company}")
     ledger._doc_periods = verdicts
+    ledger.stamp_vintages()
     return out
 
 

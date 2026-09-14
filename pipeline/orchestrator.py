@@ -1390,8 +1390,7 @@ class ObjectiveLoop:
         from .writegate import (claimed_keys, claim_holders, find_evidence,
                                 judge_write)
         pv_cell = (self.wb[sheet][f"{pcol}{row}"].value if pcol else None)
-        _ban = set(self.ledger.noncurrent_docs()) if hasattr(self.ledger, "noncurrent_docs") else set()  # evidence: the vintage law — last year's report is never a SOURCE of this year's number (CLP live 2026-09-14: a 2024 hedge line at scale 100 'proved' 2 for NED solar)
-        evidence = find_evidence([it for it in self.ledger.items if getattr(it, "doc", None) not in _ban], value)
+        evidence = find_evidence(self.ledger.items, value)     # the vintage stamp on each line decides; no local ban
         holders = claim_holders(self.served)
         from .writegate import is_proven as _is_proven
         verdict, law_reason, forced_flag = judge_write(

@@ -4697,7 +4697,8 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     # the checkpoint investigates: net profit's swing traces to the red tax driver, whose
     # printed segment line ties the prior — replaced, orange, and the line is back in line
     assert abs(wb["Model"]["U7"].value + 110.0) < 0.01, wb["Model"]["U7"].value
-    assert wb["Model"]["U9"].value == 0.0                                  # forecast was zero before: kept at zero
+    # (the memo row's zero is the writer's law now — measured on the analyst's model before the roll,
+    # not the sense check's business; see the unforecast-row exhibit)
     assert not suspicious(headline_deltas(wb, pre, spec, 2025))
     assert not prio                                                         # nothing left for the queue's front
     assert any("swing traced to" in x and "replaced by printed line" in x for x in w.log["sense_check"]), w.log["sense_check"]
@@ -4911,30 +4912,14 @@ def test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14():
     print("PASS test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14")
 
 
-def test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14():
-    """DFE faithful replay 2026-09-14: with cash flow in the sense check's
-    scope, the schedule's proven disposal (Driver!J104 434.56) sat on a
-    chain and was zeroed because its forecast years were typed zeros —
-    which had not moved at all; the opened check was then plugged over
-    the proven figure (1,159). A fill is taken back only when a forecast
-    cell now computes from it; typed zeros stay zero by themselves."""
-    import openpyxl
-    from pipeline.sensecheck import rolled_into_zero
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "D"
-    ws["A2"], ws["T2"], ws["U2"], ws["V2"], ws["W2"] = "", 2024, 2025, 2026, 2027
-    ws["A4"], ws["T4"], ws["U4"], ws["V4"], ws["W4"] = "Disposal", 344.9, 434.56, 0, 0        # typed zeros: untouched
-    ws["A5"], ws["T5"], ws["U5"], ws["V5"], ws["W5"] = "Rolled line", 10.0, 50.0, "=U5", "=V5"  # formulas: moved by the fill
-    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "D"
-    for c in ("A2", "T2", "U2", "V2", "W2", "A4", "T4", "V4", "W4", "A5", "T5", "V5", "W5"):
-        pw[c] = ws[c].value
-    pw["U4"], pw["U5"] = 0, 0
-    pw["V5"], pw["W5"] = 0, 0                    # before the update the rolled line's forecasts were zero
-    spec = {"year_axis": {"D": {"columns": {"2024": "T", "2025": "U", "2026": "V", "2027": "W"}}}}
-    w = Writer(wb)
-    n = rolled_into_zero(wb, pre, spec, 2025, [("D", 4, "D!U4", "orange"), ("D", 5, "D!U5", "red")], w, lambda s: None)
-    assert n == 1 and ws["U4"].value == 434.56 and ws["U5"].value == 0.0, (n, ws["U4"].value, ws["U5"].value)
-    print("PASS test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14")
+def test_rolled_into_zero_retired_for_the_writers_law_2026_09_14():
+    """The sense check's local zero rule is gone (owner 2026-09-14: rules
+    live in the writer, not in a step). The zero-forecast row is measured
+    on the analyst's model and enforced at the rollover, every write and
+    the stale flag — see the unforecast-row exhibit."""
+    import pipeline.sensecheck as sc
+    assert not hasattr(sc, "rolled_into_zero")
+    print("PASS test_rolled_into_zero_retired_for_the_writers_law_2026_09_14")
 
 
 def test_a_matrix_row_never_pairs_anywhere_2026_09_14():
@@ -5085,8 +5070,31 @@ def test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_
     z = unforecast_rows(wb2, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co))
     assert z == {71}, z                                  # 72 forecasts 310; 73 has nothing at all in those cells
     hard = rollover_column(wb2, "S", "AH", "AI", zero_rows=z)
-    assert wb2["S"]["AI71"].value == 0 and 71 not in hard and wb2["S"]["AI72"].value == 300.0 and 72 in hard
+    assert wb2["S"]["AI71"].value == 0 and 71 in hard and wb2["S"]["AI72"].value == 300.0 and 72 in hard   # still an input: a proven read may land
     print("PASS test_an_estimate_never_lands_in_a_row_the_analyst_does_not_forecast_2026_09_14")
+
+
+def test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14():
+    """Owner 2026-09-14: the ban on last year's report had lived in thirty
+    places and the card path missed it (a 2024 hedge line 'proved' 2).
+    The ledger now stamps sourceable on every line once the vintage is
+    decided; the evidence finder, the pairing law and the nil rule refuse
+    an unsourceable line wherever they are called from — no local ban."""
+    from pipeline.ledger import Ledger, sourceable
+    from pipeline.writegate import find_evidence, ties_prior, nil_current_zero
+    cur = _item(23, 1, "Finance income", [24.0, 29.0])
+    old = Item(doc="e_2024 Annual Report.pdf", page=198, table_id=2, row_ord=1, label="Finance income", nums=[29.0, 31.0],
+               source_line="Finance income – 29 31")
+    led = _ledger([cur, old], face_pages=((23, "pl"),))
+    led._doc_periods = {DOC: "current", "e_2024 Annual Report.pdf": "prior"}
+    led.stamp_vintages()
+    assert cur.sourceable is True and old.sourceable is False and sourceable(cur) and not sourceable(old)
+    assert [it.page for it, _s in find_evidence(led.items, 29.0)] == [23]          # the 2024 line is not evidence
+    assert ties_prior(old, 1.0, 31.0, value=29.0) is False and ties_prior(cur, 1.0, 29.0, value=24.0) is True
+    assert nil_current_zero([old], 31.0, row_label="Finance income") is None      # nor does it prove a nil
+    led2 = Ledger.from_json(led.to_json())
+    assert next(it for it in led2.items if it.page == 198).sourceable is False    # the pin keeps the verdict
+    print("PASS test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14")
 
 
 if __name__ == "__main__":

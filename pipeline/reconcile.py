@@ -29,7 +29,7 @@ from collections import defaultdict
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import norm_label, row_tol, to_model_units
-from .ledger import vintage_ban as _vintage_ban
+from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
 
 CONF_RECON = 4   # trusted, NOT locked — a new stage earns locks later
 UNCHANGED_CONF = 4
@@ -243,7 +243,7 @@ def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):
     tables = defaultdict(list)
     face_rank = {}
     for it in pool:
-        if it.doc in prior_docs or (it.doc, it.page) not in page_scales:
+        if not _sourceable(it) or (it.doc, it.page) not in page_scales:
             continue
         tables[(it.doc, it.page, it.table_id)].append(it)
         face_rank[(it.doc, it.page, it.table_id)] = \

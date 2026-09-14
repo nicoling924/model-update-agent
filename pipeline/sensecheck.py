@@ -168,49 +168,9 @@ def chain_cells(wb, spec, target_year, d, writer):
     return out
 
 
-def rolled_into_zero(wb, pre_wb, spec, target_year, cells, writer, log):
-    """Chain rows whose forecast years were all zero/blank before the update
-    and whose actual cell the run filled with a number: taken back to the
-    pre-update value — the forecast was never meant to move. -> n"""
-    from openpyxl.utils import column_index_from_string as _ci
-    from .execreport import _pre_val
-    n = 0
-    for sh, r, ref, _colour in cells:
-        cols = year_columns(spec, sh)
-        tcol = cols.get(str(target_year))
-        fut = [c for y, c in cols.items() if y.isdigit() and int(y) > target_year]
-        if not tcol or not fut or sh not in pre_wb.sheetnames:
-            continue
-        pre_fut = [_pre_val(pre_wb, sh, r, _ci(c)) for c in fut]
-        if not all((v in (None, "", 0, 0.0)) for v in pre_fut):
-            continue
-        pre_act = _pre_val(pre_wb, sh, r, _ci(tcol))
-        if not (pre_act in (None, "", 0, 0.0)):
-            continue
-        cur = wb[sh][f"{tcol}{r}"].value
-        if not (isinstance(cur, (int, float)) and abs(cur) > 0.005):
-            continue
-        # THE FORECAST MUST HAVE MOVED (DFE faithful replay 2026-09-14: the
-        # schedule's proven disposal 434.56 was zeroed although the forecast
-        # years were typed zeros that never moved — and the opened check was
-        # then plugged over the proven figure). Typed zeros stay zero by
-        # themselves; only a forecast that now computes from the fill is
-        # 'rolled into', and only then is the fill taken back.
-        try:
-            ev = Evaluator(wb)
-            now_fut = [ev.cell(sh, f"{c}{r}") for c in fut]
-        except Exception:
-            now_fut = []
-        if not any(isinstance(v, (int, float)) and abs(v) > 0.005 for v in now_fut):
-            continue
-        ok = writer.write(sh, f"{tcol}{r}", 0.0, prior_coord=f"{prior_column(spec, sh, target_year)}{r}",
-                          trusted=True, force_lock=True, flag="red",
-                          note=("Kept at zero: this row's forecast years were zero before the update and the "
-                                f"filled figure ({cur:,.2f}) moved them. Please confirm."))
-        if ok:
-            n += 1
-            log(f"[sense] {ref}: forecast years were zero before the update — the fill {cur:,.2f} taken back to 0")
-    return n
+# (rolled_into_zero retired 2026-09-14: the zero-forecast row is the writer's
+# law for the whole run — measured on the analyst's model before anything
+# rolls, enforced at the rollover, at every write and at the stale flag)
 
 
 def checkpoint(loop, pre_wb, log):
@@ -229,8 +189,6 @@ def checkpoint(loop, pre_wb, log):
         if _t.monotonic() - _t0 > 240:                      # the checkpoint's slice: four minutes of the hour
             lines.append("NOT INVESTIGATED (checkpoint time slice used) " + reason_text(d))
             continue
-        cells = chain_cells(wb, spec, ty, d, writer)
-        rolled_into_zero(wb, pre_wb, spec, ty, cells, writer, log)
         txt = reason_text(d)
         log("[sense] " + txt)
         verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=None)
@@ -280,7 +238,6 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
         if time.monotonic() - t0 > max(30.0, deadline_s - 60):
             lines.append("UNRESOLVED (no time left) " + reason_text(d))
             continue
-        rolled_into_zero(wb, pre_wb, spec, ty, chain_cells(wb, spec, ty, d, writer), writer, log)
         verdict, text, _leaf = investigate_line(loop, pre_wb, d, log, rerun=rerun)
         lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
         _sense_row(writer, d, verdict, text, _leaf, "final")

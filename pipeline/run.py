@@ -23,7 +23,7 @@ from . import gate as gate_mod
 from . import report as report_mod
 from . import spec as spec_mod
 from . import targets as targets_mod
-from .ledger import Ledger, vintage_ban as _vintage_ban
+from .ledger import Ledger, vintage_ban as _vintage_ban, sourceable as _sourceable
 from .orchestrator import ObjectiveLoop
 from .stage1_read import read_documents
 from .stage2_join import decisions_to_json, join, join_bound_tables
@@ -606,6 +606,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         for r in rows:
             if (sheet, r) in served or f"{sheet}!{tcol}{r}" in writer.log["written"]:
                 continue
+            if (sheet, r) in (getattr(writer, "unforecast_rows", None) or ()):
+                continue              # rolled in as the analyst's own 0 — not stale
             cell = wb[sheet][f"{tcol}{r}"]
             if not isinstance(cell.value, (int, float)):
                 continue
@@ -863,7 +865,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             continue
         reads = {}
         for it in ledger.items:
-            if it.doc in banned_docs or getattr(it, "channel", "") == "prose":
+            if not _sourceable(it) or getattr(it, "channel", "") == "prose":
                 continue
             if _strip(it.label) != rl:
                 continue
@@ -942,7 +944,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         plans = plan_freezes(wb, wb_values, [sheet],
                              column_index_from_string(tcol),
                              pre_formulas_wb=wb_pre_formulas)
-        frozen_lines += apply_freezes(wb, plans)
+        frozen_lines += apply_freezes(wb, plans, writer=writer)
     if frozen_lines:
         writer.log.setdefault("frozen", []).extend(frozen_lines)
         log(f"[run] assumption freeze: {len(frozen_lines)} forecast "

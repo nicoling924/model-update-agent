@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .checks import prior_column, year_columns
 from .evaluator import Evaluator
-from .ledger import vintage_ban as _vintage_ban
+from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
 
 TOL_REL = 0.002          # 0.2% — keys tie the print or get backed out
 TOL_ABS = 1.0
@@ -73,7 +73,7 @@ def _printed(ledger, v):
     prior_docs = _vintage_ban(ledger)
     tol = max(0.6, abs(v) * 1e-4)
     for it in ledger.items:
-        if it.doc in prior_docs or (it.doc, it.page) not in ledger.faces:
+        if not _sourceable(it) or (it.doc, it.page) not in ledger.faces:
             continue
         for n in it.nums:
             if abs(abs(n) - abs(v)) <= tol:
@@ -693,7 +693,7 @@ def printed_subtotals(wb, spec, target_year, ledger, max_row=300, priors=None):
     # only printed total is the five-year table 238,644 | 233,713 | ...;
     # for a series the leading pair is current | prior)
     pool = [it for it in ledger.items
-            if it.doc not in banned and (it.doc, it.page) in faces
+            if _sourceable(it) and (it.doc, it.page) in faces
             and 2 <= len([n for n in it.nums if isinstance(n, (int, float))]) <= 6]
     priors_all = []
     ev = Evaluator(wb)
