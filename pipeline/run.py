@@ -1459,6 +1459,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     prov = {f"{sh}!{r}": {k: e.get(k) for k in
                           ("value", "doc", "page", "line", "conf", "note")}
             for (sh, r), e in served.items() if isinstance(e, dict)}
+    # THE WRITE JOURNAL (audit 2026-09-14: a cell's writer could not be named): every write and flag,
+    # in order, with the look the cell had before it
+    try:
+        _wj = [{"i": k, "sheet": w_[0], "coord": w_[1], "old": str(w_[2])[:80], "new": str(w_[3])[:80],
+                "before": (writer.log.get("style_journal") or [None] * (k + 1))[k][2:] if k < len(writer.log.get("style_journal") or []) else None}
+               for k, w_ in enumerate(writer.log.get("writes_all", []))]
+        (replay_dir / "writes.json").write_text(json.dumps(_wj, ensure_ascii=False, indent=0), encoding="utf-8")
+    except Exception as _e_wj:
+        log(f"[run] write journal not saved: {_e_wj!r}")
     (replay_dir / "provenance.json").write_text(
         json.dumps(prov, ensure_ascii=False, indent=1), encoding="utf-8")
 
