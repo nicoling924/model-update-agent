@@ -176,8 +176,19 @@ def chain_cells(wb, spec, target_year, d, writer):
 def checkpoint(loop, pre_wb, log):
     """After the automatic fill, before the cards: mark the chain cells of
     every suspicious headline line as review items for the queue's front.
-    -> {(sheet,row): reason}"""
+    A fix the investigator tries here is kept only if it opens no check
+    that was closed before (owner 2026-09-14: the checkpoint checks
+    itself, as the final pass does). -> {(sheet,row): reason}"""
     wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
+    try:
+        _fails0 = {s for s, _r, _v in loop._failing_target_checks()}
+    except Exception:
+        _fails0 = set()
+    def _checks_hold():
+        try:
+            return not ({s for s, _r, _v in loop._failing_target_checks()} - _fails0)
+        except Exception:
+            return True
     deltas = headline_deltas(wb, pre_wb, spec, ty)
     sus = suspicious(deltas)
     prio = {}
@@ -191,7 +202,7 @@ def checkpoint(loop, pre_wb, log):
             continue
         txt = reason_text(d)
         log("[sense] " + txt)
-        verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=None)
+        verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=_checks_hold)
         lines.append(txt + " | " + text)
         _sense_row(writer, d, verdict, text, leaf, "checkpoint")
         if verdict == "red" and leaf is not None:

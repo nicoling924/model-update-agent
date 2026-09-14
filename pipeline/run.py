@@ -207,10 +207,25 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log(f"[run] interim panel: {_sh} has no {_kind0} panel — "
                     "left out of this run (no home for interim figures)")
         if not _axis:
-            raise RuntimeError(
-                f"no sheet in the model carries a {_kind0} panel for "
-                f"{target_year} — an interim update has nowhere to land; "
-                "the analyst decides where interim figures go")
+            # DELIVER WITH THE PROBLEM, NEVER REFUSE (owner 2026-09-14): the
+            # analyst asked for a half-year update, so the model should carry
+            # a half-year panel — none was found; the model goes back
+            # untouched with the finding on its report page
+            _msg = (f"no sheet in the model carries a {_kind0} panel for {target_year} — an interim "
+                    "update has nowhere to land; the analyst decides where interim figures go")
+            log(f"[run] {_msg}")
+            _out0 = _model_path(company_dir, spec_d)
+            _deliv = _out0.with_name(f"{_out0.stem} {period} (pipeline){_out0.suffix}")
+            try:
+                _wb0 = load(_out0)
+                from .reportpage import build as _build_page
+                _build_page(_wb0, None, spec_d, target_year, period,
+                            {"open_checks": [f"NO {_kind0} PANEL: {_msg}"], "period": str(period)}, log)
+                save(_wb0, _deliv)
+            except Exception as _e_np:
+                log(f"[run] report for the missing panel not written: {_e_np!r}")
+            return {"ok": False, "gate_ok": False, "open_checks": [_msg], "out": str(_deliv),
+                    "archive": None, "served": 0, "failures": [_msg], "completion": None, "replay": None}
         # THE INTERIM COMPARATIVE (DFE run 236): an interim P&L / cash
         # flow compares to the same period last year, but an interim
         # BALANCE SHEET compares to the last YEAR-END — so the model's
@@ -305,14 +320,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 # the gate: unlocked, un-served, journaled
                 wb[sh][coord] = prev
                 writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
-                from openpyxl.comments import Comment as _Cm
-                _cell = wb[sh][coord]
-                _cell.fill = writer.fills["red"]
-                _cell.comment = _Cm(
-                    "Not confirmed in the documents. Kept last period's "
-                    "figure — please check.", "Model Update Agent")
-                if f"{sh}!{coord}" not in writer.log["flags"]:
-                    writer.log["flags"].append(f"{sh}!{coord}")
                 cur = now
             else:
                 wb[sh][coord] = prev      # innocent write: keep it
@@ -362,18 +369,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     "(auto-disproven)")
                 wb[sh][coord] = prev
                 writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
-                # a value the run could NOT confirm is uncertain by
-                # definition: the restored prior stays RED with a plain
-                # note (run 233: the basic tariff was zeroed, restored to
-                # last year's 95.8 and left unflagged with a 'proven
-                # zero' note — the one miss the owner found unflagged)
-                _cell = wb[sh][coord]
-                _cell.fill = writer.fills["red"]
-                _cell.comment = Comment(
-                    "Not confirmed in the documents. Kept last period's "
-                    "figure — please check.", "Model Update Agent")
-                if f"{sh}!{coord}" not in writer.log["flags"]:
-                    writer.log["flags"].append(f"{sh}!{coord}")
                 cur = now
             else:
                 wb[sh][coord] = prev
@@ -433,7 +428,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from .docid import identify_documents
     _kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
              else "Q" if "Q" in str(period).upper() else "FY")
+    _pinned_periods = dict(getattr(ledger, "_doc_periods", None) or {}) if pinned_ledger else None
     documents = identify_documents(docs, ledger, client, target_year, _kind, log)
+    if _pinned_periods:
+        # a replay keeps the live run's vintage verdicts (audit 2026-09-14: re-deriving them
+        # offline without the brain had moved documents between current and unknown)
+        ledger._doc_periods = _pinned_periods
+        ledger.stamp_vintages()
     from .docid import identify_statement_pages
     identify_statement_pages(docs, ledger, client, known, log)
     # THE TABLE READER (owner 2026-09-14): the brain says what every
@@ -544,6 +545,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if _n.startswith(("stage-2", "reconciliation")):
                 continue        # deterministic serves recompute under the
                                 # CURRENT laws; only the brain's reads are pinned
+            if _n.startswith(("schedule", "sense check", "new-line", "tier-3", "0 means 0", "printed nil",
+                              "KEY-TIE", "PLUG", "Plug", "COMPOSITE", "constants law", "roll-base", "held")):
+                continue        # THE RUN'S OWN PRODUCTS ARE RE-DECIDED (audit 2026-09-14): a
+                                # schedule serve, a sense-check fix, a hold or a plug is not a
+                                # brain read; pinning them flattered the floors
             served[key_p] = {"value": e["value"], "status": "OK",
                              "doc": e.get("doc"), "page": e.get("page"),
                              "line": e.get("line"),
@@ -624,11 +630,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if not isinstance(cell.value, (int, float)):
                 continue
             from openpyxl.comments import Comment
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
+            writer.flag_ref(f"{sheet}!{tcol}{r}", "red",
                 "STALE INPUT: rolled from the prior actual column; no proven "
-                "disclosure read replaced it — review or accept.", "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{tcol}{r}")
+                "disclosure read replaced it — review or accept.")
             n_stale += 1
     if n_stale:
         log(f"[run] {n_stale} unserved hardcode inputs flagged STALE (red)")
@@ -826,9 +830,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                           f"the tying prior — proven zero "
                           f"({it.doc} p{it.page})")):
                 from openpyxl.styles import PatternFill
-                wb[sheet][f"{tcol}{r}"].fill = PatternFill()  # clear red
-                writer.log["flags"] = [
-                    x for x in writer.log["flags"] if x != ref]
+                writer.flag(sheet, f"{tcol}{r}", None)          # the flag cleared through the gate
                 # a printed nil is a READ, not a hold: registered as a
                 # proven serve so no plug or revert lands on it (owner
                 # 2026-09-08: "if 0 then 0"; the 240 replay plugged the
@@ -1106,13 +1108,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if not tc_pm or f"{pm_sh}!{tc_pm}{pm_r}" in done_v:
                 continue
             cell = wb[pm_sh][f"{tc_pm}{pm_r}"]
-            cell.fill = writer.fills["red"]
-            cell.comment = _C2(
+            writer.flag_ref(f"{pm_sh}!{tc_pm}{pm_r}", "red",
                 f"PLUG METER: this residual row computed {pm_was:,.1f} "
                 f"last year and {pm_now:,.1f} now — the model's own plug "
                 "is absorbing something wrong in the inputs that feed "
-                "its total. ANALYST REVIEW.", "Model Update Agent")
-            writer.log["flags"].append(f"{pm_sh}!{tc_pm}{pm_r}")
+                "its total. ANALYST REVIEW.")
             writer.log.setdefault("verdicts", []).append(
                 f"{pm_sh}!{tc_pm}{pm_r}: SUSPICIOUS — the model's own "
                 f"residual swung {pm_was:,.1f} -> {pm_now:,.1f}; an "
@@ -1497,10 +1497,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if col_:
                 from openpyxl.comments import Comment as _Cm
                 c_ = wb[sh_][f"{col_}{r_}"]
-                c_.fill = writer.fills["red"]
-                c_.comment = _Cm(f"Open check: off by {got_}. The update could not close it — "
-                                 "please trace the inputs of this check.", "Model Update Agent")
-                writer.log["flags"].append(f"{sh_}!{col_}{r_}")
+                writer.flag_ref(f"{sh_}!{col_}{r_}", "red",
+                    f"Open check: off by {got_}. The update could not close it — "
+                                 "please trace the inputs of this check.")
             open_checks.append(f"{sh_}!{col_ or '?'}{r_} ({yr_}) off by {got_}")
         for f_ in failures or []:
             if not str(f_).lstrip().startswith("CHECK"):

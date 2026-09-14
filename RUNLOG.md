@@ -2385,3 +2385,19 @@ like every other cell. First cut held check rows and opened 20 checks; second cu
 with no repair and opened the forecast balance — both caught by the floors. CLP replay: clean, keys 8/8,
 ROAFNA!AI71 red (not found, last year's kept), AJ71/AK71 0 blue; score 226 judged, 147 correct, wrong 79 =
 red 52 / orange 17 / unhighlighted 10. Museum 209, bench green.
+
+## 2026-09-14 — the six approved items (owner): built offline
+1. A literal carried from last year's formula that the documents never print is red (constants law).
+2. The checkpoint checks itself: a fix the investigator tries there is kept only if no closed check opens.
+3. A half-year run with no half-year panel delivers the model untouched with the finding on its report page —
+   it never raises ("if the analyst runs a half-yearly update there should be a half-year column").
+4. The face-page fences are gone (composites' already-current guard and sweeps, the key panel's print search,
+   the key-tie pool): evidence is any sourceable period line wherever it is printed; a matrix is refused by
+   its stamp, not by a count of numbers.
+5. Every remaining hand-painted flag (14 blocks in teachings, keytie, schedules, composites, run; the plug
+   painter in reclass; the brain's flag_cell tool) goes through the journaled writer.flag / flag_ref; the
+   "0 means 0" unflag too. No `.fill = fills[...]` remains outside the writer.
+6. Honest replays: the run's own products (schedule serves, sense-check fixes, holds, plugs, constants-law
+   rewrites, nils, key-tie back-outs) are never pinned as brain reads; a replay keeps the live run's vintage
+   verdicts instead of re-deriving them without the brain.
+Museum 209, bench green.

@@ -1635,11 +1635,7 @@ class ObjectiveLoop:
             self.writer.watch(sheet, coord,
                               str(args.get("why", "flagged for review")))
             return "WATCH-LISTED (a forecast cell is never painted; the cause belongs in the actual column)"
-        self.writer.log["flags"].append(f"{sheet}!{coord}")
-        from openpyxl.comments import Comment
-        cell.fill = self.writer.fills["red"]
-        cell.comment = Comment(str(args.get("why", "flagged for review"))[:400],
-                               "Model Update Agent")
+        self.writer.flag(sheet, coord, "red", str(args.get("why", "flagged for review"))[:400])
         return "FLAGGED"
 
     def t_verdict(self, args):

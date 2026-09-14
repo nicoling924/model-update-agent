@@ -450,6 +450,11 @@ class Writer:
             cell.comment = None
         return True
 
+    def flag_ref(self, ref, colour, note=None):
+        """flag() addressed by 'Sheet!Coord'."""
+        sheet, _, coord = str(ref).partition("!")
+        return self.flag(sheet, coord, colour, note)
+
     def revert(self, sheet, coord, old, colour=None, note=None):
         """A write taken back by a guard: the old value lands through the
         gate, the cell is unlocked and un-served (it is no longer proven —

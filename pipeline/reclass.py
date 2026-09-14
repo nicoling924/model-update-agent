@@ -129,13 +129,10 @@ def reclass_sweep(wb, sheets, year_cols, prior_cols, writer, log,
                     if isinstance(got, (int, float)) \
                             and isinstance(pv, (int, float)) and pv:
                         if got * pv < 0 or abs(got / pv - 1) > 0.5:
-                            cell = ws[f"{tcol}{own_plug}"]
-                            cell.fill = writer.fills["red"]
-                            cell.comment = Comment(
-                                "PLUG LOOKS ABNORMAL (%.1f vs prior %.1f) "
-                                "— an ugly plug usually means a mapped "
-                                "segment is wrong. Analyst ruling needed."
-                                % (got, pv), "Model Update Agent")
+                            writer.flag(ws.title, f"{tcol}{own_plug}", "red",
+                                        "PLUG LOOKS ABNORMAL (%.1f vs prior %.1f) "
+                                        "— an ugly plug usually means a mapped "
+                                        "segment is wrong. Analyst ruling needed." % (got, pv))
                 except Exception:
                     pass
             log(f"[run] reclass sweep {sheet} rows {stale} -> total-growth "
@@ -176,14 +173,11 @@ def flag_embedded_hardcodes(wb, sheets, year_cols, writer, log):
             if consts and ref not in writer.log["flags"] and ref not in set(writer.log.get("written", [])):
                 # a formula the update itself rewrote from the print (the
                 # vertical tie, the constants law) carries THIS year's figures
-                cell = ws[f"{tcol}{r}"]
-                cell.fill = writer.fills["red"]
-                cell.comment = Comment(
-                    "EMBEDDED HARDCODE (key driver): this formula carries "
-                    "the constant(s) %s from a prior period — confirm they "
-                    "still hold for the new period."
-                    % ", ".join(f"{c:g}" for c in consts[:3]),
-                    "Model Update Agent")
+                writer.flag(ws.title, f"{tcol}{r}", "red",
+                            "EMBEDDED HARDCODE (key driver): this formula carries "
+                            "the constant(s) %s from a prior period — confirm they "
+                            "still hold for the new period."
+                            % ", ".join(f"{c:g}" for c in consts[:3]))
                 writer.log["flags"].append(ref)
                 n += 1
     if n:

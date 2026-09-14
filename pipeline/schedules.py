@@ -459,10 +459,8 @@ def serve_schedules(wb, spec, target_year, ledger, served, writer, log):
         if drift > max(row_tol(closing), abs(closing) * 2e-3):
             cell = wb[sheet][f"{tcol}{r_last}"]
             from openpyxl.comments import Comment
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(f"Schedule does not close: the model's ending computes {abs(got):,.2f} "
-                                   f"vs the printed closing {abs(closing):,.2f} ({where}). Please check the movements.",
-                                   "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{tcol}{r_last}")
+            writer.flag_ref(f"{sheet}!{tcol}{r_last}", "red",
+                f"Schedule does not close: the model's ending computes {abs(got):,.2f} "
+                                   f"vs the printed closing {abs(closing):,.2f} ({where}). Please check the movements.")
             log(f"[run] schedule '{b['label'][:30]}' does not close: {abs(got):,.2f} vs printed {abs(closing):,.2f}")
     return n

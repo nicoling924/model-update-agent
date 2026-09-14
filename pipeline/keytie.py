@@ -73,8 +73,8 @@ def _printed(ledger, v):
     prior_docs = _vintage_ban(ledger)
     tol = max(0.6, abs(v) * 1e-4)
     for it in ledger.items:
-        if not _sourceable(it) or (it.doc, it.page) not in ledger.faces:
-            continue
+        if not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
+            continue                 # any period line, wherever printed (owner 2026-09-14)
         for n in it.nums:
             if abs(abs(n) - abs(v)) <= tol:
                 return f"{it.doc} p{it.page}"
@@ -231,13 +231,9 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             # case — it is flagged, never absorbed
             from openpyxl.comments import Comment
             cell = wb[sheet][f"{tcol}{row}"]
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
+            writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
                 f"SUBTOTAL OFF: computes {got:,.2f} vs printed {want:,.2f} "
-                f"({delta:+,.2f}) — beyond the back-out bound; ANALYST.",
-                "Model Update Agent")
-            if f"{sheet}!{tcol}{row}" not in writer.log["flags"]:
-                writer.log["flags"].append(f"{sheet}!{tcol}{row}")
+                f"({delta:+,.2f}) — beyond the back-out bound; ANALYST.")
             log(f"[run] key tie: '{name}' off {delta:+,.2f} — beyond the "
                 "back-out bound, flagged")
             if prev_wrapped:
@@ -283,17 +279,14 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                     "preserved, nothing forced")
                 continue
             src = _printed(ledger, got)
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
+            writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
                 f"DEFINITION QUESTION: '{name}' computes {got:,.2f} vs "
                 f"printed {want:,.2f} ({delta:+,.2f}), and the prior "
                 f"year ALSO differed ({d_prior:+,.2f}) — an adjustment "
                 "exists but no model rows explain BOTH deltas."
                 + (f" Note: {got:,.2f} is itself printed ({src})."
                    if src else "")
-                + " ANALYST RULING; nothing forced.",
-                "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{tcol}{row}")
+                + " ANALYST RULING; nothing forced.")
             log(f"[run] key tie: '{name}' off {delta:+,.2f} AND prior "
                 f"off {d_prior:+,.2f} with no closing bridge — red "
                 "question for the analyst")
@@ -432,12 +425,9 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 "left for the analyst (red)")
             cell = wb[sheet][f"{tcol}{row}"]
             from openpyxl.comments import Comment
-            cell.fill = writer.fills["red"]
-            cell.comment = Comment(
+            writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
                 f"KEY OFF: computes {got:,.2f} vs disclosed {want:,.2f} "
-                f"({delta:+,.2f}); no component absorbed it. ANALYST.",
-                "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{tcol}{row}")
+                f"({delta:+,.2f}); no component absorbed it. ANALYST.")
     return n
 
 
@@ -689,14 +679,12 @@ def printed_subtotals(wb, spec, target_year, ledger, max_row=300, priors=None):
     if ledger is None:
         return []
     banned = _vintage_ban(ledger)
-    faces = {(d, p): f for (d, p), f in ledger.faces.items() if f in ("pl", "bs", "cf")}
-    # statement lines (2-3 numbers) AND multi-year summaries (up to 6:
-    # CLP's HK-format balance sheet prints no 'Total assets' line — the
-    # only printed total is the five-year table 238,644 | 233,713 | ...;
-    # for a series the leading pair is current | prior)
+    # every sourceable period line (owner 2026-09-14: no 'statement pages
+    # only', no count of numbers — a matrix is refused by its stamp; for a
+    # multi-year series the leading pair is current | prior)
     pool = [it for it in ledger.items
-            if _sourceable(it) and (it.doc, it.page) in faces
-            and 2 <= len([n for n in it.nums if isinstance(n, (int, float))]) <= 6]
+            if _sourceable(it) and getattr(it, "table_kind", None) != "matrix"
+            and len([n for n in it.nums if isinstance(n, (int, float))]) >= 2]
     priors_all = []
     ev = Evaluator(wb)
     rows = []

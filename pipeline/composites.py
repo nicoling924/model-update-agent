@@ -89,16 +89,16 @@ def already_current(ledger, lit, row_label=""):
     # first, so 4,976 is contested and stays re-mappable
     first, second = None, 0
     for it in ledger.items:
-        if ledger.faces.get((it.doc, it.page)) not in ("pl", "bs", "cf") \
+        if getattr(it, "table_kind", None) == "matrix" \
                 or not _sourceable(it) or not it.joinable() \
                 or (it.doc, it.page, it.table_id) in pv_tabs:
-            continue
+            continue                      # a period line anywhere (owner 2026-09-14: no 'statement pages only')
         ns = [float(n) for n in it.nums if isinstance(n, (int, float))]
         if len(ns) >= 2 and 0 < ns[0] <= 120 and float(ns[0]).is_integer() \
                 and min(abs(x) for x in ns[1:]) > 2 * ns[0]:
             ns = ns[1:]
-        if len(ns) < 2 or len(ns) > 3:
-            continue                      # statement lines only
+        if len(ns) < 2:
+            continue
         if row_label and not kinship(str(it.label or ""), row_label):
             continue
         if abs(abs(ns[1]) - v) <= tol:
@@ -126,7 +126,7 @@ def candidates(ledger, lit, row_label=""):
         found = {}
         pv_tabs = getattr(ledger, "_pv_tables", set())
         for it in ledger.items:
-            if (it.doc, it.page) not in ledger.faces \
+            if getattr(it, "table_kind", None) == "matrix" \
                     or not _sourceable(it) or not it.joinable() \
                     or (it.doc, it.page, it.table_id) in pv_tabs:
                 continue
@@ -241,7 +241,7 @@ def prove_cell(ledger, lits, row_label=""):
         pages = set()
         pv_tabs = getattr(ledger, "_pv_tables", set())
         for it in ledger.items:
-            if (it.doc, it.page) not in ledger.faces \
+            if getattr(it, "table_kind", None) == "matrix" \
                     or not _sourceable(it) or not it.joinable() \
                     or (it.doc, it.page, it.table_id) in pv_tabs:
                 continue
@@ -360,9 +360,9 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
         # the page-coherence proof below still decides.
         for x in lits:
             if not candidates(ledger, x):
-                return False, (f"{sheet}!{tcol}{row}: literal {x} ties no "
-                               "prior-position print — not a carried "
-                               "actual; cell untouched")
+                return False, (f"{sheet}!{tcol}{row}: UNPROVEN — literal {x} is carried from "
+                               "last year's formula and the documents print no such figure "
+                               "— cell untouched, stays red")
     row_label = ""
     for lc in ("A", "B", "C", "D", "E"):
         lv = wb[sheet][f"{lc}{row}"].value
@@ -450,11 +450,9 @@ def sweep(wb, spec, target_year, ledger, writer, log, check_rows=None, served=No
                     _tc = _yc(spec, sheet).get(str(target_year))
                     if _tc:
                         _cell = wb[sheet][f"{_tc}{r}"]
-                        _cell.fill = writer.fills["red"]
-                        _cell.comment = _Cm(f"Formula still carries last period's constants ({', '.join(lits)}). "
-                                            "Check they still hold.", "Model Update Agent")
-                        if f"{sheet}!{_tc}{r}" not in writer.log["flags"]:
-                            writer.log["flags"].append(f"{sheet}!{_tc}{r}")
+                        writer.flag_ref(f"{sheet}!{_tc}{r}", "red",
+                            f"Formula still carries last period's constants ({', '.join(lits)}). "
+                                            "Check they still hold.")
                 except Exception:
                     pass
     return n_ok, n_red
@@ -537,7 +535,7 @@ def recompose_cell(wb, spec, target_year, ledger, writer, sheet, row):
         # structure (table, row order), not a pair
         if not _sourceable(it) or it.disputed \
                 or it.table_id is None or it.row_ord is None \
-                or (it.doc, it.page) not in ledger.faces \
+                or getattr(it, "table_kind", None) == "matrix" \
                 or (it.doc, it.page, it.table_id) in pv_tabs:
             continue
         tables[(it.doc, it.page, it.table_id)].append(it)

@@ -262,14 +262,12 @@ def twin_reanchor(wb, pre_values_wb, spec, target_year, writer, log,
                                 f"= {served:,.1f} (twin of {ref})")
                             continue
                     from openpyxl.comments import Comment
-                    cell.fill = writer.fills["red"]
-                    cell.comment = Comment(
+                    writer.flag_ref(f"{sh2}!{tc2}{r2}", "red",
                         f"STALE TWIN: evaluates to last year's {pv:,.1f} "
                         f"but {ref} (the same quantity's other home) was "
                         f"served {served:,.1f}. This roll/base must be "
                         "re-anchored — the run-204 NFA lesson: a stale "
-                        "twin base breaks every forecast year.", "Model Update Agent")
-                    writer.log["flags"].append(f"{sh2}!{tc2}{r2}")
+                        "twin base breaks every forecast year.")
                     n_tw += 1
                     log(f"[run]   twin tripwire: {sh2}!{tc2}{r2} still "
                         f"evaluates the stale {pv:,.1f} (twin of {ref})")
@@ -664,13 +662,10 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                         and isinstance(pv2, (int, float)) \
                         and abs(v2 - pv2) <= row_tol(pv2) \
                         and f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
-                    wb[sh2][f"{c2}{r2}"].fill = writer.fills["red"]
-                    wb[sh2][f"{c2}{r2}"].comment = Comment(
+                    writer.flag_ref(f"{sh2}!{c2}{r2}", "red",
                         (f"STALE ROLL BASE: still holds last year's "
                          f"{pv2:,.1f} while the {sheet}!{r} roll it feeds "
-                         f"misses its typed actual by {gap:+,.1f}."),
-                        "Model Update Agent")
-                    writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+                         f"misses its typed actual by {gap:+,.1f}."))
             # THE INPUT BACK-OUT (owner ruling 2026-09-07): THE STRUCTURE
             # IS THE MODEL'S. A formula cell is never overwritten to close
             # a roll gap — the fix is always an INPUT of that formula.
@@ -805,28 +800,21 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                                 f"input; {sheet}!{r} now rolls from its "
                                 "typed actual)")
                     if not backed:
-                        cellu.fill = writer.fills["red"]
-                        cellu.comment = Comment(
+                        writer.flag_ref(f"{sh2}!{c2}{r2}", "red",
                             (f"Least confident input of the {sheet}!{r} roll "
                              f"(gap {gap:+,.0f}); not backed out because the "
-                             "roll is not linear in it — please check."),
-                            "Model Update Agent")
-                        if f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
-                            writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+                             "roll is not linear in it — please check."))
                 else:
                     names = ", ".join(f"{x[0][0]}!{x[0][1]}{x[0][2]}" for x in cands[:6])
                     log(f"[run]   roll-base: {sheet}!{r} — {len(cands)} inputs "
                         f"tied at confidence {low} ({names}); flagged, none guessed")
                     for (sh2, c2, r2, _v2, _pv2), _cf in cands:
                         cellu = wb[sh2][f"{c2}{r2}"]
-                        cellu.fill = writer.fills["red"]
-                        cellu.comment = Comment(
+                        writer.flag_ref(f"{sh2}!{c2}{r2}", "red",
                             (f"One of {len(cands)} equally uncertain inputs "
                              f"of the {sheet}!{r} roll is off by "
                              f"{gap:+,.0f}; could not tell which — please "
-                             "check."), "Model Update Agent")
-                        if f"{sh2}!{c2}{r2}" not in writer.log["flags"]:
-                            writer.log["flags"].append(f"{sh2}!{c2}{r2}")
+                             "check."))
             if backed:
                 # the gap is closed at its cause: the forecast row leaves
                 # the watch list (owner, run 233: "the formula is correct
