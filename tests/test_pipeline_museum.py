@@ -5128,6 +5128,32 @@ def test_the_plug_law_is_the_writers_2026_09_14():
     print("PASS test_the_plug_law_is_the_writers_2026_09_14")
 
 
+def test_a_fix_the_cards_ruled_out_no_longer_blocks_the_plug_2026_09_14():
+    """Floors 2026-09-14 (honest replays): the cards had answered 'not
+    disclosed' on a component, yet diagnose_balance kept naming it GUILTY
+    and the ladder refused to plug — six checks delivered open. A card's
+    verdict on a row is recorded (ruled_out); a ruled-out fix is listed
+    for the analyst and no longer counts as a fix that remains."""
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": 109.0, "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True
+    for r_, lab_, pv_ in ((2, "Revenue", 100.0), (3, "Other", 50.0), (4, "Costs", 150.0)):
+        lp.targets[("S", r_)] = TargetRow("S", r_, lab_, pv_)
+    lp._diff_value = lambda t: (111.0, _item(95, 1, "Revenue", [111.0, 100.0]), 1.0) if t.row == 2 else None
+    diag = lp.t_diagnose_balance({"check": "S!U9"})
+    assert "GUILTY S!2" in diag, diag
+    r = lp.t_plug_residual({"check": "S!U9", "into": "S!3", "why": "t"})
+    assert r.startswith("REFUSED") and "fixes remain" in r, r
+    lp.writer.log["ruled_out"] = ["S!2"]                      # the card said not disclosed
+    diag2 = lp.t_diagnose_balance({"check": "S!U9"})
+    assert "RULED OUT S!2" in diag2 and "GUILTY" not in diag2, diag2
+    r2 = lp.t_plug_residual({"check": "S!U9", "into": "S!3", "why": "t"})
+    assert r2.startswith("PLUGGED"), r2
+    print("PASS test_a_fix_the_cards_ruled_out_no_longer_blocks_the_plug_2026_09_14")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

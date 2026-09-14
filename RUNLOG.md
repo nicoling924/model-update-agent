@@ -2401,3 +2401,10 @@ red 52 / orange 17 / unhighlighted 10. Museum 209, bench green.
    rewrites, nils, key-tie back-outs) are never pinned as brain reads; a replay keeps the live run's vintage
    verdicts instead of re-deriving them without the brain.
 Museum 209, bench green.
+Honest replays then showed the CLP floor delivering six open checks: the ladder refused every plug because
+"evidence-based fixes remain" — a GUILTY diff (SOC Accounts!7: model 370 vs printed 20) that no card had
+applied and a STALE COMPOSITE that was a formula of references ('=AI61-SOC!AI8' evaluating 0 = its prior,
+nothing to rewrite). Root fixes: the last resort applies the evidence fixes it demands itself (t_apply_diff
+through the evidence law; a refused one is ruled out), a card's not-disclosed verdict on a row is recorded as
+ruled out and no longer counts as a fix that remains, and a reference-only formula is never a stale composite.
+CLP floor clean again; museum 211.

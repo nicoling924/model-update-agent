@@ -1101,6 +1101,10 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
         if tool is None:
             item.state = "DEFAULTED" if ans == default else "DONE"
             defaulted += ans == default
+            if item.kind in ("SERVE", "COMPONENT") and item.row:
+                # the card's verdict on this row is recorded: a fix the cards
+                # ruled out no longer blocks the last resort (diagnose_balance)
+                loop.writer.log.setdefault("ruled_out", []).append(f"{item.sheet}!{item.row}")
             if item.kind == "SERVE" and (item.sheet, item.row) not in (loop.served or {}):
                 # a not_disclosed adjudication IS an examination (the
                 # move-on law): document the look on the cell so the

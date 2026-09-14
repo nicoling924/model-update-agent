@@ -597,7 +597,13 @@ class ObjectiveLoop:
             if isinstance(cur, str) and cur.startswith("="):
                 # a ref-less composite leaf: stillness is the signal —
                 # evaluating to its own prior = last year's actual never
-                # rolled (the run-198 class)
+                # rolled (the run-198 class). A formula of references only
+                # (no carried literal) cannot be rewritten: not a fix that
+                # remains (floors 2026-09-14: '=AI61-SOC!AI8' evaluating 0
+                # deadlocked the ladder)
+                from .composites import literals_of as _lits, MODELING_CONSTANTS as _MC
+                if not [x for x in _lits(cur) if abs(float(x)) not in _MC]:
+                    continue
                 try:
                     ce = ev.cell(sh, coord)
                 except Exception:
@@ -660,6 +666,15 @@ class ObjectiveLoop:
                                    f"proven {cur:,.2f}; another line prints "
                                    f"{dv:,.2f} ({it.doc} p{it.page}) — two "
                                    "readings, the analyst's call; not a fix")
+                        continue
+                    # A FIX THE CARDS RULED OUT IS NOT A FIX THAT REMAINS (floors
+                    # 2026-09-14: the brain had answered 'not disclosed' on the
+                    # component and the ladder still refused to plug — a
+                    # deadlock that delivered six open checks)
+                    if f"{sh}!{int(mm.group(2))}" in set(self.writer.log.get("ruled_out", [])):
+                        out.append(f"  RULED OUT {sh}!{int(mm.group(2))} "
+                                   f"'{str(t.label)[:30]}': the cards judged the printed "
+                                   f"{dv:,.2f} not this row's — not a fix that remains")
                         continue
                     guilty += 1
                     out.append(f"  GUILTY {sh}!{int(mm.group(2))} "
@@ -2044,6 +2059,31 @@ def terminal_ladder(loop, log):
                 else:
                     for sh2, coord2, old2 in olds:
                         loop.wb[sh2][coord2] = old2
+        # THE LAST RESORT APPLIES THE EVIDENCE FIXES IT DEMANDS (floors
+        # 2026-09-14): the cards are over; a GUILTY diff nobody applied
+        # kept the plug refused and the check open. The ladder applies
+        # each one through the evidence law; one the law refuses is ruled
+        # out and no longer blocks the plug.
+        try:
+            diag0 = str(loop.t_diagnose_balance({"check": f"{sheet}!{row}"}))
+        except Exception:
+            diag0 = ""
+        for m_g in re.finditer(r"GUILTY (.+?)!(\d+) '", diag0):
+            g_ref = f"{m_g.group(1)}!{m_g.group(2)}"
+            try:
+                r_a = str(loop.t_apply_diff({"row": g_ref}))
+            except Exception as e_a:
+                r_a = f"TOOL ERROR: {e_a}"
+            if r_a.startswith("WRITTEN"):
+                log(f"[run] terminal ladder: applied the evidence fix on {g_ref} for {sheet}!{row} — {r_a[:100]}")
+            else:
+                loop.writer.log.setdefault("ruled_out", []).append(g_ref)
+                log(f"[run] terminal ladder: evidence fix on {g_ref} refused ({r_a.splitlines()[0][:100]}) — ruled out")
+        still = [x for x in loop._failing_target_checks() if (x[0], x[1]) == (sheet, row)]
+        if not still:
+            closed += 1
+            log(f"[run] terminal ladder: {sheet}!{row} closed by its evidence fixes, no plug")
+            continue
         tcol = loop._tcol(sheet)
         # PLUG ONLY THE LEAST CONFIDENT INPUT (owner ruling 2026-09-08,
         # DFE run 239: the ladder plugged -15,826 into 'cash paid for
@@ -2100,6 +2140,8 @@ def terminal_ladder(loop, log):
                          "still deliver")})
             log(f"[run] terminal ladder: plug {sheet}!{row} into "
                 f"{sh}!{coord} -> {str(r).splitlines()[0][:90]}")
+            for _ln in [x for x in str(r).splitlines()[1:] if x.strip().startswith(("GUILTY", "STALE", "CONFLICT", "RULED OUT"))][:6]:
+                log(f"[run]     {_ln.strip()[:160]}")     # the fixes the ladder says remain
             if str(r).startswith("PLUG"):
                 closed += 1
                 break
