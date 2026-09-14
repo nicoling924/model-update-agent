@@ -255,7 +255,7 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
         # a forecast plug is BLUE (the one forecast-year colour, owner
         # 2026-09-07); a large one is also put on the watch list
         if writer.write(sheet, f"{col}{row}", value,
-                        prior_coord=None, trusted=True, flag="blue",
+                        prior_coord=None, trusted=True, flag="blue", kind="plug",
                         note=(f"Plug: {-gap:+,.1f} inserted so the forecast "
                               "balances; not attributable to any balance-"
                               "sheet movement. Unwind when re-forecasting.")):

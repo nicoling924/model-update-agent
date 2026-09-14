@@ -565,7 +565,9 @@ def join_bound_tables(ledger, targets, served, log=None):
     for key, items in by_table.items():
         if len(items) < BIND_MIN_PRIORS:
             continue
-        if is_segment_matrix(items):
+        _stamps = [getattr(it, "table_kind", None) for it in items]
+        _stamped = [k for k in _stamps if k in ("period", "matrix", "plain")]
+        if (max(set(_stamped), key=_stamped.count) == "matrix") if _stamped else is_segment_matrix(items):
             # THE SEGMENT-MATRIX LAW (run-232 D&A autopsy): a table whose
             # rows sum across to their last number lists ONE period per
             # row with segments as columns ('D&A: HK -5,727 | CN -840 |

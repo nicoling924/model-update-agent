@@ -24,6 +24,7 @@ class Client:
         self.model = model or os.environ["LLM_MODEL"]
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        self.deadline = None      # monotonic run deadline (pipeline.run sets it); None = unbounded
         # provenance: every call's model + token usage, surfaced in the run report
         self.usage = {"model": self.model, "calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
@@ -55,11 +56,17 @@ class Client:
             body["response_format"] = {"type": "json_object"}
         last_err = None
         for attempt in range(10):
+            # THE RUN CLOCK: past the deadline no attempt starts; near it the
+            # socket timeout shrinks to what is left (audit 2026-09-14: one
+            # call could retry for an hour, the run had no clock)
+            left = None if self.deadline is None else self.deadline - time.monotonic()
+            if left is not None and left <= 0:
+                raise LLMError(f"run deadline passed before the call ({last_err or 'no attempt made'})")
             try:
                 r = requests.post(
                     f"{self.base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {self.api_key}"},
-                    json=body, timeout=600)
+                    json=body, timeout=600 if left is None else max(30, min(600, left)))
                 if r.status_code == 400:
                     # adapt to per-model parameter dialects, one change per pass
                     err = (r.json().get("error") or {}) if r.headers.get(

@@ -142,6 +142,12 @@ def describe_tables(client, ledger, docs, target_year, period, log=print):
     readings = {}
     n_calls = 0
     for start in range(0, len(cards), _MAX_TABLES_PER_CALL):
+        dl = getattr(client, "deadline", None)
+        if dl is not None:
+            import time as _t
+            if dl - _t.monotonic() < 600:
+                log(f"[tables] run clock: {len(cards) - start} tables left unread — the shape reading stands for them")
+                break
         batch = cards[start:start + _MAX_TABLES_PER_CALL]
         ids = {i + 1: key for i, (key, _c) in enumerate(batch)}
         user = (f"Reporting period being updated: {period} (target year {target_year}).\n"
@@ -166,7 +172,10 @@ def describe_tables(client, ledger, docs, target_year, period, log=print):
         rd = readings.get((it.doc, it.page, it.table_id))
         if rd is None:
             continue
-        kind = "period" if rd["kind"] == "periods" else "matrix"
+        # periods pair; segments/categories/movement/grid never; "other" is
+        # undecided — stamped plain so the evidence law decides by the tie alone
+        kind = ("period" if rd["kind"] == "periods" else
+                "plain" if rd["kind"] == "other" else "matrix")
         if it.table_kind is not None and it.table_kind != kind and (it.doc, it.page, it.table_id) not in disagreed:
             disagreed.append((it.doc, it.page, it.table_id))
         it.table_kind = kind

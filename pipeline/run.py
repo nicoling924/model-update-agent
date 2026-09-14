@@ -138,6 +138,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     callable(text, options, default) -> answer id; runs without any LLM."""
     import time as _time
     _run_t0 = _time.monotonic()
+    if client is not None:
+        # THE RUN CLOCK (audit 2026-09-14): every LLM call reads the run's
+        # deadline — no call or retry outlives the hour
+        try:
+            client.deadline = _run_t0 + RUN_TARGET_S
+        except Exception:
+            pass
     company_dir = Path(company_dir)
     run_log = []
 
@@ -294,7 +301,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log(f"[run]   error guard [{stage}]: REVERTED {sh}!{coord} "
                     f"({str(prev)[:24]!r} -> restored {str(old)[:24]!r}) — "
                     "the write made cells stop computing (auto-disproven)")
-                # the restored prior is unconfirmed: RED, plain note
+                # the restored prior is unconfirmed: RED, plain note — through
+                # the gate: unlocked, un-served, journaled
+                wb[sh][coord] = prev
+                writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
                 from openpyxl.comments import Comment as _Cm
                 _cell = wb[sh][coord]
                 _cell.fill = writer.fills["red"]
@@ -350,6 +360,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     f"{sh}!{coord} (zero -> restored {str(old)[:22]!r}) — "
                     "the zero killed a healthy forecast row "
                     "(auto-disproven)")
+                wb[sh][coord] = prev
+                writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
                 # a value the run could NOT confirm is uncertain by
                 # definition: the restored prior stays RED with a plain
                 # note (run 233: the basic tariff was zeroed, restored to
@@ -457,6 +469,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     # -- the owner's column convention, then guarded writes
     writer = Writer(wb)
+    writer.served = served                       # a take-back un-serves what it takes back
     # the forecast columns per sheet: a law that finds a forecast cell
     # strange watch-lists it instead of painting it (owner 2026-09-07)
     from .checks import forecast_columns as _fcols0
@@ -1173,6 +1186,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from .forecast_balance import last_resort_plug
     from openpyxl.comments import Comment as _Cmt
 
+    writer.plugs_allowed = True                  # THE PLUG LAW: the repair rounds are the last resort
     def repair_round(tag):
         """THE REPAIR SUITE — everything that closes checks after the
         actual column is marked: roll-base re-anchoring, forecast plugs,
@@ -1339,12 +1353,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             # reverse order, and the idempotent suite re-solves from a
             # clean base. Everything stays in the ledger and the log.
             repairs = list(writer.log.get("writes_all", []))[undo_mark2:]
+            journal_rep = list(writer.log.get("style_journal", []))[undo_mark2:]
             snap_rep = [(sh_r, co_r, wb[sh_r][co_r].value)
                         for sh_r, co_r, _o, _n in repairs]
-            for sh_r, co_r, old_r, _n in reversed(repairs):
-                wb[sh_r][co_r] = old_r
+            for k_r in range(len(repairs) - 1, -1, -1):
+                sh_r, co_r, old_r, _n = repairs[k_r]
+                style_r = journal_rep[k_r] if k_r < len(journal_rep) else (sh_r, co_r, "", None, False)
+                writer.take_back(sh_r, co_r, old_r, style_r)          # value, look, lock and served go together
             for sh_u, coord_u, old_u, _now in reverts:
-                wb[sh_u][coord_u] = old_u
+                writer.revert(sh_u, coord_u, old_u)
             repair_round(f"gate-loop {tier}")
             ok2, failures2, card2 = gate_once()
             mass1 = check_mass()
@@ -1358,15 +1375,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                      f"the run's answer ({was!r}) was taken "
                                      "back so the model could balance")
                         continue
-                    c_u = wb[sh_u][coord_u]
-                    c_u.fill = writer.fills["red"]
-                    c_u.comment = _Cmt(
-                        (f"Taken back: the run's answer here ({was!r}) "
-                         "stopped the model balancing; kept last period's "
-                         "figure — please check."),
-                        "Model Update Agent")
-                    if f"{sh_u}!{coord_u}" not in writer.log["flags"]:
-                        writer.log["flags"].append(f"{sh_u}!{coord_u}")
+                    writer.flag(sh_u, coord_u, "red",
+                                (f"Taken back: the run's answer here ({was!r}) "
+                                 "stopped the model balancing; kept last period's "
+                                 "figure — please check."))
                 log(f"[run] gate loop ({tier} tier): {len(reverts)} "
                     f"stage-4 serves taken back, repairs re-run -> "
                     f"{'gate PASSED' if ok else f'residual mass {mass1:,.0f}, still refused'}")

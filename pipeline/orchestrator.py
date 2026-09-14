@@ -825,12 +825,16 @@ class ObjectiveLoop:
         ok = self.writer.write(
             i_sheet, f"{i_col}{i_row}", plug_value,
             prior_coord=f"{pcol}{i_row}" if pcol else None,
-            trusted=True,
+            trusted=True, kind="plug",
             flag="red" if wild else "orange",
             note=(f"PLUG (worst case{wild_txt}): absorbed check residual "
                   f"{residual:,.2f} from {check}; was {held:,.2f}. "
                   f"ANALYST MUST REVIEW. {why[:200]}"))
         if not ok:
+            if f"{i_sheet}!{i_col}{i_row}" in self.writer.log.get("plug_refused", []):
+                return ("REFUSED by the plug law: a plug is the last resort — the evidence "
+                        "stages (reads, components, key tie) have not all had their turn on "
+                        "this check yet; find the component instead")
             return ("REFUSED by write guard (lock) — choose another "
                     "component")
         try:
@@ -881,18 +885,12 @@ class ObjectiveLoop:
                     "run-213 disease. This site rolls into the forecasts; "
                     "pick a site the probe leaves clean")
         if proven:
-            ref_i = f"{i_sheet}!{i_col}{i_row}"
-            self.writer.log["flags"].append(ref_i)
-            cell_i = self.wb[i_sheet][f"{i_col}{i_row}"]
-            cell_i.fill = self.writer.fills["red"]
-            from openpyxl.comments import Comment
-            cell_i.comment = Comment(
+            self.writer.flag(i_sheet, f"{i_col}{i_row}", "red",
                 (f"PLUG OVER PROVEN VALUE — this cell was served "
                  f"{pe.get('value'):,.2f} from {pe.get('doc')} "
                  f"p{pe.get('page')} and then absorbed the {check} "
                  f"residual {residual:,.2f} as the sanctioned last resort "
-                 f"(forecast probe clean). ANALYST MUST RULE. {why[:150]}"),
-                "Model Update Agent")
+                 f"(forecast probe clean). ANALYST MUST RULE. {why[:150]}"))
             return (f"PLUGGED {into} OVER A PROVEN VALUE: {held:,.2f} -> "
                     f"{held - residual_eff:,.2f} (RED, forecast-probe clean, "
                     f"in the report). Check {check} now zero.")
@@ -1127,16 +1125,13 @@ class ObjectiveLoop:
             return (f"REVERTED: holding {sh}!{col}{row} did not improve "
                     f"the checks (total residual {mass0:,.1f} -> "
                     f"{mass1:,.1f}) — the probe did not prove this cell")
-        from openpyxl.comments import Comment
-        cell = self.wb[sh][f"{col}{row}"]
-        cell.fill = self.writer.fills["orange"]
-        cell.comment = Comment(
-            f"HELD BY THE AGENT (balance outranks the freeze list, "
-            f"owner 2026-09-01): was {str(old)[:60]}; probe proved this "
-            f"rolled cell un-balances the forecast (total residual "
-            f"{mass0:,.1f} -> {mass1:,.1f}). {why[:200]}",
-            "Model Update Agent")
-        self.writer.log["flags"].append(f"{sh}!{col}{row}")
+        self.wb[sh][f"{col}{row}"] = old                 # the probe is over; the hold lands through the gate
+        if not self.writer.write(sh, f"{col}{row}", hold_val, trusted=True, force_lock=True, flag="blue",
+                                 note=(f"HELD BY THE AGENT (balance outranks the freeze list, "
+                                       f"owner 2026-09-01): was {str(old)[:60]}; probe proved this "
+                                       f"rolled cell un-balances the forecast (total residual "
+                                       f"{mass0:,.1f} -> {mass1:,.1f}). {why[:200]}")):
+            return f"REFUSED by the writer's laws: {sh}!{col}{row}"
         self.writer.log.setdefault("frozen", []).append(
             f"{sh}!{col}{row}: held at {hold_val:g} — was {str(old)[:40]} "
             f"(agent hold, probe-proven)")
@@ -2023,6 +2018,7 @@ def terminal_ladder(loop, log):
                 olds.append((sh2, f"{tc2}{r2}", cur2))
             if len(batch) >= 2:
                 before = abs(still[0][2])
+                _pre_batch = {(sh2, coord2): loop.wb[sh2][coord2].value for sh2, coord2, _d, _i in batch}
                 for sh2, coord2, dv2, _it2 in batch:
                     loop.wb[sh2][coord2] = dv2
                 after = None
@@ -2033,19 +2029,14 @@ def terminal_ladder(loop, log):
                     pass
                 if isinstance(after, (int, float)) \
                         and abs(after) < before - 1.0:
-                    from openpyxl.comments import Comment
                     for sh2, coord2, dv2, it2 in batch:
-                        c2 = loop.wb[sh2][coord2]
-                        c2.fill = loop.writer.fills["orange"]
-                        c2.comment = Comment(
-                            (f"PAIRED DIFF (terminal): applied with its "
-                             f"partner(s) as one batch — {dv2:,.2f} from "
-                             f"{it2.doc} p{it2.page}; lone writes broke "
-                             f"the check, the batch closed it "
-                             f"{before:,.1f} -> {abs(after):,.1f}."),
-                            "Model Update Agent")
-                        loop.writer.log["flags"].append(f"{sh2}!{coord2}")
-                        loop.writer.log["written"].append(f"{sh2}!{coord2}")
+                        loop.wb[sh2][coord2] = _pre_batch[(sh2, coord2)]      # probe over: land through the gate
+                        loop.writer.write(sh2, coord2, dv2, trusted=True, force_lock=True, flag="orange",
+                                          note=(f"PAIRED DIFF (terminal): applied with its "
+                                                f"partner(s) as one batch — {dv2:,.2f} from "
+                                                f"{it2.doc} p{it2.page}; lone writes broke "
+                                                f"the check, the batch closed it "
+                                                f"{before:,.1f} -> {abs(after):,.1f}."))
                     log(f"[run] terminal ladder: PAIRED DIFF closed "
                         f"{sheet}!{row} {before:,.1f} -> {abs(after):,.1f} "
                         f"({len(batch)} cells as one batch)")

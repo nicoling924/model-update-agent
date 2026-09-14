@@ -2357,3 +2357,19 @@ evidence finder — and the local copies removed:
 Still local, by design or pending: the one-figure-one-home claim registry (cards and the walk each keep one;
 the reader and the page reads use the shared `claimed_values`); the coincidence law (walk only — the reader
 and cards prove by tie or label, not by bare number). Museum 207, bench green.
+
+## 2026-09-14 — THE GATE, THE CLOCK, THE STAMP (owner: "fix the underlying issue, not patches")
+The gate (pipeline/writer.py): `Writer.flag()` paints or clears a flag through the journal; `Writer.revert()`
+lands a guard's take-back through the gate and un-locks and un-serves the cell; `take_back()` does the same.
+THE PLUG LAW: a write declared `kind="plug"` is refused until the run opens the last-resort stage
+(`plugs_allowed`: the queue reaching its plug cards; the repair rounds), and every plug that lands is
+recorded (log["plugs"]). Plug writers declare themselves (t_plug_residual, last_resort_plug). Holds (t_hold),
+auto-probe holds, tuned holds and the terminal paired-diff batch now land through the gate after their probe;
+the error guard, the collapse guard and the gate loop revert through it (value, look, lock and served go
+together). The clock (agent/llm.py): the client carries the run's deadline; no attempt starts past it and the
+socket timeout shrinks to what is left; the queue's breaker trips on a five-minute call, and every card drains
+five minutes past the deadline; the table reader stops batching ten minutes before the deadline. The stamp:
+the join reads Item.table_kind (its own shape test is the fallback), the key tie reads sourceable and the
+stamp, a brain reading of "other" is stamped plain so the tie decides. Also: a refused absorber falls through
+to the next candidate and to KEY OFF (it had broken out silently); the sense check's final pass takes back a
+review that fails the full check run. Museum 209, bench green.

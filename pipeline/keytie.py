@@ -423,7 +423,9 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                     _abs_log[name] = [sh, coord, f, new_f, _wrap]
                     log(f"[run] key tie: '{name}' {got:,.2f} -> {want:,.2f} "
                         f"via {sh}!{coord} (orange back-out)")
-                break
+                    break
+                log(f"[run] key tie: '{name}' — the writer refused {sh}!{coord} (its laws); next candidate")
+                continue
         else:
             log(f"[run] key tie: '{name}' OFF {delta:+,.2f} vs print "
                 f"{want:,.2f} and no component could absorb it — "
@@ -505,12 +507,12 @@ def panel_by_prior_tie(wb, spec, target_year, ledger, log=None, served=None):
         reads = {}
         for pv in _priors:
             for it in ledger.items:
-                if it.doc in ban or getattr(it, "channel", "") == "prose":
+                if not _sourceable(it) or getattr(it, "channel", "") == "prose":
                     continue
                 nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
                 if len(nums) < 2:
                     continue
-                wide = len(nums) >= 4
+                wide = getattr(it, "table_kind", None) == "matrix" or (getattr(it, "table_kind", None) is None and len(nums) >= 4)
                 if wide and not _kin_p(str(it.label or ""), row_label):
                     continue                    # a wide row's pair position is uncertain: the label must confirm
                 for f in _SCALES:

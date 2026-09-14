@@ -1041,6 +1041,7 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
         if i >= len(seq):
             if seq is work:
                 seq, i = plugs, 0
+                loop.writer.plugs_allowed = True      # THE PLUG LAW: every evidence card has been dealt
                 continue
             break
         item = seq[i]
@@ -1074,9 +1075,10 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
             continue
         text, options, default = rendered
         ans, why = default, "default"
+        elapsed = time.monotonic() - t0
         drain = (breaker >= 3
-                 or (item.kind not in ("COMPONENT", "PLUG")
-                     and time.monotonic() - t0 > deadline_s))
+                 or (item.kind not in ("COMPONENT", "PLUG") and elapsed > deadline_s)
+                 or elapsed > deadline_s + 300)          # the grace for balance cards is five minutes, then everything drains
         if not drain:
             try:
                 if answerer is not None:
@@ -1084,8 +1086,10 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
                     why = "scripted"
                 elif client is not None:
                     calls += 1
+                    _c0 = time.monotonic()
                     ans, why = _llm_answer(loop, client, text, options, log)
-                    breaker = 0
+                    # a call that took longer than five minutes counts as a dead endpoint (time, not exceptions)
+                    breaker = breaker + 1 if time.monotonic() - _c0 > 300 else 0
                 if ans not in options:
                     ans, why = default, "invalid->default"
             except Exception as e:

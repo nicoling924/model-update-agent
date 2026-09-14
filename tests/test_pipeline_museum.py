@@ -1165,7 +1165,7 @@ def test_forecast_balance_ladder():
 
     # placement targets are typed inputs only
     assert (9, "Others") in cf_input_rows(ws, "V")
-    w = Writer(wb)
+    w = Writer(wb); w.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     f, err = place_flow(wb, w, "Model", 3, 10, "V", "U")
     assert f is None and "not a typed CF input cell" in err
     f, err = place_flow(wb, w, "Model", 3, 9, "V", "U")
@@ -1174,7 +1174,7 @@ def test_forecast_balance_ladder():
 
     # last-resort plug closes the residue; small plug stays orange
     wb2, ws2 = build(10.0)
-    w2 = Writer(wb2)
+    w2 = Writer(wb2); w2.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     plugged = last_resort_plug(
         wb2, w2, (lambda: (lambda s, c, e=None: Evaluator(wb2).cell(s, c))),
         "Model", 6, ["V"], 3, lambda m: None)
@@ -1184,7 +1184,7 @@ def test_forecast_balance_ladder():
     # gap 10 vs assets 130 -> 7.7% -> not large
     # a LARGE plug (>10% of the asset base) goes red
     wb3, ws3 = build(30.0)
-    w3 = Writer(wb3)
+    w3 = Writer(wb3); w3.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     plugged3 = last_resort_plug(
         wb3, w3, (lambda: (lambda s, c: Evaluator(wb3).cell(s, c))),
         "Model", 6, ["V"], 3, lambda m: None)
@@ -1404,8 +1404,9 @@ def test_205_forecast_plug_cascade_breaker():
     ws["V21"], ws["W21"], ws["X21"] = 0.0, 0.0, 0.0
     ws["V30"], ws["W30"], ws["X30"] = "=1000-V21", "=2600-W21-V21", "=7000-X21-W21-V21"
     logs = []
+    _pw = Writer(wb); _pw.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     plugged = last_resort_plug(
-        wb, Writer(wb), lambda: (lambda s, c: Evaluator(wb).cell(s, c)),
+        wb, _pw, lambda: (lambda s, c: Evaluator(wb).cell(s, c)),
         "S", 30, ["V", "W", "X"], None, logs.append)
     assert plugged == [], plugged
     assert any("STOPPED" in l or "escalating" in l for l in logs), logs
@@ -1473,6 +1474,7 @@ def test_197_plug_accepts_the_refs_its_own_tools_print():
               "U2": 109.0, "U3": 60.0, "U4": 171.0,
               "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
     lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True     # the exhibit tests the plug tool: the last-resort stage is open
     # diagnose accepts the column-qualified form AND lists eligible sites
     diag = lp.t_diagnose_balance({"check": "S!U9"})
     assert "eligible plug sites" in diag, diag
@@ -1489,6 +1491,7 @@ def test_197_plug_accepts_the_refs_its_own_tools_print():
     wb2 = _wb({"T2": 100.0, "U2": 90.0, "U3": 60.0, "U4": 171.0,
                "T9": "=T2", "U9": "=U2-U3-U4+140"})
     lp2 = _loop(wb2, _spec_tiny())
+    lp2.writer.plugs_allowed = True     # the exhibit tests the plug tool: the last-resort stage is open
     bad2 = lp2.t_plug_residual({"check": "S!9", "into": "S!U9", "why": "t"})
     assert "formula" in bad2 and "diagnose_balance" in bad2, bad2
 
@@ -1515,7 +1518,7 @@ def test_204_signflip_never_frozen():
     rows = sign_absurd_rows(wb, spec, "2025")
     assert [(r[0], r[1], r[2]) for r in rows] == [("S", "V", 9)], rows
     # unexamined -> the gate refuses and says the loop must verdict it
-    w = Writer(wb)
+    w = Writer(wb); w.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     fails = driver_roll(wb, spec, "2025", {}, w.log)
     assert any("UNEXAMINED" in f for f in fails), fails
     # the terminal (run.py behavior, law-level): SUSPICIOUS verdict,
@@ -1612,6 +1615,7 @@ def test_199_terminal_ladder_delivers():
               "U2": 109.0, "U3": 60.0, "U4": 171.0,
               "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
     lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True     # the exhibit tests the plug tool: the last-resort stage is open
     logs = []
     n = terminal_ladder(lp, logs.append)
     assert n == 1, (n, logs)
@@ -1644,7 +1648,7 @@ def test_202_moveon_machine_look():
     led.add(Item(doc="RA", page=9, table_id=0, row_ord=0,
                  label="Some line", nums=[560.0, 555.0],
                  source_line="Some line 560 555"))
-    w = Writer(wb)
+    w = Writer(wb); w.plugs_allowed = True  # the exhibit tests the ladder: the last-resort stage is open
     for coord in ("U5", "U6"):
         ws[coord].comment = Comment("STALE INPUT: rolled...", "t")
         w.log["flags"].append(f"S!{coord}")
@@ -5095,6 +5099,32 @@ def test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14():
     led2 = Ledger.from_json(led.to_json())
     assert next(it for it in led2.items if it.page == 198).sourceable is False    # the pin keeps the verdict
     print("PASS test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14")
+
+
+def test_the_plug_law_is_the_writers_2026_09_14():
+    """Owner 2026-09-14: "a plug should only be used as the last resort —
+    analysts hate plugs." The writer refuses any write declared a plug
+    until the run opens the last-resort stage (the queue reaching its plug
+    cards; the repair rounds); a plug that lands is recorded. A guard's
+    revert un-serves and unlocks the cell it takes back; a flag painted
+    through the gate is journaled and can be cleared the same way."""
+    from pipeline.writer import Writer
+    wb = _wb({"T5": 100.0, "T6": 40.0})
+    w = Writer(wb)
+    assert w.write("S", "U5", 12.0, prior_coord="T5", trusted=True, flag="orange", kind="plug") is False
+    assert w.log["plug_refused"] == ["S!U5"] and wb["S"]["U5"].value is None
+    w.plugs_allowed = True
+    assert w.write("S", "U5", 12.0, prior_coord="T5", trusted=True, flag="orange", kind="plug") is True
+    assert w.log["plugs"] == ["S!U5"]
+    w.served = {("S", 6): {"value": 44.0, "conf": 5}}
+    assert w.write("S", "U6", 44.0, prior_coord="T6", trusted=True) is True
+    w.locked.add("S!U6")
+    assert w.revert("S", "U6", 40.0, "red", "Not confirmed — please check.") is True
+    assert wb["S"]["U6"].value == 40.0 and "S!U6" not in w.locked and ("S", 6) not in w.served
+    assert str(wb["S"]["U6"].fill.fgColor.rgb).endswith("FFC7CE") and "S!U6" in w.log["flags"]
+    w.flag("S", "U6", None)
+    assert "S!U6" not in w.log["flags"] and wb["S"]["U6"].comment is None
+    print("PASS test_the_plug_law_is_the_writers_2026_09_14")
 
 
 if __name__ == "__main__":

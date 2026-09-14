@@ -448,16 +448,16 @@ def auto_probe_holds(wb, spec, target_year, fc_base, writer, log,
         # (it was compounding through the years) — a hold that merely
         # shuffles the imbalance moves the mass less than itself
         if m2 <= mass - max(100.0, 1.5 * _d):
-            cell.fill = writer.fills["blue"]
-            cell.comment = Comment(
-                f"AUTO-PROBE HOLD: this forecast is a bare link to the "
-                f"actual column; the analyst's own pre-update forecast "
-                f"here was {base_v:,.1f} (their intent). Holding it "
-                f"there cut the model's total check residual "
-                f"{mass:,.1f} -> {m2:,.1f} — probe-proven roll "
-                f"artifact (was {old_f}). Owner's law: balance "
-                "outranks the freeze list.", "Model Update Agent")
-            writer.log["flags"].append(f"{sheet}!{fc1}{r}")
+            cell.value = old_f                 # probe over: the hold lands through the gate
+            if not writer.write(sheet, f"{fc1}{r}", round(base_v, 6), trusted=True, force_lock=True, flag="blue",
+                                note=(f"AUTO-PROBE HOLD: this forecast is a bare link to the "
+                                      f"actual column; the analyst's own pre-update forecast "
+                                      f"here was {base_v:,.1f} (their intent). Holding it "
+                                      f"there cut the model's total check residual "
+                                      f"{mass:,.1f} -> {m2:,.1f} — probe-proven roll "
+                                      f"artifact (was {old_f}). Owner's law: balance "
+                                      "outranks the freeze list.")):
+                continue
             writer.log.setdefault("frozen", []).append(
                 f"{sheet}!{fc1}{r}: held at {base_v:g} — was {old_f} "
                 "(auto-probe, proven)")
@@ -522,14 +522,14 @@ def tune_holds(wb, spec, target_year, writer, log):
             cell.value = round(old + sgn * const, 6)
             after = [v for v in _fc_resids() if abs(v) > 1.0]
             if not after:
-                if cell.comment is not None:
-                    from openpyxl.comments import Comment
-                    cell.comment = Comment(
-                        str(cell.comment.text)[:280]
-                        + f" | HOLD TUNED by {sgn * const:+,.1f}: the flat "
-                        "forecast residual proved the held value off by "
-                        "this constant; all forecast years now tie.",
-                        "Model Update Agent")
+                tuned = cell.value
+                cell.value = old               # probe over: the tune lands through the gate
+                prev_note = str(cell.comment.text)[:280] if cell.comment is not None else ""
+                if not writer.write(sheet, f"{col}{row}", tuned, trusted=True, force_lock=True, flag="blue",
+                                    note=(prev_note + f" | HOLD TUNED by {sgn * const:+,.1f}: the flat "
+                                          "forecast residual proved the held value off by "
+                                          "this constant; all forecast years now tie.")):
+                    break
                 log(f"[run] hold tuner: {sheet}!{col}{row} "
                     f"{old:g} -> {cell.value:g} — flat forecast residual "
                     f"{const:+,.1f} closed in every year")

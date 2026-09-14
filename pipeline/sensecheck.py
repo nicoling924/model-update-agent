@@ -264,7 +264,7 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
     gaps_after = {d["name"]: abs(d["d1"] - d["d0"]) for d in headline_deltas(wb, pre_wb, spec, ty)}
     worse = [nm for nm, g in gaps_after.items()
              if g > gaps_before.get(nm, 0.0) + 0.01 and g > SENSE_GAP]
-    if changed and ((fails_after - fails_before) or worse):
+    if changed and ((fails_after - fails_before) or worse or ok is False):
         # the review OPENED a check or WIDENED a gap: take every review write back, re-run
         journal = writer.log.get("style_journal", [])[mark:]
         for sh, coord, old, _new in reversed(changed):

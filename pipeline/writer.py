@@ -291,13 +291,22 @@ class Writer:
         return ref
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
-              flag=None, trusted=False, force_lock=False, allow_empty=False):
+              flag=None, trusted=False, force_lock=False, allow_empty=False,
+              kind=None):
         """Write one cell through every guard, then read it back.
 
         trusted=True is for values whose magnitude is PROVEN (a checksummed
         or ratified-scale tie) — they bypass the band, nothing else does.
+        kind="plug" declares a plug: THE PLUG LAW (owner 2026-09-14, "a plug
+        should only be used as the last resort — analysts hate plugs")
+        refuses it until the run has opened the last-resort stage
+        (plugs_allowed), i.e. after every evidence stage had its turn on
+        the checks; a plug that lands is recorded in log["plugs"].
         Returns True on write, False on a guarded refusal."""
         ref = f"{sheet}!{coord}"
+        if kind == "plug" and not getattr(self, "plugs_allowed", False):
+            self.log.setdefault("plug_refused", []).append(ref)
+            return False
         if ref in self.locked and not force_lock:
             self.log["lock_refused"].append(ref)
             return False
@@ -392,6 +401,50 @@ class Writer:
             self.log["flags"] = [f for f in self.log["flags"] if f != ref]
         if flag in self.fills:
             self.log["flags"].append(ref)
+        if kind == "plug":
+            self.log.setdefault("plugs", []).append(ref)
+        return True
+
+    # -- the flag, the revert: journaled like every write -------------------
+
+    def flag(self, sheet, coord, colour, note=None):
+        """Paint a cell's flag through the gate: journaled (a take-back
+        restores the look), logged once, note only with a flag (owner:
+        notes only on flagged cells). colour None clears the flag."""
+        ws = self.wb[sheet]
+        cell = ws[coord]
+        ref = f"{sheet}!{coord}"
+        self.log.setdefault("style_journal", []).append(
+            (sheet, coord, _fill_rgb(cell),
+             str(cell.comment.text) if cell.comment is not None else None,
+             ref in self.log["flags"]))
+        self.log.setdefault("writes_all", []).append((sheet, coord, cell.value, cell.value))
+        self.log["flags"] = [f for f in self.log["flags"] if f != ref]
+        if colour in self.fills:
+            cell.fill = copy.copy(self.fills[colour])
+            if note:
+                cell.comment = Comment(str(note)[:700], AUTHOR)
+            self.log["flags"].append(ref)
+        else:
+            cell.fill = PatternFill()
+            cell.comment = None
+        return True
+
+    def revert(self, sheet, coord, old, colour=None, note=None):
+        """A write taken back by a guard: the old value lands through the
+        gate, the cell is unlocked and un-served (it is no longer proven —
+        run 2026-09-14 audit: reverted serves stayed locked and 'proven'),
+        and it wears the colour the guard gives it (red: unconfirmed)."""
+        ref = f"{sheet}!{coord}"
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        if not ok:
+            return False
+        self.locked.discard(ref)
+        served = getattr(self, "served", None)
+        if isinstance(served, dict):
+            served.pop((sheet, int(re.sub(r"[A-Z]+", "", coord))), None)
+        if colour:
+            self.flag(sheet, coord, colour, note)
         return True
 
     def _row_unforecast(self, sheet, coord):
@@ -428,10 +481,15 @@ class Writer:
             self.log["flags"].append(ref)
 
     def take_back(self, sheet, coord, old, style):
-        """A write undone: the old value AND the old look."""
+        """A write undone: the old value AND the old look; the cell is
+        unlocked and un-served (what the run believed about it goes too)."""
         ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
         if ok:
             self.restore_style(sheet, coord, style)
+            self.locked.discard(f"{sheet}!{coord}")
+            served = getattr(self, "served", None)
+            if isinstance(served, dict):
+                served.pop((sheet, int(re.sub(r"[A-Z]+", "", coord))), None)
         return ok
 
     def restate(self, sheet, coord, new_value, why):
