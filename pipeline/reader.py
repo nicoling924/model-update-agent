@@ -114,7 +114,12 @@ def rows_to_read(wb, spec, target_year, targets, served):
             # input — the model's own history says what the analyst tracks.
             continue
         p2 = getattr(t, "prior2_value", None)
-        out.append({"row": f"{sheet}!{row}", "sheet": sheet, "r": row, "label": lab,
+        # THE ROW'S PLACE IN THE MODEL (owner 2026-09-15: the chat reads the
+        # model AND the report; the agent's brain must see the same) — the
+        # sheet and the section headers above the row travel with it
+        from .naming import block_context as _bc
+        ctx = " > ".join(_bc(wb, sheet, int(row)))
+        out.append({"row": f"{sheet}!{row}", "sheet": sheet, "r": row, "label": lab, "context": ctx,
                     "prior": (round(float(pv), 4) if isinstance(pv, (int, float)) else None),
                     "prior2": (round(float(p2), 4) if isinstance(p2, (int, float)) else None)})
     return out
@@ -400,8 +405,8 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
     chunk = chunk or max(1, len(rows))
     for i in range(0, len(rows), chunk):
         part = rows[i:i + chunk]
-        user = (f"MODEL UNITS: {units}\n\nMODEL ROWS (id | label | last-period value):\n"
-                + "\n".join(f"{r['row']} | {r['label']} | {r['prior']}" for r in part)
+        user = (f"MODEL UNITS: {units}\n\nMODEL ROWS (id | sheet > section headers > label | last-period value):\n"
+                + "\n".join(f"{r['row']} | {r['sheet']}" + (f" > {r['context']}" if r.get('context') else "") + f" > {r['label']} | {r['prior']}" for r in part)
                 + "\n\nDISCLOSURE (full text, page-marked; scanned pages attached as images in order):\n"
                 + text)
         try:

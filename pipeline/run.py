@@ -1115,14 +1115,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 loop_summary += " | residual loop: " + loop.run()
                 log(f"[run] residual loop: {loop_summary[-120:]}")
         undo_mark2 = len(writer.log.get("writes_all", []))   # end of stage-4 serves
-        # the referee's last rung (owner: back out, mark, still deliver)
-        from .orchestrator import terminal_ladder
-        n_tl = terminal_ladder(loop, log)
-        if n_tl:
-            log(f"[run] terminal ladder: {n_tl} actual-year checks closed "
-                "(flagged plugs/diffs, reported)")
-        err_guard("loop + terminal ladder")
-        collapse_guard("loop + terminal ladder")
+        err_guard("loop")
+        collapse_guard("loop")
         # loop serves get the twin treatment too
         n_rw2, n_tw2 = twin_reanchor(wb, wb_values, spec_d, target_year,
                                      writer, log)
@@ -1220,10 +1214,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     writer.plugs_allowed = True                  # THE PLUG LAW: the repair rounds are the last resort
     from .writer import hold_zero_forecasts as _hold_zero
-    try:
-        _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log)
-    except Exception as _e_hz:
-        log(f"[run] zero forecast hold skipped: {_e_hz!r}")
     def repair_round(tag):
         """THE REPAIR SUITE — everything that closes checks after the
         actual column is marked: roll-base re-anchoring, forecast plugs,
@@ -1284,16 +1274,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 "LIVE, red, reported (never frozen — the run-204 lesson)")
         err_guard(f"plugs + terminal {tag}")
         collapse_guard(f"plugs + terminal {tag}")
-        # THE FINAL CLOSER: keytie back-outs and anchors can re-open an
-        # actual-year check by a residue — close once more before judging
-        if client is not None or stage4_answerer is not None:
-            n_tl2 = terminal_ladder(loop, log)
-            if n_tl2:
-                log(f"[run] terminal ladder ({tag}): {n_tl2} late-shifted "
-                    "actual-year checks re-closed")
-                err_guard(f"terminal {tag}")
-                collapse_guard(f"terminal {tag}")
-
     from .keytie import key_violations as _key_violations
 
     def gate_once():
@@ -1333,162 +1313,25 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     m += abs(v)
         return m
 
-    repair_round("first")
-    ok, failures, card = gate_once()
-
-    # THE CONSEQUENCE CARDS (owner 2026-09-15): goal-based, not scripted —
-    # when an objective is broken the brain sees the consequence and the
-    # ways to resolve it and decides; code verifies. The bulk take-back
-    # below is the no-brain floor path only.
-    _conseq_answered = False
-    _conseq_pre = locals().get("_pre_wb_sense")
-    if not ok and getattr(loop, "ask", None) is not None and (client is not None or stage4_answerer is not None):
-        try:
-            if _conseq_pre is None:
-                _conseq_pre = load(str(archive))
-            from .consequence import resolve_objectives as _resolve
-            _left_c = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
-            _res = _resolve(loop, _conseq_pre, log, loop.ask, gate_once, repair_round, check_mass,
-                            keys_before, _key_panel, _panel_path, deadline_s=max(60.0, min(600.0, _left_c)))
-            if _res is not None:
-                ok, failures, card = _res
-                _conseq_answered = True
-                log(f"[run] consequence cards: {'objectives hold' if ok else 'questions remain for the analyst'}")
-        except Exception as _e_cq:
-            log(f"[consequence] STAGE LOST: {_e_cq!r}")
-            run_log.append(f"[consequence] STAGE LOST: {_e_cq!r}")
-
-    # THE GATE LOOP (owner ruling 2026-09-02: "the gate found it didn't
-    # balance -> the agent takes back the action and revises where it
-    # went wrong" — trial and error IS the analyst's workflow; a judge
-    # that only refuses makes the agent give up). On refusal, the
-    # failure feeds back: take back the run's own stage-4 serves in
-    # tiers (the uncorroborated reds first, then all of them — the
-    # all-flag floor is a proven-deliverable state), RE-RUN the repair
-    # suite on the corrected state (anchors and plugs were solved
-    # against the wrong values), and judge again. Bounded; each round
-    # must not worsen the total check residual or it is undone.
-    if not ok and not _conseq_answered and (client is not None or stage4_answerer is not None):
-        red_set = set(writer.log.get("flags", []))
-        # the append-only ledger, not the undo journal: the guards POP
-        # undo while unwinding (run-223: the take-back saw an empty slice)
-        undo = [(sh_, co_, old_) for sh_, co_, old_, _new in
-                list(writer.log.get("writes_all", []))[undo_mark:undo_mark2]]
-        from .checks import year_columns as _yc2
-        import re as _re2
-
-        def _stage4_writes(only_red):
-            out, seen_rv = [], set()
-            for sh_u, coord_u, old_u in undo:
-                ref_u = f"{sh_u}!{coord_u}"
-                if ref_u in seen_rv:
-                    continue
-                if only_red and ref_u not in red_set:
-                    continue
-                m_u = _re2.match(r"^([A-Z]{1,3})(\d+)$", coord_u)
-                if not m_u or m_u.group(1) != _yc2(spec_d, sh_u).get(
-                        str(target_year)):
-                    continue
-                seen_rv.add(ref_u)
-                out.append((sh_u, coord_u, old_u,
-                            wb[sh_u][coord_u].value))
-            return out
-
-        mass0 = check_mass()
-        reverted_all = []
-        for tier, only_red in (("red", True), ("all", False)):
-            if ok:
-                break
-            reverts = [r for r in _stage4_writes(only_red=only_red)
-                       if (r[0], r[1]) not in {(x[0], x[1])
-                                               for x in reverted_all}]
-            if not reverts:
-                continue
-            snapshot = [(sh_u, coord_u, wb[sh_u][coord_u].value)
-                        for sh_u, coord_u, _o, _w in reverts]
-            # THE CLEAN-SLATE RULE (run-224: taking back the serves but
-            # KEEPING the anchors and plugs that were solved AGAINST
-            # them left a state worse than the floor — 5,255 -> 10,279).
-            # Repairs are answers to the serves; when the serves go,
-            # every repair-suite write made after stage 4 goes too, in
-            # reverse order, and the idempotent suite re-solves from a
-            # clean base. Everything stays in the ledger and the log.
-            repairs = list(writer.log.get("writes_all", []))[undo_mark2:]
-            journal_rep = list(writer.log.get("style_journal", []))[undo_mark2:]
-            snap_rep = [(sh_r, co_r, wb[sh_r][co_r].value)
-                        for sh_r, co_r, _o, _n in repairs]
-            for k_r in range(len(repairs) - 1, -1, -1):
-                sh_r, co_r, old_r, _n = repairs[k_r]
-                style_r = journal_rep[k_r] if k_r < len(journal_rep) else (sh_r, co_r, "", None, False)
-                writer.take_back(sh_r, co_r, old_r, style_r)          # value, look, lock and served go together
-            for sh_u, coord_u, old_u, _now in reverts:
-                writer.revert(sh_u, coord_u, old_u)
-            repair_round(f"gate-loop {tier}")
-            ok2, failures2, card2 = gate_once()
-            mass1 = check_mass()
-            if ok2 or mass1 < mass0 - 1.0:
-                ok, failures, card = ok2, failures2, card2
-                mass0 = mass1
-                reverted_all += reverts
-                for sh_u, coord_u, old_u, was in reverts:
-                    if writer.in_forecast(sh_u, coord_u):
-                        writer.watch(sh_u, coord_u,
-                                     f"the run's answer ({was!r}) was taken "
-                                     "back so the model could balance")
-                        continue
-                    writer.flag(sh_u, coord_u, "red",
-                                (f"Taken back: the run's answer here ({was!r}) "
-                                 "stopped the model balancing; kept last period's "
-                                 "figure — please check."))
-                log(f"[run] gate loop ({tier} tier): {len(reverts)} "
-                    f"stage-4 serves taken back, repairs re-run -> "
-                    f"{'gate PASSED' if ok else f'residual mass {mass1:,.0f}, still refused'}")
-            else:
-                for sh_u, coord_u, was in snapshot:
-                    wb[sh_u][coord_u] = was
-                for sh_r, co_r, was_r in snap_rep:
-                    wb[sh_r][co_r] = was_r
-                log(f"[run] gate loop ({tier} tier): taking back "
-                    f"{len(reverts)} serves did not help "
-                    f"({mass0:,.0f} -> {mass1:,.0f}) — restored")
-        if not ok:
-            # one more repair-only round on the best state: anchors and
-            # plugs re-solved once more may finish what the take-backs
-            # opened (bounded: this is the last)
-            repair_round("gate-loop final")
-            ok3, failures3, card3 = gate_once()
-            if ok3 or check_mass() < mass0 - 1.0:
-                ok, failures, card = ok3, failures3, card3
-                log(f"[run] gate loop (final repair): "
-                    f"{'gate PASSED' if ok else 'improved, still refused'}")
-    # THE SENSE CHECK'S FINAL PASS (owner 2026-09-09): the last look — one
-    # review card per line still out of line if time allows, then keys and
-    # balance again; a change that breaks them is taken back; the rest is
-    # written up. The agent gives up with the objectives intact.
-    if (client is not None or stage4_answerer is not None) and locals().get("_pre_wb_sense") is not None:
-        try:
-            from .sensecheck import final_pass as _sense_final
-
-            def _sense_rerun():
-                nonlocal ok, failures, card
-                repair_round("sense")
-                ok, failures, card = gate_once()
-                return ok
-            _left_s = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
-            _sense_final(loop, _pre_wb_sense, log, client, stage4_answerer, _left_s, _sense_rerun)
-            if _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log):
-                repair_round("zero forecast")          # the hold moves the forecast balance: the repairs re-solve
-                ok, failures, card = gate_once()
-            if not ok and _conseq_answered:
-                # the last look moved something: the objectives are put to the brain once more
-                from .consequence import resolve_objectives as _resolve2
-                _left_c2 = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
-                _res2 = _resolve2(loop, _pre_wb_sense, log, loop.ask, gate_once, repair_round, check_mass,
-                                  keys_before, _key_panel, _panel_path, deadline_s=max(60.0, min(300.0, _left_c2)))
-                if _res2 is not None:
-                    ok, failures, card = _res2
-        except Exception as _e_sf:
-            log(f"[sense] final pass skipped: {_e_sf!r}")
+    # THE ENDING (owner 2026-09-15): one loop — measure the objectives, the
+    # brain decides how to fix the biggest break, code verifies, measure
+    # again; it stops itself. Nothing stacked after it.
+    from .consequence import run_ending as _run_ending
+    _pre_end = locals().get("_pre_wb_sense")
+    if _pre_end is None:
+        _pre_end = load(str(archive))
+    _left_e = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+    try:
+        ok, failures, card = _run_ending(
+            loop, _pre_end, log, getattr(loop, "ask", None), gate_once, repair_round, check_mass,
+            keys_before, _key_panel, _panel_path, deadline_s=max(120.0, _left_e),
+            hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
+            brain=(client is not None or stage4_answerer is not None))
+    except Exception as _e_end:
+        log(f"[ending] STAGE LOST: {_e_end!r}")
+        run_log.append(f"[ending] STAGE LOST: {_e_end!r}")
+        repair_round("first")
+        ok, failures, card = gate_once()
     for line in card.get("inherited_breaks", []):
         log(f"[run]   inherited (analyst's): {line}")
     for line in card.get("moveon_reported", []):

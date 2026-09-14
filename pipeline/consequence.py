@@ -213,3 +213,167 @@ def resolve_objectives(loop, pre_wb, log, ask, gate_once, repair_round, check_ma
         else:
             log(f"[consequence] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")
     return result
+
+
+def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys_before, key_panel, panel_path,
+               deadline_s, hold_zero=None, brain=True, max_rounds=14):
+    """THE ENDING (owner 2026-09-15: "a loop at the end that identifies the
+    issues, fixes them, makes sure the key numbers and the balance sheet
+    balance, and if there is another problem fixes it again — and stops
+    itself"). One loop, nothing stacked:
+      measure the objectives — the balance in every year, the keys against
+      the print, the headline lines out of line on the rollover — take the
+      biggest break, put it to the brain with the movers and the ways to
+      resolve it, apply the pick through the writer's laws, re-run the
+      repairs the model itself defines, measure again. EVERY round is
+      verified the same way: a new failure or a worse total is taken back.
+    Stops when the objectives hold, when every remaining break has been
+    judged (a question for the analyst, or a pick that did not help), or at
+    the clock. With no brain (a floor) the model's own executors act once
+    per break, matched to its kind. -> (ok, failures, card) from the last gate."""
+    from .investigate import swing_leaves
+    from .keytie import name_gap
+    from .sensecheck import headline_deltas, suspicious, investigate_line, reason_text, _sense_row
+    wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
+    t0 = time.monotonic()
+    asked = set()
+    lines = writer.log.setdefault("ending", [])
+    loop.census_budget_s = 90 if (brain and ask is not None) else 10
+    if hold_zero:
+        hold_zero()
+    repair_round("first")
+    result = gate_once()
+    if result[0] and not suspicious(headline_deltas(wb, pre_wb, spec, ty)):
+        lines.append("objectives held at the first measure")
+        return result
+    order = {"check": 0, "key": 1, "forecast-check": 2, "sense": 3}
+
+    def _breaks():
+        raw = broken_objectives(loop, keys_before, key_panel, panel_path)
+        out, seen_rows = [], set()
+        for o in raw:
+            kind, sheet, coord, amount, text = o
+            if kind == "forecast-check":
+                row = re.sub(r"[A-Z]", "", coord)
+                if (sheet, row) in seen_rows:
+                    continue                # the forecast years of one check row are ONE objective
+                seen_rows.add((sheet, row))
+            out.append((order[kind], abs(amount), o))
+        for d in suspicious(headline_deltas(wb, pre_wb, spec, ty)):
+            sh1, c1 = d["ref1"].split("!")
+            out.append((order["sense"], abs(d["d1"] - d["d0"]), ("sense", sh1, c1, d["d1"] - d["d0"], reason_text(d), d)))
+        out.sort(key=lambda x: (x[0], -x[1]))
+        return [o for _p, _a, o in out]
+
+    def _fails(res):
+        return set(res[1] or []) if res else set()
+
+    def _take_back(mark, why):
+        journal = writer.log.get("style_journal", [])[mark:]
+        for sh_w, co_w, old_w, _new in reversed(list(writer.log.get("writes_all", []))[mark:]):
+            style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
+            writer.take_back(sh_w, co_w, old_w, style)
+        repair_round("ending take-back")
+        log(f"[ending] {why}; taken back")
+        return gate_once()
+
+    for rnd in range(max_rounds):
+        if time.monotonic() - t0 > deadline_s:
+            lines.append("the clock ended the loop; what remains is written up")
+            log("[ending] clock: the objectives that remain are written up")
+            break
+        breaks = [b for b in _breaks() if (b[1], b[2]) not in asked]
+        if not breaks:
+            break
+        obj = breaks[0]
+        kind, sheet, coord, amount = obj[0], obj[1], obj[2], obj[3]
+        mass0 = check_mass()
+        fails0 = _fails(result)
+        mark = len(writer.log.get("writes_all", []))
+        log(f"[ending] round {rnd + 1}: {kind} {sheet}!{coord} off {amount:+,.2f} (objectives mass {mass0:,.0f}; {len(breaks)} break(s) open)")
+        pick = "__auto__"
+        if kind == "sense":
+            d = obj[5]
+            def _rerun():
+                repair_round("ending")
+                return gate_once()[0]
+            verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=_rerun)
+            _sense_row(writer, d, verdict, text, leaf, "ending")
+            lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
+            pick = verdict
+        else:
+            options, movers, named = {}, [], []
+            if brain and ask is not None:
+                flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
+                movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged, budget_s=60)[:6]
+                named, _rest = name_gap(loop.ledger, amount, served=loop.served) if kind == "key" else ([], abs(amount))
+                card, options = build_card(loop, pre_wb, obj[:5], movers, named)
+                log(f"[queue] card CONSEQUENCE {sheet}!{coord}: " + " | ".join(ln.strip() for ln in card.splitlines()[1:4 + len(movers)])[:900])
+                pick = ask(card, options, "__auto__")
+            if pick not in options:
+                # no brain, or no answer: the model's own executor for this kind of break, once
+                pick = "__auto__"
+                if kind == "check":
+                    from .orchestrator import terminal_ladder
+                    terminal_ladder(loop, log)
+                # a forecast-year check or a key: the repairs (forecast plugs, the key tie) re-solve below
+            elif pick == "question":
+                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> question")
+                writer.flag_ref(f"{sheet}!{coord}", "red", f"OPEN, by the brain's judgment: {obj[4]} — a question for the analyst"
+                                + ("; the gap equals " + "; ".join(f"{v:,.0f} '{lab}' ({where})" for v, lab, where in named) if named else ""))
+                lines.append(f"QUESTION {sheet}!{coord}: {obj[4]}")
+                asked.add((sheet, coord))
+                continue
+            elif pick == "plug":
+                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> plug")
+                from .orchestrator import terminal_ladder
+                terminal_ladder(loop, log)
+            else:
+                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> {pick}")
+                i = int(pick.split(":")[1]) - 1
+                (sh, c), _share = movers[i]
+                r = int(re.sub(r"[A-Z]", "", c))
+                pcol = prior_column(spec, sh, ty)
+                applied = True
+                if pick.startswith("revert:"):
+                    from openpyxl.utils import column_index_from_string as _ci
+                    pre_content = pre_wb[sh].cell(r, _ci(re.sub(r"\d", "", c))).value
+                    back = pre_content if pre_content is not None else 0.0
+                    applied = writer.write(sh, c, back, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="red",
+                                           note=f"Taken back by the brain's judgment: {obj[4]}; this input was moved by the run and is put back to what you had. Please check.")
+                    if applied:
+                        loop.served.pop((sh, r), None)
+                else:
+                    try:
+                        cur = Evaluator(wb).cell(sh, c)
+                    except Exception:
+                        cur = None
+                    held = wb[sh][c].value
+                    body = held[1:] if isinstance(held, str) and held.startswith("=") else (f"{cur:g}" if isinstance(cur, (int, float)) else None)
+                    applied = bool(body) and writer.write(sh, c, f"=({body})-({amount:.6g})", prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, flag="orange",
+                                                          note=f"Backed out by the brain's judgment so {obj[4]} closes: absorbed {amount:+,.1f} here. True up when disclosed.")
+                if not applied:
+                    log(f"[ending] the pick {pick} could not be written (the writer's law refused)")
+                    asked.add((sheet, coord))
+                    continue
+        # the same verification for every kind of pick
+        if hold_zero:
+            hold_zero()
+        repair_round("ending")
+        result = gate_once()
+        mass1 = check_mass()
+        new_fails = _fails(result) - fails0
+        if mass1 > mass0 + 1.0 or new_fails:
+            result = _take_back(mark, f"{kind} {sheet}!{coord}: {pick} made the objectives worse ({mass0:,.0f} -> {mass1:,.0f}"
+                                + (f"; opened {sorted(new_fails)[:2]}" if new_fails else "") + ")")
+            asked.add((sheet, coord))
+        else:
+            log(f"[ending] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")
+            if mass1 >= mass0 - 1.0 and kind != "sense":
+                asked.add((sheet, coord))
+            elif kind == "sense":
+                asked.add((sheet, coord))
+    left = _breaks()
+    lines.append(f"ended: {len(left)} objective(s) still broken" if left else "ended: every objective holds")
+    log(f"[ending] {lines[-1]}")
+    return result if result is not None else gate_once()

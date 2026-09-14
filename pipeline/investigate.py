@@ -357,8 +357,12 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
             if (p_ok or isinstance(wb[p_sh][p_c].value, (int, float))) and s_ok:
                 formula = "=" + _q(p_sh, p_c) + "".join("-" + _q(s_, c_) for s_, c_ in sibs)
                 attempts.append((f"the residual of its total ({p_sh}!{p_c}) less the proven parts", None, formula))
-        # (c) last year's share of the parent
-        if parent and pcol:
+        # (c) last year's share of the parent — only over a total that stands
+        # on its own (typed), never over a sum of the parts: a share of a total
+        # that includes the cell itself is a circular reference (CLP floor
+        # 2026-09-15: ROAFNA!AI71 = AH71/AH64*AI64 with AI64 summing AI71)
+        if parent and pcol and not (isinstance(wb[parent[0]][parent[1]].value, str)
+                                    and str(wb[parent[0]][parent[1]].value).startswith("=")):
             p_sh, p_c = parent
             p_row = int(re.sub(r"[A-Z]", "", p_c))
             p_pcol = prior_column(spec, p_sh, ty)
@@ -445,7 +449,8 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         p_pcol = prior_column(spec, p_sh, ty)
         pv_leaf = _val(wb, sh, f"{pcol}{r}") if pcol else None
         pv_par = _val(wb, p_sh, f"{p_pcol}{p_row}") if p_pcol else None
-        if isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and pcol:
+        par_typed = not (isinstance(wb[p_sh][p_c].value, str) and str(wb[p_sh][p_c].value).startswith("="))
+        if par_typed and isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and pcol:
             ways.append(("backout:S", "backout", None, f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c),
                          f"last year's share of its total {p_sh}!{p_c} (a formula, orange)"))
     # THE FALLBACKS ARE CASE BY CASE (owner 2026-09-15): when nothing proves

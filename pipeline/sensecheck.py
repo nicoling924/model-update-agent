@@ -342,7 +342,7 @@ def investigate_line(loop, pre_wb, d, log, rerun=None):
         log(f"[sense] bracket for '{d['name']}': {len(stable)} stable headline line(s) are proven; "
             f"{len(flagged)} own flagged cell(s) looked at first")
     from .investigate import swing_leaves
-    census = swing_leaves(wb, pre_wb, sh1, c1, stable=stable, flagged=flagged, budget_s=90)
+    census = swing_leaves(wb, pre_wb, sh1, c1, stable=stable, flagged=flagged, budget_s=getattr(loop, "census_budget_s", 90))
     if census:
         log(f"[sense] census for '{d['name']}': " + ", ".join(
             f"{sh}!{c} {s_ * 100:+.0f}%" for (sh, c), s_ in census[:6]))

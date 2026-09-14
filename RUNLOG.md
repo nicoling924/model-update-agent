@@ -2466,3 +2466,19 @@ suspect cell the brain picks among the analyst's ways in order: a printed line t
 model itself gives, last year's figure kept red as NOT FOUND, or keep; a plug is never on the card (terminal
 ladder only). Code verifies the pick (evidence law, checks hold, take-back). No brain → the automatic ladder,
 so floors are unchanged. Museum 231, bench green; floors CLP 8/8 · 4 plugs, DFE FY25 8/11, DFE 1H25 rounding.
+
+## 2026-09-15 — THE ENDING: one loop (owner: "a loop at the end that identifies the issues, fixes them, makes sure the keys and the balance sheet balance, and stops itself")
+The stacked ending (terminal ladder after stage 4, the final closer inside the repair suite, the two-tier bulk
+take-back, the separate final sense pass, the extra zero hold, the consequence loop layered on top) is replaced
+by `consequence.run_ending`: measure the objectives — balance checks in every year (the forecast years of one
+row are one objective), the keys against the print, the headline lines out of line — take the biggest break,
+put it to the brain with the movers (the swing census) and the ways to resolve it (revert a mover, back it out,
+plug as the last resort, or a question for the analyst with the gap named), apply the pick through the
+writer, re-run the model's own repairs, measure again; EVERY round is verified the same way (a new gate
+failure or a worse total is taken back); stops when the objectives hold, when every remaining break has been
+judged, or at the clock. No brain (floors): the model's own executor once per break, matched to its kind.
+Also: the name judgment (naming.py) runs before every served write; the reader shows the brain each row's
+sheet and section headers; the rung card offers the analyst's estimate AND last year's actual; the
+"share of its total" rung needs a typed total (a share of a sum that includes the cell was a circular
+reference on the CLP floor). Museum 235, bench green; floors: CLP clean 8/8, DFE FY25 clean 8/11, DFE 1H25
+rounding 1.0. Owner's overnight bar: balanced, 2025 keys all correct, rollover swings sense-checked by the loop.
