@@ -560,6 +560,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             n_pin += 1
         log(f"[run] served PINNED: {n_pin} live serves replayed from "
             f"{pinned_served}")
+    # THE NAME JUDGMENT (owner 2026-09-15): every tie whose printed name is
+    # not kin to the model row goes to the brain before it lands
+    try:
+        from .naming import judge_names as _judge_names
+        _judge_names(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log)
+    except Exception as _e_nm:
+        log(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
+        run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
     _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
 
     # -- ROLL-FORWARD SCHEDULES (owner 2026-09-10): the vertical prior tie —
@@ -593,6 +601,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if client is not None:
         gap_served = read_gaps(ledger, targets, served, client, docs, run_log)
         served.update(gap_served)
+        try:
+            from .naming import judge_names as _judge_names2
+            _judge_names2(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log)
+            for _k in list(gap_served):
+                if _k not in served:
+                    gap_served.pop(_k, None)          # the brain refused the name: nothing lands
+        except Exception as _e_nm2:
+            log(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
+            run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
         _write_served(wb, spec_d, target_year, gap_served, writer, prior_map, log)
     else:
         log("[run] stage 3 skipped: no client (dry run)")
@@ -1319,6 +1336,28 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     repair_round("first")
     ok, failures, card = gate_once()
 
+    # THE CONSEQUENCE CARDS (owner 2026-09-15): goal-based, not scripted —
+    # when an objective is broken the brain sees the consequence and the
+    # ways to resolve it and decides; code verifies. The bulk take-back
+    # below is the no-brain floor path only.
+    _conseq_answered = False
+    _conseq_pre = locals().get("_pre_wb_sense")
+    if not ok and getattr(loop, "ask", None) is not None and (client is not None or stage4_answerer is not None):
+        try:
+            if _conseq_pre is None:
+                _conseq_pre = load(str(archive))
+            from .consequence import resolve_objectives as _resolve
+            _left_c = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+            _res = _resolve(loop, _conseq_pre, log, loop.ask, gate_once, repair_round, check_mass,
+                            keys_before, _key_panel, _panel_path, deadline_s=max(60.0, min(600.0, _left_c)))
+            if _res is not None:
+                ok, failures, card = _res
+                _conseq_answered = True
+                log(f"[run] consequence cards: {'objectives hold' if ok else 'questions remain for the analyst'}")
+        except Exception as _e_cq:
+            log(f"[consequence] STAGE LOST: {_e_cq!r}")
+            run_log.append(f"[consequence] STAGE LOST: {_e_cq!r}")
+
     # THE GATE LOOP (owner ruling 2026-09-02: "the gate found it didn't
     # balance -> the agent takes back the action and revises where it
     # went wrong" — trial and error IS the analyst's workflow; a judge
@@ -1329,7 +1368,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # suite on the corrected state (anchors and plugs were solved
     # against the wrong values), and judge again. Bounded; each round
     # must not worsen the total check residual or it is undone.
-    if not ok and (client is not None or stage4_answerer is not None):
+    if not ok and not _conseq_answered and (client is not None or stage4_answerer is not None):
         red_set = set(writer.log.get("flags", []))
         # the append-only ledger, not the undo journal: the guards POP
         # undo while unwinding (run-223: the take-back saw an empty slice)
@@ -1440,6 +1479,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             if _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log):
                 repair_round("zero forecast")          # the hold moves the forecast balance: the repairs re-solve
                 ok, failures, card = gate_once()
+            if not ok and _conseq_answered:
+                # the last look moved something: the objectives are put to the brain once more
+                from .consequence import resolve_objectives as _resolve2
+                _left_c2 = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+                _res2 = _resolve2(loop, _pre_wb_sense, log, loop.ask, gate_once, repair_round, check_mass,
+                                  keys_before, _key_panel, _panel_path, deadline_s=max(60.0, min(300.0, _left_c2)))
+                if _res2 is not None:
+                    ok, failures, card = _res2
         except Exception as _e_sf:
             log(f"[sense] final pass skipped: {_e_sf!r}")
     for line in card.get("inherited_breaks", []):

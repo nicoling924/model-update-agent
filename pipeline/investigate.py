@@ -448,9 +448,19 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         if isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and pcol:
             ways.append(("backout:S", "backout", None, f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c),
                          f"last year's share of its total {p_sh}!{p_c} (a formula, orange)"))
+    # THE FALLBACKS ARE CASE BY CASE (owner 2026-09-15): when nothing proves
+    # the figure, both stale figures are shown with their meaning — the
+    # analyst's own estimate for this year (what the model held before the
+    # update) and last year's actual — and the brain picks one and says
+    # why; red either way. The owner's own instinct on India debt (estimate
+    # 0, last year 61,829, nothing printed): keep the estimate, flag it.
+    ly_v = _val(wb, sh, f"{pcol}{r}") if pcol else None
     if isinstance(pre_v, (int, float)):
-        ways.append(("stale", "stale", float(pre_v), None,
-                     f"keep what you had ({pre_v:,.2f}) — not found this year; stays RED as 'not found'"))
+        ways.append(("estimate", "stale", float(pre_v), None,
+                     f"keep the analyst's own estimate for this year ({pre_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
+    if isinstance(ly_v, (int, float)) and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
+        ways.append(("lastyear", "stale", float(ly_v), None,
+                     f"keep last year's actual ({ly_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
     ways.append(("keep", "keep", None, None,
                  "keep the current figure — it belongs on this row (say why)"))
     # the effect of each way on the line's gap, by trial
@@ -475,7 +485,8 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
             if trail and isinstance(trail[-1][3], (int, float)) else f"  the line: '{d['name']}'",
             f"  this cell now: {cur_v if cur_v is None else f'{cur_v:,.2f}'} ({colour}; {basis}); last year {pre_v if pre_v is None else f'{pre_v:,.2f}'}"
             + (f"; this year's move {this_move * 100:+.0f}% vs past {band[0] * 100:+.0f}% to {band[1] * 100:+.0f}%" if unusual and band else ""),
-            "  the ways to fill it, in the analyst's order (a plug is never one of them):"]
+            "  the ways to fill it, in the analyst's order (a plug is never one of them). When nothing is printed, the",
+            "  analyst's estimate is usually closer to what was expected than last year's figure — but judge this case:"]
     for key, kind, value, formula, desc in ways:
         pv_ = previews.get(key)
         eff = ("cannot be written" if pv_ is None else f"gap {gap0 * 100:.0f} → {pv_ * 100:.0f} points")
@@ -489,7 +500,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         return _auto_ladder()
     way = next(w for w in ways if w[0] == pick)
     key, kind, value, formula, desc = way
-    log(f"[sense] RUNG {sh}!{coord} -> {pick}")
+    log(f"[queue] RUNG {sh}!{coord} -> {pick}")
     if kind == "keep":
         return ("genuine" if not unusual else "unusual"), (f"'{d['name']}': swing traced to {path} ({ref}) — the brain judged the figure belongs here"
                                                              + (f" (unusual per history: {this_move * 100:+.0f}%)" if unusual else ""))

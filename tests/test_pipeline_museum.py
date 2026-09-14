@@ -5436,9 +5436,10 @@ def test_the_rung_card_brain_picks_code_verifies_2026_09_14():
     seen_cards = []
     def ask_stale(text, options, default):
         seen_cards.append(text)
-        assert "stale" in options and "keep" in options and "plug" not in " ".join(options)
+        assert "estimate" in options and "keep" in options and "plug" not in " ".join(options)
+        assert "lastyear" not in options            # the estimate (=T2 -> 940) IS last year's figure here: one fallback shown
         assert "CARD RUNG S!U2" in text and "last year 940.00" in text
-        return "stale"
+        return "estimate"
     lp.ask = ask_stale
     verdict, text = judge_and_fix(lp, pre, d, ("S", "U2"), trail, lambda *_a: None, lambda: 4.83)
     assert verdict == "stale" and wb["S"]["U2"].value == 940.0, (verdict, wb["S"]["U2"].value)
@@ -5454,6 +5455,88 @@ def test_the_rung_card_brain_picks_code_verifies_2026_09_14():
     verdict, text = judge_and_fix(lp, pre, d, ("S", "U2"), trail, lambda *_a: None, lambda: 4.83)
     assert verdict == "red" and wb["S"]["U2"].value == 5484.0, (verdict, wb["S"]["U2"].value)
     print("PASS test_the_rung_card_brain_picks_code_verifies_2026_09_14")
+
+
+def test_the_brain_judges_every_name_mismatch_2026_09_15():
+    """Owner 2026-09-15: "the brain should be used to think and reason for
+    the item terms and names". CLP: a Hong Kong tariff line printing −425
+    became Australia amortisation because the number tied and nobody read
+    the words. Every tie whose printed name is not kin to the model row goes
+    to the brain in one batched call; a refusal drops the serve (the row
+    stays red, not found); an accepted synonym lands."""
+    from pipeline.naming import judge_names, name_mismatches
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow
+    wb = _wb({"A2": "Australia", "A4": "- Amortisation", "T4": -425.0, "U4": "=T4",
+              "A7": "Domestic", "T7": 9000.0, "U7": "=T7", "A9": "Revenue", "T9": 100.0, "U9": "=T9"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": []}
+    led = _ledger([_item(236, 1, "Transfer from/(to) Tariff Stabilisation Fund", [386.0, -425.0], table_id=1, table_kind="period", columns=["FY2025", "FY2024"]),
+                   _item(30, 2, "Residential", [9966.0, 9000.0], table_id=2, table_kind="period", columns=["FY2025", "FY2024"])])
+    served = {("S", 4): {"value": 386.0, "doc": DOC, "page": 236, "line": "Transfer from/(to) Tariff Stabilisation Fund", "conf": 4},
+              ("S", 7): {"value": 9966.0, "doc": DOC, "page": 30, "line": "Residential", "conf": 4},
+              ("S", 9): {"value": 110.0, "doc": DOC, "page": 23, "line": "Revenue", "conf": 4}}
+    targets = {("S", 4): TargetRow("S", 4, "- Amortisation", -425.0), ("S", 7): TargetRow("S", 7, "Domestic", 9000.0),
+               ("S", 9): TargetRow("S", 9, "Revenue", 100.0)}
+    mm = name_mismatches(wb, served, targets)
+    assert sorted(k for k, _e, _l in mm) == [("S", 4), ("S", 7)], mm        # 'Revenue' = 'Revenue' needs no judgment
+    class FakeClient:
+        calls = 0
+        def json(self, system, user, validate, repair_retries=1, images=None):
+            FakeClient.calls += 1
+            assert "Tariff Stabilisation" in user and "Australia" in user and "table columns: FY2025, FY2024" in user
+            out = []
+            for blk in user.split("### id ")[1:]:
+                n = int(blk.split("\n", 1)[0])
+                same = "Residential" in blk
+                out.append({"id": n, "same": same, "why": "a Hong Kong tariff item, not Australian amortisation" if not same else "residential = domestic"})
+            return {"items": out}
+    w = Writer(wb); logs = []
+    asked, refused = judge_names(FakeClient(), wb, spec, led, served, targets, w, logs.append)
+    assert (asked, refused, FakeClient.calls) == (2, 1, 1)
+    assert ("S", 4) not in served and ("S", 7) in served and served[("S", 7)].get("named")
+    assert w.log["name_refusals"] and "Tariff" in w.log["name_refusals"][0]
+    # no brain (a floor): nothing is judged, nothing is lost
+    served2 = {("S", 4): {"value": 386.0, "doc": DOC, "page": 236, "line": "Transfer from/(to) Tariff Stabilisation Fund", "conf": 4}}
+    assert judge_names(None, wb, spec, led, served2, targets, Writer(wb), lambda *_a: None) == (1, 0) and ("S", 4) in served2
+    print("PASS test_the_brain_judges_every_name_mismatch_2026_09_15")
+
+
+def test_the_consequence_card_brain_decides_code_verifies_2026_09_15():
+    """Owner 2026-09-15: "if I move this number, will it change my key
+    numbers? how should I solve it?" — after any change code measures the
+    objectives; when one breaks the brain sees the movers and the ways to
+    resolve it; code applies the pick and takes back a pick that made it
+    worse. No brain -> None (the floor path decides)."""
+    from pipeline.consequence import broken_objectives, resolve_objectives
+    from pipeline.writer import Writer
+    from openpyxl.styles import PatternFill
+    pre = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0, "U2": 100.0, "U3": 50.0, "U4": 150.0,
+               "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0, "U2": 999.0, "U3": 60.0, "U4": 160.0,     # U2 wrongly served
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    wb["S"]["U2"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}], "key_rows": []}
+    lp = _loop(wb, spec, served={("S", 2): {"value": 999.0, "line": "Other", "page": 3, "conf": 4}}, evidence=[[999.0, 1.0]])
+    objs = broken_objectives(lp, {}, {}, None)
+    assert objs and objs[0][:3] == ("check", "S", "U9") and abs(objs[0][3] - 899.0) < 0.5, objs
+    seen = []
+    def ask(text, options, default):
+        seen.append(text)
+        assert "CARD CONSEQUENCE S!U9" in text and "[1] S!U2" in text and "99% of the move" in text or "100% of the move" in text
+        assert "revert:1" in options and "backout:1" in options and "plug" in options and "question" in options
+        return "revert:1"
+    def gate_once():
+        return (not any(abs(o[3]) > 1 for o in broken_objectives(lp, {}, {}, None)), [], {})
+    res = resolve_objectives(lp, pre, lambda *_a: None, ask, gate_once, lambda tag: None,
+                             lambda: sum(abs(o[3]) for o in broken_objectives(lp, {}, {}, None)), {}, {}, None)
+    assert res is not None and res[0] is True, res
+    assert wb["S"]["U2"].value == 100.0 and ("S", 2) not in lp.served and seen
+    assert str(wb["S"]["U2"].fill.fgColor.rgb).endswith("FFC7CE")
+    # no brain: None, the floor path decides
+    wb["S"]["U2"] = 999.0
+    assert resolve_objectives(lp, pre, lambda *_a: None, lambda t, o, d: d, gate_once, lambda tag: None, lambda: 0.0, {}, {}, None) is None
+    print("PASS test_the_consequence_card_brain_decides_code_verifies_2026_09_15")
 
 
 if __name__ == "__main__":
