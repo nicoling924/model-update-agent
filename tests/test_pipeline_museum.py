@@ -5493,7 +5493,8 @@ def test_the_brain_judges_every_name_mismatch_2026_09_15():
     w = Writer(wb); logs = []
     asked, refused = judge_names(FakeClient(), wb, spec, led, served, targets, w, logs.append)
     assert (asked, refused, FakeClient.calls) == (2, 1, 1)
-    assert ("S", 4) not in served and ("S", 7) in served and served[("S", 7)].get("named")
+    assert ("S", 4) in served and served[("S", 4)]["flag"] == "red" and "NAME DOUBTED" in served[("S", 4)]["note"]   # a doubt is a flag, not a veto
+    assert ("S", 7) in served and served[("S", 7)].get("named") and not served[("S", 7)].get("flag")
     assert w.log["name_refusals"] and "Tariff" in w.log["name_refusals"][0]
     # no brain (a floor): nothing is judged, nothing is lost
     served2 = {("S", 4): {"value": 386.0, "doc": DOC, "page": 236, "line": "Transfer from/(to) Tariff Stabilisation Fund", "conf": 4}}

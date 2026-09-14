@@ -126,10 +126,19 @@ def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=12
                 continue
             why = str(v.get("why") or "")[:120]
             refused += 1
-            served.pop((sheet, row), None)
+            # A DOUBTED NAME IS A FLAG, NOT A VETO (run 34874944306: the brain
+            # refused eighteen ties and eleven were right numbers — Yallourn's
+            # generation from a narrative line, retained earnings from the
+            # two-sided balance sheet row). The number tie is evidence; the
+            # name doubt makes it unproven: it lands RED with the brain's
+            # reason, for the analyst — it is never thrown away.
+            entry["flag"] = "red"
+            entry["conf"] = min(int(entry.get("conf") or 0), 3)
+            entry["note"] = (f"NAME DOUBTED by the brain: the printed line '{str(entry.get('line') or '')[:50]}' "
+                             f"(p{entry.get('page')}) ties last year's figure but is named unlike this row — {why}. Please confirm.")
             writer.log.setdefault("name_refusals", []).append(
                 f"{sheet}!{row} '{label}': the brain refused the printed line '{str(entry.get('line') or '')[:50]}' "
                 f"(p{entry.get('page')}, {entry['value']:,.2f}) — {why}")
             log(f"[names] REFUSED {sheet}!{row} '{label[:28]}' <- '{str(entry.get('line') or '')[:40]}' {entry['value']:,.2f} — {why}")
-    log(f"[names] the brain judged {len(items)} name-mismatched tie(s): {len(items) - refused} accepted, {refused} refused (rows stay red, not found)")
+    log(f"[names] the brain judged {len(items)} name-mismatched tie(s): {len(items) - refused} accepted, {refused} doubted (land red for the analyst)")
     return len(items), refused

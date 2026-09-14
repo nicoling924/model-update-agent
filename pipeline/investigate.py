@@ -460,10 +460,17 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     # why; red either way. The owner's own instinct on India debt (estimate
     # 0, last year 61,829, nothing printed): keep the estimate, flag it.
     ly_v = _val(wb, sh, f"{pcol}{r}") if pcol else None
-    if isinstance(pre_v, (int, float)):
+    # A PROVEN FIGURE IS NEVER TRADED FOR A GUESS (run 34874944306: the brain
+    # replaced the proven fuel clause −1,043 with the analyst's estimate 0
+    # because the cash-flow line swung): a proven cell's ways are keep, or
+    # another proven printed line — never the estimate, last year's figure
+    # or a back-out
+    if proven and colour == "plain":
+        ways = [w for w in ways if w[1] == "printed"]
+    if isinstance(pre_v, (int, float)) and not (proven and colour == "plain"):
         ways.append(("estimate", "stale", float(pre_v), None,
                      f"keep the analyst's own estimate for this year ({pre_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
-    if isinstance(ly_v, (int, float)) and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
+    if isinstance(ly_v, (int, float)) and not (proven and colour == "plain") and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
         ways.append(("lastyear", "stale", float(ly_v), None,
                      f"keep last year's actual ({ly_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
     ways.append(("keep", "keep", None, None,

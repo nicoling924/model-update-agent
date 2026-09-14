@@ -2482,3 +2482,14 @@ sheet and section headers; the rung card offers the analyst's estimate AND last 
 "share of its total" rung needs a typed total (a share of a sum that includes the cell was a circular
 reference on the CLP floor). Museum 235, bench green; floors: CLP clean 8/8, DFE FY25 clean 8/11, DFE 1H25
 rounding 1.0. Owner's overnight bar: balanced, 2025 keys all correct, rollover swings sense-checked by the loop.
+
+## 2026-09-15 — CLP FY25 live run 34874944306 (head 6eef038, 51 min): DELIVERED clean, keys 9/10
+Every key equals the analyst's workbook except operating profit (ties the print 14,272; the analyst's own
+definition computes 13,812). The ending loop ran 10 rounds: one consequence card (revert taken back when it
+opened a check), then the swing lines with rung cards — picks visible per cell (keep / printed / estimate /
+lastyear), verdicts genuine / unusual / fixed / stale. Score: 250 judged, 147 correct (59%), wrong 103 =
+red 72 / orange 20 / unhighlighted 11. Two causes of the drop, both in today's own design: the name judgment
+DELETED eighteen ties of which eleven were right numbers (Yallourn generation, retained earnings from the
+two-sided balance-sheet row, JV balances) — a doubted name now lands RED, never deleted; and the rung card let
+the brain trade PROVEN figures for the analyst's estimate (fuel clause −1,043 → 0) — a proven cell's ways are
+now keep or another proven line only. docs/scores/CLP_FY25_run34874944306_vs_analyst.txt
