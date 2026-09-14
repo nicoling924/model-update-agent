@@ -2509,3 +2509,14 @@ Final!AI28 'Disposal or tax consolidation' = 390,000,000 — the prose 'net gain
 in base currency units and offered unconverted (the page scale of a millions document is 1). Fix at the
 cause: a prose money figure is converted with the MODEL's stated units (numerics.model_unit_mult /
 prose_money_value; spec 'HK$ millions' -> 390). Museum 237. docs/scores/CLP_FY25_run34887799324_vs_analyst.txt
+
+## 2026-09-15 — CLP FY25 live run 34892926478 (head 7a733f1, 49 min): THE DELIVERABLE
+Balance sheet closed every year; the one open check is the analyst's own ROAFNA!31 (−968; −1,264 before the
+update), left as a question by the brain. Keys 9/10 equal the analyst's workbook (operating profit ties the
+print 14,272 vs the analyst's 13,812 — definition). Rollover verdicts on the page: tax FIXED, pre-tax /
+operating GENUINE, EBITDA unusual, FCF / CFO red for the analyst, financing genuine, net profit / EPS spread;
+FY26 forecasts sane. Score 255 judged, 151 correct (59%), unhighlighted 14. AI28 = 390 (prose units fixed).
+The CLP FY25 floor is re-pinned from this run: the reader replays 2,456 tables from the pin with 0 calls.
+## 2026-09-15 — DFE FY25 live run 34897890192 (head 7a733f1, 34 min): the proof run
+Delivered with one open check (Driver!J139 −19, a question by the brain); keys 8/11; 0 plugs; 180/192 (94%)
+vs the prior agent file, unhighlighted 0. docs/MORNING_REPORT_2026-09-15.md holds the night's account.

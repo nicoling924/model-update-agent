@@ -1,0 +1,17 @@
+reference: Dongfang Electric Claude Fable 5.xlsx
+1. filled input cells judged: 192; correct: 180 (94%)
+2. wrong: 12 — red 12, orange 0
+3. wrong and NOT highlighted: 0
+per sheet (judged, correct): {'Model': [2, 1], 'Raw financials': [163, 160], 'Driver': [25, 17], 'Cons': [2, 2]}
+   red    Driver!J10    Wind                         agent=       13647.6 ref=      18224.19
+   red    Driver!J11    Hydro                        agent=       2955.37 ref=       3902.82
+   red    Driver!J136   Exchange gain/(losses)       agent=         -5.93 ref=        -25.21
+   red    Driver!J155   =A6                          agent=      44163.07 ref=       78945.1
+   red    Driver!J159   New Energy (Mostly Wind & Hy agent=      29879.38 ref=             0
+   red    Driver!J160   =A12                         agent=       9891.34 ref=       25971.1
+   red    Driver!J43    =+A10                        agent=     -13320.17 ref=     -17707.91
+   red    Driver!J7         Gas Turbine              agent=          7258 ref=       5627.57
+   red    Model!U38    Dividend 现金分红                agent=       1366.32 ref=       1832.93
+   red    Raw financials!U252               待摊费用减少           agent=         10.89 ref=             0
+   red    Raw financials!U266               间接法-经营活动现金流量净额差额 agent=        152.71 ref=             0
+   red    Raw financials!U32                其中：非流动资产处置净损失    agent=       7550.43 ref=             0
