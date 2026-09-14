@@ -2444,3 +2444,25 @@ unhighlighted 9. The run filled 25 more cells than 34820388690, mostly CN segmen
 through India's red inputs (total debt, minority interest) and the fuel clause account. Unhighlighted 9 are
 the same classes (Aus amortisation sign, MI definition, dividends, JCE investment, SEA solar, India one-off,
 ROAFNA capex). docs/scores/CLP_FY25_run34830794807_vs_analyst.txt
+
+## 2026-09-14 — after run 34830794807: the owner's three cells, traced to causes; the sense check redesigned with the owner
+Aus!AI62 Ecogen 940 → 5,484 (the Hong Kong employee headcount): the positional companion rule found the prior
+940 at slot 0 of a five-year-summary row ('Hong Kong number', a PERIOD table — slot 0 is FY2025) and read the
+same-labelled row of another period table at slot 0. Fixes: the companion reads this year's table under the
+COLUMN OF THE SAME NAME the brain read (position only when no table has names; a period table never pairs
+this way); the gate refuses a line whose printed comparative contradicts the cell's prior ("comparative
+contradicts": 5,397 beside 5,484 vs a model prior of 940 is another item); cards are written to the log.
+Driver!112 'Others' 45 → 349: the residual formula copied correctly; HK/China inputs stale; the plug meter's
+500 absolute floor hid a 7.7× move — the meter now reads the residual against its own total and history.
+SOC Accounts!AI9: the key tie dumped a 5,758 gap (3,872 perpetual securities + fuel clause placement) into a
+residual row — a residual row is never an absorber; a gap equal to ONE unhomed printed figure is named red
+instead of absorbed (pairs/triples were tried and rejected: a coincidence machine on the floor).
+The sense check, agreed with the owner: (1) the CENSUS — every typed cell ranked by its share of the headline
+swing (the part that disappears when it is put back), all branches, own flags first; the walker now expands
+ranges across columns (AVERAGE(AI66:AJ66) had cut the Australia trail one step short — on the live file the
+census now leads with Aus!AI62 at 67% of next year's net profit swing); (2) the BRACKET — a headline line whose
+own check passed is never entered; (3) the plug meter re-read after the checks; (4) THE RUNG CARD — for each
+suspect cell the brain picks among the analyst's ways in order: a printed line that ties, a back-out the
+model itself gives, last year's figure kept red as NOT FOUND, or keep; a plug is never on the card (terminal
+ladder only). Code verifies the pick (evidence law, checks hold, take-back). No brain → the automatic ladder,
+so floors are unchanged. Museum 231, bench green; floors CLP 8/8 · 4 plugs, DFE FY25 8/11, DFE 1H25 rounding.

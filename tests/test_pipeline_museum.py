@@ -5282,6 +5282,180 @@ def test_the_swing_is_traced_between_the_stable_line_and_the_flag_2026_09_14():
     print("PASS test_the_swing_is_traced_between_the_stable_line_and_the_flag_2026_09_14")
 
 
+def test_the_ecogen_lesson_a_period_table_has_no_slot_2026_09_14():
+    """CLP live 34830794807: the positional generator found the model's
+    prior 940 at slot 0 of a five-year-summary row ('Hong Kong number',
+    a PERIOD table — slot 0 is FY2025) and read the same-labelled row of
+    another period table at slot 0: 5,484, the employee headcount, as
+    Ecogen's capacity; the gate let it land red because the value was
+    printed. Two laws: positional inference never reads a period table
+    (its columns say the year), and a period line whose comparative
+    contradicts the cell's prior is a different item — refused."""
+    from pipeline.workqueue import _companion_candidates
+    from pipeline.writegate import judge_write, contradicts_prior
+    a = _item(242, 1, "Hong Kong number", [940.0, 902.0, 880.0], table_id=1, table_kind="period",
+              columns=["FY2025", "FY2024", "FY2023"])
+    b = _item(241, 1, "Hong Kong number", [5484.0, 5397.0, 5163.0], table_id=2, table_kind="period",
+              columns=["FY2025", "FY2024", "FY2023"])
+    led = _ledger([a, b]); led._doc_periods = {DOC: "current"}; led.stamp_vintages()
+    class L: ledger = led
+    scales = {(DOC, 241): 1.0, (DOC, 242): 1.0}
+    assert _companion_candidates(L(), 940.0, None, {DOC: "current"}, [a, b], scales) == []
+    # a segment table is read by the COLUMN'S NAME: the prior sat under 'Australia' last year,
+    # this year's same-labelled row is read under 'Australia' — whatever position it has
+    a.table_kind = b.table_kind = "matrix"
+    a.columns = ["hong kong", "australia", "total"]; a.nums = [300.0, 940.0, 1240.0]
+    b.columns = ["australia", "hong kong", "india", "total"]; b.nums = [945.0, 310.0, 50.0, 1305.0]
+    out = _companion_candidates(L(), 940.0, None, {DOC: "current"}, [a, b], scales)
+    assert [c["value"] for c in out] == [945.0], out
+    b.columns = ["hong kong", "india", "total"]; b.nums = [310.0, 50.0, 360.0]     # no such column this year: no read
+    assert _companion_candidates(L(), 940.0, None, {DOC: "current"}, [a, b], scales) == []
+    a.columns = b.columns = []; a.nums = [300.0, 940.0]; b.nums = [310.0, 945.0]   # nothing named: position is all there is
+    assert [c["value"] for c in _companion_candidates(L(), 940.0, None, {DOC: "current"}, [a, b], scales)] == [945.0]
+    b.table_kind = "period"; b.nums = [5484.0, 5397.0, 5163.0]; b.columns = ["FY2025", "FY2024", "FY2023"]
+    assert contradicts_prior(b, 1.0, 940.0, 5484.0)
+    v, why, flag = judge_write(5484.0, 940.0, False, [(b, 1.0)], set())
+    assert v == "REFUSE" and "comparative contradicts" in why, (v, why)
+    lone = _item(12, 1, "Ecogen", [5484.0], table_id=3, table_kind="plain")
+    v2, _w, flag2 = judge_write(5484.0, 940.0, False, [(lone, 1.0)], set())
+    assert v2 == "ALLOW_FLAGGED" and flag2 == "red"   # no comparative printed: unproven, red, as before
+    print("PASS test_the_ecogen_lesson_a_period_table_has_no_slot_2026_09_14")
+
+
+def test_the_plug_meter_reads_the_residual_against_its_total_2026_09_14():
+    """CLP Driver!112 'Others' net finance cost: 45 -> 349 on a -1,666
+    total (2% of the total every year, 21% now) slipped the meter because
+    of a 500 absolute floor. The meter is history and materiality against
+    the residual's own total — no absolute floor (units differ by model)."""
+    from pipeline.teachings import plug_meter
+    wb = _wb({"T2": -2019.0, "U2": -1666.0, "T3": -1460.0, "U3": -1460.0, "T4": -442.0, "U4": -392.0,
+              "T5": -166.0, "U5": -166.0, "T6": "=T2-T3-T4-T5", "U6": "=U2-U3-U4-U5"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": []}
+    pm = plug_meter(wb, spec, 2025)
+    assert [(s_, r) for s_, r, _n, _w in pm] == [("S", 6)], pm      # 49 -> 352: metered
+    wb["S"]["U3"] = -1160.0                                         # HK updated: residual back to 52
+    assert plug_meter(wb, spec, 2025) == []
+    print("PASS test_the_plug_meter_reads_the_residual_against_its_total_2026_09_14")
+
+
+def test_a_key_gap_is_named_before_it_is_absorbed_2026_09_14():
+    """CLP live 34830794807: total liabilities and equity was 5,758 short
+    and the whole gap was dumped into the fuel clause payable — a
+    residual row — while 3,872 of it was the printed perpetual capital
+    securities and 1,043 the printed fuel clause account. The gap is
+    named against the print first: named -> red definition question,
+    nothing absorbed; and a residual row is never an absorber."""
+    from pipeline.keytie import key_tie, name_gap
+    from pipeline.writer import Writer
+    from openpyxl.styles import PatternFill
+    led = _ledger([_item(26, 1, "Perpetual capital securities", [3872.0, 3872.0], table_id=1, table_kind="period"),
+                   _item(25, 2, "Fuel clause account", [1043.0, 370.0], table_id=2, table_kind="period"),
+                   _item(25, 3, "Dividends payable", [843.0, 700.0], table_id=2, table_kind="period"),
+                   _item(25, 4, "Total equity", [107610.0, 104055.0], table_id=2, table_kind="period")],
+                  face_pages=((25, "bs"), (26, "bs")))
+    led._doc_periods = {DOC: "current"}; led.stamp_vintages()
+    parts, rest = name_gap(led, -3872.0)
+    assert [round(v) for v, _l, _w in parts] == [3872] and rest == 0.0
+    parts, rest = name_gap(led, -5758.0)          # no single printed figure: not named — code never sums coincidences
+    assert parts == [] and rest == 5758.0
+    wb = _wb({"T2": 100000.0, "U2": 100000.0,               # liabilities (proven)
+              "T3": 6063.0, "U3": 5943.0,                   # minority interests
+              "T4": 370.0, "U4": 20.0,                      # fuel clause closing balance (red)
+              "T5": "=IF(T4<0,0,T4)", "U5": "=IF(U4<0,0,U4)",
+              "T6": "=T5-T4", "U6": "=U5-U4",               # payable: the model's own residual
+              "T7": "=T2+T3+T6", "U7": "=U2+U3+U6"})        # the key
+    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "total liabilities and equity", "sheet": "S", "row": 7}]}
+    panel = {"total liabilities and equity": {"print": 105943.0 + 3872.0, "prior": 106063.0}}
+    w = Writer(wb); logs = []
+    assert key_tie(wb, spec, 2025, w, None, logs.append, panel=panel, ledger=led) == 0
+    assert wb["S"]["U6"].value == "=U5-U4" and wb["S"]["U4"].value == 20.0, "nothing absorbed"
+    assert any("gap named" in ln and "Perpetual capital securities" in ln for ln in logs), logs
+    # an unexplained gap still backs out — but never into the residual row
+    panel = {"total liabilities and equity": {"print": 105943.0 + 777.0, "prior": 106063.0}}
+    w2 = Writer(wb); logs2 = []
+    key_tie(wb, spec, 2025, w2, None, logs2.append, panel=panel, ledger=led)
+    assert wb["S"]["U6"].value == "=U5-U4", wb["S"]["U6"].value
+    assert wb["S"]["U4"].value != 20.0, "the red input absorbs, not the residual"
+    print("PASS test_a_key_gap_is_named_before_it_is_absorbed_2026_09_14")
+
+
+def test_the_swing_census_finds_every_material_mover_2026_09_14():
+    """Owner 2026-09-14: "just by tracing the input numbers it's obvious
+    Australia caused the swing in net income" — the single-path tracer
+    stopped at 'spread'. The census lists every typed cell by its share
+    of the headline swing, the agent's own flags first."""
+    from pipeline.investigate import swing_leaves
+    pre = _wb({"U2": 100.0, "U3": 60.0, "U4": "=U2-U3", "U5": 10.0, "U7": 5.0, "U6": "=U4-U5+U7"})
+    wb = _wb({"U2": 156.0, "U3": 110.0, "U4": "=U2-U3", "U5": 18.0, "U7": 17.0, "U6": "=U4-U5+U7"})
+    # swing of U6 = +10: revenue +56, cost -50, opex -8, other income +12
+    census = swing_leaves(wb, pre, "S", "U6")
+    got = {k: round(v, 2) for k, v in census}
+    assert set(got) == {("S", "U2"), ("S", "U3"), ("S", "U5"), ("S", "U7")}, got
+    assert abs(got[("S", "U2")] - 5.6) < 0.05 and abs(got[("S", "U7")] - 1.2) < 0.05, got
+    assert census[0][0] == ("S", "U2")                               # the largest mover first
+    census = swing_leaves(wb, pre, "S", "U6", flagged={("S", "U5")})
+    assert census[0][0] == ("S", "U5")                               # the agent's own flag first
+    census = swing_leaves(wb, pre, "S", "U6", stable={("S", "U4")})
+    assert set(k for k, _v in census) == {("S", "U5"), ("S", "U7")}   # a stable line is never entered
+    print("PASS test_the_swing_census_finds_every_material_mover_2026_09_14")
+
+
+def test_the_walker_follows_a_range_across_columns_2026_09_14():
+    """CLP live 34830794807: the Australia generation formula averages
+    capacity across two years — AVERAGE(AI66:AJ66) — and the walker
+    dropped the range, losing the swing one step before the wrongly
+    served capacity cell. A range is expanded in both directions."""
+    from pipeline.investigate import swing_leaves, _refs
+    pre = _wb({"T2": 940.0, "U2": "=T2", "U3": "=AVERAGE(T2:U2)*2", "U4": "=U3*10"})
+    wb = _wb({"T2": 5484.0, "U2": "=T2", "U3": "=AVERAGE(T2:U2)*2", "U4": "=U3*10"})
+    assert ("S", "T2") in _refs("=AVERAGE(T2:U2)*2", "S", wb) and ("S", "U2") in _refs("=AVERAGE(T2:U2)*2", "S", wb)
+    census = swing_leaves(wb, pre, "S", "U4")
+    assert census and census[0][0] == ("S", "T2") and census[0][1] >= 0.9, census   # reached through the range
+    assert _refs("=SUM(A1:Z400)", "S", wb) == []          # a block reference is not a formula's inputs
+    print("PASS test_the_walker_follows_a_range_across_columns_2026_09_14")
+
+
+def test_the_rung_card_brain_picks_code_verifies_2026_09_14():
+    """Owner 2026-09-14: for a suspect cell the agent must choose between a
+    printed number, a back-out by another method, last year's figure, or
+    (last resort, never on this card) a plug — "brain picks the rung, code
+    verifies". The card lists every way with its effect on the swing; a
+    'stale' pick puts last year's figure back red as NOT FOUND; a 'keep'
+    pick records the brain's judgment; no brain → the automatic ladder."""
+    from pipeline.investigate import judge_and_fix
+    from openpyxl.styles import PatternFill
+    pre = _wb({"T2": 940.0, "U2": "=T2", "U3": "=U2*2", "T3": "=T2*2"})
+    wb = _wb({"T2": 940.0, "U2": 5484.0, "U3": "=U2*2", "T3": "=T2*2"})
+    wb["S"]["U2"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
+    lp = _loop(wb, spec, evidence=[[5484.0, 5397.0]])
+    d = {"name": "capacity line", "d0": 0.0, "d1": 4.83, "new0": 10968.0, "ref1": "S!U3"}
+    trail = [("S", "U3", "capacity line", 1.0), ("S", "U2", "Ecogen", 1.0)]
+    seen_cards = []
+    def ask_stale(text, options, default):
+        seen_cards.append(text)
+        assert "stale" in options and "keep" in options and "plug" not in " ".join(options)
+        assert "CARD RUNG S!U2" in text and "last year 940.00" in text
+        return "stale"
+    lp.ask = ask_stale
+    verdict, text = judge_and_fix(lp, pre, d, ("S", "U2"), trail, lambda *_a: None, lambda: 4.83)
+    assert verdict == "stale" and wb["S"]["U2"].value == 940.0, (verdict, wb["S"]["U2"].value)
+    assert str(wb["S"]["U2"].fill.fgColor.rgb).endswith("FFC7CE") and "NOT FOUND" in (wb["S"]["U2"].comment.text if wb["S"]["U2"].comment else "")
+    assert seen_cards, "the brain was asked"
+    # the brain says the figure belongs: recorded, nothing written
+    wb["S"]["U2"] = 5484.0
+    lp.ask = lambda text, options, default: "keep"
+    verdict, text = judge_and_fix(lp, pre, d, ("S", "U2"), trail, lambda *_a: None, lambda: 4.83)
+    assert verdict in ("genuine", "unusual") and wb["S"]["U2"].value == 5484.0 and "brain judged" in text
+    # no brain (a floor): the automatic ladder — nothing proves better, the cell stays, red verdict
+    lp.ask = None
+    verdict, text = judge_and_fix(lp, pre, d, ("S", "U2"), trail, lambda *_a: None, lambda: 4.83)
+    assert verdict == "red" and wb["S"]["U2"].value == 5484.0, (verdict, wb["S"]["U2"].value)
+    print("PASS test_the_rung_card_brain_picks_code_verifies_2026_09_14")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

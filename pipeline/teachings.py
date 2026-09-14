@@ -305,11 +305,25 @@ def plug_meter(wb, spec, target_year, max_row=300):
             if not (isinstance(now, (int, float))
                     and isinstance(was, (int, float))):
                 continue
-            # wild = the plug moved by a lot in absolute terms AND far
-            # beyond its own history (the export plug: -1,598 vs -4 is
-            # wild; -185 vs -4 after the fix is quiet)
-            wild = abs(now - was) > max(500.0, 4 * abs(was))
-            if wild:
+            # wild = the plug moved far beyond its own history AND is
+            # material against the total it is the residual of (owner
+            # 2026-09-14, CLP Driver!112: 45 -> 349 on a -1,666 total is
+            # wild — 21% of the total after 2% every year; the export
+            # plug -185 on 48,967 of sales after the fix is 0.4%: quiet).
+            # No absolute floor — units differ by model.
+            total_now = None
+            try:
+                m_tot = re.match(r"^=\+?((?:'[^']+'!|[A-Za-z0-9_]+!)?[A-Z]{1,3}\d+)", f.replace(" ", "").replace("$", ""))
+                if m_tot:
+                    ref_t = m_tot.group(1)
+                    sh_t, c_t = (ref_t.rsplit("!", 1) if "!" in ref_t else (sheet, ref_t))
+                    total_now = ev.cell(sh_t.strip("'"), c_t)
+            except Exception:
+                total_now = None
+            beyond_history = abs(now - was) > 4 * max(abs(was), 1.0)
+            material = (isinstance(total_now, (int, float)) and abs(total_now) >= 1
+                        and abs(now) >= 0.01 * abs(total_now))
+            if beyond_history and material:
                 out.append((sheet, r, now, was))
     return out
 

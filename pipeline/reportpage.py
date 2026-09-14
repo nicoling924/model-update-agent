@@ -578,7 +578,7 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
         seen.add(s.get("name"))
         v = str(s.get("verdict") or "")
         word = {"fixed": "fixed", "genuine": "genuine", "unusual": "genuine but unusual",
-                "red": "red, your ruling"}.get(v, v or "reviewed")
+                "red": "red, your ruling", "stale": "not found — last year kept, red"}.get(v, v or "reviewed")
         leaf = s.get("leaf")
         cell(r, 1, str(s.get("name") or "")[:30], BOLD)
         cell(r, 2, (f"actual {s.get('d0', 0)*100:+.1f}% vs your estimate; next period "

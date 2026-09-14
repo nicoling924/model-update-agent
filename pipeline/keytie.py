@@ -90,6 +90,39 @@ def _printed(ledger, v):
     return None
 
 
+_RESIDUAL = re.compile(r"^=\+?(?:'[^']+'!|[A-Za-z0-9_]+!)?[A-Z]{1,3}\d+\s*-")
+
+
+def name_gap(ledger, delta, served=None):
+    """THE GAP IS NAMED BEFORE IT IS ABSORBED (owner 2026-09-14: a 5,758
+    key gap was dumped into the fuel clause payable; 3,872 of it was the
+    printed perpetual capital securities). Code names only what it can
+    prove without coincidence: ONE printed current-period figure, not yet
+    homed in the model, that equals the whole gap. Combinations are the
+    brain's judgment (the GAP card), never a subset sum — a floor replay
+    with pairs and triples over the statements' lines "explained" every
+    key with MW percentages and footnote numbers. -> ([(value, label,
+    where)], remainder)"""
+    gap = abs(float(delta))
+    if ledger is None or gap < 1:
+        return [], gap
+    from .writegate import claim_holders as _ch, _claim_key as _ck
+    holders = _ch(served) if served else {}
+    tol = max(0.6, gap * 1e-4)
+    for it in ledger.items:
+        if not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
+            continue
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        cur = _current_index(it)
+        if not nums or cur is None or cur >= len(nums):
+            continue
+        v = abs(nums[cur])
+        if v < 1 or abs(v - gap) > tol or holders.get(_ck(None, v)):
+            continue
+        return [(v, str(it.label)[:50], f"{it.doc} p{it.page}")], 0.0
+    return [], gap
+
+
 def _current_index(item):
     """Position of the current period among a line's numbers: the brain's
     column that names no earlier year than the others (a comparative names
@@ -352,6 +385,22 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if prev_wrapped:
                 wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]   # a flagged/confirmed key keeps its standing back-out
             continue
+        # THE GAP IS NAMED BEFORE IT IS ABSORBED (owner 2026-09-14): when
+        # the gap, or part of it, is a printed figure not yet in the model,
+        # it is a definition question for the analyst — named, red, never
+        # dumped into an unrelated line
+        named, rest_gap = name_gap(ledger, delta, served=getattr(writer, "served", None))
+        if named:
+            parts = "; ".join(f"{v:,.0f} = printed '{lab}' ({where})" for v, lab, where in named)
+            writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
+                f"KEY OFF: '{name}' computes {got:,.2f} vs printed {want:,.2f} ({delta:+,.2f}). "
+                f"The gap is named: {parts}" + (f"; {rest_gap:,.0f} unexplained" if rest_gap > 0.6 else "")
+                + " — a definition question (where does the model hold these?). ANALYST; nothing forced.")
+            log(f"[run] key tie: '{name}' OFF {delta:+,.2f} vs print {want:,.2f} — gap named: {parts}"
+                + (f"; {rest_gap:,.0f} unexplained" if rest_gap > 0.6 else "") + " — red, not absorbed")
+            if prev_wrapped:
+                wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]
+            continue
         tied_before = {nm for nm, _g, _w, ok in _key_state() if ok}
         # candidates: every FORMULA cell in the key's chain (estimate
         # formulas are intermediate nodes, not leaves — run-203's
@@ -390,6 +439,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             is_formula = isinstance(f, str) and f.startswith("=")
             if is_formula and _SUBTOTAL.match(f.replace("$", "")):
                 continue      # a subtotal row is never the absorber (run-231)
+            if is_formula and _RESIDUAL.match(f.replace("$", "").replace(" ", "")):
+                continue      # a residual row is the model's own plug — never the absorber (owner 2026-09-14)
             try:
                 rgb = str(wb[sh][coord].fill.fgColor.rgb or "")
             except Exception:

@@ -117,6 +117,37 @@ def ties_prior(item, scale, prior, value=None):
     return False
 
 
+def contradicts_prior(item, scale, prior, value):
+    """THE COMPARATIVE CONTRADICTS (owner 2026-09-14, CLP Ecogen: 'Hong
+    Kong number 5,484 | 5,397' was written into a row whose last year is
+    940). A period line prints last year beside this year; when the
+    comparative beside `value` is a figure that does NOT tie the cell's
+    prior, the line is a different item — not merely unproven."""
+    if not isinstance(prior, (int, float)) or abs(prior) < 1:
+        return False
+    if _meta(item, "table_kind") != "period":
+        return False
+    ns = [n for n in _nums(item) if isinstance(n, (int, float))]
+    cols = [str(c) for c in (_meta(item, "columns") or [])]
+    for i, n in enumerate(ns):
+        if not _close(abs(n) / scale, abs(value)):
+            continue
+        ci = None
+        if cols and len(cols) == len(ns):
+            yrs = [re.search(r"(20\d\d)", c) for c in cols]
+            yi = int(yrs[i].group(1)) if yrs[i] else None
+            if yi is not None:
+                ci = next((k for k, m in enumerate(yrs) if m and int(m.group(1)) == yi - 1), None)
+        if ci is None:
+            ci = next((k for k in range(i + 1, len(ns))
+                       if abs(ns[k]) <= 30 * abs(n) and abs(ns[k]) * 30 >= abs(n)), None)
+        if ci is None or is_sum_row(ns, ci):
+            continue
+        if abs(ns[ci]) >= 1 and not _close(abs(ns[ci]) / scale, abs(prior)):
+            return True
+    return False
+
+
 def is_sum_row(ns, ci):
     """The number at `ci` is the SUM of the numbers before it: a
     components-and-total row, not periods side by side (CLP associates
@@ -231,6 +262,12 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
         return ("REFUSE",
                 "every ledger row carrying this value already serves "
                 "another cell — one row, one claim", None)
+    if isinstance(prior, (int, float)) and abs(prior) >= 1 \
+            and all(contradicts_prior(it, s, prior, value) for it, s in free):
+        return ("REFUSE",
+                "every line printing this value shows a DIFFERENT last-year "
+                f"figure beside it — the model's last year is {prior:,.2f}; "
+                "this is another item, not this row (comparative contradicts)", None)
     return ("ALLOW_FLAGGED",
             "unproven — the value is printed but its row's comparative "
             "does not tie this cell's prior; written RED-flagged for the "

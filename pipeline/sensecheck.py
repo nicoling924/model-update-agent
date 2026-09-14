@@ -285,6 +285,25 @@ def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
             + (f"they opened {sorted(fails_after - fails_before)[:3]}" if (fails_after - fails_before) else f"they widened {worse[:3]}"))
         rerun()
         n = 0
+    # THE PLUG METER AFTER THE CHECKS (owner 2026-09-14: SOC Accounts!AI9
+    # took a 5,758 key-tie back-out after the meter had run): a residual
+    # row that moved wildly by now is flagged and reported
+    try:
+        from .teachings import plug_meter as _pm
+        known = {(sh_, r_) for sh_, r_, _n, _w in (getattr(loop, "plugmeters", None) or [])}
+        for sh_, r_, now_, was_ in _pm(wb, spec, ty):
+            if (sh_, r_) in known:
+                continue
+            tc_ = year_columns(spec, sh_).get(str(ty))
+            if not tc_:
+                continue
+            writer.flag_ref(f"{sh_}!{tc_}{r_}", "red",
+                f"PLUG METER (after the checks): this residual row computes {now_:,.1f} vs {was_:,.1f} last "
+                "year — an input feeding its total is wrong, or a back-out landed here. Please check.")
+            lines.append(f"PLUG METER after the checks: {sh_}!{tc_}{r_} {now_:,.1f} vs {was_:,.1f} last year")
+            log("[sense] " + lines[-1])
+    except Exception as _e_pm:
+        log(f"[sense] plug meter after the checks skipped: {_e_pm!r}")
     deltas2 = headline_deltas(wb, pre_wb, spec, ty)
     still = suspicious(deltas2)
     for d in sus:
@@ -322,18 +341,26 @@ def investigate_line(loop, pre_wb, d, log, rerun=None):
     if stable:
         log(f"[sense] bracket for '{d['name']}': {len(stable)} stable headline line(s) are proven; "
             f"{len(flagged)} own flagged cell(s) looked at first")
-    for _round in range(3):                     # after a fix, the next factor — the analyst presses in again
-        trail, leaf = trace(wb, pre_wb, sh1, c1, stable=stable, flagged=flagged)
-        last_leaf = leaf or last_leaf
-        path = " → ".join(t[2] or t[1] for t in trail)
-        if leaf is None or leaf in seen_leaves:
-            texts.append(f"'{d['name']}': the swing is spread across several inputs" + (f" ({path})" if path else "") + " — no single factor")
-            verdict = "spread" if not texts[:-1] else verdict
-            break
+    from .investigate import swing_leaves
+    census = swing_leaves(wb, pre_wb, sh1, c1, stable=stable, flagged=flagged, budget_s=90)
+    if census:
+        log(f"[sense] census for '{d['name']}': " + ", ".join(
+            f"{sh}!{c} {s_ * 100:+.0f}%" for (sh, c), s_ in census[:6]))
+    for (leaf, share) in census[:4]:          # the material movers, own flags first
+        if leaf in seen_leaves:
+            continue
         seen_leaves.add(leaf)
-        verdict, text = judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=rerun)
-        log(f"[sense] {verdict.upper()}: {text}")
+        last_leaf = leaf
+        trail = [(leaf[0], leaf[1], f"{abs(share) * 100:.0f}% of the swing", share)]
+        v_, text = judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=rerun)
+        log(f"[sense] {v_.upper()}: {text}")
         texts.append(text)
-        if verdict != "fixed" or gap_of() <= SENSE_GAP:
-            break
+        if v_ == "fixed":
+            verdict = "fixed"
+            if gap_of() <= SENSE_GAP:
+                break
+        elif verdict != "fixed":
+            verdict = v_
+    if not census:
+        texts.append(f"'{d['name']}': no input carries a material share of the swing — no single factor")
     return verdict, " || ".join(texts), last_leaf

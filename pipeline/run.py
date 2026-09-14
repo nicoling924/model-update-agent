@@ -1030,6 +1030,20 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
         loop.load_bearing = lb           # tier law: the loop sees the wiring
+
+        def _ask(text, options, default):
+            """The brain picks (owner 2026-09-14: 'brain picks the rung, code verifies'); a replay's answerer stands in."""
+            if stage4_answerer is not None:
+                return stage4_answerer(text, options, default)
+            if client is None:
+                return default
+            try:
+                from .workqueue import _llm_answer
+                return _llm_answer(loop, client, text, options, log)[0]
+            except Exception as _e_ask:
+                log(f"[sense] the brain could not answer a card: {_e_ask!r}")
+                return default
+        loop.ask = _ask
         loop.est_base = est_base         # rollover cards: the analyst's baseline
         # sense tripwires (owner ruling 2026-08-31): sign-flipped
         # forecasts are handed to the loop as mistake-detector items —

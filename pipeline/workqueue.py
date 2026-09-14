@@ -424,22 +424,50 @@ def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
         by_label.setdefault(norm_label(str(it.label)), []).append(it)
     out = []
     for it_p in pool:
+        # THE COLUMN IS READ BY ITS NAME (owner 2026-09-14: "why can't the
+        # AI read the table and understand how it works"): the brain names
+        # every column (Hong Kong | Australia | China | Total; FY2025 |
+        # FY2024). The prior sits under a named column of last year's
+        # table; this year's same-labelled row is read under the column of
+        # the SAME NAME. Position is the fallback only where no table has
+        # names. A period table never pairs this way — its columns are
+        # years, and "the prior's column" is last year (CLP Ecogen: the
+        # five-year summary's 'Hong Kong number' row held 940 in FY2025 by
+        # coincidence and another same-labelled row read 5,484 — the
+        # employee headcount — as Ecogen's capacity).
+        if getattr(it_p, "table_kind", None) == "period":
+            continue
         s_p = scales[(it_p.doc, it_p.page)]
         ns_p = [to_model_units(n, s_p) for n in it_p.nums]
+        cols_p = [str(c).strip().lower() for c in (getattr(it_p, "columns", None) or [])]
         for kpos, n in enumerate(ns_p):
             if abs(abs(n) - abs(pv)) > max(0.6, abs(pv) * 5e-4):
                 continue
+            col_name = cols_p[kpos] if kpos < len(cols_p) else None
             for it_c in by_label.get(norm_label(str(it_p.label)), []):
                 if (it_c.doc, it_c.page, it_c.table_id) == \
                         (it_p.doc, it_p.page, it_p.table_id):
                     continue
                 if periods.get(it_c.doc) != "current":
                     continue
+                if getattr(it_c, "table_kind", None) == "period":
+                    continue
                 s_c = scales[(it_c.doc, it_c.page)]
                 ns_c = [to_model_units(m, s_c) for m in it_c.nums]
-                if kpos >= len(ns_c):
+                cols_c = [str(c).strip().lower() for c in (getattr(it_c, "columns", None) or [])]
+                if col_name and cols_c:
+                    if col_name not in cols_c:
+                        continue          # this year's table has no column of that name: not a read
+                    kread = cols_c.index(col_name)
+                    basis_how = f"column '{col_name}'"
+                elif col_name or cols_c:
+                    continue              # one table named, the other not: no honest pairing
+                else:
+                    kread = kpos          # neither table named: position is all there is
+                    basis_how = f"slot {kpos} (no column names read)"
+                if kread >= len(ns_c):
                     continue
-                sv = ns_c[kpos] if n >= 0 else -abs(ns_c[kpos])
+                sv = ns_c[kread] if n >= 0 else -abs(ns_c[kread])
                 if abs(abs(sv) - abs(pv)) <= max(0.6, abs(pv) * 5e-4) \
                         and len(ns_c) > 1:
                     continue        # companion also holds the prior there:
@@ -457,9 +485,8 @@ def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
                     "face": loop.ledger.face(it_c.doc, it_c.page)
                     or "no-face",
                     "warnings": warns,
-                    "basis": (f"positional: prior {pv:,.1f} at slot {kpos} "
-                              f"of the same-labelled row, {it_p.doc[:20]} "
-                              f"p{it_p.page}")})
+                    "basis": (f"same-labelled row, {basis_how}: prior {pv:,.1f} "
+                              f"there in {it_p.doc[:20]} p{it_p.page}")})
     return out if k is None else out[: k * 3]
 
 
@@ -1047,6 +1074,13 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
         item = seq[i]
         i += 1
         rendered = render_card(loop, item)
+        try:
+            _cand_lines = [ln.strip() for ln in str(rendered[0] if isinstance(rendered, tuple) else rendered).splitlines()
+                           if ln.startswith("    ") and ln.strip()][:8]
+            if _cand_lines:
+                log(f"[queue] card {item.kind} {item.sheet}!{item.row or ''}: " + " | ".join(_cand_lines)[:900])
+        except Exception:
+            pass
         if rendered is None:
             item.state = "MOOT"
             moot += 1
