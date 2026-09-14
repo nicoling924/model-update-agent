@@ -2432,3 +2432,15 @@ entered; among the contributors that carry the swing the agent's own flagged cel
 the largest swing ("operating income swings, gross profit stable → the issue is between; my flags first").
 Museum 219, bench green; floors: CLP FY25 8/8 · 4 plugs (identical to the unchanged head), DFE FY25 8/11 · 0
 plugs, DFE 1H25 one rounding check (1.0). Lesson recorded: a brain-only stage is untested until it replays.
+
+## 2026-09-14 — CLP FY25 live run 34830794807 (head d3538bc, 38 min): DELIVERED clean
+Keys 9/10 (dps: no printed line ties its prior), 3 plugs, 111 red / 57 orange. The table reader read all
+2,456 tables in 9 calls (single 1,261, categories 746, periods 359, grid 50, segments 36, movement 4); no
+stage lost. Score vs the analyst: 254 judged, 151 correct (59%); wrong 103 = red 76 / orange 18 /
+unhighlighted 9. The run filled 25 more cells than 34820388690, mostly CN segment rows the analyst leaves at
+0 (43 of the 103 wrong cells have analyst value 0, vs 11 before) — all red. On the cells the analyst fills:
+151/211 = 72% (previous run 70%). Sense check: 12 lines reviewed, two scale errors caught and put back
+(India!AI17 221,000,000; India!AI59 61,829), 11 written up — next-year forecasts moved (net profit +31%)
+through India's red inputs (total debt, minority interest) and the fuel clause account. Unhighlighted 9 are
+the same classes (Aus amortisation sign, MI definition, dividends, JCE investment, SEA solar, India one-off,
+ROAFNA capex). docs/scores/CLP_FY25_run34830794807_vs_analyst.txt
