@@ -105,12 +105,44 @@ def _shape(formula):
     return _re.sub(r"(?<![A-Za-z_])\$?[A-Z]{1,3}\$?(\d+)", r"C\1", str(formula).replace("$", ""))
 
 
-def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
+def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None):
+    """THE ZERO-FORECAST ROW (owner 2026-09-14, CLP ROAFNA!AI71 'Coal-fired
+    (CAPCO)': 2025 typed 0 and every forecast year linked to it — the
+    rollover carried last year's −1,050 in and the forecasts followed):
+    the rows whose target-year cell and every forecast cell all evaluate
+    to zero or blank BEFORE the update — the analyst's own decision that
+    the item is nil from here on. -> set of row numbers."""
+    ws = wb[sheet]
+    out = set()
+    if not forecast_cols:
+        return out
+    def _val(coord):
+        v = ws[coord].value
+        if isinstance(v, str) and v.startswith("=") and evaluate is not None:
+            try:
+                v = evaluate(sheet, coord)
+            except Exception:
+                return None
+        return v
+    for r in range(1, ws.max_row + 1):
+        lab = ws.cell(r, 1).value
+        if not (isinstance(lab, str) and lab.strip()):
+            continue
+        vals = [_val(f"{target_col}{r}")] + [_val(f"{c}{r}") for c in forecast_cols]
+        if all(v in (None, "", 0, 0.0) or (isinstance(v, float) and abs(v) < 1e-9) for v in vals) \
+                and any(v is not None for v in vals):
+            out.add(r)
+    return out
+
+
+def rollover_column(wb, sheet, from_col, to_col, skip_rows=(), zero_rows=()):
     """The owner's convention: the new actual column IS the prior actual
     column carried forward. Copies every cell — formulas Excel-shifted one
     column, hardcodes as-is, styles and number formats — and returns the
     rows that arrived as HARDCODES: the input census the disclosed actuals
-    must then overwrite."""
+    must then overwrite. A row in `zero_rows` (the analyst had it at zero
+    this year and every forecast year) rolls in as 0, the analyst's own
+    figure, and is not a stale input."""
     ws = wb[sheet]
     offset = col_to_num(to_col) - col_to_num(from_col)
     hardcode_rows = []
@@ -123,6 +155,11 @@ def rollover_column(wb, sheet, from_col, to_col, skip_rows=()):
         v = src.value
         if v is None:
             dst.value = None
+            continue
+        if r in zero_rows and isinstance(v, (int, float)) and not isinstance(v, bool):
+            dst.value = 0
+            dst._style = copy.copy(src._style)
+            dst.number_format = src.number_format
             continue
         # THE ANALYST'S OWN PERIOD MARK IS KEPT (half-year replay 2026-09-09:
         # the roll copied 'H124' over the analyst's 'H125' header and the
@@ -357,13 +394,17 @@ class Writer:
         return True
 
     def _row_unforecast(self, sheet, coord):
-        """True when the sheet has forecast columns and every forecast cell
-        of this row is empty or zero: the analyst does not forecast it."""
+        """True when the analyst does not forecast this row: it is in the
+        run's zero-forecast set (measured on the pre-update model), or —
+        without that set — every forecast cell of the row is empty or zero."""
+        row = int(re.sub(r"[A-Z]+", "", coord))
+        zset = getattr(self, "unforecast_rows", None)
+        if zset is not None:
+            return (sheet, row) in zset
         fcols = (getattr(self, "forecast_cols", None) or {}).get(sheet) or []
         if not fcols:
             return False
         ws = self.wb[sheet]
-        row = int(re.sub(r"[A-Z]+", "", coord))
         for c in fcols:
             v = ws[f"{c}{row}"].value
             if isinstance(v, str) and v.startswith("="):

@@ -464,12 +464,32 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         sh: set(_fcols0(spec_d, sh, target_year) or ())
         for sh in (spec_d.get("year_axis") or {}) if sh in wb.sheetnames}
     from .checks import prior_column, year_columns
+    # THE ZERO-FORECAST ROWS (owner 2026-09-14): measured once on the
+    # analyst's own model before anything rolls — a row at zero this year
+    # and in every forecast year rolls in as 0 and takes no estimate
+    from .writer import unforecast_rows as _unforecast_rows
+    try:
+        from .evaluator import Evaluator as _Ev0
+        _ev0 = _Ev0(wb)
+        _eval0 = (lambda sh_, co_: _ev0.cell(sh_, co_))
+    except Exception:
+        _eval0 = None
+    writer.unforecast_rows = set()
+    for sheet in (spec_d.get("year_axis") or {}):
+        tcol = year_columns(spec_d, sheet).get(str(target_year))
+        if tcol and sheet in wb.sheetnames:
+            for r_ in _unforecast_rows(wb, sheet, tcol, sorted(writer.forecast_cols.get(sheet) or ()), _eval0):
+                writer.unforecast_rows.add((sheet, r_))
+    if writer.unforecast_rows:
+        log(f"[run] zero-forecast rows: {len(writer.unforecast_rows)} rows the analyst holds at zero this year "
+            f"and every forecast year — rolled in as 0, no estimate lands there")
     hardcode_census = {}          # sheet -> rows that arrived as hardcodes
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         pcol = prior_column(spec_d, sheet, target_year)
         if tcol and pcol and sheet in wb.sheetnames:
-            hard = rollover_column(wb, sheet, pcol, tcol)
+            hard = rollover_column(wb, sheet, pcol, tcol,
+                                   zero_rows={r_ for (sh_, r_) in writer.unforecast_rows if sh_ == sheet})
             hardcode_census[sheet] = hard
             cols = year_columns(spec_d, sheet)
             years = sorted(cols)
