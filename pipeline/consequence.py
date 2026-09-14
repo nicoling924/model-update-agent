@@ -266,7 +266,17 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
         return [o for _p, _a, o in out]
 
     def _fails(res):
-        return set(res[1] or []) if res else set()
+        """The broken objectives as a set — the same measure the loop works to, not the gate's strings."""
+        return {(o[1], o[2]) for o in broken_objectives(loop, keys_before, key_panel, panel_path)}
+
+    def _gaps():
+        return {d["name"]: abs(d["d1"] - d["d0"]) for d in headline_deltas(wb, pre_wb, spec, ty)}
+
+    def _amount_of(sheet, coord):
+        for o in broken_objectives(loop, keys_before, key_panel, panel_path):
+            if (o[1], o[2]) == (sheet, coord):
+                return abs(o[3])
+        return 0.0
 
     def _take_back(mark, why):
         journal = writer.log.get("style_journal", [])[mark:]
@@ -289,6 +299,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
         kind, sheet, coord, amount = obj[0], obj[1], obj[2], obj[3]
         mass0 = check_mass()
         fails0 = _fails(result)
+        gaps0 = _gaps()
         mark = len(writer.log.get("writes_all", []))
         log(f"[ending] round {rnd + 1}: {kind} {sheet}!{coord} off {amount:+,.2f} (objectives mass {mass0:,.0f}; {len(breaks)} break(s) open)")
         pick = "__auto__"
@@ -363,9 +374,20 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
         result = gate_once()
         mass1 = check_mass()
         new_fails = _fails(result) - fails0
-        if mass1 > mass0 + 1.0 or new_fails:
-            result = _take_back(mark, f"{kind} {sheet}!{coord}: {pick} made the objectives worse ({mass0:,.0f} -> {mass1:,.0f}"
-                                + (f"; opened {sorted(new_fails)[:2]}" if new_fails else "") + ")")
+        gaps1 = _gaps()
+        from .sensecheck import SENSE_GAP
+        # the objectives in the owner's order: balance first, keys second, the
+        # swing lines third — a widened swing line vetoes a sense pick, never
+        # a fix that closes the balance or a key (the loop returns to the line)
+        widened = [nm for nm, g in gaps1.items() if g > gaps0.get(nm, 0.0) + SENSE_GAP and g > SENSE_GAP] if kind == "sense" else []
+        # a fix that did not fix: a pick aimed at a check or key must close most of it
+        half_done = kind in ("check", "forecast-check", "key") and pick != "__auto__" and _amount_of(sheet, coord) > 0.5 * abs(amount)
+        if mass1 > mass0 + 1.0 or new_fails or widened or half_done:
+            result = _take_back(mark, f"{kind} {sheet}!{coord}: {pick} "
+                                + ("did not close the break" if half_done and not (new_fails or widened or mass1 > mass0 + 1.0)
+                                   else f"made the objectives worse ({mass0:,.0f} -> {mass1:,.0f}")
+                                + (f"; opened {sorted(new_fails)[:2]}" if new_fails else "")
+                                + (f"; widened {widened[:2]}" if widened else "") + ")")
             asked.add((sheet, coord))
         else:
             log(f"[ending] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")

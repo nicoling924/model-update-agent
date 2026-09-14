@@ -2493,3 +2493,11 @@ DELETED eighteen ties of which eleven were right numbers (Yallourn generation, r
 two-sided balance-sheet row, JV balances) — a doubted name now lands RED, never deleted; and the rung card let
 the brain trade PROVEN figures for the analyst's estimate (fuel clause −1,043 → 0) — a proven cell's ways are
 now keep or another proven line only. docs/scores/CLP_FY25_run34874944306_vs_analyst.txt
+
+## 2026-09-15 — CLP FY25 live run 34880517810 (head 3a1b909, 50 min): delivered with 2 open checks, keys 9/10
+Score 249 judged, 151 correct (61%), unhighlighted 11. Both open checks were the loop's own doing: a 0.03
+rounding residue on Final!99 counted as a NEW failure (CHECK_TOL was 0.01) and made the loop take back the
+brain's back-out that had closed ROAFNA!31. Fixes in the loop itself: CHECK_TOL = 0.5 (the model's display
+rounding); the loop verifies against its own objective set, not the gate's strings; a pick aimed at a check
+or key must close most of it or is taken back; a widened swing line vetoes a SENSE pick only (balance is rule
+1, keys rule 2, swing lines rule 3). Floors clean. docs/scores/CLP_FY25_run34880517810_vs_analyst.txt
