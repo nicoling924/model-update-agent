@@ -77,6 +77,12 @@ def ties_prior(item, scale, prior, value=None):
     total at its end) proves nothing about a number elsewhere on it."""
     if not isinstance(prior, (int, float)) or abs(prior) < 1:
         return False
+    # A MATRIX ROW NEVER PAIRS (owner 2026-09-14, CLP: 'Finance income
+    # 119 | 14 | 29 | 4 | 69 | 235' across segments served 14 because the
+    # Australia prior 29 sat beside it): the columns are categories, the
+    # number beside the prior is another segment, not this year
+    if value is not None and _meta(item, "table_kind") == "matrix":
+        return False
     # sign-blind like find_evidence (run-227 autopsy: the fund balance
     # prints -370 where the model stores 370 — the row IS the tie; the
     # MODEL owns the sign convention)
@@ -299,6 +305,8 @@ def nil_current_zero(items, prior, face_pages=None, banned_docs=None,
         # needs four significant digits, and the sweep needs label
         # kinship; where the line sits no longer matters. `face_pages` and
         # `statement_faces` are accepted and ignored.
+        if _meta(it, "table_kind") == "matrix":
+            continue                 # a segment row's blank is another segment's blank (CLP: 'Associates 1,810 | 1,810' on the segment page zeroed CN's 1,607)
         line = str(_meta(it, "source_line", ""))
         # A BLANK CURRENT CELL IS NIL TOO (owner 2026-09-08, DFE: 'other
         # cash received relating to financing' prints the comparative

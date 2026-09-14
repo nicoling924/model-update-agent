@@ -2296,3 +2296,26 @@ Scores (tools/score_inputs.py, docs/scores/): CLP vs the analyst's finished mode
 214 judged, 207 correct (97%), wrong 7 = red 6 / unhighlighted 1 (a 差额 difference row). Full report:
 docs/MORNING_REPORT_2026-09-14.md. Wasted hour first: tools/dispatch.sh dispatches the previous-gen 'updater';
 the root dispatch.sh with 'pipeline' is the only command (memory + RUNLOG).
+
+## 2026-09-14 — THE TABLE READER (owner): the brain reads every table; the floors were drifting
+Trace of the 23 unhighlighted CLP cells: 7 were segment/category columns paired as this year | last year
+(the announcement's segment page 'Finance income 119 | 14 | 29 | 4 | 69 | 235' served 14 beside Australia's
+prior 29; 'Associates 1,810 | 1,810' there zeroed CN's 1,607; a capacity 'units | MW' table served 2 for NED
+solar; the page read took the EBITDAF segment row as Ho-Ping 181 | 261), 8 were bare prior ties on numbers
+printed on 10–50 lines (294, 85, 120 …), 2 small carried literals (34; −40+29) under the constants law's floor,
+6 not inputs at all (ratio/unit formulas; the scorer's mistake). Owner: no shape rule — "the brain has to be
+reading the tables like a human analyst".
+Built: pipeline/tables.py — every table of every document goes to the brain once (header lines from the page
+text + first rows, ~300 tables a call; CLP 2,456 tables ≈ 8 calls) and it names the columns: periods /
+segments / categories / movement / grid / other. The verdict is stamped on every printed line
+(Item.table_kind period|matrix, Item.columns) and travels with the pinned ledger; the shape fallback
+(ledger.table_kind_of) fills only where the brain said nothing. Every channel that pairs a current with a prior
+consults the stamp: the walk (reconcile), the evidence law (writegate.ties_prior), the nil rule, the page reads
+(stage3_read.matrix_pair), the cards. Museum 201, bench green.
+The floors were not floors: every offline replay saved its own ledger, serves and decisions over
+companies/<CO>/replay/<PERIOD>/ — each floor ran on the previous replay's outputs (CLP's 252 pinned serves had
+drifted to 88; the ROAFNA check 'opened' with no code cause). A replay now writes beside the floor
+(replay/<PERIOD>-replay/), and the floors are re-pinned from the last live artifacts (CLP FY25 run 34772986687:
+8,355 items / 254 serves; DFE FY25 run 34771914611: 5,539 / 250; DFE 1H25 keeps the drifted copy — no live
+artifact survives). Still open from the trace: the ambiguous-prior rule (uniqueness, not size) and the small
+carried literals.

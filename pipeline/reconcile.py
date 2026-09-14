@@ -175,26 +175,10 @@ def _pairs(ns, scale):
 
 def table_kind(items):
     """ONE law for every reader of a table (the walk, the cards, the
-    evidence law). 'period': a header line of distinct consecutive years
-    (2025 2024 2023 …) — its wide rows are periods side by side and pair.
-    'matrix': no year header and a wide row — segments, ageing, roll-
-    forwards; its columns are categories, so no row of it pairs
-    horizontally (run 257: 57 false 'two readings'; run 262: a segment
-    row's first number offered as this year's intangibles). The same
-    years REPEATED (2025 2024 | 2025 2024) is a segment × year grid,
-    also a matrix. 'plain': neither."""
-    period = None
-    for it_ in items:
-        yrs = [int(n) for n in (it_.nums or []) if isinstance(n, (int, float))
-               and float(n).is_integer() and 1990 <= n <= 2100]
-        if len(yrs) >= 2:
-            period = len(set(yrs)) == len(yrs)
-            break
-    if period:
-        return "period"
-    if any(len([n for n in (it_.nums or []) if isinstance(n, (int, float))]) >= 4 for it_ in items):
-        return "matrix"
-    return "plain"
+    evidence law, the nil rule, the page reads) — see ledger.table_kind_of;
+    the ledger stamps it on every line (Item.table_kind)."""
+    from .ledger import table_kind_of
+    return table_kind_of(items)
 
 
 def reconcile(wb, spec, target_year, ledger, log, max_lines_per_table=80):

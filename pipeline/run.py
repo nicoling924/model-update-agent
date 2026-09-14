@@ -424,6 +424,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     documents = identify_documents(docs, ledger, client, target_year, _kind, log)
     from .docid import identify_statement_pages
     identify_statement_pages(docs, ledger, client, known, log)
+    # THE TABLE READER (owner 2026-09-14): the brain says what every
+    # table's columns are — periods, segments, categories, movements, a
+    # grid — before any stage pairs a current with a prior; no shape rule
+    if client is not None:
+        try:
+            from .tables import describe_tables
+            describe_tables(client, ledger, docs, target_year, period, log)
+        except Exception as _e_tab:
+            log(f"[tables] table reader skipped: {_e_tab!r}")
     _ban = _vintage_ban(ledger)
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
@@ -1398,7 +1407,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                            "gate": "PASS" if ok else "REFUSED"}
     spec_mod.write_spec_tab(wb, spec_d)
 
-    replay_dir = company_dir / "replay" / str(period)
+    # A REPLAY NEVER WRITES INTO THE PINNED FLOOR (2026-09-14 autopsy: every
+    # offline replay had been saving its own ledger, serves and decisions
+    # over companies/<CO>/replay/<PERIOD>/, so each floor ran on the
+    # previous replay's outputs — 252 pinned serves had drifted to 88 and a
+    # check 'opened' that no code change had touched). A replay's outputs
+    # go beside the floor, never on it.
+    replay_dir = company_dir / "replay" / (f"{period}-replay" if pinned_ledger else str(period))
     replay_dir.mkdir(parents=True, exist_ok=True)
     ledger.save(replay_dir / "ledger.json")
     (replay_dir / "decisions.json").write_text(decisions_to_json(decisions),

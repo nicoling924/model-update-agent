@@ -101,6 +101,28 @@ def no_prior_value(current_txt, anchor_scales):
     return to_model_units(cur, anchors.pop())
 
 
+def matrix_pair(ledger, doc, pages, cur, comp):
+    """True when the (current, comparative) the brain read sits on ONE
+    printed line of these pages whose table is a matrix (owner 2026-09-14:
+    'Recurring EBITDAF 19,447 | 2,856 | 3,774 | 343 | 261 | -956' — the
+    segments — read as Ho-Ping 181 | 261)."""
+    def _f(x):
+        try:
+            return abs(float(str(x).replace(",", "").replace("(", "-").replace(")", "")))
+        except Exception:
+            return None
+    c, k = _f(cur), _f(comp)
+    if c is None or k is None:
+        return False
+    for it in getattr(ledger, "items", []):
+        if it.doc != doc or it.page not in set(pages) or getattr(it, "table_kind", None) != "matrix":
+            continue
+        ns = [abs(n) for n in (it.nums or []) if isinstance(n, (int, float))]
+        if any(abs(n - c) <= max(0.5, c * 1e-3) for n in ns) and any(abs(n - k) <= max(0.5, k * 1e-3) for n in ns):
+            return True
+    return False
+
+
 def regions_from_ledger(ledger, doc):
     """Contiguous page groups worth a whole-page read for one document:
     statement-face pages plus segment-ish pages, gaps <= REGION_GAP filled
@@ -278,6 +300,10 @@ def read_gaps(ledger, targets, served, client, pdf_paths, log=None):
                             if acc is None:
                                 continue    # answered but did not tie: untrusted
                             v, s = acc
+                            if matrix_pair(ledger, doc, grp, a.get("current"), a.get("comparative")):
+                                log.append(f"stage-3 {rid}: '{a.get('current')} | {a.get('comparative')}' "
+                                           f"read off a matrix row on p{grp[0]}-{grp[-1]} — segments, not years; refused")
+                                continue
                             out[t.key] = {
                                 "value": v, "status": "OK", "doc": doc,
                                 "page": grp[0], "conf": CONF_CHECKSUMMED,

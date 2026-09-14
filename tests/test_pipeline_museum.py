@@ -4940,6 +4940,82 @@ def test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14():
     print("PASS test_rolled_into_zero_only_when_the_forecast_moved_2026_09_14")
 
 
+def test_a_matrix_row_never_pairs_anywhere_2026_09_14():
+    """CLP run 34772986687 (owner 2026-09-14): seven cells took a segment
+    column as this year. The results announcement's segment page prints
+    'Finance income 119 | 14 | 29 | 4 | 69 | 235' (segments) — the card
+    served 14 beside Australia's prior 29; 'Associates 1,810 | 1,810' on
+    the same page zeroed CN's associates (the P&L face prints 1,607 |
+    1,810); the page read took 'Recurring EBITDAF … 343 | 261 | -956' as
+    Ho-Ping 181 | 261. The table's kind is now stamped on every printed
+    line, and the pairing law, the nil rule and the page reads all refuse
+    a matrix row. A period table (a year header) still pairs."""
+    from pipeline.writegate import ties_prior, nil_current_zero
+    from pipeline.stage3_read import matrix_pair
+    seg = [_item(30, 1, "2025", [2025.0, 2025.0, 2025.0, 2025.0], table_id=3),      # the same year repeated: a grid
+           _item(30, 2, "Finance income", [119.0, 14.0, 29.0, 4.0, 69.0, 235.0], table_id=3),
+           _item(30, 3, "Associates", [1810.0, 1810.0], table_id=3, source_line="Associates – 1,810 1,810")]
+    face = [_item(23, 1, "", [2025.0, 2024.0], table_id=0),
+            _item(23, 2, "Finance income", [24.0, 29.0], table_id=0),
+            _item(23, 3, "Associates", [1607.0, 1810.0], table_id=0)]
+    led = _ledger(seg + face, face_pages=((23, "pl"),))
+    led.stamp_table_kinds()
+    assert all(it.table_kind == "matrix" for it in seg) and all(it.table_kind == "period" for it in face)
+    assert ties_prior(seg[1], 1.0, 29.0, value=14.0) is False          # a segment beside the prior is not this year
+    assert ties_prior(face[1], 1.0, 29.0, value=24.0) is True           # the face's pair still ties
+    assert nil_current_zero(led.items, 1810.0, row_label="Associates") is None   # the matrix line proves no nil
+    assert matrix_pair(led, DOC, [30], "14", "29") and not matrix_pair(led, DOC, [23], "24", "29")
+    print("PASS test_a_matrix_row_never_pairs_anywhere_2026_09_14")
+
+
+def test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14():
+    """Owner 2026-09-14: "the brain should read the table by itself to judge
+    whether the table is having years as columns, segments as columns,
+    movement as columns, or whatever … not the code." The table reader
+    sends every table (header lines + first rows) to the brain once; its
+    verdict is stamped on every line and outranks the shape fallback: a
+    two-column 'units | MW' table the shape calls plain never pairs, a
+    two-column note without a year line pairs. The stamp survives the
+    ledger pin (to_json / from_json) so replays keep the reading."""
+    from pipeline.tables import describe_tables, table_cards, target_columns
+    from pipeline.ledger import Ledger
+    from pipeline.writegate import ties_prior
+    cap = [_item(245, 1, "Solar", [2.0, 21.0], table_id=7), _item(245, 2, "Wind", [3.0, 40.0], table_id=7)]
+    note = [_item(181, 1, "Finance charges", [257.0, 294.0], table_id=2), _item(181, 2, "Bank loans", [100.0, 120.0], table_id=2)]
+    led = _ledger(cap + note, face_pages=((181, "pl"),))
+    led.stamp_table_kinds()
+    assert cap[0].table_kind == "plain" and note[0].table_kind == "plain"        # the shape cannot tell them apart
+    cards = table_cards(led, [])
+    assert len(cards) == 2 and "Solar: 2 | 21" in cards[1][1] or "Solar: 2 | 21" in cards[0][1]
+    class FakeClient:
+        calls = 0
+        def json(self, system, user, validate, repair_retries=1, images=None):
+            FakeClient.calls += 1
+            assert "id 1" in user and "id 2" in user
+            ids = {}
+            for blk in user.split("### id ")[1:]:
+                n = int(blk.split("\n", 1)[0]); ids[n] = blk
+            out = []
+            for n, blk in ids.items():
+                if "p245" in blk:
+                    out.append({"id": n, "kind": "categories", "columns": ["units", "MW"], "note": "capacity table"})
+                else:
+                    out.append({"id": n, "kind": "periods", "columns": ["FY2025", "FY2024"]})
+            obj = {"tables": out}
+            assert not validate(obj)
+            return obj
+    n = describe_tables(FakeClient(), led, [], 2025, "FY25", log=lambda *_a, **_k: None)
+    assert n == 2 and FakeClient.calls == 1
+    assert cap[0].table_kind == "matrix" and cap[0].columns == ["units", "MW"]
+    assert note[0].table_kind == "period" and target_columns(note[0], 2025, "FY25") == (0, 1)
+    assert ties_prior(cap[0], 1.0, 21.0, value=2.0) is False         # units | MW never pairs
+    assert ties_prior(note[0], 1.0, 294.0, value=257.0) is True      # the note pairs
+    led2 = Ledger.from_json(led.to_json()); led2.corroborate()
+    again = next(it for it in led2.items if it.page == 245)
+    assert again.table_kind == "matrix" and again.columns == ["units", "MW"], "the pin keeps the brain's reading"
+    print("PASS test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

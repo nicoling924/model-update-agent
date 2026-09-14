@@ -241,6 +241,8 @@ class Item:
     consensus: int = 1          # extraction passes agreeing (vision channel)
     disputed: bool = False      # kept but not consensus-stable — never joinable
     source_line: str = ""       # the verbatim printed line (audit trail)
+    table_kind: str = None      # period | matrix | plain — the brain's reading (tables.py), else the shape
+    columns: list = None        # the brain's names for the number columns (FY2025, Hong Kong, MW …)
 
     @property
     def item_id(self):
@@ -276,7 +278,28 @@ class Ledger:
     def face(self, doc, page):
         return self.faces.get((doc, page))
 
+    def stamp_table_kinds(self):
+        """ONE table kind for every line of a table, read once (owner
+        2026-09-14, CLP run 34772986687: the cards, the nil rule and the
+        page reads paired segment columns as this year | last year while
+        only the reconciliation asked the table's kind). 'period': a
+        header of distinct consecutive years — rows pair. 'matrix': no
+        year header and a wide row — segments, ageing, roll-forwards; the
+        columns are categories, no row pairs. 'plain': neither."""
+        tabs = {}
+        for it in self.items:
+            tabs.setdefault((it.doc, it.page, it.table_id), []).append(it)
+        for group in tabs.values():
+            if all(it.table_kind is not None for it in group):
+                continue                      # the brain's reading stands (pinned ledgers carry it)
+            kind = table_kind_of(group)
+            for it in group:
+                if it.table_kind is None:
+                    it.table_kind = kind
+        return len(tabs)
+
     def corroborate(self, log=None):
+        self.stamp_table_kinds()
         """CROSS-APPEARANCE CORROBORATION (deduction 2026-09-08, F2): a
         figure is printed more than once — statement, summary table,
         five-year data, notes. A vision row the passes disputed becomes
@@ -527,6 +550,22 @@ class Ledger:
     def load(cls, path):
         from pathlib import Path
         return cls.from_json(Path(path).read_text(encoding="utf-8"))
+
+
+def table_kind_of(items):
+    """'period' | 'matrix' | 'plain' for the lines of ONE table."""
+    period = None
+    for it_ in items:
+        yrs = [int(n) for n in (getattr(it_, "nums", None) or []) if isinstance(n, (int, float))
+               and float(n).is_integer() and 1990 <= n <= 2100]
+        if len(yrs) >= 2:
+            period = len(set(yrs)) == len(yrs)
+            break
+    if period:
+        return "period"
+    if any(len([n for n in (getattr(it_, "nums", None) or []) if isinstance(n, (int, float))]) >= 4 for it_ in items):
+        return "matrix"
+    return "plain"
 
 
 def vintage_ban(ledger):
