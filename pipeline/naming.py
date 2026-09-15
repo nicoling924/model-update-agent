@@ -89,7 +89,7 @@ def _table_columns(ledger, entry):
     return [], None
 
 
-def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=120):
+def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=120, target_year=None):
     """One batched brain call over every name-mismatched tie. Refused serves
     are dropped (the row stays stale, red, with the reason). -> (asked, refused)"""
     items = name_mismatches(wb, served, targets)
@@ -104,10 +104,19 @@ def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=12
         lines = []
         for i, ((sheet, row), entry, label) in enumerate(chunk):
             ctx = " > ".join(block_context(wb, sheet, int(row)))
+            try:
+                from .workqueue import row_context_short as _rcs
+                from .checks import year_columns as _yc
+                class _L: pass
+                _l = _L(); _l.wb = wb; _l.spec = spec; _l.ty = str(target_year); _l.targets = targets
+                _ctx2 = _rcs(_l, sheet, _yc(spec, sheet).get(str(target_year)), int(row)) if target_year else ""
+                ctx = _ctx2 or ctx
+            except Exception:
+                pass
             cols, kind = _table_columns(ledger, entry)
             t = targets.get((sheet, row)) if isinstance(targets, dict) else None
             pv = getattr(t, "prior_value", None) if t is not None else None
-            lines.append(f"### id {i + 1}\n  MODEL ROW: sheet '{sheet}' row {row}: '{label}'" + (f" (under: {ctx})" if ctx else "")
+            lines.append(f"### id {i + 1}\n  MODEL ROW: sheet '{sheet}' row {row}: '{label}'" + (f" ({ctx})" if ctx else "")
                          + (f"; last year {pv:,.2f}" if isinstance(pv, (int, float)) else "")
                          + f"\n  PRINTED LINE: '{str(entry.get('line') or '')[:70]}' — {str(entry.get('doc') or '')[:40]} p{entry.get('page')}"
                          + (f"; table columns: {', '.join(cols[:7])}" if cols else "") + (f" ({kind} table)" if kind else "")

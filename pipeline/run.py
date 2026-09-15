@@ -564,7 +564,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # not kin to the model row goes to the brain before it lands
     try:
         from .naming import judge_names as _judge_names
-        _judge_names(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log)
+        _judge_names(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log, target_year=target_year)
     except Exception as _e_nm:
         log(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
         run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
@@ -603,7 +603,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         served.update(gap_served)
         try:
             from .naming import judge_names as _judge_names2
-            _judge_names2(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log)
+            _judge_names2(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log, target_year=target_year)
             for _k in list(gap_served):
                 if _k not in served:
                     gap_served.pop(_k, None)          # the brain refused the name: nothing lands

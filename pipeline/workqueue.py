@@ -523,6 +523,39 @@ def _uses_of(loop, sheet, col, row, limit=4):
     return out
 
 
+def row_context(loop, sheet, col, row, lab=None, hist_n=4):
+    """What the analyst sees before judging a cell (owner 2026-09-15): the
+    row's place (sheet > section headers > label), its history, and the
+    formulas that use it. -> (where_line, used_by_line or "")"""
+    try:
+        wb = loop.wb
+        if lab is None:
+            t = loop.targets.get((sheet, row)) if hasattr(loop, "targets") else None
+            lab = str(getattr(t, "label", "") or "") or str(wb[sheet].cell(row, 1).value or "")
+        ctx = _block_context(loop, sheet, row)
+        yc = year_columns(loop.spec, sheet)
+        hist = []
+        for y in sorted(yc, key=lambda y: int(y) if str(y).isdigit() else 0):
+            if str(y).isdigit() and int(y) < int(loop.ty):
+                v = wb[sheet][f"{yc[y]}{row}"].value
+                if isinstance(v, (int, float)):
+                    hist.append(f"{y}: {v:,.2f}")
+        where = ("  where: sheet '" + sheet + "'" + (" > " + " > ".join(ctx[::-1]) if ctx else "")
+                 + f" > '{lab}'" + (f"; history {', '.join(hist[-hist_n:])}" if hist else ""))
+        uses = _uses_of(loop, sheet, col, row)
+        used = ("  used by: " + "; ".join(f"{u_ref} '{u_lab}' {u_f}" for u_ref, u_lab, u_f in uses[:4])) if uses else ""
+        return where, used
+    except Exception:
+        return "", ""
+
+
+def row_context_short(loop, sheet, col, row):
+    """One phrase for lists of cells: the section headers and the last two years."""
+    where, used = row_context(loop, sheet, col, row, hist_n=2)
+    w = where.replace("  where: ", "")
+    return w + ((" | " + used.replace("  used by: ", "")) if used else "")
+
+
 def _block_context(loop, sheet, row, span=8):
     """The section headers above a model row — a generic 'Closing
     balance' row means nothing without its block ('Fuel Clause
@@ -757,29 +790,14 @@ def render_card(loop, item):
                     probe[round(c["value"], 1)] = (base, after)
             cell_p.value = held
         lines = [f"CARD {'SENSE' if item.kind == 'SENSE' else 'SERVE'} {sheet}!{col}{row} '{lab}'"]
-        # THE ROW'S PLACE IN THE MODEL (owner 2026-09-15, CLP ROAFNA!71: 'Coal-fired
-        # (CAPCO)' alone read like a capacity line; under the header 'Net capacity
-        # additions' with a history of -1,050 and 0 it is a movement — the brain
-        # must see what the analyst sees: the section headers and the row's history)
-        try:
-            _ctx = _block_context(loop, sheet, row)
-            _yc = year_columns(loop.spec, sheet)
-            _hist = []
-            for _y in sorted(_yc, key=lambda y: int(y) if str(y).isdigit() else 0):
-                if str(_y).isdigit() and int(_y) < int(loop.ty):
-                    _v = loop.wb[sheet][f"{_yc[_y]}{row}"].value
-                    if isinstance(_v, (int, float)):
-                        _hist.append(f"{_y}: {_v:,.2f}")
-            lines.append("  where: sheet '" + sheet + "'" + (" > " + " > ".join(_ctx[::-1]) if _ctx else "")
-                         + f" > '{lab}'" + (f"; history {', '.join(_hist[-4:])}" if _hist else ""))
-            # HOW THE MODEL USES THE ROW (owner 2026-09-15: by hand one reads
-            # 'AI64 = AH64 + AI71' and knows the row is closing minus opening
-            # capacity — a movement, derivable from two printed stocks)
-            _uses = _uses_of(loop, sheet, col, row)
-            if _uses:
-                lines.append("  used by: " + "; ".join(f"{u_ref} '{u_lab}' {u_f}" for u_ref, u_lab, u_f in _uses[:4]))
-        except Exception:
-            pass
+        # THE ROW'S PLACE IN THE MODEL (owner 2026-09-15): what the analyst sees
+        # before judging — the section headers, the history, the formulas that
+        # use the row (CLP ROAFNA!71: a capacity figure served into a net-additions row)
+        _where, _used = row_context(loop, sheet, col, row, lab)
+        if _where:
+            lines.append(_where)
+        if _used:
+            lines.append(_used)
         if item.kind == "SENSE":
             lines.append("  " + item.note)
             lines.append("  This cell feeds that line. Review it: keep the held figure only if its source is right; "
@@ -880,7 +898,8 @@ def render_card(loop, item):
         for ref in refs[:3]:
             try:
                 sh, coord = ref.split("!")
-                sample.append(f"{ref} computes {ev.cell(sh, coord):,.1f}")
+                r_ = int(re.sub(r"[A-Z]", "", coord)); c_ = re.sub(r"\d", "", coord)
+                sample.append(f"{ref} computes {ev.cell(sh, coord):,.1f} [{row_context_short(loop, sh, c_, r_)}]")
             except Exception:
                 sample.append(ref)
         lines = [f"CARD TRIPWIRE chain of {len(refs)} sign-flipped "
@@ -1026,6 +1045,7 @@ def render_card(loop, item):
                 f"{c['value']:,.2f} ({c['doc'][:22]} p{c['page']} "
                 f"'{c['line'][:36]}') residual {residual:,.1f} -> "
                 f"{after:,.1f}{mark}{w}")
+            lines.append(f"          [{row_context_short(loop, sh, _tcol(loop, sh), r2)}]")
             options[f"fix:{j}"] = ("set_input", {
                 "cell": f"{sh}!{coord}", "value": c["value"],
                 "card": "component", "check": f"{sheet}!{row}",
@@ -1061,7 +1081,7 @@ def render_card(loop, item):
             options[f"plug:{j}"] = ("plug_residual", {
                 "check": f"{sheet}!{row}", "into": f"{sh}!{_tcol(loop, sh)}{r}",
                 "why": f"card-adjudicated last resort into '{lab[:30]}'"})
-            lines.append(f"    plug:{j} -> {sh}!{r} '{lab[:30]}'")
+            lines.append(f"    plug:{j} -> {sh}!{r} '{lab[:30]}'  [{row_context_short(loop, sh, _tcol(loop, sh), r)}]")
         options["refuse_flag"] = (None, None)
         lines.append("  answers: " + ", ".join(options))
         return "\n".join(lines), options, "refuse_flag"

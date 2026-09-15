@@ -491,7 +491,9 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
                 writer.take_back(sh, coord, old, writer.log["style_journal"][mark])
     cur_v = _val(wb, sh, coord)
     basis = (entry.get("line") if isinstance(entry, dict) else None) or "no evidence line"
-    head = [f"CARD RUNG {sh}!{coord} '{label}'",
+    from .workqueue import row_context as _row_context
+    _where, _used = _row_context(loop, sh, re.sub(r"\d", "", coord), r, label)
+    head = [f"CARD RUNG {sh}!{coord} '{label}'"] + [ln for ln in (_where, _used) if ln] + [
             f"  the line: '{d['name']}' — actual {d.get('d0', 0) * 100:+.1f}% vs the analyst's estimate, next year "
             f"{d.get('d1', 0) * 100:+.1f}% vs the old forecast; this cell carries {abs(trail[-1][3]) * 100:.0f}% of the swing"
             if trail and isinstance(trail[-1][3], (int, float)) else f"  the line: '{d['name']}'",

@@ -112,6 +112,11 @@ def build_card(loop, pre_wb, obj, movers, named):
         col = _colour(wb, loop.writer, sh, c)
         lines.append(f"    [{i + 1}] {sh}!{c} '{label}': now {now if now is None else f'{now:,.2f}'} (was {pre if pre is None else f'{pre:,.2f}'}), "
                      f"{col}, {_evidence(loop, sh, c)}, carries {abs(share) * 100:.0f}% of the move")
+        try:
+            from .workqueue import row_context_short
+            lines.append(f"          [{row_context_short(loop, sh, re.sub(r'[0-9]', '', c), r)}]")
+        except Exception:
+            pass
         options[f"revert:{i + 1}"] = f"put {sh}!{c} back to what the analyst had ({pre if pre is None else f'{pre:,.2f}'}) — red, taken back by your judgment"
         options[f"backout:{i + 1}"] = f"absorb the residual in {sh}!{c} as a traceable formula — orange"
     options["plug"] = "plug the model's own residual row — the last resort, orange, reported"

@@ -5484,6 +5484,7 @@ def test_the_brain_judges_every_name_mismatch_2026_09_15():
         def json(self, system, user, validate, repair_retries=1, images=None):
             FakeClient.calls += 1
             assert "Tariff Stabilisation" in user and "Australia" in user and "table columns: FY2025, FY2024" in user
+            assert "history 2024: -425.00" in user          # the row's history travels with the name question
             out = []
             for blk in user.split("### id ")[1:]:
                 n = int(blk.split("\n", 1)[0])
@@ -5491,7 +5492,7 @@ def test_the_brain_judges_every_name_mismatch_2026_09_15():
                 out.append({"id": n, "same": same, "why": "a Hong Kong tariff item, not Australian amortisation" if not same else "residential = domestic"})
             return {"items": out}
     w = Writer(wb); logs = []
-    asked, refused = judge_names(FakeClient(), wb, spec, led, served, targets, w, logs.append)
+    asked, refused = judge_names(FakeClient(), wb, spec, led, served, targets, w, logs.append, target_year=2025)
     assert (asked, refused, FakeClient.calls) == (2, 1, 1)
     assert ("S", 4) in served and served[("S", 4)]["flag"] == "red" and "NAME DOUBTED" in served[("S", 4)]["note"]   # a doubt is a flag, not a veto
     assert ("S", 7) in served and served[("S", 7)].get("named") and not served[("S", 7)].get("flag")
