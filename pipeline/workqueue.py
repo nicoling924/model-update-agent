@@ -99,7 +99,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     from .stage2_join import ratify_page_scales, _tying_pairs, _world_tol
     pv, t = _prior_of(loop, sheet, row)
     if pv is None or pv == 0:
-        return _reader_first(loop, sheet, row, _label_only_candidates(loop, sheet, row, t, k))
+        return _reader_first(loop, sheet, row, _label_only_candidates(loop, sheet, row, t, k), keep=k)
     p2 = getattr(t, "prior2_value", None) if t is not None else None
     periods = getattr(loop.ledger, "_doc_periods", None) or {}
     # WIDER than join_pool (face authority relaxed): a card is a judged
@@ -357,13 +357,17 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     return uniq if k is None else uniq[:k]
 
 
-def _reader_first(loop, sheet, row, cands):
+def _reader_first(loop, sheet, row, cands, keep=None):
     """THE READER'S OWN READING GOES FIRST (run 34993405014: Final!16's card
     offered a 250 MW battery and four tax lines; the reader had already read
     'Other gain 460' off the P&L face with the check that closes the printed
     operating profit, and its reading never reached the card at all). The
     brain read the whole disclosure for this row — its answer is the first
     thing the card shows, with the line it quoted and the check it stated."""
+    def _trim(out):
+        # the reading takes the FIRST place, it does not make the card longer:
+        # it replaces the weakest option the machine offered (reviewer 2026-09-16)
+        return out if keep is None else out[:keep]
     sug = (getattr(loop.ledger, "reader_suggestions", None) or {}).get(f"{sheet}!{row}")
     if not isinstance(sug, dict) or not isinstance(sug.get("value"), (int, float)):
         return cands
@@ -381,10 +385,10 @@ def _reader_first(loop, sheet, row, cands):
     if same is not None:
         same["warnings"] = [seen_it + " — the machine found this line too; its own evidence is below"] \
             + list(same.get("warnings") or [])
-        return [same] + [c for c in cands if c is not same]
-    return [{"value": float(sug["value"]), "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
-             "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0,
-             "no_prior": True, "warnings": [note]}] + list(cands)
+        return _trim([same] + [c for c in cands if c is not same])
+    return _trim([{"value": float(sug["value"]), "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
+                   "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0,
+                   "no_prior": True, "warnings": [note]}] + list(cands))
 
 
 def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):

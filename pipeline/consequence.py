@@ -300,7 +300,8 @@ def _evidence(loop, sheet, coord):
     return (str(note)[:60] if note else "no evidence recorded")
 
 
-def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=None, panel_path=None):
+def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=None, panel_path=None,
+               tree_budget_s=None):
     kind, sheet, coord, amount, text = obj
     wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
     ev = Evaluator(wb)
@@ -357,10 +358,17 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
     # asked to choose among PROVEN movers only; it answered 'question' twice).
     moved = {(sh, c) for (sh, c), _s in movers}
     tree = []
+    # the walk spends what is LEFT of the round's own census budget, never a
+    # second budget of its own (reviewer 2026-09-16: a card could cost the
+    # census's 60 s plus 20 s again)
+    _tb = 20.0 if tree_budget_s is None else float(tree_budget_s)
     try:
         from .investigate import input_leaves
         cols = {sh: year_columns(spec, sh).get(str(ty)) for sh in wb.sheetnames}
-        tree = [x for x in input_leaves(wb, sheet, coord, cols=cols, budget_s=20.0) if x not in moved]
+        tree = ([x for x in input_leaves(wb, sheet, coord, cols=cols, budget_s=_tb) if x not in moved]
+                if _tb > 0 else [])
+        if _tb <= 0:
+            lines.append("  (the census used this round's whole budget — this line's other inputs are not listed)")
     except Exception as ex:  # noqa: BLE001
         lines.append(f"  (this line's input tree could not be walked: {type(ex).__name__}: {str(ex)[:80]})")
     if tree:
@@ -706,12 +714,15 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 options, movers, named = {}, [], []
                 if ask is not None:
                     flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
+                    _cen_budget = max(10.0, min(60.0, left_s - 60.0))
+                    _cen_t0 = time.monotonic()
                     movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged,
-                                          budget_s=max(10.0, min(60.0, left_s - 60.0)))[:6]
+                                          budget_s=_cen_budget)[:6]
                     named, _rest = name_gap(loop.ledger, amount, served=loop.served, near=(kind != "key"))
                     # previews cost a measure per way; near the clock the card goes without them
                     card, options = build_card(loop, pre_wb, obj[:5], movers, named,
-                                               keys_before if left_s > 120 else None, key_panel, panel_path)
+                                               keys_before if left_s > 120 else None, key_panel, panel_path,
+                                               tree_budget_s=max(0.0, _cen_budget - (time.monotonic() - _cen_t0)))
                     for t_ in tried.get((sheet, coord), ()):
                         if t_ in options:
                             options.pop(t_)

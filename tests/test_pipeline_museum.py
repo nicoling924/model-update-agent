@@ -6834,6 +6834,51 @@ def test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16():
 
 
 
+def test_the_reading_costs_the_card_nothing_extra_2026_09_16():
+    """Reviewer 2026-09-16 (cost): the reader's option A was PREPENDED after
+    the no-prior generator had already filled its quota, so the card grew by
+    one every time; and the input-tree walk took a fresh 20 s on top of the
+    census's own 60 s. The reading replaces the weakest option, and the walk
+    spends what is left of the round's budget, never a second one."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow as TR
+    from pipeline.consequence import build_card
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["A3"] = "New orders"
+    led = _ledger([_item(95, i, f"New orders line {i}", [100.0 + i, 90.0 + i]) for i in range(6)],
+                  face_pages=((95, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    led.reader_suggestions = {"S!3": {"value": 777.0, "doc": DOC, "page": 95, "line": "New orders",
+                                      "check": "700 + 77 = 777"}}
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}, "check_rows": []}
+    loop = ObjectiveLoop(wb, spec, 2025, led, [TR("S", 3, "New orders", None)], {}, Writer(wb), None)
+    without = len(candidates_for(loop, "S", 3, k=3))
+    assert without == 3, without
+    led.reader_suggestions = {"S!3": {"value": 777.0, "doc": DOC, "page": 95, "line": "New orders"}}
+    with_reading = candidates_for(loop, "S", 3, k=3)
+    assert len(with_reading) == 3, f"the reading made the card longer: {len(with_reading)}"
+    assert abs(with_reading[0]["value"] - 777.0) < 1e-6, with_reading[0]
+    # the tree walk takes the budget it is given, and says so when there is none
+    cells = {"A7": "Revenue", "T7": 90964.0, "U7": 88018.0, "A14": "Opex", "T14": -76061.0, "U14": -76061.0,
+             "A21": "Operating profit", "T21": "=T7+T14", "U21": "=U7+U14"}
+    wb2, pre2 = _wb(cells), _wb(dict(cells, U7=90964.0))
+    spec2 = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+             "key_rows": [{"name": "operating profit", "sheet": "S", "row": 21}]}
+    lp2 = _loop(wb2, spec2)
+    obj = ("key", "S", "U21", -2315.0, "key 'operating profit' at S!U21")
+    full, _o = build_card(lp2, pre2, obj, [(("S", "U7"), 1.0)], [], None, {"operating profit": {"print": 14272.0}}, None)
+    assert "S!U14" in full, "the tree was not walked with a budget"
+    spent, _o2 = build_card(lp2, pre2, obj, [(("S", "U7"), 1.0)], [], None,
+                            {"operating profit": {"print": 14272.0}}, None, tree_budget_s=0.0)
+    assert "S!U14" not in spent and "whole budget" in spent, spent
+    print("PASS test_the_reading_costs_the_card_nothing_extra_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
