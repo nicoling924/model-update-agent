@@ -2188,6 +2188,7 @@ def terminal_ladder(loop, log):
         # the residual lands is the brain's call, with code's ranking as the
         # default it keeps when no answer comes.
         ordered = sorted(sites)
+        _named = None
         _ask = getattr(loop, "ask", None)
         if _ask is not None and len(ordered) > 1:
             _card = [f"CARD PLUG {sheet}!{tcol}{row}",
@@ -2207,8 +2208,15 @@ def terminal_ladder(loop, log):
             _pick = _ask("\n".join(_card), _opts, "site:code")
             log(f"[queue] PLUG {sheet}!{tcol}{row} -> {_pick}")
             if _pick in _opts and _pick != "site:code":
+                # THE NAMED SITE IS THE ONLY SITE (reviewer 2026-09-16: moving
+                # the brain's choice to the front still walked on to the sites
+                # below it when the write there failed — the very cells the
+                # brain had refused). A home the brain named and code cannot
+                # write is a residual left open, red and reported.
                 _j = int(_pick.split(":")[1]) - 1
-                ordered = [ordered[_j]] + [x for _k, x in enumerate(ordered) if _k != _j]
+                ordered = [ordered[_j]]
+                _named = f"{ordered[0][2]}!{ordered[0][3]}"
+        _landed = False
         for _c, _v, sh, coord in ordered[:8]:
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
@@ -2221,5 +2229,13 @@ def terminal_ladder(loop, log):
                 log(f"[run]     {_ln.strip()[:160]}")     # the fixes the ladder says remain
             if str(r).startswith("PLUG"):
                 closed += 1
+                _landed = True
                 break
+        if _named and not _landed:
+            loop.writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
+                                 (f"Left OPEN: this check is off {resid:+,.1f} and the home for it, "
+                                  f"{_named}, is your own judgment — the plug could not be written there "
+                                  "and no other cell was plugged instead. Please place it."))
+            log(f"[run] terminal ladder: {sheet}!{row} left OPEN — {_named} would not take the plug "
+                "and no cell the brain refused was used instead")
     return closed

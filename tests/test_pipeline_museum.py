@@ -6731,6 +6731,33 @@ def test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16():
 
 
 
+def test_the_ladder_uses_the_named_site_only_2026_09_16():
+    """Reviewer 2026-09-16: naming the brain's site merely moved it to the
+    front of code's own ranking, so a write that failed there walked straight
+    on to the cells below — the very ones the brain had refused (run
+    34993405014's Final!AI87). The named home is the only home: if the plug
+    will not go there, the check stays open, red and reported."""
+    from pipeline.orchestrator import terminal_ladder
+    cells = {"T2": 100.0, "T3": 50.0, "T4": 150.0, "T5": 500.0, "U5": 500.0,
+             "U2": 109.0, "U3": 60.0, "U4": 171.0,
+             "T9": "=T2+T3-T4+0*T5", "U9": "=U2+U3-U4+0*U5"}
+    wb = _wb(cells)
+    lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True
+    # site:1 is S!U5, the largest input of the check's own formula — and the
+    # check does not move with it, so the plug there cannot land
+    lp.ask = lambda text, options, default: "site:1"
+    logs = []
+    terminal_ladder(lp, logs.append)
+    assert wb["S"]["U4"].value == 171.0 and wb["S"]["U2"].value == 109.0, \
+        "a site the brain did not name took the plug"
+    assert lp._failing_target_checks(), "the check was closed behind the brain's back"
+    assert any("left OPEN" in x for x in logs), logs[-3:]
+    assert "S!U9" in lp.writer.log.get("flags", []), lp.writer.log.get("flags")
+    print("PASS test_the_ladder_uses_the_named_site_only_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
