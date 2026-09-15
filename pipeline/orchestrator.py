@@ -1635,6 +1635,34 @@ class ObjectiveLoop:
             "why": "rollover card: strange move left for the analyst (cannot tell)"})
         return f"FLAGGED {fc} for the analyst"
 
+    def t_derive(self, args):
+        """THE DERIVED FILL (owner 2026-09-15): the cell must be whatever makes a
+        consuming formula give its PROVEN answer; code solves it on the model's
+        own formula and lands it orange with the proof. `via` names the
+        consuming cell (the brain's own route or a listed one); without a
+        proven figure there it is refused. Verified like every write."""
+        from .investigate import derive_via
+        cell, via = str(args.get("cell") or ""), str(args.get("via") or "").replace("'", "").replace("$", "").strip()
+        ci = self._cell_ref(cell)
+        if not ci:
+            return f"MISS: cell '{cell}' unparseable"
+        sheet, col, row = ci
+        coord = f"{col}{row}"
+        got = derive_via(self, sheet, coord, via)
+        if got is None:
+            return (f"REFUSED: {via or 'no cell'} carries no proven figure this year (or does not move with {cell}) — "
+                    "a derivation needs a consuming formula whose answer is printed or served with a prior tie")
+        implied, target, why = got
+        pcol = prior_column(self.spec, sheet, self.ty)
+        ok = self.writer.write(sheet, coord, implied, prior_coord=f"{pcol}{row}" if pcol else None, trusted=True, flag="orange",
+                               note=(f"Derived: the value that makes {via} equal its proven {target:,.2f} ({why}). "
+                                     + str(args.get("why") or "")[:120] + " True up when disclosed."))
+        if not ok:
+            return f"REFUSED by the writer's law: {self.writer.log['band_refused'][-1] if self.writer.log.get('band_refused') else 'see log'}"
+        self.served[(sheet, row)] = {"value": float(implied), "status": "OK", "conf": 3, "flag": "orange", "doc": None, "page": None,
+                                     "line": f"derived via {via}", "note": f"derived: makes {via} = {target:,.2f}"}
+        return f"DERIVED {cell} = {implied:,.2f} so that {via} equals its proven {target:,.2f}"
+
     def t_flag_cell(self, args):
         ref = str(args.get("cell", ""))
         cr = self._cell_ref(ref)
@@ -1917,6 +1945,7 @@ class ObjectiveLoop:
              "rollover_flag": t_rollover_flag,
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
+             "derive": t_derive,
              "finish": t_finish}
 
     def run(self):

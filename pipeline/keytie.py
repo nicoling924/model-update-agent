@@ -401,6 +401,15 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if prev_wrapped:
                 wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]
             continue
+        if absorbers == "none":
+            # THE KEY TIE PROPOSES, THE BRAIN PLACES (owner 2026-09-15: a 3,652 gap
+            # was dumped into the fuel clause account by confidence ranking and
+            # sent next year's cash negative): with a brain in the run the tie
+            # only measures and names; the ending's consequence card decides
+            writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
+                f"KEY OFF: '{name}' computes {got:,.2f} vs printed {want:,.2f} ({delta:+,.2f}) — for the consequence card.")
+            log(f"[run] key tie: '{name}' OFF {delta:+,.2f} vs print {want:,.2f} — left for the consequence card (no automatic back-out)")
+            continue
         tied_before = {nm for nm, _g, _w, ok in _key_state() if ok}
         # candidates: every FORMULA cell in the key's chain (estimate
         # formulas are intermediate nodes, not leaves — run-203's
@@ -873,7 +882,7 @@ def printed_subtotals(wb, spec, target_year, ledger, max_row=300, priors=None):
     return out
 
 
-def subtotal_tie(wb, spec, target_year, writer, ledger, log, priors=None):
+def subtotal_tie(wb, spec, target_year, writer, ledger, log, priors=None, absorbers="unproven"):
     """Tie every printed subtotal (back-out into an unresolved component,
     orange, traceable) and return the tied rows for rule 2's register."""
     subs = printed_subtotals(wb, spec, target_year, ledger, priors=priors)
@@ -901,7 +910,7 @@ def subtotal_tie(wb, spec, target_year, writer, ledger, log, priors=None):
     n0 = len(writer.log.get("writes_all", []))
     n = key_tie(wb, spec, target_year, writer, None, log, ledger=ledger,
                 panel=panel, keys=keys, max_delta_frac=0.10,
-                absorbers="unproven")
+                absorbers=absorbers)
     if n and _mass() > mass0 + 1.0:
         # TRANSACTIONAL (run-231: a subtotal back-out broke the balance):
         # a tie that worsens the model's own checks is undone

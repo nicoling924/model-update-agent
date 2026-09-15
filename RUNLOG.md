@@ -2520,3 +2520,22 @@ The CLP FY25 floor is re-pinned from this run: the reader replays 2,456 tables f
 ## 2026-09-15 — DFE FY25 live run 34897890192 (head 7a733f1, 34 min): the proof run
 Delivered with one open check (Driver!J139 −19, a question by the brain); keys 8/11; 0 plugs; 180/192 (94%)
 vs the prior agent file, unhighlighted 0. docs/MORNING_REPORT_2026-09-15.md holds the night's account.
+
+## 2026-09-15 (day) — what the brain sees, and the consequences it must know (owner review of run 34892926478)
+- ROAFNA!71 (coal capacity additions) read 2,910 from a capacity table: the card showed only the row's label.
+  Every card now carries the row's PLACE (sheet > section headers > label), its history, and the formulas
+  that use it (one helper, `row_context`); the row's STORY so far this run (`cell_story`: served from where,
+  proven or not, sense rulings, flag) — memory for the brain, not a rule.
+- THE GENERIC DERIVATION: if a cell feeds a formula whose answer is proven (printed / served with a prior
+  tie), the cell must be whatever makes that formula give that answer — solved numerically on the model's
+  own formula, any shape (`derive_via`, `derivations`, one tool `t_derive`); offered on the serve, rung and
+  consequence cards as `derive:N`, plus `derive:via <cell>` for the brain's own route. A card is dealt even
+  when no printed line ties but a derivation exists.
+- Fuel clause / perpetual securities: a 3,652 key gap was dumped into the fuel clause account by confidence
+  ranking (no meaning, no consequence) and sent 2026 cash to −728. With a brain the key tie PROPOSES, never
+  places (`absorbers="none"`); every way on a consequence card shows its consequence — balance, keys off,
+  cash/assets negative — measured with the plug rows lifted; cash and total assets negative in the actual
+  period or the next two periods is an objective (later: a watch flagged for the analyst, never fixed). A
+  pick is taken back only on the arithmetic (a check opened, the balance worse); a negative cash after a
+  pick is the NEXT objective, not a veto (a correct input may expose a wrong one elsewhere).
+Museum 245, bench green; floors CLP clean 8/8, DFE FY25 clean, DFE 1H25 rounding. Not yet proven live.

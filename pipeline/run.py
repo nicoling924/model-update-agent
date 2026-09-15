@@ -1047,6 +1047,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                              writer, client, run_log, budget=loop_budget)
         loop.load_bearing = lb           # tier law: the loop sees the wiring
+        loop.key_panel = _key_panel      # the proven prints of the key rows (derivations solve against them)
+        loop.period = period
+        loop.brain = client is not None or stage4_answerer is not None
 
         def _ask(text, options, default):
             """The brain picks (owner 2026-09-14: 'brain picks the rung, code verifies'); a replay's answerer stands in."""
@@ -1056,7 +1059,9 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 return default
             try:
                 from .workqueue import _llm_answer
-                return _llm_answer(loop, client, text, options, log)[0]
+                _ans, _why = _llm_answer(loop, client, text, options, log)
+                loop.last_why = _why
+                return _ans
             except Exception as _e_ask:
                 log(f"[sense] the brain could not answer a card: {_e_ask!r}")
                 return default
@@ -1155,7 +1160,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         # round, and refused)
         key_tie(wb, spec_d, target_year, writer,
                 company_dir / "replay" / str(period) / "key_panel.json",
-                log, ledger=ledger, panel=_key_panel)
+                log, ledger=ledger, panel=_key_panel,
+                absorbers=("none" if (client is not None or stage4_answerer is not None) else "any"))
         err_guard("key tie")
         collapse_guard("key tie")
         # THE PRINTED-SUBTOTAL LAW (owner 2026-09-04): current assets,
@@ -1226,7 +1232,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if tag != "first":
             from .keytie import key_tie as _kt_again
             _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
-                      ledger=ledger, panel=_key_panel)
+                      ledger=ledger, panel=_key_panel,
+                      absorbers=("none" if (client is not None or stage4_answerer is not None) else "any"))
         n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
         if n_rb2:
             err_guard(f"roll-base {tag}")

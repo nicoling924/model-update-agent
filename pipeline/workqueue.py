@@ -556,6 +556,33 @@ def row_context_short(loop, sheet, col, row):
     return w + ((" | " + used.replace("  used by: ", "")) if used else "")
 
 
+def cell_story(loop, sheet, col, row):
+    """MEMORY, NOT A RULE (owner 2026-09-15): what happened to this cell so
+    far this run — where it was served from and whether that was proven,
+    what the sense check ruled and why, its flag — so the brain can leave a
+    confident cell alone, revisit a doubtful one, or overrule for a reason.
+    -> one line or ''."""
+    from .writegate import is_proven
+    ref = f"{sheet}!{col}{row}"
+    bits = []
+    e = (getattr(loop, "served", None) or {}).get((sheet, row))
+    if isinstance(e, dict) and isinstance(e.get("value"), (int, float)):
+        bits.append(f"served {e['value']:,.2f} from '{str(e.get('line') or '')[:30]}' p{e.get('page')} "
+                    + ("(proven: its line ties the prior)" if is_proven(e) else "(unproven)"))
+    rl = (loop.writer.log.get("rulings") or {}).get(ref)
+    if rl:
+        bits.append(f"sense check ruled '{rl['pick']}' for '{rl['line']}' ({rl.get('desc', '')[:50]})")
+    try:
+        rgb = str(loop.wb[sheet][f"{col}{row}"].fill.fgColor.rgb or "")[-6:]
+        if rgb == "FFC7CE" or ref in loop.writer.log.get("flags", []):
+            bits.append("flagged red")
+        elif rgb == "FFC000":
+            bits.append("orange (backed out)")
+    except Exception:
+        pass
+    return ("  so far this run: " + "; ".join(bits)) if bits else ""
+
+
 def _block_context(loop, sheet, row, span=8):
     """The section headers above a model row — a generic 'Closing
     balance' row means nothing without its block ('Fuel Clause
@@ -763,8 +790,13 @@ def render_card(loop, item):
         elif item.kind == "SERVE" and f"{sheet}!{col}{row}" not in loop.writer.log.get("flags", []):
             return None                     # cleared since queueing: moot
         cands = candidates_for(loop, sheet, row)
-        if not cands:
-            return None                     # nothing to adjudicate
+        try:
+            from .investigate import derivations as _derivs
+            _derived = _derivs(loop, sheet, f"{col}{row}")
+        except Exception:
+            _derived = []
+        if not cands and not _derived:
+            return None                     # nothing to adjudicate: no printed line, no proven consumer
         pv, t = _prior_of(loop, sheet, row)
         held = loop.wb[sheet][f"{col}{row}"].value
         lab = str(t.label)[:40] if t is not None else "?"
@@ -798,6 +830,9 @@ def render_card(loop, item):
             lines.append(_where)
         if _used:
             lines.append(_used)
+        _story = cell_story(loop, sheet, col, row)
+        if _story:
+            lines.append(_story)
         if item.kind == "SENSE":
             lines.append("  " + item.note)
             lines.append("  This cell feeds that line. Review it: keep the held figure only if its source is right; "
@@ -869,6 +904,18 @@ def render_card(loop, item):
                        f"— {'sense-check review' if item.kind == 'SENSE' else 'card-adjudicated'}"
                        + (" — printed blank this year, judged the same item: 0"
                           if c.get("nil") else "")})
+        # THE DERIVED FILL on this card too (owner 2026-09-15: "make sure it's
+        # applied in all cards"): code's derivations from proven consumers, and
+        # the brain's own route — one card, one answer, the same tool verifies
+        try:
+            for j, (u_ref, u_lab, implied, target, why) in enumerate(_derived):
+                lines.append(f"    derive:{j + 1}: {implied:,.2f} — the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}); lands orange with that proof")
+                options[f"derive:{j + 1}"] = ("derive", {"cell": f"{sheet}!{col}{row}", "via": u_ref,
+                                                        "why": f"card-adjudicated derivation via {u_ref}"})
+        except Exception:
+            pass
+        lines.append("    derive:via: derive it yourself — name in 'why' a formula cell that uses this row and whose figure is proven; code solves and verifies")
+        options["derive:via"] = ("derive_via", {"cell": f"{sheet}!{col}{row}"})
         options["not_disclosed"] = (None, None)
         lines.append("  answers: " + ", ".join(options)
                      + "  (not_disclosed = leave red for the analyst)")
@@ -1208,6 +1255,10 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
         else:
             dead += 1
         tool, args = options[ans]
+        if tool == "derive_via":
+            m_via = re.search(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", str(why or ""))
+            tool = "derive"
+            args = dict(args, via=(m_via.group(1) if m_via else ""), why=f"the brain's own route: {str(why or '')[:80]}")
         if tool is None:
             item.state = "DEFAULTED" if ans == default else "DONE"
             defaulted += ans == default

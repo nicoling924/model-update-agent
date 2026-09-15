@@ -29,7 +29,7 @@ def picks_from_log(path):
         return picks
     # sheet names may carry spaces ('SOC Accounts!7') — match lazily to ' -> '
     pat = re.compile(r"\[queue\] (SERVE|COMPONENT|ROLLOVER|TRIPWIRE|PLUG|CONSEQUENCE|RUNG) (.+?) -> "
-                     r"(serve:[A-D]|revert:[A-E]|revert:\d|backout:[A-Z\d]|printed:[AB]|estimate|lastyear|keep|"
+                     r"(serve:[A-D]|revert:[A-E]|revert:\d|backout:[A-Z\d]|derive:\d|derive:via|printed:[AB]|estimate|lastyear|keep|"
                      r"fix:\d|plug:\d|plug|question|error_fixed|"
                      r"justified|suspicious|not_sure|refuse_flag|not_disclosed)")
     for ln in Path(path).read_text(errors="ignore").splitlines():

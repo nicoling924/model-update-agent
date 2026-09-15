@@ -63,8 +63,168 @@ def broken_objectives(loop, keys_before, key_panel, panel_path):
             out.append(("key", kk["sheet"], f"{tc}{int(kk['row'])}", float(got - want), f"key '{nm}' at {ref} computes {got:,.1f} vs printed {want:,.1f}"))
     except Exception:
         pass
+    try:
+        out += sanity_breaks(loop)
+    except Exception:
+        pass
     out.sort(key=lambda o: -abs(o[3]))
     return out
+
+
+def sanity_rows(loop):
+    """The rows that must never go negative: cash (the report's own role) and
+    total assets (a key row). -> {name: (sheet, row)}"""
+    out = {}
+    try:
+        from .reportpage import resolve_rows
+        rows, _primary = resolve_rows(loop.wb, loop.spec, int(loop.ty), getattr(loop, "period", None) or "FY")
+        if rows.get("cash"):
+            out["cash"] = (rows["cash"][0], int(rows["cash"][1]))
+    except Exception:
+        pass
+    for kk in (loop.spec.get("key_rows") or []):
+        nm = str(kk.get("name") or "").lower()
+        if nm == "cash" and "cash" not in out:
+            out["cash"] = (kk["sheet"], int(kk["row"]))
+        if "total assets" in nm:
+            out["total assets"] = (kk["sheet"], int(kk["row"]))
+    return out
+
+
+def _sanity_scan(loop):
+    """Every cash / total-assets cell from the actual period on, in period order.
+    -> [(name, sheet, coord, period_label, value)]"""
+    out = []
+    ev = Evaluator(loop.wb)
+    ty = int(loop.ty)
+    for nm, (sh, r) in sanity_rows(loop).items():
+        if sh not in loop.wb.sheetnames:
+            continue
+        yc = year_columns(loop.spec, sh)
+        cols = [(yc.get(str(ty)), str(ty))] + sorted(((c, y) for y, c in yc.items() if str(y).isdigit() and int(y) > ty), key=lambda x: int(x[1]))
+        for col, year in cols:
+            if not col:
+                continue
+            try:
+                v = ev.cell(sh, f"{col}{r}")
+            except Exception:
+                continue
+            if isinstance(v, (int, float)):
+                out.append((nm, sh, f"{col}{r}", year, float(v)))
+    return out
+
+
+def sanity_breaks(loop, horizon=2):
+    """Cash or total assets negative in the actual period or the next two
+    periods (owner 2026-09-15: a normal roll-forward may go negative later
+    on the analyst's own assumptions — that is flagged, not fixed).
+    -> [("sanity", sheet, coord, value, text)]"""
+    out = []
+    seen = {}
+    for nm, sh, coord, year, v in _sanity_scan(loop):
+        k = seen.get(nm, 0)
+        seen[nm] = k + 1
+        if k > horizon:
+            continue
+        if v < -0.5:
+            out.append(("sanity", sh, coord, v, f"{nm} goes negative in {year}: {v:,.0f} at {sh}!{coord}"))
+    return out
+
+
+def sanity_watch(loop, horizon=2):
+    """Negatives beyond the horizon: for the analyst, never fixed. -> [text]"""
+    out, seen = [], {}
+    for nm, sh, coord, year, v in _sanity_scan(loop):
+        k = seen.get(nm, 0)
+        seen[nm] = k + 1
+        if k > horizon and v < -0.5:
+            out.append(f"{nm} goes negative in {year} ({v:,.0f} at {sh}!{coord}) — beyond the next two periods: your assumptions, your call")
+    return out
+
+
+def measure(loop, keys_before, key_panel, panel_path, lift_plugs=True):
+    """One reading of the objectives — balance mass across every year, the
+    keys off the print, cash/assets negatives — taken with the plug rows
+    lifted (owner 2026-09-15: a plug masks a consequence). -> dict"""
+    wb, writer = loop.wb, loop.writer
+    lifted = []
+    if lift_plugs:
+        for ref in list(writer.log.get("plugs") or []):
+            try:
+                sh, co = ref.split("!", 1)
+                if sh in wb.sheetnames:
+                    lifted.append((sh, co, wb[sh][co].value))
+                    wb[sh][co].value = 0
+            except Exception:
+                pass
+    try:
+        objs = broken_objectives(loop, keys_before, key_panel, panel_path)
+        balance = sum(abs(o[3]) for o in objs if o[0] in ("check", "forecast-check"))
+        keys_off = [o[4].split("'")[1] if "'" in o[4] else o[2] for o in objs if o[0] == "key"]
+        san = [o for o in objs if o[0] == "sanity"]
+    finally:
+        for sh, co, v in lifted:
+            wb[sh][co].value = v
+    return {"balance": balance, "keys_off": keys_off, "sanity": san}
+
+
+def describe(m0, m1):
+    """The consequence of a pick in one phrase: balance, keys, cash/assets."""
+    bits = [f"balance off {m0['balance']:,.0f} → {m1['balance']:,.0f}"]
+    if m1["keys_off"] != m0["keys_off"]:
+        bits.append("keys off: " + (", ".join(m1["keys_off"]) or "none"))
+    elif m1["keys_off"]:
+        bits.append(f"keys still off: {', '.join(m1['keys_off'])}")
+    before = {(x[1], x[2]) for x in m0["sanity"]}
+    new_san = [o for o in m1["sanity"] if (o[1], o[2]) not in before]
+    if new_san:
+        bits.append("✗ " + "; ".join(o[4] for o in new_san[:2]))
+    elif m0["sanity"] and not m1["sanity"]:
+        bits.append("cash/assets back to positive")
+    elif not m1["sanity"]:
+        bits.append("cash/assets positive")
+    return " | ".join(bits)
+
+
+def apply_pick(loop, pre_wb, pick, movers, amount, text):
+    """Apply one consequence-card pick through the writer. -> True/False (written)."""
+    wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
+    if pick.startswith("derive:"):
+        if pick == "derive:via":
+            why_txt = str(getattr(loop, "last_why", "") or "")
+            refs = re.findall(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", why_txt)
+            cell_ref, via_ref = (refs[0], refs[1]) if len(refs) >= 2 else ("", "")
+        else:
+            i = int(pick.split(":")[1]) - 1
+            (sh, c), _share = movers[i]
+            from .investigate import derivations
+            d_ = derivations(loop, sh, c)[:1]
+            cell_ref, via_ref = f"{sh}!{c}", (d_[0][0] if d_ else "")
+        res = str(loop.t_derive({"cell": cell_ref, "via": via_ref, "why": f"consequence card for {text[:60]}"}))
+        return res.startswith("DERIVED")
+    i = int(pick.split(":")[1]) - 1
+    (sh, c), _share = movers[i]
+    r = int(re.sub(r"[A-Z]", "", c))
+    pcol = prior_column(spec, sh, ty)
+    if pick.startswith("revert:"):
+        from openpyxl.utils import column_index_from_string as _ci
+        pre_content = pre_wb[sh].cell(r, _ci(re.sub(r"\d", "", c))).value
+        back = pre_content if pre_content is not None else 0.0
+        ok = writer.write(sh, c, back, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="red",
+                          note=f"Taken back by the brain's judgment: {text}; this input was moved by the run and is put back to what you had. Please check.")
+        if ok:
+            loop.served.pop((sh, r), None)
+        return bool(ok)
+    try:
+        cur = Evaluator(wb).cell(sh, c)
+    except Exception:
+        cur = None
+    held = wb[sh][c].value
+    body = held[1:] if isinstance(held, str) and held.startswith("=") else (f"{cur:g}" if isinstance(cur, (int, float)) else None)
+    if not body:
+        return False
+    return bool(writer.write(sh, c, f"=({body})-({amount:.6g})", prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, flag="orange",
+                             note=f"Backed out by the brain's judgment so {text} closes: absorbed {amount:+,.1f} here. True up when disclosed."))
 
 
 def _colour(wb, writer, sheet, coord):
@@ -90,11 +250,14 @@ def _evidence(loop, sheet, coord):
     return (str(note)[:60] if note else "no evidence recorded")
 
 
-def build_card(loop, pre_wb, obj, movers, named):
+def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=None, panel_path=None):
     kind, sheet, coord, amount, text = obj
     wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
     ev = Evaluator(wb)
     lines = [f"CARD CONSEQUENCE {sheet}!{coord}", f"  OBJECTIVE BROKEN: {text} — off by {amount:+,.1f}"]
+    if kind == "sanity":
+        lines.append("  A negative cash or asset balance is usually caused by a wrong input elsewhere in the model, not by the last "
+                     "pick — look at the movers below for the wrong one; if the model's own assumptions cause it, answer question.")
     if named:
         lines.append("  the gap equals a printed figure not yet in the model: " + "; ".join(f"{v:,.0f} = '{lab}' ({where})" for v, lab, where in named))
     lines.append("  the inputs the run moved into this line, by their share of the move (your own flags first):")
@@ -113,17 +276,51 @@ def build_card(loop, pre_wb, obj, movers, named):
         lines.append(f"    [{i + 1}] {sh}!{c} '{label}': now {now if now is None else f'{now:,.2f}'} (was {pre if pre is None else f'{pre:,.2f}'}), "
                      f"{col}, {_evidence(loop, sh, c)}, carries {abs(share) * 100:.0f}% of the move")
         try:
-            from .workqueue import row_context_short
+            from .workqueue import row_context_short, cell_story
             lines.append(f"          [{row_context_short(loop, sh, re.sub(r'[0-9]', '', c), r)}]")
+            _st = cell_story(loop, sh, re.sub(r'[0-9]', '', c), r)
+            if _st:
+                lines.append("        " + _st)
         except Exception:
             pass
         options[f"revert:{i + 1}"] = f"put {sh}!{c} back to what the analyst had ({pre if pre is None else f'{pre:,.2f}'}) — red, taken back by your judgment"
         options[f"backout:{i + 1}"] = f"absorb the residual in {sh}!{c} as a traceable formula — orange"
+        try:
+            from .investigate import derivations
+            for u_ref, u_lab, implied, target, why in derivations(loop, sh, c)[:1]:
+                options[f"derive:{i + 1}"] = f"set {sh}!{c} to {implied:,.2f}, the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}) — orange with that proof"
+        except Exception:
+            pass
+    options["derive:via"] = "derive a mover yourself: say in 'why' which mover cell and via which proven formula cell (e.g. 'ROAFNA!AI71 via ROAFNA!AI64'); code solves and verifies"
     options["plug"] = "plug the model's own residual row — the last resort, orange, reported"
     options["question"] = "leave it open, red: a definition question for the analyst (say what)"
-    lines.append("  the ways to resolve it:")
+    # THE CONSEQUENCE OF EACH WAY (owner 2026-09-15: "the brain has to know
+    # whether it will cause cash to go negative, assets to go negative,
+    # whether the model will be unbalanced, or affect the key numbers"):
+    # every way is tried, measured with the plug rows lifted, and taken back
+    previews = {}
+    if keys_before is not None:
+        writer = loop.writer
+        m0 = measure(loop, keys_before, key_panel, panel_path)
+        for k in list(options):
+            if not (k.startswith("revert:") or k.startswith("backout:") or (k.startswith("derive:") and k != "derive:via")):
+                continue
+            mark = len(writer.log.get("writes_all", []))
+            served_before = dict(loop.served or {})
+            try:
+                ok = apply_pick(loop, pre_wb, k, movers, amount, text)
+                previews[k] = describe(m0, measure(loop, keys_before, key_panel, panel_path)) if ok else "cannot be written"
+            except Exception as ex:
+                previews[k] = "could not be tried"
+            finally:
+                journal = writer.log.get("style_journal", [])[mark:]
+                for sh_w, co_w, old_w, _new in reversed(list(writer.log.get("writes_all", []))[mark:]):
+                    style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
+                    writer.take_back(sh_w, co_w, old_w, style)
+                loop.served.clear(); loop.served.update(served_before)
+    lines.append("  the ways to resolve it, each with what it does to the objectives (plugs lifted while measuring):")
     for k, v in options.items():
-        lines.append(f"    {k}: {v}")
+        lines.append(f"    {k}: {v}" + (f"  → {previews[k]}" if k in previews else ""))
     lines.append("  Think like the analyst: which input is wrong, or is the model's definition different from the print? "
                  "A plug is only for a gap nothing explains. answers: " + ", ".join(options))
     return "\n".join(lines), options
@@ -251,7 +448,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
     if result[0] and not suspicious(headline_deltas(wb, pre_wb, spec, ty)):
         lines.append("objectives held at the first measure")
         return result
-    order = {"check": 0, "key": 1, "forecast-check": 2, "sense": 3}
+    order = {"check": 0, "key": 1, "sanity": 2, "forecast-check": 3, "sense": 4}
 
     def _breaks():
         raw = broken_objectives(loop, keys_before, key_panel, panel_path)
@@ -323,7 +520,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
                 movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged, budget_s=60)[:6]
                 named, _rest = name_gap(loop.ledger, amount, served=loop.served) if kind == "key" else ([], abs(amount))
-                card, options = build_card(loop, pre_wb, obj[:5], movers, named)
+                card, options = build_card(loop, pre_wb, obj[:5], movers, named, keys_before, key_panel, panel_path)
                 log(f"[queue] card CONSEQUENCE {sheet}!{coord}: " + " | ".join(ln.strip() for ln in card.splitlines()[1:4 + len(movers)])[:900])
                 pick = ask(card, options, "__auto__")
             if pick not in options:
@@ -346,28 +543,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 terminal_ladder(loop, log)
             else:
                 log(f"[queue] CONSEQUENCE {sheet}!{coord} -> {pick}")
-                i = int(pick.split(":")[1]) - 1
-                (sh, c), _share = movers[i]
-                r = int(re.sub(r"[A-Z]", "", c))
-                pcol = prior_column(spec, sh, ty)
-                applied = True
-                if pick.startswith("revert:"):
-                    from openpyxl.utils import column_index_from_string as _ci
-                    pre_content = pre_wb[sh].cell(r, _ci(re.sub(r"\d", "", c))).value
-                    back = pre_content if pre_content is not None else 0.0
-                    applied = writer.write(sh, c, back, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="red",
-                                           note=f"Taken back by the brain's judgment: {obj[4]}; this input was moved by the run and is put back to what you had. Please check.")
-                    if applied:
-                        loop.served.pop((sh, r), None)
-                else:
-                    try:
-                        cur = Evaluator(wb).cell(sh, c)
-                    except Exception:
-                        cur = None
-                    held = wb[sh][c].value
-                    body = held[1:] if isinstance(held, str) and held.startswith("=") else (f"{cur:g}" if isinstance(cur, (int, float)) else None)
-                    applied = bool(body) and writer.write(sh, c, f"=({body})-({amount:.6g})", prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, flag="orange",
-                                                          note=f"Backed out by the brain's judgment so {obj[4]} closes: absorbed {amount:+,.1f} here. True up when disclosed.")
+                applied = apply_pick(loop, pre_wb, pick, movers, amount, obj[4])
                 if not applied:
                     log(f"[ending] the pick {pick} could not be written (the writer's law refused)")
                     asked.add((sheet, coord))
@@ -378,7 +554,17 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
         repair_round("ending")
         result = gate_once()
         mass1 = check_mass()
-        new_fails = _fails(result) - fails0
+        # a pick is taken back only when the ARITHMETIC says so (a check opened,
+        # the balance worse); cash or assets going negative after it is the next
+        # objective, not a veto (owner 2026-09-15: a correct input can turn cash
+        # negative because another input elsewhere is wrong — the loop must go
+        # find that one, not undo the correct one)
+        new_fails = {f for f in (_fails(result) - fails0) if not any(o[0] == "sanity" and (o[1], o[2]) == f
+                                                                       for o in broken_objectives(loop, keys_before, key_panel, panel_path))}
+        new_san = [o for o in broken_objectives(loop, keys_before, key_panel, panel_path) if o[0] == "sanity" and (o[1], o[2]) not in fails0]
+        if new_san:
+            log(f"[ending] after {pick} on {sheet}!{coord}: {new_san[0][4]} — kept; that is the next objective")
+            lines.append(f"after {pick} on {sheet}!{coord}: {new_san[0][4]} — investigated next")
         gaps1 = _gaps()
         from .sensecheck import SENSE_GAP
         # the objectives in the owner's order: balance first, keys second, the
@@ -400,6 +586,15 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 asked.add((sheet, coord))
             elif kind == "sense":
                 asked.add((sheet, coord))
+    for w in sanity_watch(loop):
+        lines.append("WATCH " + w)
+        log("[ending] watch: " + w)
+        try:
+            m_ = re.search(r"at ([^)]+!\S+)\)", w)
+            if m_:
+                writer.flag_ref(m_.group(1), "red", "Sense check: " + w)
+        except Exception:
+            pass
     left = _breaks()
     lines.append(f"ended: {len(left)} objective(s) still broken" if left else "ended: every objective holds")
     log(f"[ending] {lines[-1]}")

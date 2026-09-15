@@ -198,6 +198,93 @@ def swing_leaves(wb, pre_wb, sheet, coord, stable=(), flagged=(), floor=0.05, de
     return sorted(out.items(), key=lambda kv: (0 if kv[0] in flagged else 1, -abs(kv[1])))
 
 
+def proven_figure(loop, sheet, row):
+    """A figure the run holds as PROVEN for a model row: a served entry whose
+    line tied the prior and landed clean, or the key panel's print for a key
+    row. -> (value, evidence_text) or None."""
+    from .writegate import is_proven
+    e = (getattr(loop, "served", None) or {}).get((sheet, row))
+    if isinstance(e, dict) and is_proven(e) and isinstance(e.get("value"), (int, float)):
+        return float(e["value"]), f"served from '{str(e.get('line') or '')[:36]}' p{e.get('page')}"
+    panel = getattr(loop, "key_panel", None) or {}
+    for kk in (loop.spec.get("key_rows") or []):
+        if kk.get("sheet") == sheet and int(kk.get("row")) == int(row):
+            pr = (panel.get(kk.get("name")) or {}).get("print")
+            if isinstance(pr, (int, float)):
+                return float(pr), f"the printed key '{kk.get('name')}' ({(panel.get(kk.get('name')) or {}).get('line', '')})"
+    return None
+
+
+def derive_via(loop, sheet, coord, consumer_ref):
+    """The one value of sheet!coord that makes the consuming formula at
+    consumer_ref equal its PROVEN figure, solved on the model's own formula
+    (two evaluations for a straight line, one more for a curve).
+    -> (implied, target, evidence_text) or None."""
+    wb = loop.wb
+    if "!" not in consumer_ref:
+        return None
+    u_sh, u_c = consumer_ref.split("!", 1)
+    if u_sh not in wb.sheetnames:
+        return None
+    u_r = int(re.sub(r"[A-Z]", "", u_c) or 0)
+    pf = proven_figure(loop, u_sh, u_r)
+    if pf is None:
+        return None
+    target, why = pf
+    held = wb[sheet][coord].value
+    x0 = _val(wb, sheet, coord)
+    if not isinstance(x0, (int, float)):
+        x0 = 0.0
+    dx = max(1.0, abs(x0) * 0.01)
+    try:
+        f0 = _val(wb, u_sh, u_c)
+        wb[sheet][coord].value = x0 + dx
+        f1 = _val(wb, u_sh, u_c)
+    finally:
+        wb[sheet][coord].value = held
+    if not isinstance(f0, (int, float)) or not isinstance(f1, (int, float)):
+        return None
+    slope = (f1 - f0) / dx
+    if abs(slope) < 1e-9:
+        return None                       # the formula does not move with this cell
+    implied = x0 + (target - f0) / slope
+    try:
+        wb[sheet][coord].value = implied
+        f2 = _val(wb, u_sh, u_c)
+        if isinstance(f2, (int, float)) and abs(f2 - target) > max(0.5, abs(target) * 1e-4) and implied != x0:
+            slope2 = (f2 - f0) / (implied - x0)
+            if abs(slope2) > 1e-9:
+                implied = x0 + (target - f0) / slope2
+                wb[sheet][coord].value = implied
+                f2 = _val(wb, u_sh, u_c)
+    finally:
+        wb[sheet][coord].value = held
+    if not isinstance(f2, (int, float)) or abs(f2 - target) > max(0.5, abs(target) * 1e-3):
+        return None
+    return float(implied), float(target), why
+
+
+def derivations(loop, sheet, coord, limit=3):
+    """THE GENERIC DERIVATION (owner 2026-09-15): if the cell feeds a formula
+    whose answer is already proven from the print, the cell must be whatever
+    makes that formula give that answer — found by trying, on the model's
+    own formula, for any shape. -> [(consumer_ref, consumer_label, implied,
+    target, evidence_text)]"""
+    from .workqueue import _uses_of
+    col = re.sub(r"\d", "", coord)
+    r = int(re.sub(r"[A-Z]", "", coord))
+    out = []
+    for u_ref, u_lab, _f in _uses_of(loop, sheet, col, r):
+        got = derive_via(loop, sheet, coord, u_ref)
+        if got is None:
+            continue
+        implied, target, why = got
+        out.append((u_ref, u_lab, implied, target, why))
+        if len(out) >= limit:
+            break
+    return out
+
+
 def unusual_by_history(wb, spec, sheet, row, target_year):
     """This year's move lies outside the range of the model's own past
     year-on-year moves on this row (no margin). -> (bool, this_move, (lo, hi))"""
@@ -453,6 +540,10 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         if par_typed and isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and pcol:
             ways.append(("backout:S", "backout", None, f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c),
                          f"last year's share of its total {p_sh}!{p_c} (a formula, orange)"))
+    if not (proven and colour == "plain"):
+        for j, (u_ref, u_lab, implied, target, why) in enumerate(derivations(loop, sh, coord)):
+            ways.append((f"derive:{j + 1}", "derive", implied, None,
+                         f"the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}) — derived, orange"))
     # THE FALLBACKS ARE CASE BY CASE (owner 2026-09-15): when nothing proves
     # the figure, both stale figures are shown with their meaning — the
     # analyst's own estimate for this year (what the model held before the
@@ -473,12 +564,14 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     if isinstance(ly_v, (int, float)) and not (proven and colour == "plain") and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
         ways.append(("lastyear", "stale", float(ly_v), None,
                      f"keep last year's actual ({ly_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
+    ways.append(("derive:via", "derive_via", None, None,
+                 "derive it yourself: name in 'why' a formula cell that uses this row and whose figure is proven (e.g. ROAFNA!AI64) — code solves the value"))
     ways.append(("keep", "keep", None, None,
                  "keep the current figure — it belongs on this row (say why)"))
     # the effect of each way on the line's gap, by trial
     previews = {}
     for key, kind, value, formula, _desc in ways:
-        if kind == "keep":
+        if kind in ("keep", "derive_via"):
             previews[key] = gap0
             continue
         mark = len(writer.log.get("writes_all", []))
@@ -507,6 +600,10 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         shown = (f"{value:,.2f}" if isinstance(value, (int, float)) else (formula or "as is"))
         head.append(f"    {key}: {shown} — {desc} [{eff}]")
         options[key] = desc
+    from .workqueue import cell_story as _cell_story
+    _story = _cell_story(loop, sh, re.sub(r"\d", "", coord), r)
+    if _story:
+        head.insert(3, _story)
     text = "\n".join(head) + "\n  answers: " + ", ".join(options)
     log(f"[queue] card RUNG {sh}!{r}: " + " | ".join(ln.strip() for ln in head[4:])[:900])
     pick = ask(text, options, "__auto__")
@@ -514,7 +611,28 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         return _auto_ladder()
     way = next(w for w in ways if w[0] == pick)
     key, kind, value, formula, desc = way
+    if kind == "derive_via":
+        # THE BRAIN'S OWN DERIVATION (owner 2026-09-15): it names the formula
+        # cell; code solves against that cell's proven figure, or refuses
+        why_txt = str(getattr(loop, "last_why", "") or "")
+        m_ref = re.search(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", why_txt)
+        got = derive_via(loop, sh, coord, m_ref.group(1).replace("'", "").replace("$", "").strip()) if m_ref else None
+        if got is None:
+            log(f"[queue] RUNG {sh}!{coord} -> derive:via refused ({'no cell named' if not m_ref else m_ref.group(1) + ' has no proven figure'})")
+            ways = [w for w in ways if w[0] != "derive:via"]
+            options.pop("derive:via", None)
+            text2 = text + f"\n  NOTE: 'derive:via' was refused — {'name a cell' if not m_ref else m_ref.group(1) + ' carries no proven figure'}; answer again without it."
+            pick = ask(text2, options, "__auto__")
+            if pick not in options:
+                return _auto_ladder()
+            way = next(w for w in ways if w[0] == pick)
+            key, kind, value, formula, desc = way
+        else:
+            implied, target, why = got
+            kind, value = "derive", implied
+            desc = f"the value that makes {m_ref.group(1)} equal its proven {target:,.2f} ({why}) — derived by the brain's own route, orange"
     log(f"[queue] RUNG {sh}!{coord} -> {pick}")
+    writer.log.setdefault("rulings", {})[ref] = {"pick": pick, "line": str(d.get("name")), "desc": desc[:80]}
     if kind == "keep":
         return ("genuine" if not unusual else "unusual"), (f"'{d['name']}': swing traced to {path} ({ref}) — the brain judged the figure belongs here"
                                                              + (f" (unusual per history: {this_move * 100:+.0f}%)" if unusual else ""))
@@ -527,7 +645,10 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
             return "red", f"'{d['name']}': swing traced to {path} ({ref}) — the brain's printed pick was refused ({res[:80]}); please look here"
         return "fixed", f"'{d['name']}': swing traced to {path} ({ref}); {desc} — gap {gap0 * 100:.0f} → {gap_of() * 100:.0f} points"
     mark = len(writer.log.get("writes_all", []))
-    if kind == "backout":
+    if kind == "derive":
+        ok_w = writer.write(sh, coord, value, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="orange",
+                            note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); the brain chose {desc}. True up when disclosed.")
+    elif kind == "backout":
         ok_w = writer.write(sh, coord, formula, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="orange",
                             note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); the brain chose {desc}. Please confirm.")
     else:

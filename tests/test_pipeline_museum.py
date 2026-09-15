@@ -5556,6 +5556,177 @@ def test_a_prose_money_figure_lands_in_the_models_units_2026_09_15():
     print("PASS test_a_prose_money_figure_lands_in_the_models_units_2026_09_15")
 
 
+def test_the_generic_derivation_and_one_ruling_per_cell_2026_09_15():
+    """Owner 2026-09-15 (CLP ROAFNA!71, coal capacity additions): the right
+    answer was closing capacity minus opening, both printed, and the card
+    never offered it; the same cell was then ruled four times by different
+    steps. (1) Any formula that consumes the cell and carries a PROVEN
+    figure yields the one value of the cell that hits it — solved on the
+    model's own formula, whatever its shape. (2) A swing line never re-asks
+    a cell the brain has ruled on this run; a higher objective may, and the
+    card says so."""
+    from pipeline.investigate import derivations, judge_and_fix
+    from openpyxl.styles import PatternFill
+    pre = m_wb = None
+    pre = _wb({"A2": "Capacity", "A4": "Coal additions", "T4": -1050.0, "U4": "=T4",
+               "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4", "A8": "Margin", "T8": 0.2, "U8": "=U9/U10",
+               "T9": 100.0, "U9": "=T9", "T10": 500.0, "U10": 500.0})
+    wb = _wb({"A2": "Capacity", "A4": "Coal additions", "T4": -1050.0, "U4": 2910.0,
+              "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4", "A8": "Margin", "T8": 0.2, "U8": "=U9/U10",
+              "T9": 100.0, "U9": 130.0, "T10": 500.0, "U10": 500.0})
+    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "capacity", "sheet": "S", "row": 6}, {"name": "margin", "sheet": "S", "row": 8}]}
+    lp = _loop(wb, spec, evidence=[[2910.0, 2800.0]])
+    lp.key_panel = {"capacity": {"print": 6908.0, "line": "Coal capacity p245"}, "margin": {"print": 0.25, "line": "Margin p9"}}
+    d = derivations(lp, "S", "U4")
+    assert d and d[0][0] == "S!U6" and abs(d[0][2] - 0.0) < 0.01 and d[0][3] == 6908.0, d      # closing = opening + this -> 0
+    d9 = derivations(lp, "S", "U9")
+    assert d9 and d9[0][0] == "S!U8" and abs(d9[0][2] - 125.0) < 0.01, d9                       # a ratio: margin 0.25 * 500
+    seen = []
+    def ask(text, options, default):
+        seen.append(text)
+        assert "derive:1" in options and "equal its proven 6,908.00" in text
+        return "derive:1"
+    lp.ask = ask
+    dd = {"name": "free cash flow", "d0": 0.0, "d1": 1.0, "new0": 100.0, "ref1": "S!U6"}
+    verdict, text = judge_and_fix(lp, pre, dd, ("S", "U4"), [("S", "U6", "cap", 1.0), ("S", "U4", "Coal additions", 1.0)], lambda *_a: None, lambda: 1.0)
+    assert verdict == "fixed" and abs(wb["S"]["U4"].value) < 0.01 and str(wb["S"]["U4"].fill.fgColor.rgb).endswith("FFC000")
+    assert lp.writer.log["rulings"]["S!U4"]["pick"] == "derive:1"
+    # memory, not a rule: the next card on the cell tells the brain what happened so far; the brain decides
+    wb["S"]["U4"] = 2910.0
+    seen2 = []
+    lp.ask = lambda text, options, default: (seen2.append(text), "keep")[1]
+    judge_and_fix(lp, pre, dd, ("S", "U4"), [("S", "U6", "cap", 1.0), ("S", "U4", "Coal additions", 1.0)], lambda *_a: None, lambda: 1.0)
+    assert seen2 and "so far this run:" in seen2[0] and "sense check ruled 'derive:1'" in seen2[0], seen2[0][:600]
+    print("PASS test_the_generic_derivation_and_one_ruling_per_cell_2026_09_15")
+
+
+def test_the_brain_names_its_own_derivation_route_2026_09_15():
+    """Owner 2026-09-15: one card, one answer — 'derive:via' lets the brain
+    name a formula cell code did not list; code solves against that cell's
+    proven figure and verifies, or refuses and asks once more without it."""
+    from pipeline.investigate import judge_and_fix
+    from openpyxl.styles import PatternFill
+    pre = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": "=T4", "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4"})
+    wb = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": 2910.0, "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4"})
+    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": [{"name": "capacity", "sheet": "S", "row": 6}]}
+    lp = _loop(wb, spec, evidence=[[2910.0, 2800.0]])
+    lp.key_panel = {"capacity": {"print": 6908.0, "line": "Coal capacity p245"}}
+    dd = {"name": "free cash flow", "d0": 0.0, "d1": 1.0, "new0": 100.0, "ref1": "S!U6"}
+    trail = [("S", "U6", "cap", 1.0), ("S", "U4", "Coal additions", 1.0)]
+    asks = []
+    def ask(text, options, default):
+        asks.append(text)
+        assert "derive:via" in options
+        lp.last_why = "S!U6 holds the printed closing capacity; additions = closing - opening"
+        return "derive:via"
+    lp.ask = ask
+    verdict, text = judge_and_fix(lp, pre, dd, ("S", "U4"), trail, lambda *_a: None, lambda: 1.0)
+    assert verdict == "fixed" and abs(wb["S"]["U4"].value) < 0.01 and "brain's own route" in text, (verdict, text)
+    # a named cell with no proven figure: refused, asked once more without the option
+    wb["S"]["U4"] = 2910.0; lp.key_panel = {}
+    asks.clear()
+    def ask2(text, options, default):
+        asks.append(text)
+        if len(asks) == 1:
+            lp.last_why = "S!U6"
+            return "derive:via"
+        assert "derive:via" not in options and "was refused" in text
+        return "estimate"
+    lp.ask = ask2
+    verdict, text = judge_and_fix(lp, pre, dd, ("S", "U4"), trail, lambda *_a: None, lambda: 1.0)
+    assert len(asks) == 2 and verdict == "stale" and wb["S"]["U4"].value == -1050.0, (verdict, asks and len(asks))
+    print("PASS test_the_brain_names_its_own_derivation_route_2026_09_15")
+
+
+def test_the_derive_tool_serves_every_card_2026_09_15():
+    """Owner 2026-09-15: "make sure it's applied in all cards and they won't
+    conflict" — one tool (t_derive) solves a cell from a proven consuming
+    formula and lands it orange with the proof; the serve card and the
+    consequence card list code's derivations and the brain's own route
+    through that same tool; no proven figure → refused."""
+    from pipeline.workqueue import render_card, WorkItem
+    from pipeline.consequence import build_card
+    from openpyxl.styles import PatternFill
+    pre = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": "=T4", "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4",
+               "T9": "=T4", "U9": "=U4"})
+    wb = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": 2910.0, "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4",
+              "T9": "=T4", "U9": "=U4"})
+    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "capacity", "sheet": "S", "row": 6}]}
+    lp = _loop(wb, spec, evidence=[[2910.0, 2800.0]])
+    lp.key_panel = {"capacity": {"print": 6908.0, "line": "Coal capacity p245"}}
+    lp.est_base = {}
+    # the tool
+    assert lp.t_derive({"cell": "S!U4", "via": "S!U6"}).startswith("DERIVED") and abs(wb["S"]["U4"].value) < 0.01
+    assert str(wb["S"]["U4"].fill.fgColor.rgb).endswith("FFC000") and lp.served[("S", 4)]["line"] == "derived via S!U6"
+    wb["S"]["U4"] = 2910.0
+    assert lp.t_derive({"cell": "S!U4", "via": "S!U9"}).startswith("REFUSED")          # S!U9 carries no proven figure
+    # the serve card lists the derivation and the brain's own route, through the same tool
+    from pipeline.targets import TargetRow
+    lp.targets = {("S", 4): TargetRow("S", 4, "Coal additions", -1050.0)}
+    lp.served.pop(("S", 4), None)
+    lp.writer.flag_ref("S!U4", "red", "STALE INPUT")
+    rendered = render_card(lp, WorkItem("SERVE", "S", 4))
+    assert rendered is not None
+    text, options, default = rendered
+    assert "derive:1" in options and options["derive:1"][0] == "derive" and options["derive:1"][1]["via"] == "S!U6", options.keys()
+    assert "derive:via" in options and "equal its proven 6,908.00" in text
+    # the consequence card lists a derivation per mover
+    card, opts = build_card(lp, pre, ("check", "S", "U9", 2910.0, "balance check S!U9"), [(("S", "U4"), 1.0)], [])
+    assert "derive:1" in opts and "derive:via" in opts and "6,908.00" in opts["derive:1"], opts
+    print("PASS test_the_derive_tool_serves_every_card_2026_09_15")
+
+
+def test_consequences_are_measured_and_cash_stays_positive_2026_09_15():
+    """Owner 2026-09-15 (CLP: a 3,652 key gap dumped into the fuel clause
+    account sent 2026 cash to −728): the key tie proposes but never places
+    when a brain is present; every way on a consequence card shows what it
+    does to balance, keys and cash/assets, measured with the plug rows
+    lifted; cash or assets negative in the actual period or the next two is
+    an objective, later than that a watch for the analyst."""
+    from pipeline.consequence import sanity_breaks, sanity_watch, build_card, measure
+    from pipeline.keytie import key_tie
+    from pipeline.writer import Writer
+    from openpyxl.styles import PatternFill
+    cells = {"A2": "Cash", "T2": 100.0, "U2": 50.0, "V2": -20.0, "W2": 10.0, "X2": -5.0, "Y2": -9.0,
+             "A3": "Total assets", "T3": 500.0, "U3": 500.0, "V3": 500.0, "W3": 500.0, "X3": 500.0, "Y3": 500.0,
+             "A5": "Fuel clause", "T5": 0.0, "U5": 0.0, "A9": "check", "T9": "=T3-T3", "U9": "=U5"}
+    wb = _wb(cells); pre = _wb(cells)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V", "2027": "W", "2028": "X", "2029": "Y"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "cash", "sheet": "S", "row": 2}, {"name": "total assets", "sheet": "S", "row": 3}]}
+    lp = _loop(wb, spec); lp.period = "FY25"; lp.key_panel = {}
+    br = sanity_breaks(lp)
+    assert [(o[2], round(o[3])) for o in br] == [("V2", -20)], br            # 2026 is within the horizon; 2028/2029 are not
+    watch = sanity_watch(lp)
+    assert len(watch) == 2 and "2028" in watch[0] and "your call" in watch[0], watch
+    # the key tie with a brain: OFF, named, never absorbed
+    wb2 = _wb({"T2": 100.0, "U2": 90.0, "T5": 10.0, "U5": 5.0, "T4": "=T2+T5", "U4": "=U2+U5"})
+    wb2["S"]["U5"].fill = PatternFill("solid", fgColor="FFC7CE")
+    spec2 = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
+    w2 = Writer(wb2); logs = []
+    assert key_tie(wb2, spec2, 2025, w2, None, logs.append, panel={"total": {"print": 150.0, "prior": 110.0}}, absorbers="none") == 0
+    assert wb2["S"]["U5"].value == 5.0 and any("left for the consequence card" in ln for ln in logs), logs
+    # the card previews each way with the plug rows lifted
+    wb3 = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0, "U2": 999.0, "U3": 60.0, "U4": 160.0, "T9": "=T2+T3-T4", "U9": "=U2+U3-U4",
+               "A11": "Cash", "T11": 20.0, "U11": "=U2-980", "A12": "plug", "U12": 0.0})
+    pre3 = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0, "U2": 100.0, "U3": 50.0, "U4": 150.0, "T9": "=T2+T3-T4", "U9": "=U2+U3-U4",
+                "A11": "Cash", "T11": 20.0, "U11": "=U2-980", "A12": "plug", "U12": 0.0})
+    spec3 = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+             "key_rows": [{"name": "cash", "sheet": "S", "row": 11}]}
+    lp3 = _loop(wb3, spec3, served={("S", 2): {"value": 999.0, "line": "Other", "page": 3, "conf": 4}}, evidence=[[999.0, 1.0]])
+    lp3.period = "FY25"; lp3.key_panel = {}
+    card, opts = build_card(lp3, pre3, ("check", "S", "U9", 899.0, "balance check S!U9"), [(("S", "U2"), 1.0)], [], {}, {}, None)
+    line = next(ln for ln in card.splitlines() if ln.strip().startswith("revert:1"))
+    assert "→ balance off 899 → 0" in line and "✗ cash goes negative in 2025" in line, line
+    assert wb3["S"]["U2"].value == 999.0, "the preview was taken back"
+    print("PASS test_consequences_are_measured_and_cash_stays_positive_2026_09_15")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

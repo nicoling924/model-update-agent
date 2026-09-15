@@ -328,6 +328,7 @@ def investigate_line(loop, pre_wb, d, log, rerun=None):
         return abs(dd["d1"] - dd["d0"]) if dd else 0.0
     texts, verdict, last_leaf = [], "spread", None
     seen_leaves = set()
+    writer = loop.writer
     # THE BRACKET (owner 2026-09-14: "operating income swings but gross
     # profit is stable — the issue is between the two; look at my own
     # flags first, then the biggest swing"): the headline lines whose own
@@ -349,6 +350,7 @@ def investigate_line(loop, pre_wb, d, log, rerun=None):
     for (leaf, share) in census[:4]:          # the material movers, own flags first
         if leaf in seen_leaves:
             continue
+
         seen_leaves.add(leaf)
         last_leaf = leaf
         trail = [(leaf[0], leaf[1], f"{abs(share) * 100:.0f}% of the swing", share)]
