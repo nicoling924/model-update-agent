@@ -225,20 +225,45 @@ def _check_terms(text):
     return terms, closes
 
 
-def _row_figures(item):
+def _note_column(items):
+    """Which rows of a table block print a NOTE REFERENCE before their
+    figures. A note is a COLUMN of the block — the statement's own note
+    numbering, small positive integers that ASCEND down the table, blank on
+    the rows that carry none — never a row's own first number (reviewer
+    2026-09-16: 'Other gains 46 512' was read as this period 512 because 46
+    looked like a note, which both invented a column mix and cost the row its
+    comparative). The ledger's column names say the same thing where the
+    extractor kept them. A leading integer that does not fit the block's
+    ascent is a figure. -> {id(item)}"""
+    seq = []
+    for it in items:
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        if len(nums) >= 2 and float(nums[0]).is_integer() and 0 < nums[0] < 100:
+            seq.append((it, float(nums[0])))
+    if len(seq) < 2:
+        return set()
+    named = [str(c).strip().lower() for c in (getattr(seq[0][0], "columns", None) or [])]
+    chains = []
+    for it, v in seq:
+        best = max([c for c in chains if c[-1][1] < v], key=len, default=[])
+        chains.append(best + [(it, v)])
+    run = max(chains, key=len, default=[])
+    if len(run) < 2 and not any(n.startswith("note") for n in named):
+        return set()
+    return {id(it) for it, _v in run}
+
+
+def _row_figures(item, notes=()):
     """A printed row read as the statement prints it: (this period's figure,
-    its comparative). The figure is the row's leftmost printed number — the
-    second when the first is a NOTE REFERENCE (a bare integer under 100
-    standing before figures of another size); the comparative is the number
-    printed after it, or None where the row prints none.
+    its comparative). The figure is the row's leftmost printed number, after
+    the block's note column where the row carries one; the comparative is the
+    number printed after it, or None where the row prints none — so a row of
+    exactly two figures in a two-period block is (this period, comparative).
     -> (value, comparative) or None."""
     nums = [n for n in (item.nums or []) if isinstance(n, (int, float))]
     if not nums:
         return None
-    i = 0
-    if len(nums) > 1 and float(nums[0]).is_integer() and 0 < nums[0] < 100 \
-            and abs(nums[1]) > abs(nums[0]):
-        i = 1
+    i = 1 if (id(item) in notes and len(nums) > 1) else 0
     return nums[i], (nums[i + 1] if i + 1 < len(nums) else None)
 
 
@@ -276,13 +301,17 @@ def _reconciliation(check, printed, items, page, sources):
     from .writegate import _ties_full_precision
     if not _ties_full_precision(sum(terms), closes) or (sum(terms) < 0) != (closes < 0):
         return None
-    rows = []
+    blocks = {}
     for it in items:
-        if it.page != page or it.doc not in sources:
-            continue
-        fig = _row_figures(it)
-        if fig is not None:
-            rows.append((it, fig[0], fig[1]))
+        if it.page == page and it.doc in sources:
+            blocks.setdefault((it.doc, it.table_id), []).append(it)
+    rows = []
+    for block in blocks.values():
+        notes = _note_column(block)          # the note column is the block's, not a row's
+        for it in block:
+            fig = _row_figures(it, notes)
+            if fig is not None:
+                rows.append((it, fig[0], fig[1]))
 
     def _row_of(v, used):
         return next(((it, cur, comp) for it, cur, comp in rows

@@ -6887,6 +6887,48 @@ def test_the_reading_costs_the_card_nothing_extra_2026_09_16():
 
 
 
+def test_a_note_reference_is_a_column_of_the_block_2026_09_16():
+    """Reviewer 2026-09-16: the note-reference test fired on any row whose
+    first figure was a positive integer under 100 and smaller than the next,
+    so 'Other gains 46 512' read 512 as THIS period — the row lost its
+    comparative and a check built on 512 was accepted. A note is a column of
+    the table block, ascending down it; a leading integer that does not fit
+    that ascent is a figure."""
+    from pipeline.reader import _note_column, _row_figures, _reconciliation
+    two_period = [_item(23, 1, "Revenue", [88018.0, 90964.0]),
+                  _item(23, 2, "Other gains", [46.0, 512.0]),
+                  _item(23, 3, "Operating profit", [14324.0, 14903.0])]
+    notes = _note_column(two_period)
+    assert notes == set(), "a two-period block was given a note column it does not have"
+    assert _row_figures(two_period[1], notes) == (46.0, 512.0), _row_figures(two_period[1], notes)
+    # the genuine CLP block: the note column 3 | 5 | 6 | 7 | 9 is stripped for
+    # every row that carries one, and only for those
+    clp = _clp_p23_items()
+    n2 = _note_column(clp)
+    by_label = {str(i.label): i for i in clp}
+    assert _row_figures(by_label["Other gain"], n2) == (460.0, None), _row_figures(by_label["Other gain"], n2)
+    assert _row_figures(by_label["Revenue"], n2) == (88018.0, 90964.0)
+    assert _row_figures(by_label["Operating profit"], n2) == (14272.0, 14903.0)
+    assert _row_figures(by_label["Staff expenses"], n2) == (-5987.0, -5150.0), "a row with no note was stripped"
+    # the reviewer's check, built on the comparative it invented: refused
+    attack = _ledger([_item(23, 1, "Revenue", [3.0, 88018.0, 90964.0]),
+                      _item(23, 2, "Purchases", [-28950.0, -31871.0]),
+                      _item(23, 3, "Staff expenses", [-5987.0, -5150.0]),
+                      _item(23, 4, "Fuel and other operating expenses", [-29551.0, -29764.0]),
+                      _item(23, 5, "Depreciation and amortisation", [-9718.0, -9276.0]),
+                      _item(23, 6, "Other gains", [46.0, 512.0]),
+                      _item(23, 7, "Operating profit", [6.0, 14324.0, 14903.0])],
+                     face_pages=((23, "pl"),))
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 512 = 14,324",
+                           -74206.0, attack.items, 23, {DOC}) is None
+    # and the genuine one still proves the analyst's figure
+    led = _ledger(clp, face_pages=((23, "pl"),))
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272",
+                           -74206.0, led.items, 23, {DOC}) is not None
+    print("PASS test_a_note_reference_is_a_column_of_the_block_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
