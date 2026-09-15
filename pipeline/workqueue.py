@@ -727,6 +727,23 @@ def render_card(loop, item):
                     probe[round(c["value"], 1)] = (base, after)
             cell_p.value = held
         lines = [f"CARD {'SENSE' if item.kind == 'SENSE' else 'SERVE'} {sheet}!{col}{row} '{lab}'"]
+        # THE ROW'S PLACE IN THE MODEL (owner 2026-09-15, CLP ROAFNA!71: 'Coal-fired
+        # (CAPCO)' alone read like a capacity line; under the header 'Net capacity
+        # additions' with a history of -1,050 and 0 it is a movement — the brain
+        # must see what the analyst sees: the section headers and the row's history)
+        try:
+            _ctx = _block_context(loop, sheet, row)
+            _yc = year_columns(loop.spec, sheet)
+            _hist = []
+            for _y in sorted(_yc, key=lambda y: int(y) if str(y).isdigit() else 0):
+                if str(_y).isdigit() and int(_y) < int(loop.ty):
+                    _v = loop.wb[sheet][f"{_yc[_y]}{row}"].value
+                    if isinstance(_v, (int, float)):
+                        _hist.append(f"{_y}: {_v:,.2f}")
+            lines.append("  where: sheet '" + sheet + "'" + (" > " + " > ".join(_ctx[::-1]) if _ctx else "")
+                         + f" > '{lab}'" + (f"; history {', '.join(_hist[-4:])}" if _hist else ""))
+        except Exception:
+            pass
         if item.kind == "SENSE":
             lines.append("  " + item.note)
             lines.append("  This cell feeds that line. Review it: keep the held figure only if its source is right; "
