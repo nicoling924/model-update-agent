@@ -6698,6 +6698,39 @@ def test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16():
 
 
 
+def test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16():
+    """Reviewer 2026-09-16: _reader_first fronted an EXISTING candidate whose
+    comparative tied the prior EXACTLY and pasted "no prior tie … it lands
+    red" over it — the reading's own weakness described someone else's
+    evidence. Only the synthesised option carries that clause."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow as TR
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T7"], ws["U7"] = 4976.0, 4976.0
+    ws["T8"], ws["U8"] = 39000.0, 39000.0
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}, "check_rows": []}
+    items = [_item(95, 1, "total liabilities", [41000.0, 39000.0]),
+             _item(95, 2, "cash and equivalents", [3905.0, 4976.0])]      # EXACT prior tie
+    led = _ledger(items, face_pages=((95, "bs"),)); led._doc_periods = {DOC: "current"}
+    led.reader_suggestions = {"S!7": {"value": 3905.0, "doc": DOC, "page": 95, "line": "cash and equivalents",
+                                      "check": "3,905 + 1,071 = 4,976"}}
+    loop = ObjectiveLoop(wb, spec, 2025, led,
+                         [TR("S", 7, "cash and equivalents", 4976.0), TR("S", 8, "Borrowings", 39000.0)],
+                         {}, Writer(wb), None)
+    loop.writer.log["flags"] = ["S!U7"]
+    a = candidates_for(loop, "S", 7)[0]
+    assert abs(a["value"] - 3905.0) < 1e-6, a
+    assert not any("no prior tie" in w for w in a["warnings"]), a["warnings"]
+    assert a.get("tie_off") is not None and a["tie_off"] <= 0.6, "the machine's own exact tie was lost"
+    assert any("READER'S OWN READING" in w for w in a["warnings"]), a["warnings"]
+    print("PASS test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

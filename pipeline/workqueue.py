@@ -368,14 +368,19 @@ def _reader_first(loop, sheet, row, cands):
     if not isinstance(sug, dict) or not isinstance(sug.get("value"), (int, float)):
         return cands
     why = str(sug.get("check") or sug.get("reason") or "").strip()
-    note = ("OPTION A IS THE READER'S OWN READING of this row from the whole disclosure — "
-            f"the reader's suggestion, quoted from p{sug['page']} '{str(sug['line'])[:44]}'"
-            + (f"; its check: {why[:120]}" if why else "")
-            + " — no prior tie, and the line is not named like the row: judge whether this is "
-              "the item (it lands red)")
+    seen_it = ("OPTION A IS THE READER'S OWN READING of this row from the whole disclosure — "
+               f"the reader's suggestion, quoted from p{sug['page']} '{str(sug['line'])[:44]}'"
+               + (f"; its check: {why[:120]}" if why else ""))
+    # what the reading LACKS is said only of the reading itself: a candidate
+    # the machine already found keeps its own evidence, prior tie included
+    # (reviewer 2026-09-16: an EXACT-tie candidate was being fronted with
+    # "no prior tie ... it lands red" pasted over it)
+    note = seen_it + (" — no prior tie, and the line is not named like the row: judge whether "
+                      "this is the item (it lands red)")
     same = next((c for c in cands if abs(abs(c.get("value") or 0) - abs(sug["value"])) <= 0.6), None)
     if same is not None:
-        same["warnings"] = [note] + list(same.get("warnings") or [])
+        same["warnings"] = [seen_it + " — the machine found this line too; its own evidence is below"] \
+            + list(same.get("warnings") or [])
         return [same] + [c for c in cands if c is not same]
     return [{"value": float(sug["value"]), "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
              "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0,
