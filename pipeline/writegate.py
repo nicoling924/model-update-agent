@@ -312,7 +312,15 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
         return ("REFUSE",
                 "the only evidence row whose comparative ties this prior "
                 "already serves another cell — one row, one claim", None)
-    if was_served:
+    if was_served and held_proven:
+        # A PROVEN HOLDER, NOT MERELY AN EARLIER ONE (run 34993405014: this
+        # branch fired on presence in `served` — a red read, an orange
+        # derivation, a serve that never landed — and told the brain the cell
+        # "already holds a PROVEN value"; ~20 brain picks were refused, the
+        # correct perpetual-securities home among them). The evidence that
+        # locks a cell is the holder's own: its line tied the prior and it
+        # landed clean. Anything less yields to the brain's pick, which lands
+        # red unless its own evidence ties.
         return ("REFUSE",
                 "this cell already holds a PROVEN value (its evidence tied "
                 "the prior). Your evidence does not tie — a proven number "

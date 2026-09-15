@@ -925,8 +925,12 @@ def test_evidence_law_run7_exhibits():
                 "nums": [53546486141.57, 4275000000.0, 49271486141.57]}
     ev = find_evidence([note_row], 53546.5)
     assert ev, "the gross figure IS printed — evidence must be found"
-    verdict, why, flag = judge_write(53546.5, 12545.3, True, ev, set())
+    verdict, why, flag = judge_write(53546.5, 12545.3, True, ev, set(), held_proven=True)
     assert verdict == "REFUSE" and "proven" in why.lower()
+    # 2026-09-16: the holder there WAS proven (15,193.8 tied its prior). Where it
+    # is not — a red read, an orange derivation — the brain's pick lands RED, never clean
+    verdict, why, flag = judge_write(53546.5, 12545.3, True, ev, set(), held_proven=False)
+    assert verdict == "ALLOW_FLAGGED", (verdict, why)
 
     # exhibit 2 — a value printed nowhere is never writable
     verdict, why, flag = judge_write(56432.1, 12545.3, False,
@@ -4294,8 +4298,12 @@ def test_evidence_law_prior_is_the_comparative_2026_09_10():
     assert ties_prior(face, 1.0, 12445.0, value=12685.0)
     assert ties_prior(wide, 1.0, 12000.0, value=15193.79)          # the percentage between is skipped
     assert not ties_prior(nci, 1.0, 6063.0, value=9815.0)          # the prior sits BEFORE the number
-    verdict, reason, flag = judge_write(6359.0, 12445.0, True, [(matrix, 1.0)], set())
+    verdict, reason, flag = judge_write(6359.0, 12445.0, True, [(matrix, 1.0)], set(), held_proven=True)
     assert verdict == "REFUSE" and "PROVEN" in reason, (verdict, reason)
+    # 2026-09-16: the face's 12,685 was proven and still locks the cell; an
+    # UNPROVEN holder yields and the matrix reading lands red, never clean
+    verdict, reason, flag = judge_write(6359.0, 12445.0, True, [(matrix, 1.0)], set(), held_proven=False)
+    assert verdict == "ALLOW_FLAGGED", (verdict, reason)
     verdict, reason, flag = judge_write(12685.0, 12445.0, False, [(face, 1.0)], set())
     assert verdict == "ALLOW"
     print("PASS test_evidence_law_prior_is_the_comparative_2026_09_10")
@@ -6330,6 +6338,42 @@ def test_the_readers_reading_is_option_A_with_its_check_2026_09_16():
         assert a.get("no_prior") and "reader's suggestion" in a["warnings"][0], a["warnings"]
         assert "14,272" in a["warnings"][0], "the check the reader stated must be on the card"
     print("PASS test_the_readers_reading_is_option_A_with_its_check_2026_09_16")
+
+
+
+def test_only_a_proven_holder_locks_a_cell_2026_09_16():
+    """Run 34993405014: judge_write refused ~20 brain picks with "this cell
+    already holds a PROVEN value" while the holder was an ORANGE derivation
+    (t_derive registers conf 3) or a RED no-tie read — the branch fired on
+    mere presence in `served`. A held figure locks the cell only when it is
+    itself proven; otherwise the brain's pick lands, red."""
+    from pipeline.writegate import judge_write
+
+    class _It:          # a printed line carrying the value; its comparative 999 does not tie prior 100
+        doc, page, table_id, label, nums, sourceable = DOC, 3, 0, "Other income", [284.0, 999.0], True
+        table_kind = None
+    ev = [(_It(), 1.0)]
+    orange = judge_write(284.0, 100.0, True, ev, set(), {}, held_proven=False)
+    assert orange[0] == "ALLOW_FLAGGED", f"an orange/red holder must yield to the brain's pick: {orange}"
+    proven = judge_write(284.0, 100.0, True, ev, set(), {}, held_proven=True)
+    assert proven[0] == "REFUSE" and "PROVEN" in proven[1], proven
+    print("PASS test_only_a_proven_holder_locks_a_cell_2026_09_16")
+
+
+def test_an_orange_derived_holder_yields_to_the_brains_pick_2026_09_16():
+    """The same law through the loop: Final!AI30 held an orange derivation
+    (conf 3) and every later printed pick was refused as PROVEN (r1472,
+    r1529, r1611). The pick now lands red over the derivation."""
+    wb = _wb({"A2": "One-off items", "T2": 100.0, "U2": -2756.0})
+    lp = _loop(wb, _spec_tiny(),
+               served={("S", 2): {"value": -2756.0, "line": "derived via Final!AI31", "page": 1,
+                                  "conf": 3, "status": "OK", "flag": "orange", "doc": DOC}},
+               evidence=[[284.0, 999.0]])
+    lp.writer.served = lp.served
+    r = lp.t_set_input({"cell": "S!U2", "value": 284.0, "why": "p3: 'Other income' — the card's option A"})
+    assert r.startswith("WRITTEN"), r
+    assert wb["S"]["U2"].value == 284.0, wb["S"]["U2"].value
+    print("PASS test_an_orange_derived_holder_yields_to_the_brains_pick_2026_09_16")
 
 
 
