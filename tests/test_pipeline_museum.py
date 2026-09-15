@@ -6415,6 +6415,54 @@ def test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16():
 
 
 
+def test_the_key_card_lists_the_whole_input_tree_2026_09_16():
+    """Run 34993405014: operating profit and net profit were both -2,315 off
+    the print because Final!AI14 (operating expenses) held the analyst's own
+    -76,061 and Final!AI16 (other income) was never written. Neither moved
+    against the baseline, so the swing census could not show them; the card
+    offered PROVEN movers only and the brain answered 'question' twice. The
+    card now lists every actual-period input of the line, moved or not, with
+    its status and the analyst's estimate — and says which other key carries
+    the same gap."""
+    from pipeline.consequence import build_card
+    cells = {"A7": "Revenue", "T7": 90964.0, "U7": 88018.0,
+             "A14": "Operating expenses", "T14": -76061.0, "U14": -76061.0,
+             "A16": "Other income", "T16": 0.0, "U16": 0.0,
+             "A21": "Operating profit", "T21": "=T7+T14+T16", "U21": "=U7+U14+U16",
+             "A23": "Income tax expense", "T23": -2821.0, "U23": -2655.0,
+             "A31": "Net profit", "T31": "=T21+T23", "U31": "=U21+U23"}
+    wb, pre = _wb(cells), _wb(dict(cells, U7=90964.0))
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "operating profit", "sheet": "S", "row": 21},
+                         {"name": "net profit", "sheet": "S", "row": 31}]}
+    panel = {"operating profit": {"print": 14272.0}, "net profit": {"print": 11617.0}}
+    lp = _loop(wb, spec, served={("S", 7): {"value": 88018.0, "line": "Revenue", "page": 23,
+                                            "conf": 5, "status": "OK", "flag": None, "doc": DOC}})
+    lp.writer.served = lp.served
+    card, options = build_card(lp, pre, ("key", "S", "U31", -2315.0,
+                                         "key 'net profit' at S!U31 computes 9,302.0 vs printed 11,617.0"),
+                               [(("S", "U7"), 1.0)], [], None, panel, None)
+    assert "S!U14" in card and "S!U16" in card, f"the untouched inputs are still invisible:\n{card}"
+    assert "UNTOUCHED" in card, card
+    assert "operating profit" in card and "same gap" in card.lower(), f"the shared gap is not named:\n{card}"
+    assert "derive:via" in options
+    print("PASS test_the_key_card_lists_the_whole_input_tree_2026_09_16")
+
+
+def test_the_input_tree_is_this_period_only_2026_09_16():
+    """The tree is the line's own inputs in the ACTUAL column — last year's
+    hardcodes belong to last year, and a formula's whole history is not this
+    update's input."""
+    from pipeline.investigate import input_leaves
+    wb = _wb({"T7": 90964.0, "U7": 88018.0, "T14": -76061.0, "U14": -76061.0,
+              "U21": "=U7+U14+T7", "T21": "=T7+T14"})
+    leaves = input_leaves(wb, "S", "U21", cols={"S": "U"})
+    assert set(leaves) == {("S", "U7"), ("S", "U14")}, leaves
+    assert set(input_leaves(wb, "S", "U21")) == {("S", "U7"), ("S", "U14"), ("S", "T7")}
+    print("PASS test_the_input_tree_is_this_period_only_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

@@ -213,6 +213,39 @@ def swing_leaves(wb, pre_wb, sheet, coord, stable=(), flagged=(), floor=0.05, de
     return sorted(out.items(), key=lambda kv: (0 if kv[0] in flagged else 1, -abs(kv[1])))
 
 
+def input_leaves(wb, sheet, coord, cols=None, depth=25, budget_s=None):
+    """THE LINE'S WHOLE INPUT TREE (run 34993405014: the net-profit and
+    operating-profit cards listed only cells that MOVED against the
+    analyst's baseline, so Final!AI14 — put back to a hardcode at the same
+    value — and Final!AI16 — never written — could not appear, and the
+    brain was asked to choose among proven movers only). Every typed cell
+    the line is built from, moved or not, in tree order.
+    `cols`: {sheet: the actual-period column} — an input of ANOTHER period
+    is that period's figure, not this update's.
+    -> [(sheet, coord)]"""
+    import time as _t
+    t0 = _t.monotonic()
+    out, seen = [], set()
+    todo = [((sheet, coord), 0)]
+    while todo:
+        cur, d = todo.pop(0)
+        if cur in seen or d > depth or cur[0] not in wb.sheetnames:
+            continue
+        if budget_s is not None and _t.monotonic() - t0 > budget_s:
+            break
+        seen.add(cur)
+        v = wb[cur[0]][cur[1]].value
+        if isinstance(v, str) and v.startswith("="):
+            todo += [((sh, c), d + 1) for sh, c in _refs(v, cur[0], wb)]
+            continue
+        if not isinstance(v, (int, float)):
+            continue
+        if cols and re.sub(r"\d", "", cur[1]) != cols.get(cur[0]):
+            continue
+        out.append(cur)
+    return out
+
+
 def proven_figure(loop, sheet, row):
     """A figure the run holds as PROVEN for a model row: a served entry whose
     line tied the prior and landed clean, or the key panel's print for a key

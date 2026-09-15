@@ -350,7 +350,64 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
                 options[f"derive:{i + 1}"] = f"set {sh}!{c} to {implied:,.2f}, the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}) — orange with that proof"
         except Exception:
             pass
-    options["derive:via"] = "derive a mover yourself: say in 'why' which mover cell and via which proven formula cell (e.g. 'ROAFNA!AI71 via ROAFNA!AI64'); code solves and verifies"
+    # THE WHOLE INPUT TREE, NOT ONLY WHAT MOVED (run 34993405014: the two
+    # cells that were short of the print — Final!AI14, put back to a hardcode
+    # at the same value, and Final!AI16, never written — moved 0 against the
+    # analyst's baseline, so the census could not show them and the brain was
+    # asked to choose among PROVEN movers only; it answered 'question' twice).
+    moved = {(sh, c) for (sh, c), _s in movers}
+    tree = []
+    try:
+        from .investigate import input_leaves
+        cols = {sh: year_columns(spec, sh).get(str(ty)) for sh in wb.sheetnames}
+        tree = [x for x in input_leaves(wb, sheet, coord, cols=cols, budget_s=20.0) if x not in moved]
+    except Exception as ex:  # noqa: BLE001
+        lines.append(f"  (this line's input tree could not be walked: {type(ex).__name__}: {str(ex)[:80]})")
+    if tree:
+        lines.append("  every OTHER actual-period input this line is built from — these did not move against your "
+                     "baseline, which is exactly what an input the run left short looks like (name one in 'why' to derive it):")
+        from .execreport import _pre_val
+        from openpyxl.utils import column_index_from_string as _ci2
+        from .rollover import input_is_proven as _iip2
+        for sh, c in tree:
+            r2 = int(re.sub(r"[A-Z]", "", c))
+            lab2 = str(wb[sh].cell(r2, 1).value or "")[:30]
+            now2 = wb[sh][c].value
+            pre2 = _pre_val(pre_wb, sh, r2, _ci2(re.sub(r"\d", "", c)))
+            col2 = _colour(wb, loop.writer, sh, c)
+            served2 = (loop.served or {}).get((sh, r2))
+            same = isinstance(now2, (int, float)) and isinstance(pre2, (int, float)) and abs(now2 - pre2) < 1e-9
+            if served2 and col2 != "red" and _iip2(loop.served, sh, c, now2, loop.writer.log.get("flags", []), wb):
+                status = "PROVEN from the print"
+            elif served2 and same:
+                status = "written back to your own figure by the run — the update left it where it was"
+            elif served2:
+                status = "written by the run"
+            elif same:
+                status = "UNTOUCHED — still your own estimate, never marked to the print"
+            else:
+                status = "moved by the model's own formulas"
+            lines.append(f"    {sh}!{c} '{lab2}': now {now2 if not isinstance(now2, (int, float)) else f'{now2:,.2f}'} "
+                         f"(your estimate {pre2 if not isinstance(pre2, (int, float)) else f'{pre2:,.2f}'}), {col2}, {status}; "
+                         f"{_evidence(loop, sh, c)}")
+    if kind == "key":
+        # A GAP SHARED BY SEVERAL KEYS SITS ABOVE THEM (r1212: the card for
+        # recurring net profit never said reported net profit was off by the
+        # same -2,315, and the brain derived the one-off line to close it)
+        try:
+            from .keytie import key_state
+            same_gap = [(nm, ref, got - want) for nm, ref, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel)
+                        if not ok and isinstance(got, (int, float)) and ref != f"{sheet}!{coord}"
+                        and abs((got - want) - amount) <= max(0.5, abs(amount) * 0.02)]
+            if same_gap:
+                lines.append("  the SAME gap is open on: "
+                             + "; ".join(f"{nm} at {ref} (off {d:+,.1f})" for nm, ref, d in same_gap)
+                             + " — a gap that sits on several keys at once comes from a line they ALL consume, "
+                               "not from anything under this key alone")
+        except Exception as ex:  # noqa: BLE001
+            lines.append(f"  (the other keys could not be measured: {type(ex).__name__}: {str(ex)[:80]})")
+    options["derive:via"] = ("derive an input yourself — a mover above or one of the untouched inputs: say in 'why' which "
+                             "input cell and via which proven formula cell (e.g. 'ROAFNA!AI71 via ROAFNA!AI64'); code solves and verifies")
     options["plug"] = "plug the model's own residual row — the last resort, orange, reported"
     options["question"] = "leave it open, red: a definition question for the analyst (say what)"
     # THE CONSEQUENCE OF EACH WAY (owner 2026-09-15: "the brain has to know
