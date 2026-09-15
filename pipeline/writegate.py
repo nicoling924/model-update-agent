@@ -117,16 +117,42 @@ def ties_prior(item, scale, prior, value=None):
     return False
 
 
-_RESTATED = re.compile(r"restat|re-?present|reclassif|adjust|重述|重列|追溯|重新表述|經重列|经重列", re.I)
+_RESTATED = re.compile(r"restat|re-?present|reclassif|重述|重列|追溯|重新表述|經重列|经重列", re.I)
+_PERIOD_TOKEN = re.compile(r"(?<![A-Za-z0-9])(1H|2H|H1|H2|FY|[1-4]Q|Q[1-4]|interim|full[ -]?year)(?![A-Za-z])", re.I)   # '1H2025', 'FY2024'
 
 
-def restated_comparative(item, value, scale=1.0, all_items=None):
+
+def comparative_index(ns, cols, i):
+    """The index of the comparative beside ns[i]: by the column headers when
+    they carry years — the previous year under the same period kind (1H
+    beside 1H, never FY beside 1H; audit 2026-09-15) — else the next
+    number of the same order of magnitude. -> index or None"""
+    if cols and len(cols) == len(ns):
+        yrs = [re.search(r"(20\d\d)", c) for c in cols]
+        yi = int(yrs[i].group(1)) if yrs[i] else None
+        if yi is not None:
+            tok_i = _PERIOD_TOKEN.search(cols[i])
+            tok_i = tok_i.group(1).upper() if tok_i else None
+            cands = [k for k, m in enumerate(yrs) if m and int(m.group(1)) == yi - 1 and k != i]
+            toks = {k: (_PERIOD_TOKEN.search(cols[k]).group(1).upper() if _PERIOD_TOKEN.search(cols[k]) else None) for k in cands}
+            same = [k for k in cands if toks[k] == tok_i] or [k for k in cands if toks[k] is None]
+            if same:
+                return same[0]              # the same period kind, else a plain year header
+            if cands:
+                return None                 # a previous year of another period kind is not the comparative
+    return next((k for k in range(i + 1, len(ns)) if abs(ns[k]) <= 30 * abs(ns[i]) and abs(ns[k]) * 30 >= abs(ns[i])), None)
+
+
+def restated_comparative(item, value, scale=1.0, all_items=None, prior=None):
     """THE RESTATEMENT TEST (owner 2026-09-15: "either it sees 'restated', or
     the 2024 number in 2025's report does not match the 2024 number in
     2024's report — then there is a restatement; very simple").
-    (1) the comparative beside `value` sits under a column the brain named
-    restated (any language); or (2) last year's report prints the same-named
-    line with a current figure that differs from this line's comparative."""
+    (1) the comparative beside `value` sits under a column named restated
+    (any language); or (2) last year's report prints the same-named line at
+    the MODEL's prior (the model was built from last year's report) while
+    this line's comparative differs from it. The witness must tie the prior:
+    a same-named line that merely differs proves nothing (audit 2026-09-15:
+    the Ecogen wrong-row write would have landed clean)."""
     if _meta(item, "table_kind") != "period":
         return False
     ns = [n for n in _nums(item) if isinstance(n, (int, float))]
@@ -134,15 +160,17 @@ def restated_comparative(item, value, scale=1.0, all_items=None):
     ci = None
     for i, n in enumerate(ns):
         if _close(abs(n) / scale, abs(value)):
-            if cols and len(cols) == len(ns) and any(_RESTATED.search(c) for k, c in enumerate(cols) if k != i):
-                return True
-            ci = next((k for k in range(i + 1, len(ns)) if abs(ns[k]) <= 30 * abs(n) and abs(ns[k]) * 30 >= abs(n)), None)
+            ci = comparative_index(ns, cols, i)
             break
-    if ci is None and cols and any(_RESTATED.search(c) for c in cols):
+    if ci is None:
+        return False
+    if cols and len(cols) == len(ns) and _RESTATED.search(cols[ci]):
         return True
-    if ci is None or not all_items:
+    if not all_items or not isinstance(prior, (int, float)) or abs(prior) < 1:
         return False
     comp = abs(ns[ci]) / scale
+    if _close(comp, abs(prior)):
+        return False                                    # the comparative IS the model's prior: nothing restated
     from .numerics import norm_label
     me = norm_label(str(_meta(item, "label") or ""))
     for it in all_items:
@@ -153,8 +181,9 @@ def restated_comparative(item, value, scale=1.0, all_items=None):
         theirs = [n for n in _nums(it) if isinstance(n, (int, float))]
         if not theirs:
             continue
-        if not _close(abs(theirs[0]), comp) and abs(theirs[0]) >= 1:
-            return True                                 # same name, last year's own figure ≠ this year's comparative
+        # last year's own figure ties the model's prior (at a legal scale) — the name is proven
+        if any(_close(abs(theirs[0]) / sc, abs(prior)) for sc in (1.0, 1e3, 1e-3)):
+            return True
     return False
 
 
@@ -173,15 +202,7 @@ def contradicts_prior(item, scale, prior, value):
     for i, n in enumerate(ns):
         if not _close(abs(n) / scale, abs(value)):
             continue
-        ci = None
-        if cols and len(cols) == len(ns):
-            yrs = [re.search(r"(20\d\d)", c) for c in cols]
-            yi = int(yrs[i].group(1)) if yrs[i] else None
-            if yi is not None:
-                ci = next((k for k, m in enumerate(yrs) if m and int(m.group(1)) == yi - 1), None)
-        if ci is None:
-            ci = next((k for k in range(i + 1, len(ns))
-                       if abs(ns[k]) <= 30 * abs(n) and abs(ns[k]) * 30 >= abs(n)), None)
+        ci = comparative_index(ns, cols, i)
         if ci is None or is_sum_row(ns, ci):
             continue
         if abs(ns[ci]) >= 1 and not _close(abs(ns[ci]) / scale, abs(prior)):
@@ -303,9 +324,11 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
         return ("REFUSE",
                 "every ledger row carrying this value already serves "
                 "another cell — one row, one claim", None)
-    if isinstance(prior, (int, float)) and abs(prior) >= 1 \
-            and all(contradicts_prior(it, s, prior, value) for it, s in free):
-        if any(restated_comparative(it, value, s, all_items) for it, s in free):
+    period_free = [(it, s) for it, s in free if _meta(it, "table_kind") == "period"]
+    if isinstance(prior, (int, float)) and abs(prior) >= 1 and period_free \
+            and all(contradicts_prior(it, s, prior, value) for it, s in period_free):
+        # judged on the period lines: a KPI box repeating the figure neither proves nor refutes the comparative
+        if any(restated_comparative(it, value, s, all_items, prior=prior) for it, s in period_free):
             return ("ALLOW",
                     "RESTATED comparative: this year's figure under the same name, last year restated away from "
                     f"the model's {prior:,.2f} — proven by the print, the model's history untouched", None)

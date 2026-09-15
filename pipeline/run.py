@@ -457,13 +457,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
             f"current-year values: {sorted(_ban)}")
+    writer = Writer(wb)          # the one writer of the run (the restatement below writes through it)
     if _restate:
         # RESTATE (owner 2026-09-15, only when asked): the prior column is first
         # mapped to this year's restated comparatives through last year's names;
         # this year's figures then map against the restated priors
         try:
             from .restate import restate_prior_column
-            restate_prior_column(wb, wb_values, spec_d, target_year, ledger, {t.key: t for t in targets}, writer, log)
+            restate_prior_column(wb, wb_values, spec_d, target_year, ledger, {t.key: t for t in targets}, writer, log, period=period)
             known = targets_mod.known_prior_values(targets)
         except Exception as _e_rs:
             log(f"[run] restate STAGE LOST: {_e_rs!r}")
@@ -487,7 +488,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         log(f"[run] {ln}")
 
     # -- the owner's column convention, then guarded writes
-    writer = Writer(wb)
     writer.served = served                       # a take-back un-serves what it takes back
     # the forecast columns per sheet: a law that finds a forecast cell
     # strange watch-lists it instead of painting it (owner 2026-09-07)
@@ -620,9 +620,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         try:
             from .naming import judge_names as _judge_names2
             _judge_names2(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log, target_year=target_year)
-            for _k in list(gap_served):
-                if _k not in served:
-                    gap_served.pop(_k, None)          # the brain refused the name: nothing lands
+            # a doubt on a cell ALREADY written (the schedules, the reader) is painted now;
+            # the gap serves below carry their doubt into the write itself
+            for _k, _e in list(served.items()):
+                if _k in gap_served or not isinstance(_e, dict) or _e.get("flag") != "red" or "NAME DOUBTED" not in str(_e.get("note") or ""):
+                    continue
+                _tc = year_columns(spec_d, _k[0]).get(str(target_year)) if _k[0] in wb.sheetnames else None
+                if _tc and wb[_k[0]][f"{_tc}{_k[1]}"].value not in (None, ""):
+                    writer.flag_ref(f"{_k[0]}!{_tc}{_k[1]}", "red", _e.get("note"))
         except Exception as _e_nm2:
             log(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
             run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
@@ -1059,19 +1064,26 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     import os as _os
     mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
     loop_summary = ""
+    loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
+                         writer, client, run_log, budget=loop_budget)
+    loop.load_bearing = lb           # tier law: the loop sees the wiring
+    loop.key_panel = _key_panel      # the proven prints of the key rows (derivations solve against them)
+    loop.period = period
+    loop.brain = client is not None or stage4_answerer is not None
     if client is not None or stage4_answerer is not None:
-        loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
-                             writer, client, run_log, budget=loop_budget)
-        loop.load_bearing = lb           # tier law: the loop sees the wiring
-        loop.key_panel = _key_panel      # the proven prints of the key rows (derivations solve against them)
-        loop.period = period
         loop.brain = client is not None or stage4_answerer is not None
 
         def _ask(text, options, default):
-            """The brain picks (owner 2026-09-14: 'brain picks the rung, code verifies'); a replay's answerer stands in."""
+            """The brain picks (owner 2026-09-14: 'brain picks the rung, code verifies'); a replay's answerer stands in.
+            Both paths leave the same trace: last_why (a derive:via names its cells there) and last_ask_error."""
+            loop.last_why, loop.last_ask_error = "", None
             if stage4_answerer is not None:
-                return stage4_answerer(text, options, default)
+                _r = stage4_answerer(text, options, default)
+                if isinstance(_r, tuple):
+                    _r, loop.last_why = _r[0], str(_r[1] or "")
+                return _r
             if client is None:
+                loop.last_ask_error = "no brain in this run"
                 return default
             try:
                 from .workqueue import _llm_answer
@@ -1079,6 +1091,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 loop.last_why = _why
                 return _ans
             except Exception as _e_ask:
+                loop.last_ask_error = repr(_e_ask)
                 log(f"[sense] the brain could not answer a card: {_e_ask!r}")
                 return default
         loop.ask = _ask
@@ -1120,7 +1133,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 _sense_checkpoint(loop, _pre_wb_sense, log)
             except Exception as _e_sc:
                 _pre_wb_sense = None
-                log(f"[sense] checkpoint skipped: {_e_sc!r}")
+                log(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
+                run_log.append(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
             _left = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
             log(f"[run] queue budget: {_left/60:.1f} min of the hour left for cards")
             loop_summary = run_queue(loop, client, log,
@@ -1323,6 +1337,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         for _nm, _ref, then, now in _key_violations(wb, spec_d, target_year,
                                                     ledger, _panel_path, keys_before, panel=_key_panel):
             m += abs((now if isinstance(now, (int, float)) else 0.0) - then)
+        from .keytie import key_state as _ks          # bound here: a later local import of the same name made this a free variable
+        _judged = set(writer.log.get("key_verdicts", {}) or {})
+        for _nm, _ref, _got, _want, _ok in _ks(wb, spec_d, target_year, _panel_path, panel=_key_panel):
+            if not _ok and isinstance(_got, (int, float)) and _nm not in _judged and _nm not in (keys_before or {}):
+                m += abs(_got - _want)
         for c in (spec_d.get("check_rows") or []):
             sh = c.get("sheet")
             if sh not in wb.sheetnames:
@@ -1349,7 +1368,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             loop, _pre_end, log, getattr(loop, "ask", None), gate_once, repair_round, check_mass,
             keys_before, _key_panel, _panel_path, deadline_s=max(120.0, _left_e),
             hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
-            brain=(client is not None or stage4_answerer is not None))
+            brain=(client is not None))     # a replay's script is not a brain: an unscripted card takes the floor's own executor
     except Exception as _e_end:
         log(f"[ending] STAGE LOST: {_e_end!r}")
         run_log.append(f"[ending] STAGE LOST: {_e_end!r}")
@@ -1368,6 +1387,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                    writer.log.get("verdicts", []))
     except Exception as e:              # the report never blocks delivery
         rollover = []
+        log(f"[run] rollover report STAGE LOST: {e!r}")
+        run_log.append(f"[run] rollover report STAGE LOST: {e!r}")
         log(f"[run] rollover report skipped: {e}")
     report_mod.build_report(wb, spec_d, target_year, writer.log, served,
                             pre_estimates, failures, loop_summary,
@@ -1405,7 +1426,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                for k, w_ in enumerate(writer.log.get("writes_all", []))]
         (replay_dir / "writes.json").write_text(json.dumps(_wj, ensure_ascii=False, indent=0), encoding="utf-8")
     except Exception as _e_wj:
-        log(f"[run] write journal not saved: {_e_wj!r}")
+        log(f"[run] write journal STAGE LOST: {_e_wj!r}")
+        run_log.append(f"[run] write journal STAGE LOST: {_e_wj!r}")
     (replay_dir / "provenance.json").write_text(
         json.dumps(prov, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -1421,8 +1443,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         for f_ in failures or []:
             m_ = _re_g.match(r"\s*CHECK (\S+)!r(\d+) \((\d{4})\): (\S+) vs (\S+)", str(f_))
             if not m_:
-                open_checks.append(str(f_)[:120])
-                continue
+                continue                      # listed once, by the loop below
             sh_, r_, yr_, got_ = m_.group(1), int(m_.group(2)), m_.group(3), m_.group(4)
             col_ = year_columns(spec_d, sh_).get(yr_) if sh_ in wb.sheetnames else None
             if col_:
@@ -1502,8 +1523,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                          writer.log.get("forecast_watch", []))})
             log(f"[run] executive report coverage line: {rep.get('coverage')!r}")
         except Exception as ex:
-            log(f"[run] executive report FAILED (old-style report kept): "
-                f"{ex}")
+            log(f"[run] executive report STAGE LOST (old-style report kept): {ex!r}")
+            run_log.append(f"[run] executive report STAGE LOST: {ex!r}")
     for f in failures[:12]:
         log(f"[run]   gate: {f}")
     return {"ok": True, "gate_ok": ok, "open_checks": open_checks,

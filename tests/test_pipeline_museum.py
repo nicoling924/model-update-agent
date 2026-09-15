@@ -4665,7 +4665,7 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     from pipeline.orchestrator import ObjectiveLoop
     from pipeline.workqueue import build_queue
     from pipeline.writer import Writer
-    from pipeline.sensecheck import headline_deltas, suspicious, checkpoint, final_pass
+    from pipeline.sensecheck import headline_deltas, suspicious, checkpoint
     from pipeline.evaluator import Evaluator
     def model(u4, u7, u9):
         wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
@@ -4709,33 +4709,6 @@ def test_sense_check_checkpoint_and_final_pass_2026_09_09():
     q = build_queue(loop)
     assert not any(x.kind == "SENSE" for x in q)
     # the final pass: a fix that opens a check is taken back and the line written up
-    def answer(text, options, default):
-        return next((k for k in options if k.startswith("serve:")), default)
-    wb2 = model(1050.0, -900.0, None); w2 = Writer(wb2); w2.log["written"] += ["Model!U4", "Model!U7"]
-    wb2["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w2.log["flags"].append("Model!U7")
-    loop2 = ObjectiveLoop(wb2, spec, 2025, led, targets, dict(served), w2, None)
-    n2 = final_pass(loop2, pre, logs.append, None, answer, 600.0, lambda: False)
-    assert n2 == 0 and abs(wb2["Model"]["U7"].value + 900.0) < 0.01, (n2, wb2["Model"]["U7"].value)
-    assert any(x.startswith("UNRESOLVED") for x in w2.log["sense_check"]), w2.log["sense_check"]
-    # the final pass: a fix that keeps the checks closed and closes the gap is kept
-    wb4 = model(1050.0, -900.0, None); w4 = Writer(wb4); w4.log["written"] += ["Model!U4", "Model!U7"]
-    wb4["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w4.log["flags"].append("Model!U7")
-    served4 = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
-    loop4 = ObjectiveLoop(wb4, spec, 2025, led, targets, served4, w4, None)
-    reruns = []
-    n4 = final_pass(loop4, pre, logs.append, None, answer, 600.0, lambda: (reruns.append(1) or True))
-    assert n4 >= 1 and reruns and abs(wb4["Model"]["U7"].value + 110.0) < 0.01, (n4, wb4["Model"]["U7"].value)
-    assert any(x.startswith("RESOLVED") for x in w4.log["sense_check"]), w4.log["sense_check"]
-    # the only candidate widens the gap: reverted, written up
-    wb3 = model(1050.0, -900.0, None); w3 = Writer(wb3); w3.log["written"] += ["Model!U4", "Model!U7"]
-    wb3["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w3.log["flags"].append("Model!U7")
-    led3 = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-2500.0, -100.0])], face_pages=((95, "pl"),))
-    led3._doc_periods = {DOC: "current"}
-    served3 = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
-    loop3 = ObjectiveLoop(wb3, spec, 2025, led3, targets, served3, w3, None)
-    n3 = final_pass(loop3, pre, logs.append, None, answer, 600.0, lambda: True)
-    assert n3 == 0 and abs(wb3["Model"]["U7"].value + 900.0) < 0.01, (n3, wb3["Model"]["U7"].value)
-    assert any(x.startswith("UNRESOLVED") for x in w3.log["sense_check"]), w3.log["sense_check"]
     print("PASS test_sense_check_checkpoint_and_final_pass_2026_09_09")
 
 
@@ -5853,6 +5826,259 @@ def test_the_brain_handshake_stops_a_run_with_no_credits_2026_09_15():
         raise ConnectionError("reset")
     assert handshake(_Client(), post=flaky).startswith("handshake skipped")
     print("PASS test_the_brain_handshake_stops_a_run_with_no_credits_2026_09_15")
+
+
+def test_a_key_off_the_print_is_an_objective_of_the_ending_2026_09_15():
+    """Run 34935869107: operating profit sat +148 off the print for the
+    whole ending and no card was ever dealt — the key measure raised on a
+    field-count mismatch and a bare except swallowed it. The measure is
+    taken through the real key_state; a fault is said on the loop."""
+    from pipeline.consequence import broken_objectives
+    cells = {"A2": "Revenue", "T2": 100.0, "U2": 120.0, "A3": "Total assets", "T3": 500.0, "U3": 500.0,
+             "A9": "check", "T9": "=T3-T3", "U9": "=U3-U3"}
+    wb = _wb(cells)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "revenue", "sheet": "S", "row": 2}, {"name": "total assets", "sheet": "S", "row": 3}]}
+    lp = _loop(wb, spec); lp.period = "FY25"
+    panel = {"revenue": {"print": 125.0}, "total assets": {"print": 500.0}}
+    objs = broken_objectives(lp, {}, panel, None)
+    assert not lp.__dict__.get("objective_faults"), lp.__dict__.get("objective_faults")
+    keys = [o for o in objs if o[0] == "key"]
+    assert len(keys) == 1 and keys[0][1:3] == ("S", "U2") and abs(keys[0][3] + 5.0) < 1e-9, objs
+    assert "revenue" in keys[0][4] and "125.0" in keys[0][4]
+    print("PASS test_a_key_off_the_print_is_an_objective_of_the_ending_2026_09_15")
+
+
+def _ending_harness(wb, spec, key_panel, ask=None, brain=False):
+    """run_ending on a tiny model: the gate holds, the repairs do nothing,
+    the mass is the objectives' own — the ending's measure is what is tested."""
+    from pipeline.consequence import run_ending, broken_objectives
+    lp = _loop(wb, spec); lp.period = "FY25"; lp.key_panel = key_panel
+    lp.writer.served = lp.served
+    pre = _wb({c.coordinate: c.value for row in wb["S"].iter_rows() for c in row if c.value is not None})
+    logs = []
+    mass = lambda: sum(abs(o[3]) for o in broken_objectives(lp, {}, key_panel, None) if o[0] != "sanity")
+    res = run_ending(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _w: None, mass,
+                     {}, key_panel, None, deadline_s=60.0, brain=brain, max_rounds=4)
+    return lp, logs, res
+
+
+def test_the_ending_measures_keys_and_cash_even_when_the_balance_holds_2026_09_15():
+    """Audit 2026-09-15: the first measure asked the gate and the sense lines
+    only; a key off the print and a negative cash balance were never an
+    objective when the balance held. The objectives themselves decide."""
+    cells = {"A2": "Revenue", "T2": 100.0, "U2": 120.0, "A3": "Cash", "T3": 50.0, "U3": 40.0, "V3": -20.0,
+             "A9": "check", "T9": "=T3-T3", "U9": "=U3-U3", "V9": "=V3-V3"}
+    wb = _wb(cells)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "revenue", "sheet": "S", "row": 2}, {"name": "cash", "sheet": "S", "row": 3}]}
+    lp, logs, res = _ending_harness(wb, spec, {"revenue": {"print": 125.0}})
+    lines = lp.writer.log.get("ending", [])
+    assert not any("held at the first measure" in ln for ln in lines), lines
+    assert any("round 1: key S!U2" in ln for ln in logs), logs[:6]
+    assert any("sanity S!V3" in ln for ln in logs), logs
+    assert not lp.__dict__.get("objective_faults"), lp.__dict__.get("objective_faults")
+    print("PASS test_the_ending_measures_keys_and_cash_even_when_the_balance_holds_2026_09_15")
+
+
+def test_a_brain_that_gives_no_answer_leaves_the_break_open_red_2026_09_15():
+    """Audit 2026-09-15: a dead or out-of-clock brain fell through to the
+    automatic executors and placed keys the tie had only proposed. With a
+    brain in the run, no answer = open, red, with the reason."""
+    cells = {"A2": "Revenue", "T2": 100.0, "U2": 120.0, "A9": "check", "T9": "=T2-T2", "U9": "=U2-U2"}
+    wb = _wb(cells)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "revenue", "sheet": "S", "row": 2}]}
+    def dead(text, options, default):
+        return default                   # the brain says nothing usable
+    lp, logs, res = _ending_harness(wb, spec, {"revenue": {"print": 125.0}}, ask=dead, brain=True)
+    assert wb["S"]["U2"].value == 120.0, "no automatic back-out may place a proposed key"
+    assert "S!U2" in lp.writer.log.get("flags", []), lp.writer.log.get("flags")
+    assert any("no answer from the brain" in ln for ln in logs), logs
+    assert any(ln.startswith("NO ANSWER S!U2") for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
+    print("PASS test_a_brain_that_gives_no_answer_leaves_the_break_open_red_2026_09_15")
+
+
+def test_a_trial_restores_provenance_locks_and_rulings_2026_09_15():
+    """Audit 2026-09-15: previews and take-backs un-served and unlocked proven
+    movers and left a taken-back ruling in the memory. One snapshot, one restore."""
+    from pipeline.consequence import snapshot, restore
+    wb = _wb({"A2": "Revenue", "T2": 100.0, "U2": 120.0})
+    lp = _loop(wb, _spec_tiny(), served={("S", 2): {"value": 120.0, "line": "Revenue", "page": 3, "conf": 5}})
+    lp.writer.served = lp.served
+    lp.writer.locked.add("S!U2")
+    lp.writer.log.setdefault("rulings", {})["S!U2"] = {"pick": "keep"}
+    snap = snapshot(lp)
+    assert lp.writer.write("S", "U2", 999.0, trusted=True, force_lock=True, flag="orange", note="trial")
+    lp.writer.log["rulings"]["S!U2"] = {"pick": "derive:1"}
+    restore(lp, snap)
+    assert wb["S"]["U2"].value == 120.0
+    assert ("S", 2) in lp.served and lp.served[("S", 2)]["conf"] == 5, lp.served
+    assert "S!U2" in lp.writer.locked
+    assert lp.writer.log["rulings"]["S!U2"] == {"pick": "keep"}
+    print("PASS test_a_trial_restores_provenance_locks_and_rulings_2026_09_15")
+
+
+def test_the_restatement_witness_must_tie_the_models_prior_2026_09_15():
+    """Audit 2026-09-15: a same-named line that merely differed counted as a
+    restatement (the Ecogen wrong-row write would land clean). The owner's
+    rule: last year's report holds the model's prior, this year's comparative
+    differs — or the comparative column says restated."""
+    from pipeline.writegate import restated_comparative, contradicts_prior
+    cur = _item(95, 1, "Hong Kong number", [5484.0, 5397.0], table_kind="period", columns=["2025", "2024"])
+    witness_off = _item(95, 1, "Hong Kong number", [123.0, 100.0], table_kind="period", sourceable=False)
+    witness_on = _item(95, 1, "Hong Kong number", [940.0, 900.0], table_kind="period", sourceable=False)
+    assert restated_comparative(cur, 5484.0, 1.0, [witness_off], prior=940.0) is False
+    assert restated_comparative(cur, 5484.0, 1.0, [witness_on], prior=940.0) is True
+    assert restated_comparative(cur, 5484.0, 1.0, [witness_on], prior=5397.0) is False, "the comparative IS the prior: nothing restated"
+    adj = _item(95, 2, "EBITDA", [500.0, 450.0, 520.0], table_kind="period", columns=["FY2025", "FY2024", "FY2025 adjusted EBITDA"])
+    assert restated_comparative(adj, 500.0, 1.0, [], prior=400.0) is False, "'adjusted' in another column is not a restatement"
+    rst = _item(95, 3, "Revenue", [500.0, 450.0], table_kind="period", columns=["2025", "2024 restated"])
+    assert restated_comparative(rst, 500.0, 1.0, [], prior=400.0) is True
+    # the comparative is the same period kind: 1H beside 1H, never the FY column
+    h = _item(95, 4, "Revenue", [1100.0, 2300.0, 1000.0], table_kind="period", columns=["1H2025", "FY2024", "1H2024"])
+    assert contradicts_prior(h, 1.0, 1000.0, 1100.0) is False
+    assert contradicts_prior(h, 1.0, 900.0, 1100.0) is True
+    print("PASS test_the_restatement_witness_must_tie_the_models_prior_2026_09_15")
+
+
+def test_restating_the_prior_needs_the_name_and_reads_the_column_2026_09_15():
+    """Audit 2026-09-15: any prior-year line whose first number matched the
+    prior lent its name; the comparative was taken by position."""
+    from pipeline.restate import restated_priors
+    class T:
+        def __init__(self, label, pv): self.label, self.prior_value = label, pv
+    led_items = [
+        _item(10, 1, "Dividend paid", [400.0, 300.0], table_kind="period", sourceable=False),
+        _item(11, 1, "Dividend paid", [500.0, 450.0], table_kind="period", columns=["2025", "2024"]),
+    ]
+    scales = {(DOC, 10): 1.0, (DOC, 11): 1.0}
+    class L: items = led_items
+    out = restated_priors(L(), {("S", 4): T("Staff costs", 400.0)}, scales, target_year=2025, period="FY25")
+    assert out == {}, out
+    led_items[0] = _item(10, 1, "Staff costs", [400.0, 300.0], table_kind="period", sourceable=False)
+    led_items[1] = _item(11, 1, "Staff costs", [500.0, 450.0], table_kind="period", columns=["2025", "2024"])
+    out = restated_priors(L(), {("S", 4): T("Staff costs", 400.0)}, scales, target_year=2025, period="FY25")
+    assert ("S", 4) in out and abs(out[("S", 4)][0] - 450.0) < 1e-6, out
+    led_items[1] = _item(11, 1, "Staff costs", [1100.0, 1300.0, 1000.0], table_kind="period", columns=["1H2025", "2H2024", "1H2024"])
+    out = restated_priors(L(), {("S", 4): T("Staff costs", 400.0)}, scales, target_year=2025, period="1H25")
+    assert ("S", 4) in out and abs(out[("S", 4)][0] - 1000.0) < 1e-6, out
+    print("PASS test_restating_the_prior_needs_the_name_and_reads_the_column_2026_09_15")
+
+
+def test_a_named_cell_is_read_by_the_workbooks_own_sheet_names_2026_09_15():
+    """Audit 2026-09-15: 'use SOC Accounts!AI9 via ROAFNA!AI64' lost its
+    sheet to the words before it; the sheet list is the pattern."""
+    import openpyxl
+    from pipeline.investigate import named_ref, _refs
+    wb = openpyxl.Workbook(); wb.active.title = "SOC Accounts"; wb.create_sheet("ROAFNA")
+    got = named_ref("use SOC Accounts!AI9 via ROAFNA!AI64, not 'SOC Accounts'!AI10", wb)
+    assert got == [("SOC Accounts", "AI9"), ("ROAFNA", "AI64"), ("SOC Accounts", "AI10")], got
+    assert _refs("=LOG10(U3)+SUM(U3:U4)", "ROAFNA", wb) == [("ROAFNA", "U3"), ("ROAFNA", "U4")], _refs("=LOG10(U3)+SUM(U3:U4)", "ROAFNA", wb)
+    print("PASS test_a_named_cell_is_read_by_the_workbooks_own_sheet_names_2026_09_15")
+
+
+def test_a_derivation_solves_only_a_target_year_consumer_2026_09_15():
+    """Audit 2026-09-15: a first-forecast formula was 'solved' to make next
+    year equal this year's print. Only the target-year column is solved."""
+    from pipeline.investigate import derivations
+    wb = _wb({"A2": "Volume", "T2": 10.0, "U2": 12.0, "A3": "Sales", "T3": "=T2*3", "U3": "=U2*3", "V3": "=SUM(U2:U2)*3"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}, "check_rows": [], "key_rows": []}
+    lp = _loop(wb, spec, served={("S", 3): {"value": 300.0, "line": "Sales", "page": 3, "conf": 5, "status": "OK", "flag": None}})
+    lp.writer.served = lp.served
+    got = derivations(lp, "S", "U2")
+    assert [g[0] for g in got] == ["S!U3"], got
+    assert abs(got[0][2] - 100.0) < 1e-6, got
+    print("PASS test_a_derivation_solves_only_a_target_year_consumer_2026_09_15")
+
+
+def test_a_zero_estimate_never_kills_the_sense_lines_2026_09_15():
+    from pipeline.sensecheck import headline_deltas
+    wb = _wb({"A2": "DPS", "T2": 0.5, "U2": 0.6, "V2": 0.7}); pre = _wb({"A2": "DPS", "T2": 0.5, "U2": 0.0, "V2": 0.0})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}, "check_rows": [], "key_rows": [{"name": "dps", "sheet": "S", "row": 2}]}
+    out = headline_deltas(wb, pre, spec, 2025, key_rows=spec["key_rows"])
+    assert out == [], out
+    print("PASS test_a_zero_estimate_never_kills_the_sense_lines_2026_09_15")
+
+
+def test_a_name_without_a_verdict_is_a_doubt_2026_09_15():
+    """Audit 2026-09-15: an id the brain omitted, and a failed call, left a
+    name-mismatched tie clean. Both land red as not judged."""
+    from pipeline.naming import judge_names
+    from pipeline.writer import Writer
+    class T:
+        def __init__(self, label, pv): self.label, self.prior_value = label, pv
+    for behaviour in ("empty", "raise"):
+        wb = _wb({"A2": "Amortisation", "T2": 425.0, "U2": 430.0})
+        served = {("S", 2): {"value": 430.0, "line": "Tariff adjustment", "page": 4, "doc": DOC, "conf": 5, "status": "OK", "flag": None}}
+        class C:
+            def json(self, *a, **k):
+                if behaviour == "raise":
+                    raise RuntimeError("402 Payment Required")
+                return {"items": []}
+        logs = []
+        judge_names(C(), wb, _spec_tiny(), _ledger([]), served, {("S", 2): T("Amortisation", 425.0)}, Writer(wb), logs.append, target_year=2025)
+        assert served[("S", 2)].get("flag") == "red" and "NAME DOUBTED" in str(served[("S", 2)].get("note")), (behaviour, served)
+    print("PASS test_a_name_without_a_verdict_is_a_doubt_2026_09_15")
+
+
+def test_prose_sentences_are_not_tables_and_the_first_unit_word_wins_2026_09_15():
+    from pipeline.tables import table_cards
+    from pipeline.numerics import model_unit_mult
+    led = _ledger([])
+    led.add(Item(doc="e_2025.pdf", page=1, table_id=900, row_ord=0, label="HK$5,484 million (2024: HK$5,397 million)",
+                 nums=[5484.0, 5397.0], source_line="x", channel="prose"))
+    assert table_cards(led, ["e_2025.pdf"]) == []
+    assert model_unit_mult("HK$ million (per share data in HK$; shares in thousands)") == 1e6
+    assert model_unit_mult("in thousands of RMB; ratios in millions") == 1e3
+    print("PASS test_prose_sentences_are_not_tables_and_the_first_unit_word_wins_2026_09_15")
+
+
+def test_the_replay_reads_every_card_family_2026_09_15():
+    """Audit 2026-09-15: SENSE, LABEL, TRIPWIRE cards, answers beyond D and
+    every derive:via defaulted silently in a replay; the floor diverged."""
+    import tempfile, os
+    sys.path.insert(0, "tools")
+    from replay_live import picks_from_log, make_answerer
+    log = "\n".join([
+        "[queue] SERVE CN!27 -> serve:E: WRITTEN",
+        "[queue] LABEL Final!56 -> serve:A: WRITTEN",
+        "[queue] SENSE SOC Accounts!7 -> not_disclosed (x)",
+        "[queue] RUNG ROAFNA!AI71 -> derive:via refused (no cell named)",
+        "[queue] RUNG ROAFNA!AI71 -> derive:via ROAFNA!AI64",
+        "[queue] CONSEQUENCE Final!AI98 -> question",
+        "[queue] TRIPWIRE chain -> justified",
+    ])
+    fd, path = tempfile.mkstemp(suffix=".log"); os.write(fd, log.encode()); os.close(fd)
+    picks = picks_from_log(path)
+    assert picks[("SERVE", "CN!27")] == ["serve:E"] and picks[("SERVE", "Final!56")] == ["serve:A"], picks
+    assert picks[("SERVE", "SOC Accounts!7")] == ["not_disclosed"], picks
+    assert picks[("RUNG", "ROAFNA!AI71")] == [("derive:via", "use ROAFNA!AI64")], picks
+    ans = make_answerer(picks)
+    got = ans("CARD RUNG ROAFNA!AI71 'Coal'", {"derive:via": "", "keep": ""}, "keep")
+    assert got == ("derive:via", "use ROAFNA!AI64"), got
+    assert ans("CARD TRIPWIRE chain of 2 sign-flipped forecasts", {"justified": "", "suspicious": ""}, "suspicious") == "justified"
+    print("PASS test_the_replay_reads_every_card_family_2026_09_15")
+
+
+def test_the_ending_closes_cleanly_when_every_objective_holds_2026_09_15():
+    """Reviewer 2026-09-15: the healthy exit called a closure defined later
+    (NameError, STAGE LOST) — the closing rows and the count are written on
+    both exits."""
+    cells = {"A2": "Revenue", "T2": 100.0, "U2": 125.0, "V2": 130.0, "A9": "check", "T9": "=T2-T2", "U9": "=U2-U2"}
+    wb = _wb(cells)
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}], "key_rows": [{"name": "revenue", "sheet": "S", "row": 2}]}
+    lp, logs, res = _ending_harness(wb, spec, {"revenue": {"print": 125.0}})
+    lines = lp.writer.log["ending"]
+    assert lines[0] == "objectives held at the first measure" and lines[-1] == "ended: every objective holds", lines
+    assert not lp.__dict__.get("objective_faults"), lp.__dict__.get("objective_faults")
+    rows = [r for r in lp.writer.log.get("sense_rows", []) if r.get("stage") == "ending"]
+    assert rows and rows[0]["verdict"] == "inline", rows
+    print("PASS test_the_ending_closes_cleanly_when_every_objective_holds_2026_09_15")
 
 
 if __name__ == "__main__":

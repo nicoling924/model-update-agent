@@ -220,7 +220,7 @@ def _numeric_rows(ws, cols):
     """Rows that hold a number in any of the period's columns."""
     out = []
     idx = [column_index_from_string(c) for _l, c, _k in cols]
-    for r in range(1, min(ws.max_row, 400) + 1):
+    for r in range(1, ws.max_row + 1):
         lab = _label_of(ws, r)
         if not lab:
             continue
@@ -244,6 +244,9 @@ def resolve_rows(wb, spec, target_year, period, primary=None):
         counts = {}
         for k in keys:
             counts[k.get("sheet")] = counts.get(k.get("sheet"), 0) + 1
+        # the primary sheet must carry a period axis (an interim run keeps only the
+        # sheets with an interim panel; a key-row sheet without one crashed the page)
+        counts = {sh: n for sh, n in counts.items() if sh in axis_sheets} or counts
         primary = (max(counts, key=counts.get) if counts else
                    (axis_sheets[0] if axis_sheets else wb.sheetnames[0]))
     sheets = [primary] + [s for s in axis_sheets if s != primary]
@@ -317,7 +320,7 @@ def flags_of(wb):
         if sheet.startswith("_"):
             continue
         ws = wb[sheet]
-        for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 400)):
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row):
             for cell in row:
                 f = cell.fill
                 code = ""
@@ -438,7 +441,7 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     flags = flags_of(wb)
     n_red = sum(1 for f in flags if f[2] == "red")
     n_orange = sum(1 for f in flags if f[2] == "orange")
-    plugs = [f for f in flags if "PLUG" in f[3].upper()]
+    plugs = [f for f in flags if "PLUG" in f[3].upper() and "PLUG METER" not in f[3].upper()]   # a meter flag is a review item, not a plug
     open_checks = [str(x) for x in (extra.get("open_checks") or [])]
 
     # ---- 1. verdict strip ----------------------------------------
@@ -584,8 +587,8 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
             continue
         seen.add(s.get("name"))
         v = str(s.get("verdict") or "")
-        word = {"fixed": "fixed", "genuine": "genuine", "unusual": "genuine but unusual",
-                "red": "red, your ruling", "stale": "not found — last year kept, red"}.get(v, v or "reviewed")
+        word = {"fixed": "fixed", "genuine": "genuine", "unusual": "genuine but unusual", "inline": "in line",
+                "red": "red, your ruling", "stale": "not found — kept, red"}.get(v, v or "reviewed")
         leaf = s.get("leaf")
         cell(r, 1, str(s.get("name") or "")[:30], BOLD)
         cell(r, 2, (f"actual {s.get('d0', 0)*100:+.1f}% vs your estimate; next period "

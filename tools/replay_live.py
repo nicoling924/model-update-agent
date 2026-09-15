@@ -15,6 +15,12 @@ Usage:
                 and provenance.json)
   actions_log : the run's 0_update.txt (for the [queue] card answers);
                 optional — without it every card defaults (the floor)
+  --live-shape: a client is PRESENT but answers nothing (run 34925710395:
+                OpenRouter 402 four minutes in). Every branch keyed on a
+                live brain runs — the key tie proposes instead of
+                absorbing, the ending deals key cards, the reader and the
+                name judgment fail the way they fail live — so the live
+                path is exercised offline, never only in the hour.
 """
 import re
 import sys
@@ -27,15 +33,21 @@ def picks_from_log(path):
     picks = {}
     if not path:
         return picks
-    # sheet names may carry spaces ('SOC Accounts!7') — match lazily to ' -> '
-    pat = re.compile(r"\[queue\] (SERVE|COMPONENT|ROLLOVER|TRIPWIRE|PLUG|CONSEQUENCE|RUNG) (.+?) -> "
-                     r"(serve:[A-D]|revert:[A-E]|revert:\d|backout:[A-Z\d]|derive:\d|derive:via|printed:[AB]|estimate|lastyear|keep|"
-                     r"fix:\d|plug:\d|plug|question|error_fixed|"
-                     r"justified|suspicious|not_sure|refuse_flag|not_disclosed)")
+    # sheet names may carry spaces ('SOC Accounts!7') — match lazily to ' -> ';
+    # every card kind and every answer token the live log can carry (a family
+    # the replay cannot read defaults silently and the floor diverges)
+    pat = re.compile(r"\[queue\] (SERVE|LABEL|SENSE|COMPONENT|ROLLOVER|TRIPWIRE|PLUG|CONSEQUENCE|RUNG) (.+?) -> "
+                     r"([A-Za-z_]+(?::[A-Za-z0-9]+)?)(?:\s+((?:'[^']+'|[A-Za-z0-9_ ]+?)!\$?[A-Z]{1,3}\$?\d+))?")
     for ln in Path(path).read_text(errors="ignore").splitlines():
+        if " refused (" in ln or " REFUSED " in ln:
+            continue                                  # a refusal line is not an answer
         m = pat.search(ln)
         if m:
-            picks.setdefault((m.group(1), m.group(2)), []).append(m.group(3))
+            kind = "SERVE" if m.group(1) in ("LABEL", "SENSE") else m.group(1)   # rendered under the SERVE head
+            ans = m.group(3)
+            if ans == "derive:via" and m.group(4):
+                ans = (ans, f"use {m.group(4)}")       # the cell the brain named rides along as the why
+            picks.setdefault((kind, m.group(2)), []).append(ans)
     return picks
 
 
@@ -43,34 +55,58 @@ def make_answerer(picks):
     def _norm(ref):
         return re.sub(r"!([A-Z]{1,3})(\d+)$", r"!\2", ref)
 
+    def _take(key, options, default):
+        c = picks[key].pop(0)
+        if isinstance(c, tuple):
+            return (c[0], c[1]) if c[0] in options else default
+        return c if c in options else default
+
     def answer(text, options, default):
         head = text.splitlines()[0]
         mm = re.match(r"CARD (SERVE|COMPONENT|ROLLOVER|PLUG|TRIPWIRE|CONSEQUENCE|RUNG)\s+(?:check\s+)?"
                       r"(.+?!\S+)", head)
         if not mm:
-            return default
-        kind, ref = mm.group(1), mm.group(2)
+            mk = re.match(r"CARD (TRIPWIRE)", head)
+            if not mk:
+                return default
+            kind, ref = "TRIPWIRE", ""
+        else:
+            kind, ref = mm.group(1), mm.group(2)
         for key in ((kind, _norm(ref)), (kind, ref)):
             if key in picks and picks[key]:
-                c = picks[key].pop(0)
-                return c if c in options else default
+                return _take(key, options, default)
         if kind == "TRIPWIRE":
             for key in list(picks):
                 if key[0] == "TRIPWIRE" and picks[key]:
-                    c = picks[key].pop(0)
-                    return c if c in options else default
+                    return _take(key, options, default)
         return default
     return answer
 
 
+class DeadBrain:
+    """Present, never answers: the live shape with no brain."""
+    def __init__(self):
+        self.deadline = None
+        self.model, self.base_url, self.api_key, self.max_output_tokens = "dead-brain", "", "", 14000
+        self.usage = {"model": "dead-brain", "calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+
+    def json(self, *a, **k):
+        from pipeline.llm import LLMError
+        raise LLMError("live-shape floor: the brain answers nothing")
+
+    chat = json
+
+
 def main(argv):
+    live_shape = "--live-shape" in argv
+    argv = [a for a in argv if a != "--live-shape"]
     if len(argv) < 4:
         print(__doc__)
         return 2
     company, period, year, art = argv[0], argv[1], int(argv[2]), Path(argv[3])
     log_path = argv[4] if len(argv) > 4 else None
     from pipeline.run import update
-    res = update(company, period, year, client=None, stage4_mode="queue-only",
+    res = update(company, period, year, client=DeadBrain() if live_shape else None, stage4_mode="queue-only",
                  stage4_answerer=make_answerer(picks_from_log(log_path)),
                  pinned_ledger=str(art / "replay" / period / "ledger.json"),
                  pinned_served=str(art / "replay" / period / "provenance.json"),

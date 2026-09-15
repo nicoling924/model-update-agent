@@ -28,7 +28,22 @@ from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import kinship
 
-_REF = re.compile(r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?")
+_REF = re.compile(r"(?<![A-Za-z0-9_])(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?\$?([A-Z]{1,3})\$?(\d+)(?![\d(])(?::\$?([A-Z]{1,3})\$?(\d+))?")
+
+
+def named_ref(text, wb):
+    """The cell a brain names in prose ("use SOC Accounts!AI9 via ROAFNA!AI64"):
+    the sheet is matched against the workbook's own sheet names, longest
+    first, quoted or not — a name with spaces never swallows the words
+    before it (audit 2026-09-15). -> [(sheet, coord)] in order of mention."""
+    names = sorted((str(n) for n in wb.sheetnames), key=len, reverse=True)
+    alt = "|".join(re.escape(n) for n in names)
+    pat = re.compile(r"(?:'(" + alt + r")'|(?<![A-Za-z0-9_])(" + alt + r"))!\$?([A-Z]{1,3})\$?(\d+)(?!\d)")
+    out = []
+    for m in pat.finditer(str(text or "")):
+        sh = m.group(1) or m.group(2)
+        out.append((sh, f"{m.group(3)}{m.group(4)}"))
+    return out
 
 
 def _refs(formula, sheet, wb, max_cells=400):
@@ -227,6 +242,11 @@ def derive_via(loop, sheet, coord, consumer_ref):
     if u_sh not in wb.sheetnames:
         return None
     u_r = int(re.sub(r"[A-Z]", "", u_c) or 0)
+    # the proven figure is this year's: only a consumer in the target-year
+    # column may be solved against it (audit 2026-09-15: a first-forecast
+    # formula was "solved" to make NEXT year equal this year's print)
+    if re.sub(r"\d", "", u_c) != year_columns(loop.spec, u_sh).get(str(loop.ty)):
+        return None
     pf = proven_figure(loop, u_sh, u_r)
     if pf is None:
         return None
@@ -564,24 +584,25 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     if isinstance(ly_v, (int, float)) and not (proven and colour == "plain") and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
         ways.append(("lastyear", "stale", float(ly_v), None,
                      f"keep last year's actual ({ly_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
-    ways.append(("derive:via", "derive_via", None, None,
-                 "derive it yourself: name in 'why' a formula cell that uses this row and whose figure is proven (e.g. ROAFNA!AI64) — code solves the value"))
+    if not (proven and colour == "plain"):        # a proven figure is kept or replaced by a printed one, never derived
+        ways.append(("derive:via", "derive_via", None, None,
+                     "derive it yourself: name in 'why' a formula cell that uses this row and whose figure is proven (e.g. ROAFNA!AI64) — code solves the value"))
     ways.append(("keep", "keep", None, None,
                  "keep the current figure — it belongs on this row (say why)"))
     # the effect of each way on the line's gap, by trial
     previews = {}
+    from .consequence import snapshot as _snap, restore as _restore
     for key, kind, value, formula, _desc in ways:
         if kind in ("keep", "derive_via"):
             previews[key] = gap0
             continue
-        mark = len(writer.log.get("writes_all", []))
+        snap = _snap(loop)
         try:
             ok_t = writer.write(sh, coord, formula if formula else value, prior_coord=f"{pcol}{r}" if pcol else None,
                                 trusted=True, force_lock=True, flag="orange", note="sense check trial")
             previews[key] = gap_of() if ok_t else None
         finally:
-            if len(writer.log.get("writes_all", [])) > mark:
-                writer.take_back(sh, coord, old, writer.log["style_journal"][mark])
+            _restore(loop, snap)          # value, look, lock, provenance and rulings as they were
     cur_v = _val(wb, sh, coord)
     basis = (entry.get("line") if isinstance(entry, dict) else None) or "no evidence line"
     from .workqueue import row_context as _row_context
@@ -615,13 +636,14 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         # THE BRAIN'S OWN DERIVATION (owner 2026-09-15): it names the formula
         # cell; code solves against that cell's proven figure, or refuses
         why_txt = str(getattr(loop, "last_why", "") or "")
-        m_ref = re.search(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", why_txt)
-        got = derive_via(loop, sh, coord, m_ref.group(1).replace("'", "").replace("$", "").strip()) if m_ref else None
+        _named = [nr for nr in named_ref(why_txt, wb) if nr != (sh, coord)]
+        m_ref = f"{_named[0][0]}!{_named[0][1]}" if _named else None
+        got = derive_via(loop, sh, coord, m_ref) if m_ref else None
         if got is None:
-            log(f"[queue] RUNG {sh}!{coord} -> derive:via refused ({'no cell named' if not m_ref else m_ref.group(1) + ' has no proven figure'})")
+            log(f"[queue] RUNG {sh}!{coord} -> derive:via refused ({'no cell named' if not m_ref else m_ref + ' has no proven figure'})")
             ways = [w for w in ways if w[0] != "derive:via"]
             options.pop("derive:via", None)
-            text2 = text + f"\n  NOTE: 'derive:via' was refused — {'name a cell' if not m_ref else m_ref.group(1) + ' carries no proven figure'}; answer again without it."
+            text2 = text + f"\n  NOTE: 'derive:via' was refused — {'name a cell' if not m_ref else m_ref + ' carries no proven figure'}; answer again without it."
             pick = ask(text2, options, "__auto__")
             if pick not in options:
                 return _auto_ladder()
@@ -630,8 +652,10 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         else:
             implied, target, why = got
             kind, value = "derive", implied
-            desc = f"the value that makes {m_ref.group(1)} equal its proven {target:,.2f} ({why}) — derived by the brain's own route, orange"
-    log(f"[queue] RUNG {sh}!{coord} -> {pick}")
+            desc = f"the value that makes {m_ref} equal its proven {target:,.2f} ({why}) — derived by the brain's own route, orange"
+            log(f"[queue] RUNG {sh}!{coord} -> derive:via {m_ref}")
+    if kind != "derive" or pick != "derive:via":
+        log(f"[queue] RUNG {sh}!{coord} -> {pick}")
     writer.log.setdefault("rulings", {})[ref] = {"pick": pick, "line": str(d.get("name")), "desc": desc[:80]}
     if kind == "keep":
         return ("genuine" if not unusual else "unusual"), (f"'{d['name']}': swing traced to {path} ({ref}) — the brain judged the figure belongs here"
@@ -652,8 +676,9 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         ok_w = writer.write(sh, coord, formula, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="orange",
                             note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); the brain chose {desc}. Please confirm.")
     else:
+        kept = "the analyst's own estimate kept" if key == "estimate" else "last year's actual kept"
         ok_w = writer.write(sh, coord, value, prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, force_lock=True, flag="red",
-                            note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); the run's figure was not proven — last year's kept, NOT FOUND. Please look here.")
+                            note=f"Sense check: the swing in '{d['name']}' traced to this cell ({path}); the run's figure was not proven — {kept}, NOT FOUND. Please look here.")
     if not ok_w:
         return "red", f"'{d['name']}': swing traced to {path} ({ref}) — the brain's pick ({pick}) could not be written; please look here"
     broke = rerun() is False if rerun is not None else False
@@ -664,7 +689,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         return "red", f"'{d['name']}': swing traced to {path} ({ref}) — the brain's pick ({pick}) opened a check and was taken back; please look here"
     if kind == "stale":
         served.pop((sh, r), None)
-        return "stale", f"'{d['name']}': swing traced to {path} ({ref}) — not proven this year; last year's {value:,.2f} kept, red"
+        return "stale", f"'{d['name']}': swing traced to {path} ({ref}) — not proven this year; {kept} ({value:,.2f}), red"
     served[(sh, r)] = {"value": _val(wb, sh, coord), "status": "OK", "conf": 3, "flag": "orange",
                        "doc": None, "page": None, "line": desc[:60], "note": "sense check: " + desc[:60]}
     return "fixed", f"'{d['name']}': swing traced to {path} ({ref}); {desc} — gap {gap0 * 100:.0f} → {gap_of() * 100:.0f} points"

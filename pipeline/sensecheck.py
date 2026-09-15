@@ -105,6 +105,8 @@ def headline_deltas(wb, pre_wb, spec, target_year, key_rows=None):
         per_share = any(w in str(nm or "").lower() for w in ("eps", "dps", "per share"))
         if (abs(o0) < 1 or abs(o1) < 1) and not per_share:
             continue
+        if abs(o0) < 1e-9 or abs(o1) < 1e-9:
+            continue                      # a zero estimate has no ratio (a zero DPS killed the ending, audit 2026-09-15)
         d0 = (n0 - o0) / abs(o0)
         d1 = (n1 - o1) / abs(o1)
         out.append({"name": nm, "sheet": sh, "row": r, "ref0": f"{sh}!{c0}{r}", "ref1": f"{sh}!{c1}{r}",
@@ -197,9 +199,11 @@ def checkpoint(loop, pre_wb, log):
     import time as _t
     _t0 = _t.monotonic()
     for d in sus:
-        if _t.monotonic() - _t0 > 240:                      # the checkpoint's slice: four minutes of the hour
+        _left = 240 - (_t.monotonic() - _t0)                # the checkpoint's slice: four minutes of the hour
+        if _left <= 0:
             lines.append("NOT INVESTIGATED (checkpoint time slice used) " + reason_text(d))
             continue
+        loop.census_budget_s = max(10.0, min(90.0, _left - 30.0))   # one line's census never outlives the slice
         txt = reason_text(d)
         log("[sense] " + txt)
         verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=_checks_hold)
@@ -213,107 +217,6 @@ def checkpoint(loop, pre_wb, log):
         log(f"[sense] checkpoint: {len(deltas)} headline lines, none out of line")
     loop.sense_priority = prio
     return prio
-
-
-def final_pass(loop, pre_wb, log, client, answerer, deadline_s, rerun):
-    """After the checks close: one review card per line still suspicious
-    (time allowing), then keys and balance again; a change that breaks
-    them is taken back. Unresolved lines are written up. -> n written"""
-    import time
-    from .workqueue import WorkItem, run_queue
-    wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
-    deltas = headline_deltas(wb, pre_wb, spec, ty)
-    sus = suspicious(deltas)
-    lines = writer.log.setdefault("sense_check", [])
-    if not sus:
-        lines.append(f"Final sense check: {len(deltas)} headline lines, none out of line.")
-        log(f"[sense] final: none of {len(deltas)} lines out of line")
-        return 0
-    if deadline_s < 90:
-        for d in sus:
-            cells = chain_cells(wb, spec, ty, d, writer)
-            lines.append("UNRESOLVED (no time left) " + reason_text(d) + f"; look at: {', '.join(c[2] for c in cells[:8])}")
-        log(f"[sense] final: {len(sus)} line(s) still out of line, no time left — written up")
-        return 0
-    mark = len(writer.log.get("writes_all", []))
-    t0 = time.monotonic()
-    # the objectives before the review: a check already open is not the
-    # review's doing (DFE live 2026-09-09: three good review writes were
-    # taken back because an 11-unit gap elsewhere had the gate refusing)
-    try:
-        fails_before = {s for s, _r, _v in loop._failing_target_checks()}
-    except Exception:
-        fails_before = set()
-    from .investigate import trace, judge_and_fix
-    for d in sus:
-        if time.monotonic() - t0 > max(30.0, deadline_s - 60):
-            lines.append("UNRESOLVED (no time left) " + reason_text(d))
-            continue
-        verdict, text, _leaf = investigate_line(loop, pre_wb, d, log, rerun=rerun)
-        lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
-        _sense_row(writer, d, verdict, text, _leaf, "final")
-    changed = writer.log.get("writes_all", [])[mark:]
-    # cells whose content actually differs from before the pass (a write
-    # the investigator itself reverted is not a change)
-    first_old, last_new = {}, {}
-    for sh, coord, old, new in changed:
-        first_old.setdefault((sh, coord), old)
-        last_new[(sh, coord)] = new
-    changed = [(sh, coord, first_old[(sh, coord)], last_new[(sh, coord)]) for (sh, coord) in last_new
-               if last_new[(sh, coord)] != first_old[(sh, coord)]]
-    n = len(changed)
-    ok = rerun()
-    try:
-        fails_after = {s for s, _r, _v in loop._failing_target_checks()}
-    except Exception:
-        fails_after = set()
-    # THE REVIEW MUST NOT MAKE IT WORSE (CLP live 2026-09-09: a review write
-    # sent next year's revenue to −95,225,646% while the balance still
-    # closed). The review is judged by its own measure too: no headline
-    # line's gap may widen and no new line may go out of line.
-    gaps_before = {d["name"]: abs(d["d1"] - d["d0"]) for d in deltas}
-    gaps_after = {d["name"]: abs(d["d1"] - d["d0"]) for d in headline_deltas(wb, pre_wb, spec, ty)}
-    worse = [nm for nm, g in gaps_after.items()
-             if g > gaps_before.get(nm, 0.0) + 0.01 and g > SENSE_GAP]
-    if changed and ((fails_after - fails_before) or worse or ok is False):
-        # the review OPENED a check or WIDENED a gap: take every review write back, re-run
-        journal = writer.log.get("style_journal", [])[mark:]
-        for sh, coord, old, _new in reversed(changed):
-            style = next((j for j in journal if (j[0], j[1]) == (sh, coord)), (sh, coord, "", None, False))
-            writer.take_back(sh, coord, old, style)
-        log(f"[sense] final: {n} review write(s) taken back — "
-            + (f"they opened {sorted(fails_after - fails_before)[:3]}" if (fails_after - fails_before) else f"they widened {worse[:3]}"))
-        rerun()
-        n = 0
-    # THE PLUG METER AFTER THE CHECKS (owner 2026-09-14: SOC Accounts!AI9
-    # took a 5,758 key-tie back-out after the meter had run): a residual
-    # row that moved wildly by now is flagged and reported
-    try:
-        from .teachings import plug_meter as _pm
-        known = {(sh_, r_) for sh_, r_, _n, _w in (getattr(loop, "plugmeters", None) or [])}
-        for sh_, r_, now_, was_ in _pm(wb, spec, ty):
-            if (sh_, r_) in known:
-                continue
-            tc_ = year_columns(spec, sh_).get(str(ty))
-            if not tc_:
-                continue
-            writer.flag_ref(f"{sh_}!{tc_}{r_}", "red",
-                f"PLUG METER (after the checks): this residual row computes {now_:,.1f} vs {was_:,.1f} last "
-                "year — an input feeding its total is wrong, or a back-out landed here. Please check.")
-            lines.append(f"PLUG METER after the checks: {sh_}!{tc_}{r_} {now_:,.1f} vs {was_:,.1f} last year")
-            log("[sense] " + lines[-1])
-    except Exception as _e_pm:
-        log(f"[sense] plug meter after the checks skipped: {_e_pm!r}")
-    deltas2 = headline_deltas(wb, pre_wb, spec, ty)
-    still = suspicious(deltas2)
-    for d in sus:
-        now = next((x for x in still if x["name"] == d["name"]), None)
-        if now is not None:
-            lines.append("UNRESOLVED " + reason_text(now))
-            log("[sense] " + lines[-1])
-    log(f"[sense] final: {len(sus)} line(s) reviewed, {len(sus) - len(still)} resolved, {len(still)} written up "
-        f"({time.monotonic() - t0:,.0f}s)")
-    return n
 
 
 def investigate_line(loop, pre_wb, d, log, rerun=None):

@@ -359,6 +359,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             if bridge:
                 labels = " + ".join(b[2] or f"{b[0]}!{b[1]}"
                                     for b in bridge)
+                writer.log.setdefault("key_verdicts", {})[name] = "justified by the prior-delta bridge"
                 writer.log.setdefault("verdicts", []).append(
                     f"{sheet}!{tcol}{row}: JUSTIFIED — '{name}' differs "
                     f"from the print by design: model = print "
@@ -371,6 +372,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                     "preserved, nothing forced")
                 continue
             src = _printed(ledger, got)
+            writer.log.setdefault("key_verdicts", {})[name] = "definition question for the analyst"
             writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
                 f"DEFINITION QUESTION: '{name}' computes {got:,.2f} vs "
                 f"printed {want:,.2f} ({delta:+,.2f}), and the prior "
@@ -409,6 +411,8 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
             writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
                 f"KEY OFF: '{name}' computes {got:,.2f} vs printed {want:,.2f} ({delta:+,.2f}) — for the consequence card.")
             log(f"[run] key tie: '{name}' OFF {delta:+,.2f} vs print {want:,.2f} — left for the consequence card (no automatic back-out)")
+            if prev_wrapped:
+                wb[prev_wrapped[0]][prev_wrapped[1]] = prev_wrapped[2]   # a standing back-out is not unwrapped by a measure-only pass
             continue
         tied_before = {nm for nm, _g, _w, ok in _key_state() if ok}
         # candidates: every FORMULA cell in the key's chain (estimate
@@ -744,8 +748,8 @@ def key_violations(wb, spec, target_year, ledger, panel_path, snapshot, panel=No
         sh, coord = ref.split("!", 1)
         try:
             now = ev.cell(sh, coord)
-        except Exception:
-            continue
+        except Exception:  # noqa: BLE001 — a key that now errors is a violation (the None branch), never silence
+            now = None
         if not isinstance(now, (int, float)):
             out.append((nm, ref, then, None))
             continue

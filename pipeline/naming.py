@@ -122,18 +122,27 @@ def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=12
                          + (f"; table columns: {', '.join(cols[:7])}" if cols else "") + (f" ({kind} table)" if kind else "")
                          + f"; this year's figure read: {entry['value']:,.2f}")
         user = f"{len(chunk)} items follow.\n\n" + "\n\n".join(lines)
+        def _validate_all(obj):
+            errs = _validate(obj)
+            if not errs:
+                ids = {t.get("id") for t in obj["items"]}
+                missing = sorted(set(range(1, len(chunk) + 1)) - ids)
+                if missing:
+                    errs.append(f"every id must be answered; missing {missing[:10]}")
+            return errs
         try:
-            obj = client.json(_SYSTEM, user, _validate, repair_retries=1)
+            obj = client.json(_SYSTEM, user, _validate_all, repair_retries=1)
         except Exception as ex:
-            log(f"[names] the brain could not judge {len(chunk)} name-mismatched tie(s) ({ex}); they stand as code served them")
-            continue
+            log(f"[names] the brain could not judge {len(chunk)} name-mismatched tie(s) ({ex}); each lands red as not judged")
+            obj = {"items": []}
         verdicts = {t["id"]: t for t in (obj or {}).get("items", []) if isinstance(t, dict)}
         for i, ((sheet, row), entry, label) in enumerate(chunk):
             v = verdicts.get(i + 1)
             entry["named"] = True
-            if v is None or v.get("same"):
+            if v is not None and v.get("same"):
                 continue
-            why = str(v.get("why") or "")[:120]
+            # no verdict is a doubt too (audit 2026-09-15: an id the brain omitted counted as accepted)
+            why = str(v.get("why") or "")[:120] if v is not None else "the brain gave no verdict on this name"
             refused += 1
             # A DOUBTED NAME IS A FLAG, NOT A VETO (run 34874944306: the brain
             # refused eighteen ties and eleven were right numbers — Yallourn's

@@ -213,11 +213,14 @@ def model_unit_mult(units_text):
     -> 1e6; 'RMB 万元' -> 1e4). None when the text names no unit word."""
     import re as _re
     t = str(units_text or "").lower()
+    hits = []
     for pat, mult in ((r"亿", 1e8), (r"千万", 1e7), (r"百万", 1e6), (r"万", 1e4), (r"千元|thousand|\bk\b|'000|000s", 1e3),
                       (r"billion|\bbn\b", 1e9), (r"million|\bmn\b|\bm\b|\bmm\b", 1e6)):
-        if _re.search(pat, t):
-            return mult
-    return None
+        m = _re.search(pat, t)
+        if m:
+            hits.append((m.start(), mult))
+    # the model's unit is the first named ('HK$ million; shares in thousands' is a million model)
+    return min(hits)[1] if hits else None
 
 
 def prose_money_value(n, spec, page_scale=None):

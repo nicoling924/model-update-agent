@@ -503,8 +503,7 @@ def _uses_of(loop, sheet, col, row, limit=4):
     import re as _re
     wb = loop.wb
     coord = f"{col}{row}"
-    pat_same = _re.compile(r"(?<![A-Z$!'])\$?" + col + r"\$?" + str(row) + r"(?!\d)")
-    pat_x = _re.compile(r"(?:'" + _re.escape(sheet) + r"'|" + _re.escape(sheet) + r")!\$?" + col + r"\$?" + str(row) + r"(?!\d)")
+    from .investigate import _refs
     out = []
     for sh in (loop.spec.get("year_axis") or {}):
         if sh not in wb.sheetnames:
@@ -519,7 +518,9 @@ def _uses_of(loop, sheet, col, row, limit=4):
                 f = ws[f"{c_}{r}"].value
                 if not (isinstance(f, str) and f.startswith("=")):
                     continue
-                if (sh == sheet and pat_same.search(f) and f"{c_}{r}" != coord) or (sh != sheet and pat_x.search(f)):
+                if f"{c_}{r}" == coord and sh == sheet:
+                    continue
+                if (sheet, coord) in _refs(f, sh, wb):
                     out.append((f"{sh}!{c_}{r}", str(ws.cell(r, 1).value or "")[:28], f[:40]))
                     if len(out) >= limit:
                         return out
@@ -745,13 +746,13 @@ def phase0(loop, log):
     n = 0
     for sheet, row, _res in loop._failing_target_checks():
         diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})
-        for m in list(re.finditer(r"GUILTY (\S+)!(\d+)", diag))[:6]:
+        for m in list(re.finditer(r"GUILTY (.+?)!(\d+) ", diag))[:6]:
             r = loop.t_apply_diff({"row": f"{m.group(1)}!{m.group(2)}"})
             n += str(r).startswith(("WRITTEN", "REWRITTEN"))
             log(f"[queue] phase0 apply_diff {m.group(1)}!{m.group(2)} -> "
                 f"{str(r).splitlines()[0][:70]}")
         for m in list(re.finditer(
-                r"STALE COMPOSITE (\S+)![A-Z]{1,3}(\d+)", diag))[:6]:
+                r"STALE COMPOSITE (.+?)![A-Z]{1,3}(\d+) ", diag))[:6]:
             r = loop.t_rewrite_constants(
                 {"cell": f"{m.group(1)}!{m.group(2)}"})
             n += str(r).startswith("REWRITTEN")
@@ -911,13 +912,14 @@ def render_card(loop, item):
         # THE DERIVED FILL on this card too (owner 2026-09-15: "make sure it's
         # applied in all cards"): code's derivations from proven consumers, and
         # the brain's own route — one card, one answer, the same tool verifies
-        try:
-            for j, (u_ref, u_lab, implied, target, why) in enumerate(_derived):
-                lines.append(f"    derive:{j + 1}: {implied:,.2f} — the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}); lands orange with that proof")
-                options[f"derive:{j + 1}"] = ("derive", {"cell": f"{sheet}!{col}{row}", "via": u_ref,
-                                                        "why": f"card-adjudicated derivation via {u_ref}"})
-        except Exception:
-            pass
+        for j, d_ in enumerate(_derived):
+            if len(d_) != 5:
+                loop.log.append(f"[queue] derivation of {sheet}!{col}{row} has an unexpected shape: {d_!r}"[:200])
+                continue
+            u_ref, u_lab, implied, target, why = d_
+            options[f"derive:{j + 1}"] = ("derive", {"cell": f"{sheet}!{col}{row}", "via": u_ref,
+                                                    "why": f"card-adjudicated derivation via {u_ref}"})
+            lines.append(f"    derive:{j + 1}: {implied:,.2f} — the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}); lands orange with that proof")
         lines.append("    derive:via: derive it yourself — name in 'why' a formula cell that uses this row and whose figure is proven; code solves and verifies")
         options["derive:via"] = ("derive_via", {"cell": f"{sheet}!{col}{row}"})
         options["not_disclosed"] = (None, None)
@@ -1120,7 +1122,7 @@ def render_card(loop, item):
         res = re.search(r"residual = ([-\d,\.]+)", diag)
         hyp = _residual_hypotheses(
             loop, float(res.group(1).replace(",", "")) if res else 0.0)
-        sites = re.findall(r"^\s+(\S+)![A-Z]{1,3}(\d+) '([^']*)' = ([-\d,\.]+)",
+        sites = re.findall(r"^\s+(.+?)![A-Z]{1,3}(\d+) '([^']*)' = ([-\d,\.]+)",
                            diag, re.M)[:3]
         lines = ["CARD PLUG " + diag.splitlines()[0],
                  "  no component has unclaimed evidence. " + hyp,
@@ -1164,7 +1166,7 @@ def _llm_answer(loop, client, text, options, log):
             return [f"answer must be one of {sorted(options)}"]
         return []
     obj = client.json(_SYSTEM, text, _val, repair_retries=1)
-    return obj.get("answer"), str(obj.get("why", ""))[:120]
+    return obj.get("answer"), str(obj.get("why", ""))[:400]
 
 
 def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=None):
@@ -1245,6 +1247,8 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
                 if answerer is not None:
                     ans = answerer(text, options, default)
                     why = "scripted"
+                    if isinstance(ans, tuple):
+                        ans, why = ans[0], str(ans[1] or "scripted")
                 elif client is not None:
                     calls += 1
                     _c0 = time.monotonic()
@@ -1254,22 +1258,34 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
                 if ans not in options:
                     ans, why = default, "invalid->default"
             except Exception as e:
-                breaker += 1
+                if "validation" not in str(e).lower():
+                    breaker += 1              # a dead endpoint; a badly formed answer is not one
                 ans, why = default, f"client error -> default ({e})"
         else:
             dead += 1
-        tool, args = options[ans]
-        if tool == "derive_via":
-            m_via = re.search(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", str(why or ""))
-            tool = "derive"
-            args = dict(args, via=(m_via.group(1) if m_via else ""), why=f"the brain's own route: {str(why or '')[:80]}")
+        def _resolve(tool_, args_, why_):
+            """derive:via: the brain names the consuming cell in its why; the
+            derive tool solves it (the same on a first or a second answer)."""
+            if tool_ == "derive_via":
+                from .investigate import named_ref
+                own = args_.get("cell") if isinstance(args_, dict) else None
+                vias = [f"{a}!{b}" for a, b in named_ref(why_, loop.wb) if f"{a}!{b}" != own]
+                return "derive", dict(args_, via=(vias[0] if vias else ""), why=f"the brain's own route: {str(why_ or '')[:80]}")
+            return tool_, args_
+        tool, args = _resolve(*options[ans], why)
         if tool is None:
             item.state = "DEFAULTED" if ans == default else "DONE"
             defaulted += ans == default
-            if item.kind in ("SERVE", "COMPONENT") and item.row:
+            if item.kind == "SERVE" and item.row:
                 # the card's verdict on this row is recorded: a fix the cards
                 # ruled out no longer blocks the last resort (diagnose_balance)
                 loop.writer.log.setdefault("ruled_out", []).append(f"{item.sheet}!{item.row}")
+            elif item.kind == "COMPONENT":
+                # the leaves the card offered and the brain declined — those are ruled out, not the check row
+                for _k, (_t, _a) in options.items():
+                    if _k.startswith("fix:") and isinstance(_a, dict) and _a.get("cell"):
+                        _c = str(_a["cell"]); _sh, _co = _c.split("!", 1)
+                        loop.writer.log.setdefault("ruled_out", []).append(f"{_sh}!{re.sub(r'[A-Z]', '', _co)}")
             if item.kind == "SERVE" and (item.sheet, item.row) not in (loop.served or {}):
                 # a not_disclosed adjudication IS an examination (the
                 # move-on law): document the look on the cell so the
@@ -1308,6 +1324,8 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
             try:
                 if answerer is not None:
                     ans2 = answerer(text2, options2, default)
+                    if isinstance(ans2, tuple):
+                        ans2, why = ans2[0], str(ans2[1] or why)
                 elif client is not None:
                     calls += 1
                     ans2, why = _llm_answer(loop, client, text2, options2,
@@ -1319,7 +1337,7 @@ def run_queue(loop, client, log, answerer=None, deadline_s=DEADLINE_S, items=Non
             except Exception:
                 ans2 = default
             ans = ans2
-            tool, args = options2.get(ans, (None, None))
+            tool, args = _resolve(*options2.get(ans, (None, None)), why)
             if tool is None:
                 item.state = "DEFAULTED"
                 defaulted += 1

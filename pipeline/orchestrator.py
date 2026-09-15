@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 
 from .checks import prior_column, scorecard, summarize, year_columns
+from .checks import CHECK_TOL
 from .evaluator import Evaluator
 from .numerics import SCALES, line_numbers, row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
@@ -131,7 +132,7 @@ class ObjectiveLoop:
                    "freeze terminally at pre-update values)"]
         return out
 
-    def _failing_target_checks(self, tol=1.0):
+    def _failing_target_checks(self, tol=None):
         """Spec check rows still failing in the TARGET year column.
         -> [(sheet, row, residual)]."""
         ev = Evaluator(self.wb)
@@ -146,7 +147,7 @@ class ObjectiveLoop:
                 got = ev.cell(sheet, f"{col}{row}")
             except Exception:
                 continue
-            if isinstance(got, (int, float)) and abs(got - expect) > tol:
+            if isinstance(got, (int, float)) and abs(got - expect) > (CHECK_TOL if tol is None else tol):
                 out.append((sheet, row, got - expect))
         return out
 
@@ -1414,20 +1415,9 @@ class ObjectiveLoop:
             # the page prints the RESTATED prior, so "prior not corroborated" does not apply
             self.writer.log.setdefault("restatements", []).append(f"{ref}: {law_reason} — {why[:80]}")
             args = dict(args); args["flag"] = None
+            corro = True
             why = "RESTATED COMPARATIVE noted on the report — " + why.split(" [prior NOT corroborated")[0]
-        if verdict == "REFUSE" and "comparative contradicts" in law_reason and args.get("noun_proven"):
-            # THE RESTATEMENT (owner 2026-09-15): the model's 2024 is 100, last
-            # year's report prints 100 under this name, this year's report prints
-            # the same name at 200 with 2024 restated to 120. The name is proven
-            # through last year's report, so the contradicting comparative is a
-            # restatement, not another item: the figure lands ORANGE with the
-            # restated comparative in its note; the model's history is untouched
-            verdict, forced_flag = "ALLOW", None
-            law_reason = "the name is proven through last year's report; this year's line restates the comparative"
-            self.writer.log.setdefault("restatements", []).append(
-                f"{ref}: this year's line prints last year at a different figure than the model ({pv_cell:,.2f}); name proven through last year's report")
-            args = dict(args); args["flag"] = None
-            why = "RESTATED COMPARATIVE noted on the report — " + why.split(" [prior NOT corroborated")[0]
+        # (the card's noun_proven claim is judged by judge_write's own restatement witness — no second door)
         if args.get("nil") and value == 0 and isinstance(pv_cell, (int, float)):
             # THE BRAIN JUDGED A BLANK LINE THE SAME ITEM (owner 2026-09-08):
             # code's part is the prior tie — the line must print last
@@ -1668,6 +1658,13 @@ class ObjectiveLoop:
             return f"MISS: cell '{cell}' unparseable"
         sheet, col, row = ci
         coord = f"{col}{row}"
+        from .rollover import input_is_proven
+        try:
+            cur_v = Evaluator(self.wb).cell(sheet, coord)
+        except Exception:  # noqa: BLE001
+            cur_v = None
+        if input_is_proven(self.served, sheet, coord, cur_v, self.writer.log.get("flags", []), self.wb):
+            return f"REFUSED: {cell} is proven from the print — a proven figure is kept or replaced by another printed one, never derived"
         got = derive_via(self, sheet, coord, via)
         if got is None:
             return (f"REFUSED: {via or 'no cell'} carries no proven figure this year (or does not move with {cell}) — "
@@ -2043,7 +2040,7 @@ def terminal_ladder(loop, log):
     closed = 0
     for sheet, row, resid in loop._failing_target_checks():
         diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})
-        for g in list(re.finditer(r"GUILTY (\S+)!(\d+)", diag))[:5]:
+        for g in list(re.finditer(r"GUILTY (.+?)!(\d+) ", diag))[:5]:
             r = loop.t_apply_diff({"row": f"{g.group(1)}!{g.group(2)}"})
             log(f"[run] terminal ladder: apply_diff {g.group(1)}!"
                 f"{g.group(2)} -> {str(r).splitlines()[0][:90]}")
@@ -2058,7 +2055,7 @@ def terminal_ladder(loop, log):
         # form a compensating pair — either lone write breaks the check
         # and reverts; applied TOGETHER they close it. The analyst
         # applies the batch, then judges. Transactional as a batch.)
-        gl = list(re.finditer(r"GUILTY (\S+)!(\d+)", diag))[:5]
+        gl = list(re.finditer(r"GUILTY (.+?)!(\d+) ", diag))[:5]
         if len(gl) >= 2:
             batch, olds = [], []
             for g in gl:

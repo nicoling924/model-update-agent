@@ -10,7 +10,7 @@ code knows only cells, priors, and arithmetic.
 """
 from .evaluator import Evaluator
 
-CHECK_TOL = 0.5      # a check row's world is zero; half a unit absorbs the model's own display rounding (a 0.03 residue refused a closed run, 2026-09-15)
+CHECK_TOL = 0.5      # a check row's world is zero; half a unit absorbs the model's own display rounding (0.03 refused a closed run, 2026-09-15); the gate, the ending and the ladder all read this one
 
 
 def year_columns(spec, sheet):

@@ -117,6 +117,8 @@ def table_cards(ledger, docs):
     by_name = {Path(d).name: Path(d) for d in docs}
     tabs = {}
     for it in ledger.items:
+        if getattr(it, "channel", "") == "prose":
+            continue                      # a sentence is not a table (2,456 "tables" in run 34935869107)
         tabs.setdefault((it.doc, it.page, it.table_id), []).append(it)
     lines_cache = {}
     cards = []

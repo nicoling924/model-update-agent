@@ -34,7 +34,8 @@ for sh in spec.get("year_axis") or {}:
     ws, rs = wb[sh], rb[sh]
     for r in range(1, ws.max_row + 1):
         c = ws[f"{tc}{r}"]
-        if not is_input(c.value): continue
+        # an input, or a cell the run painted (a reference-only back-out like =AH71/AH64*AI64 is the run's answer too)
+        if not is_input(c.value) and fill(c) not in colours: continue
         try: dv = ev.cell(sh, f"{tc}{r}")
         except Exception: dv = None
         try: rv = rev.cell(sh, f"{tc}{r}")

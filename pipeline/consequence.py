@@ -16,16 +16,56 @@ automatic plug ladder as the deciders; they remain the executors of a pick.
 import re
 import time
 
-from .checks import forecast_columns, prior_column, year_columns
+from .checks import CHECK_TOL, forecast_columns, prior_column, year_columns
 from .evaluator import Evaluator
 
 
-def broken_objectives(loop, keys_before, key_panel, panel_path):
+def snapshot(loop):
+    """What a trial may disturb: the write journal mark, the provenance
+    (served), the locks, the sense rulings. Previews and take-backs restore
+    all four (audit 2026-09-15: a preview un-served and unlocked proven
+    movers; a taken-back pick left its ruling in the memory)."""
+    w = loop.writer
+    return (len(w.log.get("writes_all", [])), dict(loop.served or {}), set(getattr(w, "locked", ())),
+            dict(w.log.get("rulings", {}) or {}), list(w.log.get("plugs", []) or []))
+
+
+def restore(loop, snap):
+    """Unwind every write since the snapshot through the writer (value AND
+    look), then put back what the run believed: served, locks, rulings."""
+    w = loop.writer
+    mark, served0, locked0, rulings0, plugs0 = snap
+    journal = w.log.get("style_journal", [])[mark:]
+    for sh_w, co_w, old_w, _new in reversed(list(w.log.get("writes_all", []))[mark:]):
+        style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
+        w.take_back(sh_w, co_w, old_w, style)
+    if isinstance(loop.served, dict):
+        loop.served.clear(); loop.served.update(served0)
+    if hasattr(w, "locked"):
+        w.locked.clear(); w.locked.update(locked0)
+    if "rulings" in w.log:
+        w.log["rulings"].clear(); w.log["rulings"].update(rulings0)
+    if "plugs" in w.log:
+        w.log["plugs"][:] = plugs0
+
+
+def _fault(loop, text):
+    """An objective the measure could not take is SAID, never swallowed
+    (run 34935869107: the key objectives vanished from the ending without
+    a word). Kept on the loop; run_ending logs each new one once."""
+    faults = loop.__dict__.setdefault("objective_faults", [])
+    if text not in faults:
+        faults.append(text)
+
+
+def broken_objectives(loop, keys_before, key_panel, panel_path, quiet=False):
     """-> [(kind, sheet, coord, amount, text)] largest first.
-    kind: check (actual year) | forecast-check | key (rule 2 / off the print)"""
+    kind: check (actual year) | forecast-check | key (rule 2 / off the print).
+    quiet: a trial measure (plugs lifted) says nothing about cells it cannot evaluate."""
     wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
     out = []
     ev = Evaluator(wb)
+    say = (lambda t: None) if quiet else (lambda t: _fault(loop, t))
     for c in (spec.get("check_rows") or []):
         sheet, row = c.get("sheet"), int(c.get("row"))
         if sheet not in wb.sheetnames:
@@ -37,36 +77,40 @@ def broken_objectives(loop, keys_before, key_panel, panel_path):
         for col, kind in cols:
             try:
                 v = ev.cell(sheet, f"{col}{row}")
-            except Exception:
+            except Exception as e:  # noqa: BLE001
+                say(f"check {sheet}!{col}{row} cannot be evaluated: {e!r}")
                 continue
-            if isinstance(v, (int, float)) and abs(v - expect) > 1.0:
+            if isinstance(v, (int, float)) and abs(v - expect) > CHECK_TOL:
                 out.append((kind, sheet, f"{col}{row}", float(v - expect),
                             f"balance check {sheet}!{col}{row} computes {v:,.1f} (should be {expect:,.0f})"))
+    from .keytie import key_violations, key_state
     try:
-        from .keytie import key_violations, key_state
         for nm, ref, then, now in key_violations(wb, spec, ty, loop.ledger, panel_path, keys_before, panel=key_panel):
             sh, co = ref.split("!", 1)
             amt = (now if isinstance(now, (int, float)) else 0.0) - then
             out.append(("key", sh, co, float(amt), f"key '{nm}' at {ref} was proven-printed {then:,.1f}, now {now if now is None else f'{now:,.1f}'} — printed nowhere"))
-        for nm, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel):
-            if ok:
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"key violations unavailable: {e!r}")
+    try:
+        # key_state speaks five fields (name, ref, value, print, tied); run
+        # 34935869107 unpacked four, raised on every round, and the keys
+        # were never an objective — the fault is now said, never swallowed.
+        # A key the tie already JUDGED (confirmed by the bridge, or a
+        # definition question for the analyst) is not re-raised every round.
+        judged = set(loop.writer.log.get("key_verdicts", {}) or {})
+        for nm, ref, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel):
+            if ok or not isinstance(got, (int, float)) or nm in judged:
                 continue
-            kk = next((k for k in (spec.get("key_rows") or []) if k.get("name") == nm), None)
-            if not kk:
+            sh, co = ref.split("!", 1)
+            if any(o[1] == sh and o[2] == co for o in out):
                 continue
-            tc = year_columns(spec, kk.get("sheet")).get(str(ty))
-            if not tc:
-                continue
-            ref = f"{kk['sheet']}!{tc}{int(kk['row'])}"
-            if any(o[1] == kk["sheet"] and o[2] == f"{tc}{int(kk['row'])}" for o in out):
-                continue
-            out.append(("key", kk["sheet"], f"{tc}{int(kk['row'])}", float(got - want), f"key '{nm}' at {ref} computes {got:,.1f} vs printed {want:,.1f}"))
-    except Exception:
-        pass
+            out.append(("key", sh, co, float(got - want), f"key '{nm}' at {ref} computes {got:,.1f} vs printed {want:,.1f}"))
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"key objectives unavailable: {e!r}")
     try:
         out += sanity_breaks(loop)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"sanity objectives unavailable: {e!r}")
     out.sort(key=lambda o: -abs(o[3]))
     return out
 
@@ -80,8 +124,8 @@ def sanity_rows(loop):
         rows, _primary = resolve_rows(loop.wb, loop.spec, int(loop.ty), getattr(loop, "period", None) or "FY")
         if rows.get("cash"):
             out["cash"] = (rows["cash"][0], int(rows["cash"][1]))
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"cash row not resolved for the sanity objective: {e!r}")
     for kk in (loop.spec.get("key_rows") or []):
         nm = str(kk.get("name") or "").lower()
         if nm == "cash" and "cash" not in out:
@@ -158,9 +202,9 @@ def measure(loop, keys_before, key_panel, panel_path, lift_plugs=True):
             except Exception:
                 pass
     try:
-        objs = broken_objectives(loop, keys_before, key_panel, panel_path)
+        objs = broken_objectives(loop, keys_before, key_panel, panel_path, quiet=True)
         balance = sum(abs(o[3]) for o in objs if o[0] in ("check", "forecast-check"))
-        keys_off = [o[4].split("'")[1] if "'" in o[4] else o[2] for o in objs if o[0] == "key"]
+        keys_off = [(re.search(r"key '(.+?)' at ", o[4]).group(1) if re.search(r"key '(.+?)' at ", o[4]) else o[2]) for o in objs if o[0] == "key"]
         san = [o for o in objs if o[0] == "sanity"]
     finally:
         for sh, co, v in lifted:
@@ -191,8 +235,9 @@ def apply_pick(loop, pre_wb, pick, movers, amount, text):
     wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
     if pick.startswith("derive:"):
         if pick == "derive:via":
+            from .investigate import named_ref
             why_txt = str(getattr(loop, "last_why", "") or "")
-            refs = re.findall(r"((?:'[^']+'|[A-Za-z0-9_ ]+)!\$?[A-Z]{1,3}\$?\d+)", why_txt)
+            refs = [f"{a}!{b}" for a, b in named_ref(why_txt, wb)]
             cell_ref, via_ref = (refs[0], refs[1]) if len(refs) >= 2 else ("", "")
         else:
             i = int(pick.split(":")[1]) - 1
@@ -305,19 +350,14 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
         for k in list(options):
             if not (k.startswith("revert:") or k.startswith("backout:") or (k.startswith("derive:") and k != "derive:via")):
                 continue
-            mark = len(writer.log.get("writes_all", []))
-            served_before = dict(loop.served or {})
+            snap = snapshot(loop)
             try:
                 ok = apply_pick(loop, pre_wb, k, movers, amount, text)
                 previews[k] = describe(m0, measure(loop, keys_before, key_panel, panel_path)) if ok else "cannot be written"
-            except Exception as ex:
-                previews[k] = "could not be tried"
+            except Exception as ex:  # noqa: BLE001
+                previews[k] = f"could not be tried ({type(ex).__name__}: {str(ex)[:60]})"
             finally:
-                journal = writer.log.get("style_journal", [])[mark:]
-                for sh_w, co_w, old_w, _new in reversed(list(writer.log.get("writes_all", []))[mark:]):
-                    style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
-                    writer.take_back(sh_w, co_w, old_w, style)
-                loop.served.clear(); loop.served.update(served_before)
+                restore(loop, snap)
     lines.append("  the ways to resolve it, each with what it does to the objectives (plugs lifted while measuring):")
     for k, v in options.items():
         lines.append(f"    {k}: {v}" + (f"  → {previews[k]}" if k in previews else ""))
@@ -445,16 +485,38 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
         hold_zero()
     repair_round("first")
     result = gate_once()
-    if result[0] and not suspicious(headline_deltas(wb, pre_wb, spec, ty)):
-        lines.append("objectives held at the first measure")
-        return result
     order = {"check": 0, "key": 1, "sanity": 2, "forecast-check": 3, "sense": 4}
+    said_faults = set()
+
+    def _say_faults():
+        for f in loop.__dict__.get("objective_faults", []):
+            if f not in said_faults:
+                said_faults.add(f)
+                lines.append(f"objective not measured: {f}")
+                log(f"[ending] FAULT {f}")
+
+    judged = set()       # (kind, sheet, row): a question, no answer, or a pick that moved nothing — the break is judged
+    tried = {}           # (sheet, coord) -> the picks taken back; a break is dealt again without them while its last pick moved the mass
+
+    def _inherited(res):
+        out = set()
+        card_ = res[2] if isinstance(res, tuple) and len(res) > 2 and isinstance(res[2], dict) else {}
+        for ln in card_.get("inherited_breaks", []) or []:
+            m_ = re.match(r"^(.*)!r(\d+) \((\d{4})\)", str(ln).split(": ")[0])
+            if m_:
+                col_ = year_columns(spec, m_.group(1)).get(m_.group(3))
+                if col_:
+                    out.add((m_.group(1), f"{col_}{m_.group(2)}"))
+        return out
 
     def _breaks():
         raw = broken_objectives(loop, keys_before, key_panel, panel_path)
+        inherited = _inherited(result)
         out, seen_rows = [], set()
         for o in raw:
             kind, sheet, coord, amount, text = o
+            if (sheet, coord) in inherited:
+                continue                    # the analyst's own pre-update break: reported by the gate, not worked here
             if kind == "forecast-check":
                 row = re.sub(r"[A-Z]", "", coord)
                 if (sheet, row) in seen_rows:
@@ -465,7 +527,55 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
             sh1, c1 = d["ref1"].split("!")
             out.append((order["sense"], abs(d["d1"] - d["d0"]), ("sense", sh1, c1, d["d1"] - d["d0"], reason_text(d), d)))
         out.sort(key=lambda x: (x[0], -x[1]))
-        return [o for _p, _a, o in out]
+        return [o for _p, _a, o in out if (o[0], o[1], re.sub(r"[A-Z]", "", o[2])) not in judged]
+
+    def _finish(res):
+        """The closing measure, whatever the exit: the headline lines as they
+        stand NOW (the report's Look-here reads the ending's rows, never a
+        checkpoint verdict the ending has since overtaken), the negatives
+        beyond the horizon as a watch, the count of what remains."""
+        rows_ = [s_ for s_ in writer.log.get("sense_rows", []) if isinstance(s_, dict)]
+        done = {s_.get("name") for s_ in rows_ if s_.get("stage") == "ending"}
+        earlier = {}
+        for s_ in rows_:                       # the checkpoint's trail (its leaf link, its verdict text) travels into the closing row
+            if s_.get("stage") != "ending":
+                earlier[s_.get("name")] = s_
+        try:
+            deltas = headline_deltas(wb, pre_wb, spec, ty)
+            bad = {d_["name"] for d_ in suspicious(deltas)}
+            for d_ in deltas:
+                if d_.get("name") in done:
+                    continue
+                e_ = earlier.get(d_.get("name")) or {}
+                leaf_ = tuple(str(e_["leaf"]).split("!", 1)) if e_.get("leaf") and "!" in str(e_["leaf"]) else None
+                if d_["name"] in bad:
+                    _sense_row(writer, d_, "red", (e_.get("text") or "") + " — still out of line after the ending; your ruling", leaf_, "ending")
+                else:
+                    _sense_row(writer, d_, e_.get("verdict") if e_.get("verdict") in ("fixed", "genuine", "unusual") else "inline",
+                               e_.get("text") or "", leaf_, "ending")
+        except Exception as e_:  # noqa: BLE001
+            _fault(loop, f"closing sense rows not written: {e_!r}")
+        try:
+            for w in sanity_watch(loop):
+                lines.append("WATCH " + w)
+                log("[ending] watch: " + w)
+                m_ = re.search(r"at ([^)]+!\S+)\)", w)
+                if m_:
+                    sh_w, co_w = m_.group(1).split("!", 1)
+                    writer.watch(sh_w, co_w, "Sense check: " + w)     # a forecast cell is watch-listed, never painted
+        except Exception as e_:  # noqa: BLE001
+            _fault(loop, f"the watch was not written: {e_!r}")
+        _say_faults()
+        inh = _inherited(res)
+        left = [o for o in broken_objectives(loop, keys_before, key_panel, panel_path) if (o[1], o[2]) not in inh]
+        lines.append(f"ended: {len(left)} objective(s) still broken" if left else "ended: every objective holds")
+        log(f"[ending] {lines[-1]}")
+        return res
+
+    if result[0] and not broken_objectives(loop, keys_before, key_panel, panel_path) \
+            and not suspicious(headline_deltas(wb, pre_wb, spec, ty)):
+        lines.append("objectives held at the first measure")
+        return _finish(result)
 
     def _fails(res):
         """The broken objectives as a set — the same measure the loop works to, not the gate's strings."""
@@ -480,125 +590,175 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 return abs(o[3])
         return 0.0
 
-    def _take_back(mark, why):
-        journal = writer.log.get("style_journal", [])[mark:]
-        for sh_w, co_w, old_w, _new in reversed(list(writer.log.get("writes_all", []))[mark:]):
-            style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
-            writer.take_back(sh_w, co_w, old_w, style)
+    def _take_back(snap, why):
+        restore(loop, snap)
         repair_round("ending take-back")
         log(f"[ending] {why}; taken back")
         return gate_once()
 
+    unanswered_checks = []
     for rnd in range(max_rounds):
-        if time.monotonic() - t0 > deadline_s:
+        elapsed = time.monotonic() - t0
+        if elapsed > deadline_s:
             lines.append("the clock ended the loop; what remains is written up")
             log("[ending] clock: the objectives that remain are written up")
             break
-        breaks = [b for b in _breaks() if (b[1], b[2]) not in asked]
+        _say_faults()
+        breaks = _breaks()
         if not breaks:
             break
         obj = breaks[0]
         kind, sheet, coord, amount = obj[0], obj[1], obj[2], obj[3]
+        akey = (kind, sheet, re.sub(r"[A-Z]", "", coord))
         mass0 = check_mass()
         fails0 = _fails(result)
         gaps0 = _gaps()
-        mark = len(writer.log.get("writes_all", []))
+        snap = snapshot(loop)
+        left_s = deadline_s - elapsed
         log(f"[ending] round {rnd + 1}: {kind} {sheet}!{coord} off {amount:+,.2f} (objectives mass {mass0:,.0f}; {len(breaks)} break(s) open)")
         pick = "__auto__"
-        if kind == "sense":
-            d = obj[5]
-            def _rerun():
-                repair_round("ending")
-                return gate_once()[0]
-            verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=_rerun)
-            _sense_row(writer, d, verdict, text, leaf, "ending")
-            lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
-            pick = verdict
-        else:
-            options, movers, named = {}, [], []
-            if brain and ask is not None:
-                flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
-                movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged, budget_s=60)[:6]
-                named, _rest = name_gap(loop.ledger, amount, served=loop.served) if kind == "key" else ([], abs(amount))
-                card, options = build_card(loop, pre_wb, obj[:5], movers, named, keys_before, key_panel, panel_path)
-                log(f"[queue] card CONSEQUENCE {sheet}!{coord}: " + " | ".join(ln.strip() for ln in card.splitlines()[1:4 + len(movers)])[:900])
-                pick = ask(card, options, "__auto__")
-            if pick not in options:
-                # no brain, or no answer: the model's own executor for this kind of break, once
-                pick = "__auto__"
-                if kind == "check":
+        sense_note = None
+        try:
+            if kind == "sense":
+                d = obj[5]
+                fails_pre = _fails(gate_once())
+
+                def _rerun():
+                    """Did THIS pick open a check? (the gate's overall verdict also
+                    carries every break that was open before the pick)"""
+                    repair_round("ending")
+                    return not (_fails(gate_once()) - fails_pre)
+                verdict, text, leaf = investigate_line(loop, pre_wb, d, log, rerun=_rerun)
+                sense_note = (d, verdict, text, leaf)
+                pick = verdict
+            else:
+                options, movers, named = {}, [], []
+                if ask is not None:
+                    flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
+                    movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged,
+                                          budget_s=max(10.0, min(60.0, left_s - 60.0)))[:6]
+                    named, _rest = name_gap(loop.ledger, amount, served=loop.served) if kind == "key" else ([], abs(amount))
+                    # previews cost a measure per way; near the clock the card goes without them
+                    card, options = build_card(loop, pre_wb, obj[:5], movers, named,
+                                               keys_before if left_s > 120 else None, key_panel, panel_path)
+                    for t_ in tried.get((sheet, coord), ()):
+                        if t_ in options:
+                            options.pop(t_)
+                            card += f"\n  (already tried and taken back: {t_})"
+                    log(f"[queue] card CONSEQUENCE {sheet}!{coord}: " + " | ".join(ln.strip() for ln in card.splitlines()[1:4 + len(movers)])[:900])
+                    loop.last_ask_error = None
+                    pick = ask(card, options, "__auto__")
+                if pick not in options:
+                    if brain:
+                        # THE BRAIN WAS ASKED AND GAVE NOTHING (audit 2026-09-15: a dead
+                        # or out-of-clock brain fell through to the automatic executors
+                        # and placed the keys the tie had only proposed) — a key or a
+                        # negative balance stays open, red, with the reason; a balance
+                        # check waits for the last resort at the very end (a plug, orange)
+                        why_ = getattr(loop, "last_ask_error", None) or f"answer '{pick}' is not one of the ways"
+                        log(f"[ending] {kind} {sheet}!{coord}: no answer from the brain ({str(why_)[:120]}) — "
+                            + ("left for the last resort" if kind in ("check", "forecast-check") else "left open, red"))
+                        if kind in ("check", "forecast-check"):
+                            unanswered_checks.append((sheet, coord))
+                        else:
+                            writer.flag_ref(f"{sheet}!{coord}", "red", f"OPEN: {obj[4]} — the brain gave no answer ({str(why_)[:160]})")
+                        lines.append(f"NO ANSWER {sheet}!{coord}: {obj[4]} ({str(why_)[:120]})")
+                        judged.add(akey)
+                        continue
+                    # no brain (a floor): the model's own executor for this kind of break, once
+                    pick = "__auto__"
+                    if kind == "check":
+                        from .orchestrator import terminal_ladder
+                        terminal_ladder(loop, log)
+                    elif kind == "key":
+                        from .keytie import key_tie as _kt
+                        _kt(wb, spec, ty, writer, panel_path, log, ledger=loop.ledger, panel=key_panel, absorbers="any")
+                    # a forecast-year check: the repairs (forecast plugs) re-solve below
+                elif pick == "question":
+                    log(f"[queue] CONSEQUENCE {sheet}!{coord} -> question")
+                    writer.flag_ref(f"{sheet}!{coord}", "red", f"OPEN, by the brain's judgment: {obj[4]} — a question for the analyst"
+                                    + ("; the gap equals " + "; ".join(f"{v:,.0f} '{lab}' ({where})" for v, lab, where in named) if named else ""))
+                    lines.append(f"QUESTION {sheet}!{coord}: {obj[4]}")
+                    judged.add(akey)
+                    continue
+                elif pick == "plug":
+                    log(f"[queue] CONSEQUENCE {sheet}!{coord} -> plug")
                     from .orchestrator import terminal_ladder
                     terminal_ladder(loop, log)
-                elif kind == "key":
-                    from .keytie import key_tie as _kt
-                    _kt(wb, spec, ty, writer, panel_path, log, ledger=loop.ledger, panel=key_panel, absorbers="any")
-                # a forecast-year check: the repairs (forecast plugs) re-solve below
-            elif pick == "question":
-                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> question")
-                writer.flag_ref(f"{sheet}!{coord}", "red", f"OPEN, by the brain's judgment: {obj[4]} — a question for the analyst"
-                                + ("; the gap equals " + "; ".join(f"{v:,.0f} '{lab}' ({where})" for v, lab, where in named) if named else ""))
-                lines.append(f"QUESTION {sheet}!{coord}: {obj[4]}")
-                asked.add((sheet, coord))
-                continue
-            elif pick == "plug":
-                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> plug")
-                from .orchestrator import terminal_ladder
-                terminal_ladder(loop, log)
+                else:
+                    log(f"[queue] CONSEQUENCE {sheet}!{coord} -> {pick}")
+                    applied = apply_pick(loop, pre_wb, pick, movers, amount, obj[4])
+                    if not applied:
+                        log(f"[ending] the pick {pick} could not be written (the writer's law refused)")
+                        tried.setdefault((sheet, coord), []).append(pick)
+                        if len(tried[(sheet, coord)]) >= len(options):
+                            judged.add(akey)
+                        continue
+            # the same verification for every kind of pick
+            if hold_zero:
+                hold_zero()
+            repair_round("ending")
+            result = gate_once()
+            mass1 = check_mass()
+            objs1 = broken_objectives(loop, keys_before, key_panel, panel_path)
+            # a pick is taken back only when the ARITHMETIC says so (a check opened,
+            # the balance worse); cash or assets going negative after it is the next
+            # objective, not a veto (owner 2026-09-15: a correct input can turn cash
+            # negative because another input elsewhere is wrong — the loop must go
+            # find that one, not undo the correct one)
+            san1 = {(o[1], o[2]) for o in objs1 if o[0] == "sanity"}
+            new_fails = {f for f in (_fails(result) - fails0) if f not in san1}
+            new_san = [o for o in objs1 if o[0] == "sanity" and (o[1], o[2]) not in fails0]
+            if new_san:
+                log(f"[ending] after {pick} on {sheet}!{coord}: {new_san[0][4]} — kept; that is the next objective")
+                lines.append(f"after {pick} on {sheet}!{coord}: {new_san[0][4]} — investigated next")
+            gaps1 = _gaps()
+            from .sensecheck import SENSE_GAP
+            # the objectives in the owner's order: balance first, keys second, the
+            # swing lines third — a widened swing line vetoes a sense pick, never
+            # a fix that closes the balance or a key (the loop returns to the line)
+            widened = [nm for nm, g in gaps1.items() if g > gaps0.get(nm, 0.0) + SENSE_GAP and g > SENSE_GAP] if kind == "sense" else []
+            # a fix that did not fix: a pick aimed at a check or key must close most of it
+            left_amt = next((abs(o[3]) for o in objs1 if (o[1], o[2]) == (sheet, coord)), 0.0)
+            half_done = kind in ("check", "forecast-check", "key") and pick != "__auto__" and left_amt > 0.5 * abs(amount)
+            if mass1 > mass0 + CHECK_TOL or new_fails or widened or half_done:
+                reason = ("did not close the break" if half_done and not (new_fails or widened or mass1 > mass0 + CHECK_TOL)
+                          else f"made the objectives worse ({mass0:,.0f} -> {mass1:,.0f})")
+                reason += (f"; opened {sorted(new_fails)[:2]}" if new_fails else "") + (f"; widened {widened[:2]}" if widened else "")
+                result = _take_back(snap, f"{kind} {sheet}!{coord}: {pick} {reason}")
+                tried.setdefault((sheet, coord), []).append(pick)
+                if kind == "sense" or pick == "__auto__" or not [k_ for k_ in options if k_ not in tried[(sheet, coord)] and k_ not in ("question", "plug")]:
+                    judged.add(akey)          # no untried way is left (a plug is never dealt as the retry)
+                if sense_note is not None:
+                    d, verdict, text, leaf = sense_note
+                    _sense_row(writer, d, "red", f"the pick {verdict} was taken back ({reason}) — your ruling", leaf, "ending")
             else:
-                log(f"[queue] CONSEQUENCE {sheet}!{coord} -> {pick}")
-                applied = apply_pick(loop, pre_wb, pick, movers, amount, obj[4])
-                if not applied:
-                    log(f"[ending] the pick {pick} could not be written (the writer's law refused)")
-                    asked.add((sheet, coord))
-                    continue
-        # the same verification for every kind of pick
-        if hold_zero:
-            hold_zero()
-        repair_round("ending")
-        result = gate_once()
-        mass1 = check_mass()
-        # a pick is taken back only when the ARITHMETIC says so (a check opened,
-        # the balance worse); cash or assets going negative after it is the next
-        # objective, not a veto (owner 2026-09-15: a correct input can turn cash
-        # negative because another input elsewhere is wrong — the loop must go
-        # find that one, not undo the correct one)
-        new_fails = {f for f in (_fails(result) - fails0) if not any(o[0] == "sanity" and (o[1], o[2]) == f
-                                                                       for o in broken_objectives(loop, keys_before, key_panel, panel_path))}
-        new_san = [o for o in broken_objectives(loop, keys_before, key_panel, panel_path) if o[0] == "sanity" and (o[1], o[2]) not in fails0]
-        if new_san:
-            log(f"[ending] after {pick} on {sheet}!{coord}: {new_san[0][4]} — kept; that is the next objective")
-            lines.append(f"after {pick} on {sheet}!{coord}: {new_san[0][4]} — investigated next")
-        gaps1 = _gaps()
-        from .sensecheck import SENSE_GAP
-        # the objectives in the owner's order: balance first, keys second, the
-        # swing lines third — a widened swing line vetoes a sense pick, never
-        # a fix that closes the balance or a key (the loop returns to the line)
-        widened = [nm for nm, g in gaps1.items() if g > gaps0.get(nm, 0.0) + SENSE_GAP and g > SENSE_GAP] if kind == "sense" else []
-        # a fix that did not fix: a pick aimed at a check or key must close most of it
-        half_done = kind in ("check", "forecast-check", "key") and pick != "__auto__" and _amount_of(sheet, coord) > 0.5 * abs(amount)
-        if mass1 > mass0 + 1.0 or new_fails or widened or half_done:
-            result = _take_back(mark, f"{kind} {sheet}!{coord}: {pick} "
-                                + ("did not close the break" if half_done and not (new_fails or widened or mass1 > mass0 + 1.0)
-                                   else f"made the objectives worse ({mass0:,.0f} -> {mass1:,.0f}")
-                                + (f"; opened {sorted(new_fails)[:2]}" if new_fails else "")
-                                + (f"; widened {widened[:2]}" if widened else "") + ")")
-            asked.add((sheet, coord))
-        else:
-            log(f"[ending] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")
-            if mass1 >= mass0 - 1.0 and kind != "sense":
-                asked.add((sheet, coord))
-            elif kind == "sense":
-                asked.add((sheet, coord))
-    for w in sanity_watch(loop):
-        lines.append("WATCH " + w)
-        log("[ending] watch: " + w)
+                log(f"[ending] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")
+                if sense_note is not None:
+                    d, verdict, text, leaf = sense_note
+                    _sense_row(writer, d, verdict, text, leaf, "ending")
+                    lines.append(("RESOLVED " if verdict == "fixed" else "") + reason_text(d) + " | " + text)
+                    judged.add(akey)
+                elif mass1 >= mass0 - CHECK_TOL:
+                    judged.add(akey)            # nothing moved: judged, not dealt again
+        except Exception as e_round:  # noqa: BLE001
+            # a fault mid-round never leaves a half-applied pick in the model
+            _fault(loop, f"round {rnd + 1} on {kind} {sheet}!{coord} failed: {e_round!r}")
+            result = _take_back(snap, f"{kind} {sheet}!{coord}: {pick} failed with {type(e_round).__name__}")
+            judged.add(akey)
+    if unanswered_checks:
+        # THE LAST RESORT (owner 2026-09-15: "plugs only as the very last resort at the end"):
+        # the brain answered nothing on these balance checks; the model's own plug
+        # ladder closes what it can, orange, reported — after everything else
+        from .orchestrator import terminal_ladder
+        log(f"[ending] last resort: the brain answered nothing on {len(unanswered_checks)} check(s) — the model's own plug ladder, orange")
+        lines.append(f"LAST RESORT: {len(unanswered_checks)} check(s) the brain did not answer went to the plug ladder")
         try:
-            m_ = re.search(r"at ([^)]+!\S+)\)", w)
-            if m_:
-                writer.flag_ref(m_.group(1), "red", "Sense check: " + w)
-        except Exception:
-            pass
-    left = _breaks()
-    lines.append(f"ended: {len(left)} objective(s) still broken" if left else "ended: every objective holds")
-    log(f"[ending] {lines[-1]}")
-    return result if result is not None else gate_once()
+            terminal_ladder(loop, log)
+            if hold_zero:
+                hold_zero()
+            repair_round("ending last resort")
+            result = gate_once()
+        except Exception as e_lr:  # noqa: BLE001
+            _fault(loop, f"the last resort failed: {e_lr!r}")
+    return _finish(result if result is not None else gate_once())
