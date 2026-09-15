@@ -6235,6 +6235,74 @@ def test_a_red_composite_with_a_tying_suggestion_is_queued_and_a_backout_loses_i
     print("PASS test_a_red_composite_with_a_tying_suggestion_is_queued_and_a_backout_loses_its_proof_2026_09_15")
 
 
+# ── 2026-09-16: the brain thinks, code is its tool (run 34993405014) ──────
+
+def _clp_p23_items():
+    """The CLP FY25 operating-profit block as the table extractor really read
+    it (run 34993405014, ledger.json p23): every expense line is there, the
+    OPERATING EXPENSES TOTAL the model keeps on one row is not."""
+    return [_item(23, 1, "Revenue", [3.0, 88018.0, 90964.0]),
+            _item(23, 2, "Purchases and distributions of electricity and gas", [-28950.0, -31871.0]),
+            _item(23, 3, "Staff expenses", [-5987.0, -5150.0]),
+            _item(23, 4, "Fuel and other operating expenses", [-29551.0, -29764.0]),
+            _item(23, 5, "Depreciation and amortisation", [-9718.0, -9276.0]),
+            _item(23, 6, "Other gain", [5.0, 460.0]),
+            _item(23, 7, "Operating profit", [6.0, 14272.0, 14903.0])]
+
+
+def test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16():
+    """Run 34993405014: the reader answered Final!14 = -74,206 (the four
+    expense lines between revenue and the printed Operating profit) and
+    quoted '(74,206) (76,061)'; verify() refused it — 'no printed line on
+    p23 carries -74206' — because the extractor dropped the total line, and
+    both 2025 keys stayed -2,315 off the print. A stated check that closes a
+    PRINTED subtotal at the model's precision, every other term a printed
+    line on that page, is proof: the figure is written, plain when the
+    quoted comparative ties the model's prior, red when it does not."""
+    from pipeline.reader import verify
+    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": -76061.0},
+            {"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating expenses (no comparative quoted)", "prior": -76061.0},
+            {"row": "Final!17", "sheet": "Final", "r": 17, "label": "Operating expenses (check does not close)", "prior": -76061.0},
+            {"row": "Final!18", "sheet": "Final", "r": 18, "label": "Operating expenses (a term is not printed)", "prior": -76061.0}]
+    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
+    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check},
+               {"row": "Final!15", "printed": -74206.0, "page": 23, "line": "Operating expenses", "check": check},
+               {"row": "Final!17", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
+                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 = 14,272"},
+               {"row": "Final!18", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
+                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 - 1,000 = 13,272"}]
+    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
+    assert "Final!14" in v, "the reconciliation that closes the printed Operating profit was refused"
+    assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, v["Final!14"]
+    assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
+    assert "14,272" in (v["Final!14"]["note"] or ""), "the reconciliation must travel in the note"
+    assert v["Final!15"]["flag"] == "red" and abs(v["Final!15"]["value"] + 74206.0) < 1e-6, v["Final!15"]
+    assert "Final!17" not in v, "a check that does not close is not proof"
+    assert "Final!18" not in v, "a check with a term no line on the page prints is not proof"
+    print("PASS test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16")
+
+
+def test_the_check_terms_are_read_as_printed_2026_09_16():
+    """The terms of the check, signs and parenthesised negatives included."""
+    from pipeline.reader import _check_terms, _reconciliation
+    terms, closes = _check_terms("88,018 \u2212 28,950 \u2212 5,987 \u2212 29,551 \u2212 9,718 + 460 = 14,272 = printed Operating profit")
+    assert closes == 14272.0 and len(terms) == 6 and abs(sum(terms) - 14272.0) < 1e-9, (terms, closes)
+    assert _check_terms("no arithmetic here") is None
+    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
+    # the answered figure may also be a single term of the check ('Other gain')
+    rec = _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", 460.0, led.items, 23, {DOC})
+    assert rec is not None and "14,272" in rec["check"], rec
+    # a figure the check says nothing about is never proved by it
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", 12345.0, led.items, 23, {DOC}) is None
+    # the subtotal it closes on must itself be printed on that page
+    thin = _ledger([i for i in _clp_p23_items() if "Operating profit" not in str(i.label)], face_pages=((23, "pl"),))
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", -74206.0, thin.items, 23, {DOC}) is None
+    print("PASS test_the_check_terms_are_read_as_printed_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

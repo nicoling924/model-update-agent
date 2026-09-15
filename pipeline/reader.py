@@ -39,12 +39,18 @@ _SYSTEM = (
     "last period's figure with this period's slot blank, dash or nil, the value is 0; (4) if a "
     "figure appears in several places they must agree — say so if they do not; (5) a row with no "
     "last-period value is identified by its label AND its scope: a group total belongs to the group "
-    "row, a segment figure to the segment row — never both. Quote the printed line EXACTLY as it "
-    "appears (label and the printed digits, in the document's own units) — the number you quote is "
-    "checked against the page; a figure you cannot quote from a printed line is null with the "
-    "reason 'not found'. Never guess. Answer ONLY with JSON: {\"rows\": [{\"row\": \"<id>\", "
+    "row, a segment figure to the segment row — never both; (6) a figure the statement does not "
+    "print as its own line (a total the model keeps but the page splits into components, or the "
+    "reverse) is proved by ARITHMETIC: state in \"check\" an equation whose every other term is a "
+    "line printed on that same page and which closes on a printed subtotal — e.g. '88,018 - 28,950 "
+    "- 5,987 - 29,551 - 9,718 + 460 = 14,272' for the operating-profit block. Quote the printed line "
+    "EXACTLY as it appears (label and the printed digits, in the document's own units) — the number "
+    "you quote is checked against the page; a figure you cannot quote from a printed line and cannot "
+    "prove with such a check is null with the reason 'not found'. Never guess. Answer ONLY with "
+    "JSON: {\"rows\": [{\"row\": \"<id>\", "
     "\"printed\": <the printed number for THIS period, in the document's units, or null>, "
-    "\"page\": <int or null>, \"line\": \"<printed line label>\", \"reason\": \"<one sentence>\"}]}"
+    "\"page\": <int or null>, \"line\": \"<printed line label>\", \"check\": \"<the closing "
+    "equation, or null>\", \"reason\": \"<one sentence>\"}]}"
 )
 
 _MAX_CHARS = 1_600_000          # the model's context (1M tokens), less rows and images
@@ -186,6 +192,129 @@ def _printed_match(items, page, printed, line, sources):
     return hits[0][2] if len(hits) == 1 else None
 
 
+_TERM_RE = re.compile(r"[+\-−–—]|\(?\d[\d,]*(?:\.\d+)?\)?")
+
+
+def _check_terms(text):
+    """The terms of a stated arithmetic check and the figure it closes on:
+    '88,018 − 28,950 − 5,987 − 29,551 − 9,718 + 460 = 14,272 = Operating
+    profit' -> ([88018, -28950, -5987, -29551, -9718, 460], 14272).
+    None when the text states no closing arithmetic."""
+    from .numerics import parse_number
+    s = str(text or "")
+    if "=" not in s:
+        return None
+    left, right = s.split("=", 1)
+    m = re.search(r"\(?-?\d[\d,]*(?:\.\d+)?\)?", right)
+    if not m:
+        return None
+    closes = parse_number(m.group(0))
+    terms, sign = [], 1.0
+    for tok in _TERM_RE.finditer(left):
+        t = tok.group(0)
+        if t in "+-−–—":
+            sign = -1.0 if t != "+" else 1.0
+            continue
+        v = parse_number(t)
+        if v is None:
+            return None
+        terms.append(sign * v)
+        sign = 1.0
+    if closes is None or len(terms) < 2:
+        return None
+    return terms, closes
+
+
+def _reconciliation(check, printed, items, page, sources):
+    """THE RECONCILIATION IS THE PROOF (run 34993405014: the table extractor
+    dropped the operating-expenses total, so the reader's correct −74,206 —
+    the four expense lines the page prints between revenue and the printed
+    Operating profit — carried no ledger line and was refused).
+
+    A stated check is evidence for `printed` when (a) it closes at the
+    model's own precision, (b) the figure it closes on is itself a printed
+    line on that page, (c) every term except the answered figure is a
+    printed line on that page, and (d) the answered figure IS the check's
+    statement about this row — one of its terms, or a consecutive block of
+    like-signed terms it totals. Anything looser is not proof.
+    -> {"check", "doc", "scale_item"} or None."""
+    from .writegate import _ties_full_precision
+    parsed = _check_terms(check)
+    if not parsed or not isinstance(printed, (int, float)):
+        return None
+    terms, closes = parsed
+    if not _ties_full_precision(sum(terms), closes):
+        return None
+    on_page = [(it, n) for it in items if it.page == page and it.doc in sources
+               for n in (it.nums or []) if isinstance(n, (int, float))]
+    if not on_page:
+        return None
+
+    def _printed_here(v):
+        return next((it for it, n in on_page if _ties_full_precision(n, v)), None) if abs(v) >= 0.005 else None
+
+    closer = _printed_here(closes)
+    if closer is None:
+        return None
+    span = None
+    for i in range(len(terms)):
+        acc = 0.0
+        for j in range(i, len(terms)):
+            if j > i and (terms[j] < 0) != (terms[i] < 0):
+                break             # a block of unlike signs is no one row's total
+            acc += terms[j]
+            if _ties_full_precision(acc, printed):
+                span = (i, j)
+                break
+        if span:
+            break
+    if span is None:
+        return None
+    for k, t in enumerate(terms):
+        if span[0] == span[1] == k:
+            continue              # the answered term itself — the line the page does not print
+        if abs(t) >= 0.005 and _printed_here(t) is None:
+            return None
+    def _t(v):
+        return f"{v:,.2f}".rstrip("0").rstrip(".") if v % 1 else f"{v:,.0f}"
+    txt = _t(terms[0]) + "".join(f" {'-' if t < 0 else '+'} {_t(abs(t))}" for t in terms[1:])
+    return {"check": f"{txt} = {_t(closes)} ('{str(closer.label)[:30]}')",
+            "doc": closer.doc, "closer": closer}
+
+
+def _reconciled_verdict(rec, printed, line, pv, page, page_scales, dom, log, rid):
+    """The verdict on a figure proved by its reconciliation: the value at
+    the page's own scale, the model's sign, PLAIN when the comparative the
+    reader quoted beside it ties the model's prior at the model's precision
+    and RED when it does not — the reconciliation itself is the note, so
+    the analyst reads how the figure was built."""
+    from .numerics import line_numbers
+    from .writegate import _SCALES, _ties_full_precision
+    f_use = page_scales.get((rec["doc"], page)) or dom.get(rec["doc"])
+    if not f_use:
+        if log:
+            log(f"[read]   unverified {rid}: the check closes but p{page} has no ratified scale — not written")
+        return None
+    value = float(printed) / float(f_use)
+    comp = None
+    if isinstance(pv, (int, float)) and abs(pv) >= 0.5:
+        comp = next((n for n in line_numbers(line)
+                     if not _ties_full_precision(n, printed)
+                     and any(_ties_full_precision(n / f, pv) for f in _SCALES)), None)
+    if comp is not None and comp != 0 and isinstance(pv, (int, float)) and pv != 0 and (comp < 0) != (pv < 0):
+        value = -value
+    elif comp is None and isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
+        value = -value                                   # no tie: the model owns the sign convention
+    note = (f"Not printed as its own line; proved by the page's own arithmetic (p{page}): "
+            f"{rec['check']}." + ("" if comp is not None else " The quoted line carries no comparative "
+                                  "tying last year's figure — please confirm."))
+    return {"value": value, "conf": 4 if comp is not None else 3,
+            "flag": None if comp is not None else "red", "note": note,
+            "doc": rec["doc"], "page": page, "line": (str(line)[:60] or str(rec["closer"].label)[:60]),
+            "why": (f"read: the stated check closes the printed subtotal — {rec['check']}"
+                    + ("; the quoted comparative ties the prior" if comp is not None else "; no prior tie"))}
+
+
 def _nil_line(items, page, pv, sources):
     """A line on `page` printing ONE number equal to the model's prior:
     last year's figure beside a blank — this year is 0."""
@@ -237,8 +366,26 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                 out[rid] = {"value": 0.0, "conf": 4, "flag": None, "note": None, "doc": nil.doc,
                             "page": page, "line": str(nil.label)[:60],
                             "why": "read: last year's figure printed beside a blank — 0"}
-            elif log:
-                log(f"[read]   unverified {rid}: no printed line on p{page} carries {printed!r} — not written")
+                continue
+            rec = _reconciliation(a.get("check") or a.get("reason"), printed, ledger.items, page, sources)
+            if rec is not None:
+                v = _reconciled_verdict(rec, printed, line, pv, page, page_scales, dom, log, rid)
+                if v is not None:
+                    key = (rec["doc"], page, rec["check"], round(abs(v["value"]), 2))
+                    other = homes.get(key)
+                    if other is not None and other != rid and by_row[other]["prior"] != pv:
+                        # ONE HOME (the reader's own law): the same reconciliation
+                        # cannot answer two different rows — neither is written
+                        out.pop(other, None)
+                        if log:
+                            log(f"[read]   {rid} and {other} both claim the same reconciliation — neither written")
+                        continue
+                    homes[key] = rid
+                    out[rid] = v
+                    continue
+            if log:
+                log(f"[read]   unverified {rid}: no printed line on p{page} carries {printed!r} "
+                    "and no stated check closes a printed subtotal from that page's lines — not written")
             continue
         nums = [n for n in (item.nums or []) if isinstance(n, (int, float))]
         idx = next((i for i, n in enumerate(nums) if _near(n, printed)), 0)
