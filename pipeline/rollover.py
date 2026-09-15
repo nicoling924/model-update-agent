@@ -161,8 +161,8 @@ def input_is_proven(served, sheet, coord, value, flags=(), wb=None, old=None):
     import re as _re
     from .writegate import is_proven
     ref = f"{sheet}!{coord}"
-    if ref in set(flags or ()):
-        return False
+    if wb is None and ref in set(flags or ()):
+        return False                  # without the workbook the flag list (both colours) is all there is
     if wb is not None:
         # RED = uncertain (unproven); ORANGE = derived from proven parts
         # (run-229: the writer's flag list holds both colours — the
@@ -179,6 +179,17 @@ def input_is_proven(served, sheet, coord, value, flags=(), wb=None, old=None):
         return False
     e = (served or {}).get((sheet, rr))
     if isinstance(e, dict) and is_proven(e):
+        ev_ = e.get("value")
+        if wb is not None and isinstance(ev_, (int, float)):
+            # the proof is of THAT figure: a back-out written over the row (=(14035)-(3863))
+            # no longer holds it and is not proven by it (reviewer 2026-09-15)
+            try:
+                from .evaluator import Evaluator
+                cur_ = Evaluator(wb).cell(sheet, coord)
+            except Exception:  # noqa: BLE001
+                cur_ = None
+            if isinstance(cur_, (int, float)) and abs(cur_ - ev_) > max(0.6, abs(ev_) * 5e-4):
+                return False
         return True
     if isinstance(value, str) and value.startswith("=") \
             and not _re.search(r"[A-Z]{1,3}\d+", value.replace("$", "")):

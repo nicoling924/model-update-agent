@@ -28,6 +28,7 @@ from pathlib import Path
 
 from .checks import prior_column, scorecard, summarize, year_columns
 from .checks import CHECK_TOL
+from .writer import _fill_rgb as _fill_rgb_o
 from .evaluator import Evaluator
 from .numerics import SCALES, line_numbers, row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
@@ -1287,7 +1288,7 @@ class ObjectiveLoop:
                     "(column letters tolerated)")
         from .composites import rewrite_cell
         ok, msg = rewrite_cell(self.wb, self.spec, self.ty, self.ledger,
-                               self.writer, rr[0], rr[1])
+                               self.writer, rr[0], rr[1], trust_names=bool(args.get("trust_names")))
         return ("REWRITTEN " + msg) if ok else ("MISS: " + msg)
 
     def t_apply_diff(self, args):
@@ -1408,7 +1409,8 @@ class ObjectiveLoop:
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
             claimed_keys(self.served), holders,
-            held_proven=_is_proven((self.served or {}).get((sheet, row))),
+            held_proven=(_is_proven((self.served or {}).get((sheet, row)))
+                         and _fill_rgb_o(self.wb[sheet][f"{col}{row}"]) != "FFC7CE"),     # a red cell is never held proven
             all_items=self.ledger.items)      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
         if verdict == "ALLOW" and "RESTATED" in law_reason:
             # the restatement is a fact for the report page, not a paint on the cell;

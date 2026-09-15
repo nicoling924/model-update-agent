@@ -93,7 +93,7 @@ def _printed(ledger, v):
 _RESIDUAL = re.compile(r"^=\+?(?:'[^']+'!|[A-Za-z0-9_]+!)?[A-Z]{1,3}\d+\s*-")
 
 
-def name_gap(ledger, delta, served=None):
+def name_gap(ledger, delta, served=None, near=False):
     """THE GAP IS NAMED BEFORE IT IS ABSORBED (owner 2026-09-14: a 5,758
     key gap was dumped into the fuel clause payable; 3,872 of it was the
     printed perpetual capital securities). Code names only what it can
@@ -109,6 +109,16 @@ def name_gap(ledger, delta, served=None):
     from .writegate import claim_holders as _ch, _claim_key as _ck
     holders = _ch(served) if served else {}
     tol = max(0.6, gap * 1e-4)
+    close = []
+    for it in ledger.items:
+        if not near or not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
+            continue
+        nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
+        cur = _current_index(it)
+        if nums and cur is not None and cur < len(nums):
+            v = abs(nums[cur])
+            if v >= 1 and tol < abs(v - gap) <= gap * 5e-3 and not holders.get(_ck(None, v)):
+                close.append((v, "≈ " + str(it.label)[:48], f"{it.doc} p{it.page}"))
     for it in ledger.items:
         if not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
             continue
@@ -120,6 +130,11 @@ def name_gap(ledger, delta, served=None):
         if v < 1 or abs(v - gap) > tol or holders.get(_ck(None, v)):
             continue
         return [(v, str(it.label)[:50], f"{it.doc} p{it.page}")], 0.0
+    if close:
+        # about the size of one printed figure (a balance gap of 3,863 beside perpetual
+        # securities of 3,872): named as ≈ so the brain can put it where it belongs
+        v, lab, where = min(close, key=lambda c: abs(c[0] - gap))
+        return [(v, lab, where)], abs(gap - v)
     return [], gap
 
 

@@ -346,6 +346,12 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             continue
         seen.add(key)
         uniq.append(c)
+    sug = (getattr(loop.ledger, "reader_suggestions", None) or {}).get(f"{sheet}!{row}")
+    if isinstance(sug, dict) and not any(abs(abs(c.get("value") or 0) - abs(sug["value"])) <= 0.6 for c in uniq):
+        uniq.append({"value": sug["value"], "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
+                     "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0, "no_prior": True,
+                     "warnings": ["the reader's suggestion: no prior tie, and the line is not named like the row — "
+                                  "judge whether this is the item (it lands red)"]})
     return uniq if k is None else uniq[:k]
 
 
@@ -643,8 +649,9 @@ def build_queue(loop):
         if not col or sheet not in loop.wb.sheetnames:
             continue
         held = loop.wb[sheet][f"{col}{row}"].value
-        if isinstance(held, str) and held.startswith("="):
-            continue
+        if isinstance(held, str) and held.startswith("=") \
+                and f"{sheet}!{row}" not in (getattr(loop.ledger, "rewrite_suggestions", None) or {}):
+            continue                  # a red formula is a card only when a tying composition awaits the brain's judgment
         pv, _t = _prior_of(loop, sheet, row)
         lb = getattr(loop, "load_bearing", None) or set()
         # LOAD-BEARING OUTRANKS SIZE (run-215: the fuel-clause cell —
@@ -799,8 +806,9 @@ def render_card(loop, item):
             _derived = _derivs(loop, sheet, f"{col}{row}")
         except Exception:
             _derived = []
-        if not cands and not _derived:
-            return None                     # nothing to adjudicate: no printed line, no proven consumer
+        _rw = (getattr(loop.ledger, "rewrite_suggestions", None) or {}).get(f"{sheet}!{row}")
+        if not cands and not _derived and not _rw:
+            return None                     # nothing to adjudicate: no printed line, no proven consumer, no tying composition
         pv, t = _prior_of(loop, sheet, row)
         held = loop.wb[sheet][f"{col}{row}"].value
         lab = str(t.label)[:40] if t is not None else "?"
@@ -920,6 +928,13 @@ def render_card(loop, item):
             options[f"derive:{j + 1}"] = ("derive", {"cell": f"{sheet}!{col}{row}", "via": u_ref,
                                                     "why": f"card-adjudicated derivation via {u_ref}"})
             lines.append(f"    derive:{j + 1}: {implied:,.2f} — the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}); lands orange with that proof")
+        if _rw:
+            # THE TYING COMPOSITION (owner 2026-09-15): every literal of the row's own
+            # formula ties a printed comparative, but the lines are not named like the
+            # row — whether they are this row's items is the brain's judgment
+            lines.append(f"    rewrite:1: {_rw['formula']} — the row's own recipe ({_rw['was']}) refreshed line by line: {_rw['srcs'][:200]}; "
+                         "the printed lines are not named like this row — judge whether they are its items (lands orange)")
+            options["rewrite:1"] = ("rewrite_constants", {"cell": f"{sheet}!{row}", "trust_names": True})
         lines.append("    derive:via: derive it yourself — name in 'why' a formula cell that uses this row and whose figure is proven; code solves and verifies")
         options["derive:via"] = ("derive_via", {"cell": f"{sheet}!{col}{row}"})
         options["not_disclosed"] = (None, None)

@@ -318,6 +318,7 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
             if comp is not None and comp != 0 and (comp < 0) != (pv < 0):
                 value = -value
         elif isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
+            printed_value = value
             value = -value                                   # no tie: the model owns the sign convention
         key = (item.doc, item.page, str(item.label)[:40], round(abs(value), 2))
         if key in homes and homes[key] != rid \
@@ -364,7 +365,12 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                 # dividend' zeroed the final DPS)
                 if log:
                     log(f"[read]   {rid}: no prior tie and '{str(item.label)[:30]}' is not named "
-                        f"like '{r['label'][:30]}' — a suggestion for the analyst, not written")
+                        f"like '{r['label'][:30]}' — a suggestion; the card puts it to the brain")
+                # the suggestion is kept for the row's card (audit 2026-09-15: 'Other gain 460'
+                # and 'net exchange difference −352' were the analyst's own answers and never
+                # reached the brain) — the name is the brain's judgment, not code's
+                ledger.__dict__.setdefault("reader_suggestions", {})[rid] = {
+                    "value": value, "printed": locals().get("printed_value", value), "doc": item.doc, "page": page, "line": str(item.label)[:60]}
                 continue
             out[rid] = {"value": value, "conf": 3, "flag": "red",
                         "note": (f"Read from the disclosure (p{page} '{str(item.label)[:30]}'); the printed "

@@ -364,6 +364,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 writer.watch(sh, coord, "printed nil this year; the forecast "
                                         "row it feeds moved with it")
                 continue
+            if f"{sh}!{coord}" in (writer.log.get("rulings") or {}):
+                # the brain ruled on this cell (a sense-check pick): code notes the
+                # consequence, it does not overturn the ruling (owner 2026-09-15)
+                writer.watch(sh, coord, "the brain's own pick; the forecast row it feeds moved with it — your call")
+                continue
             wb[sh][coord] = old
             now = collapsed_forecasts(wb, spec_d, target_year, fc_base)
             if len(now) < len(cur):

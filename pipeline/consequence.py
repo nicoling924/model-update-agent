@@ -268,17 +268,22 @@ def apply_pick(loop, pre_wb, pick, movers, amount, text):
     body = held[1:] if isinstance(held, str) and held.startswith("=") else (f"{cur:g}" if isinstance(cur, (int, float)) else None)
     if not body:
         return False
-    return bool(writer.write(sh, c, f"=({body})-({amount:.6g})", prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, flag="orange",
-                             note=f"Backed out by the brain's judgment so {text} closes: absorbed {amount:+,.1f} here. True up when disclosed."))
+    ok_b = writer.write(sh, c, f"=({body})-({amount:.6g})", prior_coord=f"{pcol}{r}" if pcol else None, trusted=True, flag="orange",
+                        note=f"Backed out by the brain's judgment so {text} closes: absorbed {amount:+,.1f} here. True up when disclosed.")
+    if ok_b and isinstance(loop.served.get((sh, r)), dict):
+        loop.served[(sh, r)] = dict(loop.served[(sh, r)], conf=3, flag="orange", note="backed out by the brain's judgment")
+    return bool(ok_b)
 
 
 def _colour(wb, writer, sheet, coord):
     ref = f"{sheet}!{coord}"
-    try:
-        rgb = str(wb[sheet][coord].fill.fgColor.rgb or "")[-6:]
-    except Exception:
-        rgb = ""
-    return "red" if rgb == "FFC7CE" or ref in writer.log.get("flags", []) else "orange" if rgb == "FFC000" else "blue" if rgb == "BDD7EE" else "plain"
+    from .writer import _fill_rgb
+    rgb = _fill_rgb(wb[sheet][coord])
+    if rgb == "FFC7CE":
+        return "red"
+    if rgb == "FFC000":
+        return "orange"
+    return "blue" if rgb == "BDD7EE" else ("red" if ref in writer.log.get("flags", []) and not rgb else "plain")
 
 
 def _evidence(loop, sheet, coord):
@@ -304,7 +309,11 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
         lines.append("  A negative cash or asset balance is usually caused by a wrong input elsewhere in the model, not by the last "
                      "pick — look at the movers below for the wrong one; if the model's own assumptions cause it, answer question.")
     if named:
-        lines.append("  the gap equals a printed figure not yet in the model: " + "; ".join(f"{v:,.0f} = '{lab}' ({where})" for v, lab, where in named))
+        if any(str(lab).startswith("≈ ") for _v, lab, _w in named):
+            lines.append("  the gap is ABOUT the size of a printed figure not yet in the model (not equal — judge whether this is where it belongs): "
+                         + "; ".join(f"{v:,.0f} {lab} ({where})" for v, lab, where in named))
+        else:
+            lines.append("  the gap equals a printed figure not yet in the model: " + "; ".join(f"{v:,.0f} = '{lab}' ({where})" for v, lab, where in named))
     lines.append("  the inputs the run moved into this line, by their share of the move (your own flags first):")
     options = {}
     for i, ((sh, c), share) in enumerate(movers):
@@ -318,8 +327,11 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
         from openpyxl.utils import column_index_from_string as _ci
         pre = _pre_val(pre_wb, sh, r, _ci(re.sub(r"\d", "", c)))
         col = _colour(wb, loop.writer, sh, c)
+        from .rollover import input_is_proven as _iip
+        proven_m = col != "red" and _iip(loop.served, sh, c, wb[sh][c].value, loop.writer.log.get("flags", []), wb)
         lines.append(f"    [{i + 1}] {sh}!{c} '{label}': now {now if now is None else f'{now:,.2f}'} (was {pre if pre is None else f'{pre:,.2f}'}), "
-                     f"{col}, {_evidence(loop, sh, c)}, carries {abs(share) * 100:.0f}% of the move")
+                     f"{col}{', PROVEN from the print (each figure tied) — not a place to absorb a gap' if proven_m else ''}, "
+                     f"{_evidence(loop, sh, c)}, carries {abs(share) * 100:.0f}% of the move")
         try:
             from .workqueue import row_context_short, cell_story
             lines.append(f"          [{row_context_short(loop, sh, re.sub(r'[0-9]', '', c), r)}]")
@@ -329,6 +341,8 @@ def build_card(loop, pre_wb, obj, movers, named, keys_before=None, key_panel=Non
         except Exception:
             pass
         options[f"revert:{i + 1}"] = f"put {sh}!{c} back to what the analyst had ({pre if pre is None else f'{pre:,.2f}'}) — red, taken back by your judgment"
+        if proven_m:
+            continue                      # a proven figure is never backed out or derived away
         options[f"backout:{i + 1}"] = f"absorb the residual in {sh}!{c} as a traceable formula — orange"
         try:
             from .investigate import derivations
@@ -637,7 +651,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                     flagged = {tuple(ref.split("!")) for ref in writer.log.get("flags", [])}
                     movers = swing_leaves(wb, pre_wb, sheet, coord, flagged=flagged,
                                           budget_s=max(10.0, min(60.0, left_s - 60.0)))[:6]
-                    named, _rest = name_gap(loop.ledger, amount, served=loop.served) if kind == "key" else ([], abs(amount))
+                    named, _rest = name_gap(loop.ledger, amount, served=loop.served, near=(kind != "key"))
                     # previews cost a measure per way; near the clock the card goes without them
                     card, options = build_card(loop, pre_wb, obj[:5], movers, named,
                                                keys_before if left_s > 120 else None, key_panel, panel_path)

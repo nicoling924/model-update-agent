@@ -211,14 +211,18 @@ def _kin_ok(per_full, lits, vals, row_label):
     return False
 
 
-def prove_cell(ledger, lits, row_label=""):
+def prove_cell(ledger, lits, row_label="", trust_names=False):
     """The composition proof (the by-hand method, mechanized): the
     disclosure prints a statement as a PAGE, so a composition's members
     live together — every literal must resolve on a COMMON page, every
     qualifying page must yield the SAME combination (corroboration
     resolves disagreements by page majority), and at least one tying
     line must be KIN to the row's own label (prose-junk guard).
-    -> ({lit: (value, src)}, None) or (None, why)."""
+    -> ({lit: (value, src)}, None) or (None, why).
+    trust_names: the brain has judged the tying lines to be this row's
+    items — the kinship guard steps aside (owner 2026-09-15: the model's
+    names differ from the report's; a number that ties is mapped and the
+    name is the brain's judgment, never code's)."""
     per_full, per, per_pair, ident = {}, {}, {}, {}
     for lit in lits:
         ac = already_current(ledger, lit, row_label)
@@ -266,6 +270,31 @@ def prove_cell(ledger, lits, row_label=""):
     common = set.intersection(*(
         {p for ps in per[lit].values() for p in ps} for lit in lits))
     if not common:
+        # THE UNIQUE TIE ACROSS PAGES (audit 2026-09-15, CLP dividends received
+        # =770+1659+15: associates on one note, JCEs on another): when EVERY
+        # literal has exactly one comparative-pair reading in the documents,
+        # the composition is proven line by line, whatever page each line is on
+        uniq = {}
+        for lit in lits:
+            vp = {v: ps for v, ps in per_pair[lit].items() if ps}
+            if len(vp) == 1:
+                uniq[lit] = next(iter(vp.items()))
+            elif not vp and ident[lit] in per[lit]:
+                uniq[lit] = (ident[lit], per[lit][ident[lit]])     # unchanged, printed as is this year
+            else:
+                uniq = None
+                break
+        if uniq and any(abs(v - ident[lit]) > 0.6 for lit, (v, _ps) in uniq.items()):
+            vals = [uniq[lit][0] for lit in lits]
+            # EACH line must be kin to the row or read like a statement line — one kin
+            # line cannot vouch for a coincidence on another page (reviewer 2026-09-15:
+            # 'Number of directors 12 | 15' rewrote the 15)
+            each_kin = all(_kin_ok(per_full, [lit], [v], row_label) for lit, v in zip(lits, vals))
+            if trust_names or each_kin:
+                return {lit: (v, f"{lit}->{v:g} ({', '.join(f'{d} p{p}' for d, p, _t in sorted(ps)[:2])})")
+                        for lit, (v, ps) in uniq.items()}, None
+            return None, ("no tying line is kin to the row's own label (each line of a cross-page "
+                          "composition must be) — cell untouched")
         return None, ("no single page carries the whole composition — "
                       + "; ".join(
                           f"{lit} ties "
@@ -316,7 +345,7 @@ def prove_cell(ledger, lits, row_label=""):
                           + "; ".join("+".join(f"{v:,.0f}" for v in k)
                                       for k in list(combos)[:3]))
     vals, pages = ranked[0]
-    if not _kin_ok(per_full, lits, vals, row_label):
+    if not trust_names and not _kin_ok(per_full, lits, vals, row_label):
         return None, ("no tying line is kin to the row's own label — "
                       "probably a dense page's prose (run-208 lesson); "
                       "cell untouched")
@@ -324,7 +353,7 @@ def prove_cell(ledger, lits, row_label=""):
     return {lit: (v, src) for lit, v in zip(lits, vals)}, None
 
 
-def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
+def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row, trust_names=False):
     """Apply the law to ONE cell. -> (ok, message). Shared by the
     deterministic sweep and the loop's rewrite_constants tool."""
     tcol = year_columns(spec, sheet).get(str(target_year))
@@ -369,7 +398,17 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
         if isinstance(lv, str) and lv.strip():
             row_label = lv.strip()
             break
-    proof, why = prove_cell(ledger, lits, row_label=row_label)
+    proof, why = prove_cell(ledger, lits, row_label=row_label, trust_names=trust_names)
+    if proof is None and "kin to the row" in str(why):
+        # the numbers tie, the names do not: the rewrite is kept as a suggestion for
+        # the row's card — the brain judges whether those lines are this row's items
+        p2, _w2 = prove_cell(ledger, lits, row_label=row_label, trust_names=True)
+        if p2:
+            f2 = f
+            for lit, (val, _src) in p2.items():
+                f2 = re.sub(r"(?<![A-Za-z0-9_.])" + re.escape(lit) + r"(?![\d.])", f"{val:g}", f2, count=1)
+            ledger.__dict__.setdefault("rewrite_suggestions", {})[f"{sheet}!{row}"] = {
+                "formula": f2, "was": f, "srcs": "; ".join(f"{lit}->{val:g} ({src})" for lit, (val, src) in p2.items())[:300]}
     if proof is None:
         return False, (f"{sheet}!{tcol}{row} UNPROVEN — {why} "
                        "— cell untouched, stays red")
@@ -384,7 +423,8 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
         flag="orange",
         note=(f"COMPOSITE REWRITE (constants law): was {f} = stale prior; "
               f"each literal tied to its disclosed comparative and "
-              f"replaced by the same line's current figure: {srcs}"[:400]))
+              f"replaced by the same line's current figure: {srcs}"
+              + ("; the brain judged the printed lines to be this row's items" if trust_names else ""))[:400])
     if not ok:
         return False, (f"{sheet}!{tcol}{row}: rewrite {new_f} REFUSED by "
                        "the write guard (band vs prior) — the tie is "
@@ -393,6 +433,14 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row):
         after = Evaluator(wb).cell(sheet, f"{tcol}{row}")
     except Exception:
         after = None
+    served = getattr(writer, "served", None)
+    if isinstance(served, dict) and isinstance(after, (int, float)):
+        # the rewrite's proof is a serve record (audit 2026-09-15: receivables 14,035 and
+        # deferred creditors 8,363 were rewritten correctly, then treated as unproven by
+        # the cards and overwritten) — conf 4, orange: proven, not a doubt
+        served[(sheet, row)] = {"value": float(after), "status": "OK", "conf": 4, "flag": "orange", "doc": None, "page": None, "homed": False,
+                                "line": "COMPOSITE REWRITE (constants law): " + srcs[:80],
+                                "note": f"composite rewrite: each literal tied to its comparative ({srcs[:120]})"}
     return True, (f"{sheet}!{tcol}{row}: {f} -> {new_f}"
                   + (f" = {after:,.2f}" if isinstance(after, (int, float))
                      else ""))

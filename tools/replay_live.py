@@ -37,7 +37,7 @@ def picks_from_log(path):
     # every card kind and every answer token the live log can carry (a family
     # the replay cannot read defaults silently and the floor diverges)
     pat = re.compile(r"\[queue\] (SERVE|LABEL|SENSE|COMPONENT|ROLLOVER|TRIPWIRE|PLUG|CONSEQUENCE|RUNG) (.+?) -> "
-                     r"([A-Za-z_]+(?::[A-Za-z0-9]+)?)(?:\s+((?:'[^']+'|[A-Za-z0-9_ ]+?)!\$?[A-Z]{1,3}\$?\d+))?")
+                     r"([A-Za-z_]+(?::[A-Za-z0-9]+)?)(?:\s+((?:'[^']+'|[A-Za-z0-9_ ]+?)!\$?[A-Z]{1,3}\$?\d+))?")   # rewrite:1 included
     for ln in Path(path).read_text(errors="ignore").splitlines():
         if " refused (" in ln or " REFUSED " in ln:
             continue                                  # a refusal line is not an answer

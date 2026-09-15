@@ -363,14 +363,16 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     label = str(wb[sh].cell(r, 1).value or "")[:30]
     path = " → ".join(f"{t[2] or t[1]}" for t in trail) + f" → {label or coord}"
     ref = f"{sh}!{coord}"
-    try:
-        rgb = str(wb[sh][coord].fill.fgColor.rgb or "")[-6:]
-    except Exception:
-        rgb = ""
-    colour = "red" if rgb == "FFC7CE" or ref in writer.log.get("flags", []) else "orange" if rgb == "FFC000" else "plain"
+    from .writer import _fill_rgb
+    rgb = _fill_rgb(wb[sh][coord])
+    colour = "red" if rgb == "FFC7CE" else "orange" if rgb == "FFC000" else ("red" if ref in writer.log.get("flags", []) and not rgb else "plain")
     unusual, this_move, band = unusual_by_history(wb, spec, sh, r, ty)
     entry = served.get((sh, r))
-    proven = colour == "plain" and (isinstance(entry, dict) and is_proven(entry))
+    from .rollover import input_is_proven as _iip
+    # PROVEN is one test everywhere (audit 2026-09-15): a served tie landed clean,
+    # or a composite rewritten literal by literal — never a red cell
+    proven = colour != "red" and (_iip(served, sh, coord, wb[sh][coord].value, writer.log.get("flags", []), wb)
+                                  or (isinstance(entry, dict) and is_proven(entry)))
     # OUT OF THE LINE'S WORLD (CLP: India's revenue held 88,018,000,000 — the
     # group's revenue in dollars — while the line itself, tied to the print,
     # is 88,018): an input feeding a headline line that dwarfs the line by
@@ -560,7 +562,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         if par_typed and isinstance(pv_leaf, (int, float)) and isinstance(pv_par, (int, float)) and abs(pv_par) >= 1 and pcol:
             ways.append(("backout:S", "backout", None, f"={pcol}{r}/" + _q(p_sh, f"{p_pcol}{p_row}") + "*" + _q(p_sh, p_c),
                          f"last year's share of its total {p_sh}!{p_c} (a formula, orange)"))
-    if not (proven and colour == "plain"):
+    if not proven:
         for j, (u_ref, u_lab, implied, target, why) in enumerate(derivations(loop, sh, coord)):
             ways.append((f"derive:{j + 1}", "derive", implied, None,
                          f"the value that makes {u_ref} '{u_lab}' equal its proven {target:,.2f} ({why}) — derived, orange"))
@@ -576,15 +578,15 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     # because the cash-flow line swung): a proven cell's ways are keep, or
     # another proven printed line — never the estimate, last year's figure
     # or a back-out
-    if proven and colour == "plain":
+    if proven:
         ways = [w for w in ways if w[1] == "printed"]
-    if isinstance(pre_v, (int, float)) and not (proven and colour == "plain"):
+    if isinstance(pre_v, (int, float)) and not proven:
         ways.append(("estimate", "stale", float(pre_v), None,
                      f"keep the analyst's own estimate for this year ({pre_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
-    if isinstance(ly_v, (int, float)) and not (proven and colour == "plain") and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
+    if isinstance(ly_v, (int, float)) and not proven and (not isinstance(pre_v, (int, float)) or abs(ly_v - pre_v) > 0.5):
         ways.append(("lastyear", "stale", float(ly_v), None,
                      f"keep last year's actual ({ly_v:,.2f}) — nothing printed proves the figure; stays RED as 'not found'"))
-    if not (proven and colour == "plain"):        # a proven figure is kept or replaced by a printed one, never derived
+    if not proven:        # a proven figure is kept or replaced by a printed one, never derived
         ways.append(("derive:via", "derive_via", None, None,
                      "derive it yourself: name in 'why' a formula cell that uses this row and whose figure is proven (e.g. ROAFNA!AI64) — code solves the value"))
     ways.append(("keep", "keep", None, None,
@@ -666,6 +668,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
                                     "why": f"p{c.get('page')}: {str(c.get('line', ''))[:60]} — sense-check rung 1"}))
         if res.startswith(("REFUSED", "REVERTED", "MISS")):
             log(f"[sense] RUNG {sh}!{coord} printed refused by the law: {res[:120]}")
+            writer.log.get("rulings", {}).pop(ref, None)      # nothing was placed: no ruling stands
             return "red", f"'{d['name']}': swing traced to {path} ({ref}) — the brain's printed pick was refused ({res[:80]}); please look here"
         return "fixed", f"'{d['name']}': swing traced to {path} ({ref}); {desc} — gap {gap0 * 100:.0f} → {gap_of() * 100:.0f} points"
     mark = len(writer.log.get("writes_all", []))

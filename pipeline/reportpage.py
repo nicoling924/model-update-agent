@@ -377,9 +377,11 @@ def _print_text(prov, sheet, row, col, key_tie):
         return "not tied", True
     e = prov.get(f"{sheet}!{row}") or {}
     v = e.get("value")
-    if isinstance(v, (int, float)) and int(e.get("conf") or 0) >= 4:
-        pg = f" · p{e['page']}" if e.get("page") else ""
+    if isinstance(v, (int, float)) and int(e.get("conf") or 0) >= 4 and e.get("page"):
+        pg = f" · p{e['page']}"
         return (f"{v:,.2f}" if abs(v) < 100 else f"{v:,.0f}") + pg, False
+    if isinstance(v, (int, float)) and "COMPOSITE" in str(e.get("line") or ""):
+        return "composite of printed lines", False
     return "", False
 
 

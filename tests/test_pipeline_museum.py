@@ -6081,6 +6081,160 @@ def test_the_ending_closes_cleanly_when_every_objective_holds_2026_09_15():
     print("PASS test_the_ending_closes_cleanly_when_every_objective_holds_2026_09_15")
 
 
+def test_a_composite_rewrite_is_a_proven_cell_2026_09_15():
+    """Run 34952658064: receivables (=12856+1179 = 14,035) and deferred
+    creditors (8,363) were rewritten correctly by the constants law, then
+    treated as unproven by the rung and consequence cards and overwritten.
+    The rewrite's proof is a serve record; the cards read the one test."""
+    import openpyxl
+    from pipeline.composites import rewrite_cell
+    from pipeline.writer import Writer
+    from pipeline.rollover import input_is_proven
+    from pipeline.consequence import build_card
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+    ws["A5"] = "Fixed assets and rights"; ws["T5"] = "=158532+10183"; ws["U5"] = "=158532+10183"
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
+    led = Ledger()
+    led.add(Item(doc="AR", page=25, table_id=0, row_ord=0, label="Fixed assets", nums=[166094.0, 158532.0], source_line="x"))
+    led.add(Item(doc="AR", page=25, table_id=0, row_ord=1, label="Right-of-use assets", nums=[10034.0, 10183.0], source_line="x"))
+    led.faces[("AR", 25)] = "bs"
+    w = Writer(wb); w.served = {}
+    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
+    assert ok, msg
+    e = w.served.get(("S", 5))
+    assert e and e["conf"] == 4 and e["flag"] == "orange", e
+    assert input_is_proven(w.served, "S", "U5", wb["S"]["U5"].value, w.log.get("flags", []), wb)
+    # on a consequence card the proven mover is said so and has no back-out or derivation way
+    lp = _loop(wb, spec, served=dict(w.served)); lp.writer = w; lp.writer.served = lp.served
+    pre = openpyxl.Workbook(); pre.active.title = "S"; pre["S"]["U5"] = "=158532+10183"
+    card, options = build_card(lp, pre, ("check", "S", "U9", -100.0, "balance check S!U9 computes -100"), [(("S", "U5"), 0.9)], [], None)
+    assert "PROVEN from the print" in card, card
+    assert "revert:1" in options and "backout:1" not in options and "derive:1" not in options, list(options)
+    print("PASS test_a_composite_rewrite_is_a_proven_cell_2026_09_15")
+
+
+def test_a_composition_proven_line_by_line_across_pages_2026_09_15():
+    """CLP dividends received =770+1659+15: associates on one note, JCEs on
+    another — every literal has ONE comparative-pair reading, so the
+    composition is proven line by line, whatever page each line is on."""
+    from pipeline.composites import prove_cell
+    led = Ledger()
+    led.add(Item(doc="AR", page=40, table_id=0, row_ord=0, label="Dividends from associates", nums=[629.0, 770.0], source_line="x"))
+    led.add(Item(doc="AR", page=44, table_id=0, row_ord=0, label="Dividends from joint ventures", nums=[1762.0, 1659.0], source_line="x"))
+    led.faces[("AR", 40)] = "note"; led.faces[("AR", 44)] = "note"
+    proof, why = prove_cell(led, ["770", "1659"], row_label="Dividends received")
+    assert proof and abs(proof["770"][0] - 629.0) < 1e-6 and abs(proof["1659"][0] - 1762.0) < 1e-6, (proof, why)
+    # two readings for one literal: not unique, not proven
+    led.add(Item(doc="AR", page=45, table_id=0, row_ord=0, label="Dividends from others", nums=[900.0, 770.0], source_line="x"))
+    led.faces[("AR", 45)] = "note"
+    proof2, why2 = prove_cell(led, ["770", "1659"], row_label="Dividends received")
+    assert proof2 is None, (proof2, why2)
+    print("PASS test_a_composition_proven_line_by_line_across_pages_2026_09_15")
+
+
+def test_a_balance_gap_is_named_when_a_printed_figure_is_about_its_size_2026_09_15():
+    """Run 34952658064: a 3,863 balance gap beside printed perpetual capital
+    securities of 3,872 — the check card did not name it and the brain
+    absorbed the gap into deferred creditors. Named as ≈ on check cards."""
+    from pipeline.keytie import name_gap
+    led = Ledger()
+    led.add(Item(doc="RA", page=32, table_id=0, row_ord=0, label="Perpetual capital securities", nums=[3872.0, 3872.0], source_line="x", columns=["2025", "2024"]))
+    assert name_gap(led, -3863.0) == ([], 3863.0)
+    named, rest = name_gap(led, -3863.0, near=True)
+    assert named and named[0][0] == 3872.0 and named[0][1].startswith("≈ Perpetual") and abs(rest - 9.0) < 1e-6, (named, rest)
+    assert name_gap(led, -3000.0, near=True) == ([], 3000.0), "far from any figure: nothing named"
+    print("PASS test_a_balance_gap_is_named_when_a_printed_figure_is_about_its_size_2026_09_15")
+
+
+def test_the_readers_suggestion_reaches_the_card_2026_09_15():
+    """Run 34952658064: 'Other gain 460' and 'net exchange difference -352'
+    were the analyst's own answers; the reader dropped them for their names
+    and the card never showed them. The name is the brain's judgment."""
+    from pipeline.workqueue import candidates_for
+    wb = _wb({"A2": "Other Income, net", "T2": 300.0})
+    lp = _loop(wb, _spec_tiny())
+    lp.ledger.reader_suggestions = {"S!2": {"value": 460.0, "doc": "AR", "page": 166, "line": "Other gain"}}
+    cands = candidates_for(lp, "S", 2)
+    hit = [c for c in cands if abs(c["value"] - 460.0) < 1e-6]
+    assert hit and hit[0].get("no_prior") and "reader's suggestion" in hit[0]["warnings"][0], cands
+    print("PASS test_the_readers_suggestion_reaches_the_card_2026_09_15")
+
+
+def test_a_red_cell_is_never_held_proven_2026_09_15():
+    """Run 34952658064: Australia income tax held -2,655 from a served tie yet
+    sat red; the brain's printed -284 (comparative ties the prior) was
+    refused nine times because the cell 'already holds a proven value'."""
+    wb = _wb({"A2": "Income tax expense", "T2": 100.0, "U2": 2655.0})
+    lp = _loop(wb, _spec_tiny(), served={("S", 2): {"value": 2655.0, "line": "Tax", "page": 3, "conf": 5, "status": "OK", "flag": None, "doc": DOC}},
+               evidence=[[284.0, 100.0]])
+    lp.writer.served = lp.served
+    lp.writer.flag_ref("S!U2", "red", "sense check: the swing traced here")
+    r = lp.t_set_input({"cell": "S!U2", "value": 284.0, "why": "p29: 'Income tax expense' — sense-check rung 1"})
+    assert r.startswith("WRITTEN"), r
+    assert wb["S"]["U2"].value == 284.0
+    print("PASS test_a_red_cell_is_never_held_proven_2026_09_15")
+
+
+def test_a_tying_composition_with_unlike_names_goes_to_the_brain_2026_09_15():
+    """Owner 2026-09-15: "numbers that can be mapped must be mapped; the name
+    is the brain's judgment". A composition whose literals tie printed
+    comparatives but whose lines are not kin to the row is a card answer,
+    not a silent refusal; the brain's yes rewrites it, orange."""
+    import openpyxl
+    from pipeline.composites import rewrite_cell
+    from pipeline.writer import Writer
+    from pipeline.workqueue import render_card, WorkItem
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+    ws["A5"] = "Other operating cash flows"; ws["T5"] = "=504+582"; ws["U5"] = "=504+582"
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
+    led = Ledger()
+    led.add(Item(doc="AR", page=177, table_id=0, row_ord=0, label="Receivables and others", nums=[517.0, 504.0], source_line="x"))
+    led.add(Item(doc="AR", page=177, table_id=0, row_ord=1, label="Net losses on disposal of fixed assets", nums=[319.0, 582.0], source_line="x"))
+    led.faces[("AR", 177)] = "note"
+    w = Writer(wb); w.served = {}
+    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
+    assert not ok and "kin to the row" in msg, msg
+    sug = led.rewrite_suggestions["S!5"]
+    assert sug["formula"] == "=517+319", sug
+    w.flag_ref("S!U5", "red", "unproven")
+    lp = _loop(wb, spec); lp.ledger = led; lp.writer = w; lp.writer.served = lp.served
+    rendered = render_card(lp, WorkItem(kind="SERVE", sheet="S", row=5))
+    assert rendered is not None, "the card must be dealt on the tying composition alone"
+    text, options, default = rendered
+    assert "rewrite:1" in options and "=517+319" in text, text
+    tool, args = options["rewrite:1"]
+    res = lp.TOOLS[tool](lp, args)
+    assert str(res).startswith("REWRITTEN"), res
+    assert wb["S"]["U5"].value == "=517+319"
+    print("PASS test_a_tying_composition_with_unlike_names_goes_to_the_brain_2026_09_15")
+
+
+def test_a_red_composite_with_a_tying_suggestion_is_queued_and_a_backout_loses_its_proof_2026_09_15():
+    """Reviewer 2026-09-15: the queue skipped every red formula cell, so the
+    rewrite card could never be dealt live; and a back-out written over a
+    proven row was still 'proven'."""
+    import openpyxl
+    from pipeline.workqueue import build_queue
+    from pipeline.rollover import input_is_proven
+    from pipeline.consequence import apply_pick
+    wb = _wb({"A5": "Other operating cash flows", "T5": "=504+582", "U5": "=504+582", "A9": "check", "T9": "=T5-T5", "U9": "=U5-U5"})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [{"sheet": "S", "row": 9, "expect": 0}], "key_rows": []}
+    lp = _loop(wb, spec); lp.writer.served = lp.served
+    lp.writer.flag_ref("S!U5", "red", "unproven")
+    assert not [i for i in build_queue(lp) if i.kind == "SERVE" and i.row == 5], "a red formula without a suggestion is not a card"
+    lp.ledger.rewrite_suggestions = {"S!5": {"formula": "=517+319", "was": "=504+582", "srcs": "504->517; 582->319"}}
+    assert [i for i in build_queue(lp) if i.kind == "SERVE" and i.row == 5], "with a tying composition the card is dealt"
+    # a proven served row backed out by the ending is no longer proven
+    wb2 = _wb({"A2": "Receivables", "T2": 100.0, "U2": 14035.0})
+    lp2 = _loop(wb2, _spec_tiny(), served={("S", 2): {"value": 14035.0, "line": "Trade receivables", "page": 3, "conf": 5, "status": "OK", "flag": None}})
+    lp2.writer.served = lp2.served
+    assert input_is_proven(lp2.served, "S", "U2", 14035.0, [], wb2)
+    pre = _wb({"A2": "Receivables", "T2": 100.0, "U2": 14035.0})
+    assert apply_pick(lp2, pre, "backout:1", [(("S", "U2"), 1.0)], -3863.0, "balance check")
+    assert not input_is_proven(lp2.served, "S", "U2", wb2["S"]["U2"].value, [], wb2), "a back-out over the row holds a different figure: not proven by the old serve"
+    print("PASS test_a_red_composite_with_a_tying_suggestion_is_queued_and_a_backout_loses_its_proof_2026_09_15")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
