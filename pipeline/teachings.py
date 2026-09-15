@@ -825,6 +825,18 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                         _card.append("  answers: " + ", ".join(_opts))
                         _pick = _ask_site(ask, "\n".join(_card), _opts, log, f"{sheet}!{fcs[0]}{r}")
                         _rulings[_key] = _pick
+                    if isinstance(_pick, str) and _pick.startswith("site:") and _pick != "site:code":
+                        # THE RULING NAMES A CELL, NOT A POSITION (reviewer
+                        # 2026-09-16: the cache held an index into a list
+                        # rebuilt at every firing — after a repair round moved
+                        # one input out of it, the remembered 'site:2' pointed
+                        # at a different cell, or at none at all)
+                        _j0 = int(_pick.split(":")[1]) - 1
+                        if 0 <= _j0 < len(movable):
+                            _pick = "{}!{}{}".format(*movable[_j0][0][:3])
+                        else:
+                            _pick = "site:code"
+                        _rulings[_key] = _pick
                     if _pick == "none":
                         for (_sh2, _c2, _r2, _v2, _pv2), _cf2 in movable:
                             writer.flag_ref(f"{_sh2}!{_c2}{_r2}", "red",
@@ -834,11 +846,18 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                         log(f"[run]   roll-base: {sheet}!{r} — the brain left the {gap:+,.0f} gap open; "
                             "inputs flagged, nothing guessed")
                         cands, low = [], -1
-                    elif isinstance(_pick, str) and _pick.startswith("site:") and _pick != "site:code":
-                        _j = int(_pick.split(":")[1]) - 1
-                        if 0 <= _j < len(movable):
-                            cands = [movable[_j]]
-                            low = _conf(movable[_j][0])
+                    elif isinstance(_pick, str) and "!" in _pick:
+                        # the remembered ruling is a CELL: find it among the
+                        # inputs this firing offers, whatever their order
+                        _hit = next((x for x in movable
+                                     if "{}!{}{}".format(*x[0][:3]) == _pick), None)
+                        if _hit is not None:
+                            cands = [_hit]
+                            low = _conf(_hit[0])
+                        else:
+                            log(f"[run]   roll-base: {sheet}!{r} — your ruling named {_pick}, which is no "
+                                "longer an input this roll responds to; nothing guessed")
+                            cands, low = [], -1
                 if not cands:
                     pass
                 elif low >= 3:

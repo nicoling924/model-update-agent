@@ -6758,6 +6758,56 @@ def test_the_ladder_uses_the_named_site_only_2026_09_16():
 
 
 
+def test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16():
+    """Reviewer 2026-09-16: the ruling was cached as 'site:2' — an index into
+    a list rebuilt at every firing, and the repair suite fires this law again
+    and again. Once an input left that list (proven, or no longer moving the
+    roll) the remembered position pointed at a different cell. The ruling
+    names the cell; a later firing that no longer offers it guesses nothing."""
+    import openpyxl
+    from pipeline.teachings import roll_base_mismatches
+    from pipeline.writer import Writer
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}}
+
+    def build():
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+        ws["A10"] = "Total operating expenses"
+        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
+        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
+        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 280.0, "=U12"
+        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
+        return wb, ws
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
+    wb, ws = build()
+    w = Writer(wb)
+    asked = []
+
+    def ask_second(text, options, default):
+        asked.append(text)
+        return "site:2"
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served, ask=ask_second)
+    assert ws["U13"].value == "=(20)+(50)", ws["U13"].value
+    ruling = w.log.get("rollbase_rulings", {})
+    assert ruling.get("S!10") == "S!U13", f"the ruling was remembered as a position: {ruling}"
+    # the same run fires the law again with the list in a different shape:
+    # the remembered CELL still decides, and the brain is not asked twice
+    wb2, ws2 = build()
+    w2 = Writer(wb2)
+    w2.log["rollbase_rulings"] = {"S!10": "S!U13"}
+    roll_base_mismatches(wb2, spec, 2025, w2, lambda s: None, served=served,
+                         ask=lambda t, o, d: (_ for _ in ()).throw(AssertionError("asked twice")))
+    assert ws2["U13"].value == "=(20)+(50)" and ws2["U12"].value == 280.0, (ws2["U12"].value, ws2["U13"].value)
+    # a ruling naming a cell this firing no longer offers guesses nothing
+    wb3, ws3 = build()
+    w3 = Writer(wb3)
+    w3.log["rollbase_rulings"] = {"S!10": "S!U99"}
+    roll_base_mismatches(wb3, spec, 2025, w3, lambda s: None, served=served, ask=lambda t, o, d: "none")
+    assert ws3["U12"].value == 280.0 and ws3["U13"].value == 20.0, "a stale ruling moved a cell"
+    assert not w3.log.get("written"), w3.log.get("written")
+    print("PASS test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
