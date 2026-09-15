@@ -35,7 +35,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from .checks import prior_column, year_columns
+from .checks import forecast_columns, prior_column, year_columns
 from .evaluator import Evaluator
 from .numerics import row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
@@ -493,6 +493,36 @@ def _companion_candidates(loop, pv, p2, periods, pool, scales, k=MAX_CANDS):
     return out if k is None else out[: k * 3]
 
 
+def _uses_of(loop, sheet, col, row, limit=4):
+    """The target-year formulas that consume this cell, with their row labels
+    (the relationships the analyst reads to know what a row IS).
+    -> [(ref, label, formula)]"""
+    import re as _re
+    wb = loop.wb
+    coord = f"{col}{row}"
+    pat_same = _re.compile(r"(?<![A-Z$!'])\$?" + col + r"\$?" + str(row) + r"(?!\d)")
+    pat_x = _re.compile(r"(?:'" + _re.escape(sheet) + r"'|" + _re.escape(sheet) + r")!\$?" + col + r"\$?" + str(row) + r"(?!\d)")
+    out = []
+    for sh in (loop.spec.get("year_axis") or {}):
+        if sh not in wb.sheetnames:
+            continue
+        ws = wb[sh]
+        tc = year_columns(loop.spec, sh).get(str(loop.ty))
+        if not tc:
+            continue
+        fc = (forecast_columns(loop.spec, sh, int(loop.ty)) or [None])[0]       # the first forecast year: how the row rolls
+        for c_ in [tc] + ([fc] if fc else []):
+            for r in range(1, min(ws.max_row, 400) + 1):
+                f = ws[f"{c_}{r}"].value
+                if not (isinstance(f, str) and f.startswith("=")):
+                    continue
+                if (sh == sheet and pat_same.search(f) and f"{c_}{r}" != coord) or (sh != sheet and pat_x.search(f)):
+                    out.append((f"{sh}!{c_}{r}", str(ws.cell(r, 1).value or "")[:28], f[:40]))
+                    if len(out) >= limit:
+                        return out
+    return out
+
+
 def _block_context(loop, sheet, row, span=8):
     """The section headers above a model row — a generic 'Closing
     balance' row means nothing without its block ('Fuel Clause
@@ -742,6 +772,12 @@ def render_card(loop, item):
                         _hist.append(f"{_y}: {_v:,.2f}")
             lines.append("  where: sheet '" + sheet + "'" + (" > " + " > ".join(_ctx[::-1]) if _ctx else "")
                          + f" > '{lab}'" + (f"; history {', '.join(_hist[-4:])}" if _hist else ""))
+            # HOW THE MODEL USES THE ROW (owner 2026-09-15: by hand one reads
+            # 'AI64 = AH64 + AI71' and knows the row is closing minus opening
+            # capacity — a movement, derivable from two printed stocks)
+            _uses = _uses_of(loop, sheet, col, row)
+            if _uses:
+                lines.append("  used by: " + "; ".join(f"{u_ref} '{u_lab}' {u_f}" for u_ref, u_lab, u_f in _uses[:4]))
         except Exception:
             pass
         if item.kind == "SENSE":
