@@ -169,10 +169,17 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
                              "prone; prefer derivation or leave red")
             from .numerics import kinship
             lab_m = str(getattr(t, "label", "") or "")
-            if lab_m and not kinship(lab_m, str(it.label)) \
+            if lab_m and off > 0.6 and not kinship(lab_m, str(it.label)) \
                     and not any(
                         kinship(ctx, str(it.label))
                         for ctx in _block_context(loop, sheet, row)):
+                # THE EXACT TIE IS THE IDENTITY (run 34993405014: ROAFNA!29
+                # 'Capital' 58,405 and Aus!70 'Mount Piper' 6,314 — both the
+                # analyst's own answers — carried this warning beside a
+                # comparative that reproduced the model's prior exactly, and
+                # the brain declined both). A line whose comparative equals
+                # the prior at the model's own precision IS this row's line;
+                # the name adds nothing to that. A LOOSE tie still needs it.
                 # neither the row's own label NOR its section header
                 # is kin (run-214: 'Closing balance' under the 'Fuel
                 # Clause Recovery' header wrongly indicted the printed

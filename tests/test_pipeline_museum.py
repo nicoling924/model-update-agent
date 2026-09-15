@@ -6377,6 +6377,44 @@ def test_an_orange_derived_holder_yields_to_the_brains_pick_2026_09_16():
 
 
 
+def test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16():
+    """Run 34993405014: ROAFNA!29 'Capital' (analyst 58,405) and Aus!70
+    'Mount Piper' (analyst 6,314) were option A on their cards with the
+    comparative reproducing the model's prior EXACTLY — and each carried
+    'label unrelated to the model row's — a numeric coincidence'. The brain
+    declined both. A comparative equal to the prior at the model's own
+    precision IS this row's line; a LOOSE tie still needs the name."""
+    import openpyxl
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.workqueue import candidates_for
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow as TR
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "ROAFNA"
+    ws["T2"], ws["U2"] = 2024, 2025
+    ws["T29"], ws["U29"] = 56789.0, 56789.0
+    spec = {"year_axis": {"ROAFNA": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}, "check_rows": []}
+    ws["T28"], ws["U28"] = 39000.0, 39000.0
+    items = [_item(95, 2, "total liabilities", [41000.0, 39000.0]),               # the page's second anchor
+             _item(95, 3, "Fixed assets employed, net", [58405.0, 56789.0]),      # EXACT tie, unrelated name
+             _item(95, 4, "Average net fixed assets", [61234.0, 56500.0])]        # loose tie, unrelated name
+    led = _ledger(items, face_pages=((95, "bs"),))
+    led._doc_periods = {DOC: "current"}
+    loop = ObjectiveLoop(wb, spec, 2025, led,
+                         [TR("ROAFNA", 29, "Capital", 56789.0), TR("ROAFNA", 28, "Borrowings", 39000.0)],
+                         {}, Writer(wb), None)
+    loop.writer.log["flags"] = ["ROAFNA!U29"]
+    cands = candidates_for(loop, "ROAFNA", 29)
+    exact = next((c for c in cands if abs(c["value"] - 58405.0) < 1e-6), None)
+    loose = next((c for c in cands if abs(c["value"] - 61234.0) < 1e-6), None)
+    assert exact is not None, cands
+    assert not any("numeric coincidence" in w for w in exact["warnings"]), exact["warnings"]
+    assert loose is None or any("numeric coincidence" in w for w in loose["warnings"]), loose
+    print("PASS test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
