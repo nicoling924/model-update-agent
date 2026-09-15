@@ -6598,6 +6598,29 @@ def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
 
 
 
+def test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16():
+    """Floors 2026-09-16: the live-shape floor runs WITH a client, so it
+    rewrote companies/<co>/replay/<period>/key_rows.json — the very pin the
+    plain floors read — and the two floors stopped measuring the same thing.
+    A run given a pinned ledger writes its own artifacts beside its own
+    output (<period>-replay), never over the pin it is replaying."""
+    import inspect
+    from pipeline.run import artifact_dir, update
+    pin = Path("/co/replay/FY25/ledger.json")
+    live = artifact_dir("/co", "FY25", None)
+    replay = artifact_dir("/co", "FY25", str(pin))
+    assert str(live).endswith("/replay/FY25"), live
+    assert str(replay).endswith("/replay/FY25-replay"), replay
+    assert Path(replay) != pin.parent, "a replay would write over its own pin"
+    src = inspect.getsource(update)
+    assert 'artifact_dir(company_dir, period, pinned_ledger) / "key_rows.json"' in src, \
+        "the replay's key rows are still written over the pinned artifact"
+    assert 'Path(pinned_ledger).parent / "key_rows.json"' in src, \
+        "the pin must still be READ from the artifact the run was given"
+    print("PASS test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

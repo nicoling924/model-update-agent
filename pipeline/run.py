@@ -32,6 +32,16 @@ from .writer import (Writer, formula_map, load, resolve_input_site,
                      roll_year_headers, rollover_column, save)
 
 
+def artifact_dir(company_dir, period, pinned_ledger):
+    """Where THIS run's own artifacts go. A replay never writes into the pin
+    it is replaying (2026-09-14: replays saved their ledger and serves over
+    companies/<CO>/replay/<PERIOD>/ and each floor then ran on the previous
+    replay's outputs; 2026-09-16: the live-shape floor, which has a client,
+    rewrote key_rows.json there and the plain floors stopped measuring the
+    same thing). A pinned run's outputs go beside the floor, never on it."""
+    return Path(company_dir) / "replay" / (f"{period}-replay" if pinned_ledger else str(period))
+
+
 def _model_path(company_dir, spec):
     mdir = Path(company_dir) / "model"
     if spec.get("model_file") and (mdir / spec["model_file"]).exists():
@@ -260,7 +270,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # THE KEY ROWS TRAVEL WITH THE REPLAY (owner 2026-09-08, "test before
     # running"): the brain's named rows are pinned beside the ledger so a
     # faithful replay ties the same keys and prints the same count
-    _kr_path = company_dir / "replay" / str(period) / "key_rows.json"
+    # A REPLAY NEVER OVERWRITES THE PIN IT IS REPLAYING (2026-09-16: the
+    # live-shape floor has a client, so it rewrote the very key_rows.json the
+    # plain floors read as their pin — the floors stopped comparing). A run
+    # given a pinned ledger writes its own artifacts beside its own output,
+    # exactly where its decisions and provenance already go.
+    _kr_path = artifact_dir(company_dir, period, pinned_ledger) / "key_rows.json"
     if client is not None and spec_d.get("key_rows"):
         try:
             _kr_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1412,7 +1427,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # previous replay's outputs — 252 pinned serves had drifted to 88 and a
     # check 'opened' that no code change had touched). A replay's outputs
     # go beside the floor, never on it.
-    replay_dir = company_dir / "replay" / (f"{period}-replay" if pinned_ledger else str(period))
+    replay_dir = artifact_dir(company_dir, period, pinned_ledger)
     replay_dir.mkdir(parents=True, exist_ok=True)
     ledger.save(replay_dir / "ledger.json")
     (replay_dir / "decisions.json").write_text(decisions_to_json(decisions),
