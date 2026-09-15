@@ -6,6 +6,7 @@
 --dry runs every deterministic stage with no LLM (the pre-flight path);
 a live run requires LLM_BASE_URL / LLM_API_KEY / LLM_MODEL in the
 environment (a repo-root .env is honored, matching the legacy runner).
+Exit 0 delivered, 1 gate refused, 2 usage, 3 brain unavailable (handshake).
 """
 import os
 import sys
@@ -41,6 +42,14 @@ def main(argv=None):
                   "(or pass --dry)")
             return 2
         client = make_client()
+        from .llm import BrainUnavailable, handshake
+        try:
+            print(f"brain handshake: {handshake(client)}")
+        except BrainUnavailable as e:
+            print(f"BRAIN UNAVAILABLE — run stopped before touching the model: {e}\n"
+                  f"(a run without the brain is the no-brain floor in a live shape; "
+                  f"fix the engine account, then dispatch again)")
+            return 3
     from .run import update
     res = update(company_dir, period, int(target_year), client=client,
                  loop_budget=int(kv.get("--budget", 60)),

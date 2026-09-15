@@ -50,6 +50,38 @@ def make_client(temperature=0.1, max_output_tokens=14000):
     return Client(temperature=temperature, max_output_tokens=max_output_tokens)
 
 
+class BrainUnavailable(RuntimeError):
+    """The engine refused the run before it started (no credits, bad key)."""
+
+
+def handshake(client, post=None):
+    """THE BRAIN HANDSHAKE (owner 2026-09-15, after run 34925710395 ran an
+    hour without a brain: OpenRouter answered 402 'requires more credits'
+    four minutes in and every later card went unanswered). One tiny call
+    before the model is touched, shaped like the run's own calls — the
+    same output budget, because the aggregator prices affordability on
+    max_tokens, so a smaller probe would pass while the run fails.
+    401/402/403 -> BrainUnavailable with the server's own words; a
+    transient fault is left to the transport's patience."""
+    import agent.llm as _transport
+    post = post or _transport.requests.post
+    body = {"model": client.model, "temperature": 0,
+            "max_tokens": client.max_output_tokens,
+            "messages": [{"role": "user", "content": "Reply with the single word: ready"}]}
+    try:
+        r = post(f"{client.base_url}/chat/completions",
+                 headers={"Authorization": f"Bearer {client.api_key}"}, json=body, timeout=120)
+    except Exception as e:  # noqa: BLE001 — network hiccup: the run's own patience decides
+        return f"handshake skipped ({e})"
+    if r.status_code in (401, 402, 403):
+        try:
+            msg = (r.json().get("error") or {}).get("message") or r.text[:300]
+        except Exception:  # noqa: BLE001
+            msg = r.text[:300]
+        raise BrainUnavailable(f"{r.status_code} from {client.base_url}: {msg}")
+    return f"ready ({r.status_code})"
+
+
 def env_ready():
     return all(os.environ.get(k) for k in
                ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"))

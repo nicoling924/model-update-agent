@@ -5818,6 +5818,43 @@ def test_restating_the_prior_period_on_request_2026_09_15():
     print("PASS test_restating_the_prior_period_on_request_2026_09_15")
 
 
+def test_the_brain_handshake_stops_a_run_with_no_credits_2026_09_15():
+    """Run 34925710395: OpenRouter answered 402 four minutes in and the run
+    spent an hour brainless. The handshake asks once, with the run's own
+    output budget (affordability is priced on max_tokens), and stops the
+    run with the server's words on 401/402/403; a healthy engine passes."""
+    from pipeline.llm import BrainUnavailable, handshake
+
+    class _Client:
+        base_url = "https://engine.test/api/v1"; api_key = "k"; model = "m"; max_output_tokens = 14000
+
+    class _Resp:
+        def __init__(self, code, payload, text=""):
+            self.status_code, self._p, self.text = code, payload, text
+        def json(self): return self._p
+
+    sent = {}
+    def broke(url, headers=None, json=None, timeout=None):
+        sent.update(json)
+        return _Resp(402, {"error": {"message": "This request requires more credits, or fewer max_tokens."}})
+    try:
+        handshake(_Client(), post=broke)
+        raise AssertionError("a 402 must stop the run")
+    except BrainUnavailable as e:
+        assert "402" in str(e) and "more credits" in str(e), e
+    assert sent["max_tokens"] == 14000, "the probe must carry the run's own output budget"
+    assert sent["model"] == "m"
+
+    def ready(url, headers=None, json=None, timeout=None):
+        return _Resp(200, {"choices": [{"message": {"content": "ready"}}]})
+    assert handshake(_Client(), post=ready).startswith("ready")
+
+    def flaky(url, headers=None, json=None, timeout=None):
+        raise ConnectionError("reset")
+    assert handshake(_Client(), post=flaky).startswith("handshake skipped")
+    print("PASS test_the_brain_handshake_stops_a_run_with_no_credits_2026_09_15")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

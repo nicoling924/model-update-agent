@@ -51,7 +51,8 @@ jobs:
             # THE CURRENT AGENT (clean rebuild, law era — delivered DFE FY25
             # run 19 with zero check failures all years). Exit 0 = DELIVERED,
             # 1 = GATE REFUSED (quarantined workbook + replay evidence are
-            # still committed and uploaded), 2 = usage/env error.
+            # still committed and uploaded), 2 = usage/env error, 3 = brain
+            # unavailable (the first-minute handshake: no credits / bad key).
             YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
             python -m pipeline.cli "companies/${{ inputs.company }}" \
               "${{ inputs.period }}" "20${YY}" --budget=90
