@@ -6261,53 +6261,130 @@ def _clp_p23_items():
 def test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16():
     """Run 34993405014: the reader answered Final!14 = -74,206 (the four
     expense lines between revenue and the printed Operating profit) and
-    quoted '(74,206) (76,061)'; verify() refused it — 'no printed line on
-    p23 carries -74206' — because the extractor dropped the total line, and
-    both 2025 keys stayed -2,315 off the print. A stated check that closes a
-    PRINTED subtotal at the model's precision, every other term a printed
-    line on that page, is proof: the figure is written, plain when the
-    quoted comparative ties the model's prior, red when it does not."""
+    verify() refused it — 'no printed line on p23 carries -74206' — because
+    the extractor dropped the total line, and both 2025 keys stayed -2,315
+    off the print. A stated check that closes a PRINTED subtotal at the
+    model's precision, every term the this-period figure of a printed row of
+    the same table block, is proof: the figure is written, plain when those
+    rows' printed comparatives tie the model's prior, red when they do not."""
     from pipeline.reader import verify
     led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
     led._doc_periods = {DOC: "current"}
-    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": -76061.0},
-            {"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating expenses (no comparative quoted)", "prior": -76061.0},
-            {"row": "Final!17", "sheet": "Final", "r": 17, "label": "Operating expenses (check does not close)", "prior": -76061.0},
-            {"row": "Final!18", "sheet": "Final", "r": 18, "label": "Operating expenses (a term is not printed)", "prior": -76061.0}]
     check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
-    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check},
-               {"row": "Final!15", "printed": -74206.0, "page": 23, "line": "Operating expenses", "check": check},
-               {"row": "Final!17", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
-                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 = 14,272"},
-               {"row": "Final!18", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
-                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 - 1,000 = 13,272"}]
+    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": -76061.0}]
+    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check}]
     v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
     assert "Final!14" in v, "the reconciliation that closes the printed Operating profit was refused"
     assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, v["Final!14"]
     assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
     assert "14,272" in (v["Final!14"]["note"] or ""), "the reconciliation must travel in the note"
-    assert v["Final!15"]["flag"] == "red" and abs(v["Final!15"]["value"] + 74206.0) < 1e-6, v["Final!15"]
-    assert "Final!17" not in v, "a check that does not close is not proof"
-    assert "Final!18" not in v, "a check with a term no line on the page prints is not proof"
+    # the same check, a row whose prior those comparatives do NOT tie: red, written
+    rows_r = [{"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating costs", "prior": -70000.0}]
+    ans_r = [{"row": "Final!15", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check}]
+    vr = verify(ans_r, rows_r, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-70000.0])
+    assert vr["Final!15"]["flag"] == "red" and abs(vr["Final!15"]["value"] + 74206.0) < 1e-6, vr["Final!15"]
+    # a check that does not close, and one leaning on a term no row prints
+    bad = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
+            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 = 14,272"},
+           {"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
+            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 - 1,000 = 13,272"}]
+    for a in bad:
+        assert not verify([a], rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0]), a["check"]
     print("PASS test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16")
 
 
 def test_the_check_terms_are_read_as_printed_2026_09_16():
-    """The terms of the check, signs and parenthesised negatives included."""
+    """The terms of the check, signs and parenthesised negatives included —
+    and (reviewer 2026-09-16) the four ways a check that is NOT the
+    statement's own arithmetic must be refused."""
     from pipeline.reader import _check_terms, _reconciliation
     terms, closes = _check_terms("88,018 \u2212 28,950 \u2212 5,987 \u2212 29,551 \u2212 9,718 + 460 = 14,272 = printed Operating profit")
     assert closes == 14272.0 and len(terms) == 6 and abs(sum(terms) - 14272.0) < 1e-9, (terms, closes)
     assert _check_terms("no arithmetic here") is None
     led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
+    good = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
     # the answered figure may also be a single term of the check ('Other gain')
-    rec = _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", 460.0, led.items, 23, {DOC})
+    rec = _reconciliation(good, 460.0, led.items, 23, {DOC})
     assert rec is not None and "14,272" in rec["check"], rec
     # a figure the check says nothing about is never proved by it
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", 12345.0, led.items, 23, {DOC}) is None
+    assert _reconciliation(good, 12345.0, led.items, 23, {DOC}) is None
     # the subtotal it closes on must itself be printed on that page
     thin = _ledger([i for i in _clp_p23_items() if "Operating profit" not in str(i.label)], face_pages=((23, "pl"),))
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272", -74206.0, thin.items, 23, {DOC}) is None
+    assert _reconciliation(good, -74206.0, thin.items, 23, {DOC}) is None
+    # REVIEWER 1 — a flipped sign makes an arbitrary residual close any check:
+    # the page prints (9,718), so '+ 9,718' is not that line and -18,976 is nothing
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 + 9,718 - 18,976 = 14,272",
+                           -18976.0, led.items, 23, {DOC}) is None
+    # REVIEWER 2 — last year's column closes last year's subtotal: a comparative
+    # is not this period's figure, whatever it adds up to
+    assert _reconciliation("90,964 - 31,871 - 5,150 - 29,764 - 9,276 = 14,903",
+                           -9276.0, led.items, 23, {DOC}) is None
+    # a term printed in ANOTHER table of the page proves nothing about this line
+    mixed = _ledger(_clp_p23_items() + [_item(23, 20, "Segment note", [-5987.0], table_id=9)],
+                    face_pages=((23, "pl"),))
+    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272",
+                           -74206.0, mixed.items, 23, {DOC}) is not None, "the P&L block itself still proves it"
+    only_other = _ledger([i for i in _clp_p23_items() if "Staff" not in str(i.label)]
+                         + [_item(23, 20, "Staff expenses (segment note)", [-5987.0, -5150.0], table_id=9)],
+                         face_pages=((23, "pl"),))
+    assert _reconciliation(good, -74206.0, only_other.items, 23, {DOC}) is None
     print("PASS test_the_check_terms_are_read_as_printed_2026_09_16")
+
+
+def test_the_reconciliations_comparative_comes_from_the_print_2026_09_16():
+    """Reviewer 2026-09-16: the plain/red decision read the comparative out of
+    the brain-authored 'line' string — text no printed row had to support —
+    and the value was divided by the page's scale while the tie was hunted at
+    every scale, so a page ratified at 10^3 wrote a figure 1,000x too large,
+    PLAIN. The comparative is now the same printed rows' own comparatives,
+    and a tie at a scale the page does not carry lands red."""
+    from pipeline.reader import verify
+    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
+    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Total operating expenses", "prior": -76061.0}]
+    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "no numbers here", "check": check}]
+    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
+    assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
+    assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, "the print's own comparatives prove it, with no comparative in the answer's text"
+    # the answer's text quotes a comparative that WOULD tie this row's prior;
+    # the printed rows' own comparatives (-76,061) do not — it lands red
+    rows_l = [{"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating costs", "prior": -70000.0}]
+    ans_l = [{"row": "Final!15", "printed": -74206.0, "page": 23, "line": "(74,206) (70,000)", "check": check}]
+    vl = verify(ans_l, rows_l, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-70000.0])
+    assert vl["Final!15"]["flag"] == "red", "a comparative only the answer's text carries made it plain"
+    # the scale of the tie and the scale of the page must agree
+    base = [_item(30, 1, "Revenue", [100000.0, 100000.0]),
+            _item(30, 2, "Purchases", [-30000.0, -30000.0]),
+            _item(30, 3, "Staff expenses", [-29746.0, -30242.0]),
+            _item(30, 4, "Operating profit", [40254.0, 39758.0])]
+    led2 = _ledger(base, face_pages=((30, "pl"),)); led2._doc_periods = {DOC: "current"}
+    rows2 = [{"row": "M!9", "sheet": "M", "r": 9, "label": "Operating expenses", "prior": -60.242}]
+    ans2 = [{"row": "M!9", "printed": -59746.0, "page": 30, "check": "100,000 - 30,000 - 29,746 = 40,254", "line": ""}]
+    v2 = verify(ans2, rows2, led2, {(DOC, 30): 1e6}, lambda s: None, priors=[-60.242])
+    assert v2["M!9"]["flag"] == "red", f"a 1,000x scale clash landed plain: {v2['M!9']}"
+    assert abs(v2["M!9"]["value"] + 59.746) < 1e-6, v2["M!9"]
+    print("PASS test_the_reconciliations_comparative_comes_from_the_print_2026_09_16")
+
+
+def test_a_reconciliation_proves_one_row_2026_09_16():
+    """Reviewer 2026-09-16: the one-home guard on the reconciliation path
+    lacked the numeric-prior test its printed-line twin carries, so two rows
+    with no prior at all (None == None) both took the same figure."""
+    from pipeline.reader import verify
+    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
+    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": None},
+            {"row": "Final!40", "sheet": "Final", "r": 40, "label": "Operating costs", "prior": None}]
+    answers = [{"row": r["row"], "printed": -74206.0, "page": 23, "line": "", "check": check} for r in rows]
+    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[])
+    assert not v, f"the same reconciliation answered two rows: {v}"
+    # two rows the model fills with the SAME prior are its own duplicate: both take it
+    rows_d = [dict(r, prior=-76061.0) for r in rows]
+    v2 = verify(answers, rows_d, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
+    assert set(v2) == {"Final!14", "Final!40"}, v2
+    print("PASS test_a_reconciliation_proves_one_row_2026_09_16")
 
 
 
