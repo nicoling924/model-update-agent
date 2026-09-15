@@ -550,8 +550,8 @@ def row_context(loop, sheet, col, row, lab=None, hist_n=4):
 
 
 def row_context_short(loop, sheet, col, row):
-    """One phrase for lists of cells: the section headers and the last two years."""
-    where, used = row_context(loop, sheet, col, row, hist_n=2)
+    """The same context as row_context, on one line, for cards that list several cells."""
+    where, used = row_context(loop, sheet, col, row)
     w = where.replace("  where: ", "")
     return w + ((" | " + used.replace("  used by: ", "")) if used else "")
 
