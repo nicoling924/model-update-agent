@@ -1269,7 +1269,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
                       ledger=ledger, panel=_key_panel,
                       absorbers=("none" if client is not None else "any"))
-        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
+        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served,
+                      ask=getattr(loop, "ask", None))
         if n_rb2:
             err_guard(f"roll-base {tag}")
             collapse_guard(f"roll-base {tag}")

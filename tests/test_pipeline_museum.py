@@ -6463,6 +6463,94 @@ def test_the_input_tree_is_this_period_only_2026_09_16():
 
 
 
+def test_the_plug_asks_the_brain_where_it_lands_2026_09_16():
+    """Run 34993405014: the brain answered 'plug' on the balance card and the
+    ladder chose the site by its own ranking — Final!AI87, a cell the brain
+    had twice refused — and 2026E cash went to -966. The rung stays code's
+    last resort; WHERE the residual lands is asked, with code's ranking as
+    the default when no answer comes."""
+    from pipeline.orchestrator import terminal_ladder
+    cells = {"T2": 100.0, "T3": 50.0, "T4": 150.0,
+             "U2": 109.0, "U3": 60.0, "U4": 171.0,
+             "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"}
+    wb = _wb(cells)
+    lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True
+    seen = []
+
+    def ask(text, options, default):
+        seen.append(text)
+        assert text.startswith("CARD PLUG"), text
+        return "site:2"
+    lp.ask = ask
+    logs = []
+    terminal_ladder(lp, logs.append)
+    assert seen, "the ladder plugged without asking where"
+    assert "site:1" in seen[0] and "site:2" in seen[0], seen[0]
+    assert lp._failing_target_checks() == [], lp._failing_target_checks()
+    assert wb["S"]["U4"].value == 171.0, "code's own first site took the plug anyway"
+    assert wb["S"]["U2"].value == 111.0, wb["S"]["U2"].value
+    # no brain: code's ranking stands, exactly as before
+    wb2 = _wb(cells)
+    lp2 = _loop(wb2, _spec_tiny())
+    lp2.writer.plugs_allowed = True
+    terminal_ladder(lp2, logs.append)
+    assert wb2["S"]["U4"].value == 169.0, wb2["S"]["U4"].value
+    print("PASS test_the_plug_asks_the_brain_where_it_lands_2026_09_16")
+
+
+def test_the_roll_base_backout_asks_the_brain_where_2026_09_16():
+    """Run 34993405014: the roll-base back-out fired 14 times and wrote over
+    the brain's own rulings on Driver!AI37 and Final!AI87 — code ranked the
+    roll's inputs by confidence and took the decision. Code still proves
+    which inputs the roll responds to; the brain says where the gap belongs,
+    or that it belongs nowhere."""
+    import openpyxl
+    from pipeline.teachings import roll_base_mismatches
+    from pipeline.writer import Writer
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}}
+
+    def build():
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+        ws["A10"] = "Total operating expenses"
+        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
+        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
+        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 280.0, "=U12"
+        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
+        return wb, ws
+    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
+    # the brain names the home: the SECOND uncertain input, not code's ranking
+    wb, ws = build()
+    w = Writer(wb)
+    cards = []
+
+    def ask_second(text, options, default):
+        cards.append((text, list(options)))
+        return "site:2"
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served, ask=ask_second)
+    assert cards and cards[0][0].startswith("CARD PLUG"), cards
+    assert "none" in cards[0][1] and "site:1" in cards[0][1] and "site:2" in cards[0][1], cards[0][1]
+    assert "S!U11" not in cards[0][0], "a PROVEN input was offered as a place to absorb a gap"
+    assert ws["U13"].value == "=(20)+(50)", ws["U13"].value
+    assert ws["U12"].value == 280.0, "the input the brain did not name was moved"
+    # the brain says it belongs nowhere: flagged, nothing guessed
+    wb, ws = build()
+    w = Writer(wb)
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served,
+                         ask=lambda t, o, d: "none")
+    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0, "a gap the brain left open was absorbed anyway"
+    assert str(ws["U12"].fill.fgColor.rgb).endswith("FFC7CE")
+    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC7CE")
+    assert not w.log.get("written"), w.log.get("written")
+    # no brain: today's law stands — two equally uncertain inputs, guess nothing
+    wb, ws = build()
+    w = Writer(wb)
+    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
+    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0
+    print("PASS test_the_roll_base_backout_asks_the_brain_where_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

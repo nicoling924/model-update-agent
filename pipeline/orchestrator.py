@@ -2180,7 +2180,36 @@ def terminal_ladder(loop, log):
             conf = (0 if (rgb.endswith("FFC7CE") or held_at_prior)
                     else 2 if rgb.endswith("FFC000") else 1)
             sites.append((conf, -abs(v), sh, coord))
-        for _c, _v, sh, coord in sorted(sites)[:8]:
+        # THE RUNG IS THE BRAIN'S AND SO IS THE SITE (run 34993405014: the
+        # brain answered 'plug' on the balance card, code chose the landing
+        # site by its own ranking — Final!AI87, a cell the brain had twice
+        # refused — and 2026E cash went to -966). Code still measures which
+        # inputs the check is built from and how confident each one is; WHERE
+        # the residual lands is the brain's call, with code's ranking as the
+        # default it keeps when no answer comes.
+        ordered = sorted(sites)
+        _ask = getattr(loop, "ask", None)
+        if _ask is not None and len(ordered) > 1:
+            _card = [f"CARD PLUG {sheet}!{tcol}{row}",
+                     f"  {sheet}!{tcol}{row} is off {resid:+,.1f} after every evidence fix and every card; the plug "
+                     "is the last resort and it has already been chosen. WHERE should the residual land?",
+                     "  the inputs this check is built from, least confident first (code's ranking) — the home is yours:"]
+            _opts = {}
+            for _i, (_cf, _nv, _sh, _co) in enumerate(ordered):
+                _r = int(re.sub(r"[A-Z]", "", _co))
+                _lab = str(loop.wb[_sh].cell(_r, 1).value or "")[:30]
+                _what = ("red, or still held at last year's figure" if _cf == 0
+                         else "this run's own orange back-out" if _cf == 2 else "plain, unproven")
+                _card.append(f"    site:{_i + 1}: {_sh}!{_co} '{_lab}' = {-_nv:,.2f} — {_what}")
+                _opts[f"site:{_i + 1}"] = f"land the residual in {_sh}!{_co} '{_lab}'"
+            _opts["site:code"] = "no preference — take code's ranking in the order shown"
+            _card.append("  answers: " + ", ".join(_opts))
+            _pick = _ask("\n".join(_card), _opts, "site:code")
+            log(f"[queue] PLUG {sheet}!{tcol}{row} -> {_pick}")
+            if _pick in _opts and _pick != "site:code":
+                _j = int(_pick.split(":")[1]) - 1
+                ordered = [ordered[_j]] + [x for _k, x in enumerate(ordered) if _k != _j]
+        for _c, _v, sh, coord in ordered[:8]:
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
                  "why": ("terminal ladder: the loop ended with this "

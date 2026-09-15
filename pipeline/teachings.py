@@ -570,8 +570,22 @@ def _fc_resids_of(wb, spec, target_year):
     return out
 
 
+def _ask_site(ask, card, options, log, ref):
+    """One card to the brain, its answer said in the log. No answer, or an
+    ask that fails (said out loud, never swallowed), leaves code's own
+    ranking exactly as it was."""
+    try:
+        pick = ask(card, options, "site:code")
+    except Exception as ex:  # noqa: BLE001
+        log(f"[queue] PLUG {ref}: the brain could not answer ({type(ex).__name__}: {str(ex)[:80]}) "
+            "— code's own ranking stands")
+        return "site:code"
+    log(f"[queue] PLUG {ref} -> {pick}")
+    return pick if pick in options else "site:code"
+
+
 def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
-                         served=None):
+                         served=None, ask=None):
     """THE ROLL-BASE CONSISTENCY LAW (owner ruling 2026-09-01, the flat-
     forecast-gap autopsy — and the mechanization of the standing
     checklist line "roll-forward bases re-anchored to actual closings").
@@ -774,7 +788,60 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                 ranked = sorted(live, key=lambda x: _conf(x[0]))
                 low = _conf(ranked[0][0])
                 cands = [x for x in live if _conf(x[0]) == low]
-                if low >= 3:
+                # WHERE THE GAP IS ABSORBED IS THE BRAIN'S CALL (run
+                # 34993405014: this back-out fired 14 times and wrote over the
+                # brain's own rulings on Driver!AI37 and Final!AI87 — code
+                # ranked the roll's inputs by confidence and took the decision
+                # itself). Code still proves which inputs the roll responds to,
+                # how confident each is and what the gap is; the brain says
+                # where it belongs, once per row, and the ruling stands for
+                # the rest of the run. A PROVEN input is never offered.
+                movable = [x for x in live if _conf(x[0]) < 3]
+                if ask is not None and movable:
+                    _key = f"{sheet}!{r}"
+                    _rulings = writer.log.setdefault("rollbase_rulings", {})
+                    _pick = _rulings.get(_key)
+                    if _pick is None:
+                        _card = [f"CARD PLUG {sheet}!{fcs[0]}{r}",
+                                 f"  {sheet}!{r}: the typed actual is {h:,.1f}, but the row's own forecast formula "
+                                 f"pointed back one year reproduces only {got:,.1f} — the roll base is off {gap:+,.1f}, "
+                                 "so every forecast year is born wrong by that constant.",
+                                 "  the inputs the roll actually responds to (a proven one is not offered — it is never "
+                                 "backed out); WHERE does the gap belong?"]
+                        _opts = {}
+                        for _i, ((_sh2, _c2, _r2, _v2, _pv2), _cf2) in enumerate(movable):
+                            _lab2 = str(wb[_sh2].cell(_r2, 1).value or "")[:30]
+                            _cf = _conf((_sh2, _c2, _r2, _v2, _pv2))
+                            _what = ("red, or still held at last year's figure" if _cf == 0
+                                     else "this run's own orange back-out" if _cf == 2 else "plain, unproven")
+                            _card.append(f"    site:{_i + 1}: {_sh2}!{_c2}{_r2} '{_lab2}' = {_v2:,.2f} "
+                                         f"(last year {_pv2 if not isinstance(_pv2, (int, float)) else f'{_pv2:,.2f}'}) — {_what}")
+                            _opts[f"site:{_i + 1}"] = (f"back the {gap:+,.1f} out of {_sh2}!{_c2}{_r2} '{_lab2}' "
+                                                       "as a traceable formula — orange, trued up when disclosed")
+                        _opts["none"] = ("absorb it nowhere — flag these inputs red and leave the gap for the analyst "
+                                         "(the right answer when the roll is missing a flow the model does not carry)")
+                        _opts["site:code"] = ("no preference — take code's own ranking: the least confident input, "
+                                              "or nothing at all if several are equally uncertain")
+                        _card.append("  answers: " + ", ".join(_opts))
+                        _pick = _ask_site(ask, "\n".join(_card), _opts, log, f"{sheet}!{fcs[0]}{r}")
+                        _rulings[_key] = _pick
+                    if _pick == "none":
+                        for (_sh2, _c2, _r2, _v2, _pv2), _cf2 in movable:
+                            writer.flag_ref(f"{_sh2}!{_c2}{_r2}", "red",
+                                            (f"An input of the {sheet}!{r} roll, which misses its typed actual by "
+                                             f"{gap:+,.0f}; left open by the brain's judgment rather than backed out "
+                                             "— please check."))
+                        log(f"[run]   roll-base: {sheet}!{r} — the brain left the {gap:+,.0f} gap open; "
+                            "inputs flagged, nothing guessed")
+                        cands, low = [], -1
+                    elif isinstance(_pick, str) and _pick.startswith("site:") and _pick != "site:code":
+                        _j = int(_pick.split(":")[1]) - 1
+                        if 0 <= _j < len(movable):
+                            cands = [movable[_j]]
+                            low = _conf(movable[_j][0])
+                if not cands:
+                    pass
+                elif low >= 3:
                     log(f"[run]   roll-base: {sheet}!{r} — every input of "
                         "the roll is proven, yet the roll misses the typed "
                         "actual: a flow is missing from the model's own "
