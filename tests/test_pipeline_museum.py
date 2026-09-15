@@ -6808,6 +6808,32 @@ def test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16():
 
 
 
+def test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16():
+    """Reviewer 2026-09-16: the ladder called the brain directly while the
+    roll-base card went through _ask_site's try/except — so an answerer that
+    RAISED aborted the last rung that guarantees 'back out, mark, still
+    deliver'. Both cards go through the same door: the fault is said, code's
+    own ranking stands, the check still closes."""
+    from pipeline.orchestrator import terminal_ladder
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": 109.0, "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    lp = _loop(wb, _spec_tiny())
+    lp.writer.plugs_allowed = True
+
+    def boom(text, options, default):
+        raise RuntimeError("the brain died mid-card")
+    lp.ask = boom
+    logs = []
+    n = terminal_ladder(lp, logs.append)
+    assert n == 1, (n, logs)
+    assert lp._failing_target_checks() == [], "the ladder never finished"
+    assert wb["S"]["U4"].value == 169.0, wb["S"]["U4"].value
+    assert any("could not answer" in x and "RuntimeError" in x for x in logs), logs
+    print("PASS test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

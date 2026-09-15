@@ -2205,8 +2205,12 @@ def terminal_ladder(loop, log):
                 _opts[f"site:{_i + 1}"] = f"land the residual in {_sh}!{_co} '{_lab}'"
             _opts["site:code"] = "no preference — take code's ranking in the order shown"
             _card.append("  answers: " + ", ".join(_opts))
-            _pick = _ask("\n".join(_card), _opts, "site:code")
-            log(f"[queue] PLUG {sheet}!{tcol}{row} -> {_pick}")
+            from .teachings import _ask_site
+            # one door for both cards (reviewer 2026-09-16: an answerer that
+            # RAISES took the whole ladder down with it, and the ladder is the
+            # rung that guarantees delivery) — a failed ask is said in the log
+            # and code's own ranking stands
+            _pick = _ask_site(_ask, "\n".join(_card), _opts, log, f"{sheet}!{tcol}{row}")
             if _pick in _opts and _pick != "site:code":
                 # THE NAMED SITE IS THE ONLY SITE (reviewer 2026-09-16: moving
                 # the brain's choice to the front still walked on to the sites
