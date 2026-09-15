@@ -264,7 +264,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             face = loop.ledger.face(it.doc, it.page)
             out.append({"value": val, "doc": it.doc, "page": it.page,
                         "line": str(it.label)[:60], "face": face or "no-face",
-                        "tie_off": 0.5,
+                        "tie_off": 0.5, "noun_proven": True,
                         "warnings": ["✔ LAST YEAR'S report prints the model's prior under this "
                                      "label — the item's own name; this year's line under it"]})
     # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
@@ -325,8 +325,11 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
                 warns.append("✔ the sentence's own growth/prior implies LAST year = the model's prior")
         if noun_tied:
             warns.append("✔ LAST YEAR'S report states this same item at the model's prior — the noun is proven")
+            noun_proven_flag = True
+        else:
+            noun_proven_flag = False
         out.append({"value": val, "doc": it.doc, "page": it.page,
-                    "line": str(it.label)[:60], "face": "prose",
+                    "line": str(it.label)[:60], "face": "prose", "noun_proven": noun_proven_flag,
                     "tie_off": (0.0 if any(w.startswith("✔") for w in warns) else 9.0),
                     "warnings": warns})
     seen, uniq = set(), []
@@ -899,6 +902,7 @@ def render_card(loop, item):
                 "nil": bool(c.get("nil")),
                 "flag": "red" if c.get("no_prior") else None,
                 "no_prior": bool(c.get("no_prior")),
+                "noun_proven": bool(c.get("noun_proven")),
                 "card": "sense" if item.kind == "SENSE" else None,
                 "why": f"p{c['page']}: '{c['line'][:40]}' ({c['doc'][:28]}) "
                        f"— {'sense-check review' if item.kind == 'SENSE' else 'card-adjudicated'}"

@@ -566,11 +566,18 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     keys = [k for k in (spec.get("key_rows") or [])
             if k.get("sheet") in wb.sheetnames and isinstance(k.get("row"), int)]
     # ---- 4. look here -------------------------------------------
+    restated = list(extra.get("restatements") or [])
+    if restated:
+        sect(f"Restated comparatives ({len(restated)}) — this year's report prints last year differently from your model")
+        for ln in restated[:40]:
+            cell(r, 1, str(ln)[:160]); r += 1
+        r += 1
     sect("2 · Look here")
     n_items = 0
     sense = [s for s in (extra.get("sense_rows") or []) if isinstance(s, dict)]
+    ending = [s for s in sense if s.get("stage") == "ending"]
     final = [s for s in sense if s.get("stage") == "final"]
-    shown = final if final else sense
+    shown = ending if ending else (final if final else sense)
     seen = set()
     for s in shown:
         if s.get("name") in seen:

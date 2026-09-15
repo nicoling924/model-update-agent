@@ -2539,3 +2539,23 @@ vs the prior agent file, unhighlighted 0. docs/MORNING_REPORT_2026-09-15.md hold
   pick is taken back only on the arithmetic (a check opened, the balance worse); a negative cash after a
   pick is the NEXT objective, not a veto (a correct input may expose a wrong one elsewhere).
 Museum 245, bench green; floors CLP clean 8/8, DFE FY25 clean, DFE 1H25 rounding. Not yet proven live.
+
+## 2026-09-15 (evening) — restatement, both situations; the brain's own derivation route on every card
+- Restatement test (owner: "either it sees 'restated', or the 2024 number in 2025's report does not match the
+  2024 number in 2024's report"): the table reader carries the word (any language) into the column name;
+  `writegate.restated_comparative` = the word on the column OR last year's report printing the same name at a
+  figure that differs from this year's comparative. Situation 1 (analyst keeps the model): this year's figure
+  under the proven name lands CLEAN (owner: no unnecessary orange), the model's history untouched, the
+  restatement listed on the report page ("Restated comparatives"). Without either signal a contradicting
+  comparative is still refused as another item. Situation 2 (RESTATE=1, only when asked): `restate.py` maps
+  the model's unrestated prior to this year's restated comparative through last year's names, writes it into
+  the prior column clean (a formula prior is never touched; disagreeing documents restate nothing), then the
+  update maps this year against the restated priors.
+- `derive:via <cell>`: the brain names its own formula cell on any card; one tool (`t_derive`) solves against
+  that cell's proven figure and verifies; refused when nothing is proven there, asked once more without it.
+- The consequence card: every way previewed (balance, keys, cash/assets) with plug rows lifted; the key tie
+  proposes but never places with a LIVE brain (`absorbers="none"` keyed on the client, not on a replay
+  answerer — a floor lost its automatic key tie when it was keyed on "an answerer exists"); a negative cash
+  after a pick is the next objective, never a veto; beyond the next two periods a watch for the analyst.
+- The report's "Look here" shows the ending loop's verdicts first.
+Museum 249, bench green; floors CLP clean 8/8, DFE FY25 clean, DFE 1H25 rounding. Not yet proven live.

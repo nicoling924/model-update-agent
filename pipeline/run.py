@@ -124,6 +124,10 @@ RUN_TARGET_S = 60 * 60      # the owner's acceptance criterion: one run, one hou
 FINISH_MARGIN_S = 3 * 60    # gate loop + report + save, measured ~1 min on run 250
 
 
+import os as _os_mod
+_os_env = _os_mod.environ
+
+
 def update(company_dir, period, target_year, client=None, loop_budget=60,
            log=print, stage4_mode=None, stage4_answerer=None,
            pinned_ledger=None, pinned_served=None):
@@ -398,6 +402,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     known = targets_mod.known_prior_values(targets)
     log(f"[run] census: {len(targets)} target rows, {len(known)} priors")
     docs = _disclosures(company_dir, period)
+    _restate = str(_os_env.get("RESTATE", "")).strip().lower() in ("1", "true", "yes")
     if not docs:
         raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
     if pinned_ledger:
@@ -452,6 +457,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
             f"current-year values: {sorted(_ban)}")
+    if _restate:
+        # RESTATE (owner 2026-09-15, only when asked): the prior column is first
+        # mapped to this year's restated comparatives through last year's names;
+        # this year's figures then map against the restated priors
+        try:
+            from .restate import restate_prior_column
+            restate_prior_column(wb, wb_values, spec_d, target_year, ledger, {t.key: t for t in targets}, writer, log)
+            known = targets_mod.known_prior_values(targets)
+        except Exception as _e_rs:
+            log(f"[run] restate STAGE LOST: {_e_rs!r}")
+            run_log.append(f"[run] restate STAGE LOST: {_e_rs!r}")
 
     # -- Stage 2 (pure code): statement faces, then bound non-statement
     # tables (the Driver/MD&A path — council two-level binding)
@@ -1161,7 +1177,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         key_tie(wb, spec_d, target_year, writer,
                 company_dir / "replay" / str(period) / "key_panel.json",
                 log, ledger=ledger, panel=_key_panel,
-                absorbers=("none" if (client is not None or stage4_answerer is not None) else "any"))
+                absorbers=("none" if client is not None else "any"))
         err_guard("key tie")
         collapse_guard("key tie")
         # THE PRINTED-SUBTOTAL LAW (owner 2026-09-04): current assets,
@@ -1233,7 +1249,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             from .keytie import key_tie as _kt_again
             _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
                       ledger=ledger, panel=_key_panel,
-                      absorbers=("none" if (client is not None or stage4_answerer is not None) else "any"))
+                      absorbers=("none" if client is not None else "any"))
         n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
         if n_rb2:
             err_guard(f"roll-base {tag}")
@@ -1473,6 +1489,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                               extra={"key_ties": _key_ties_for_report,
                                      "sense_check": writer.log.get("sense_check", []),
                                      "sense_rows": list(writer.log.get("sense_rows", [])),
+                                     "restatements": list(writer.log.get("restatements", [])),
                                      "period": str(period),
                                      "elapsed_min": (_time.monotonic() - _run_t0) / 60.0,
                                      "provenance": {f"{sh_}!{r_}": {k_: e_.get(k_) for k_ in

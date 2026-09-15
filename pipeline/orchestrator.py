@@ -1407,7 +1407,27 @@ class ObjectiveLoop:
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
             claimed_keys(self.served), holders,
-            held_proven=_is_proven((self.served or {}).get((sheet, row))))
+            held_proven=_is_proven((self.served or {}).get((sheet, row))),
+            all_items=self.ledger.items)      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
+        if verdict == "ALLOW" and "RESTATED" in law_reason:
+            # the restatement is a fact for the report page, not a paint on the cell;
+            # the page prints the RESTATED prior, so "prior not corroborated" does not apply
+            self.writer.log.setdefault("restatements", []).append(f"{ref}: {law_reason} — {why[:80]}")
+            args = dict(args); args["flag"] = None
+            why = "RESTATED COMPARATIVE noted on the report — " + why.split(" [prior NOT corroborated")[0]
+        if verdict == "REFUSE" and "comparative contradicts" in law_reason and args.get("noun_proven"):
+            # THE RESTATEMENT (owner 2026-09-15): the model's 2024 is 100, last
+            # year's report prints 100 under this name, this year's report prints
+            # the same name at 200 with 2024 restated to 120. The name is proven
+            # through last year's report, so the contradicting comparative is a
+            # restatement, not another item: the figure lands ORANGE with the
+            # restated comparative in its note; the model's history is untouched
+            verdict, forced_flag = "ALLOW", None
+            law_reason = "the name is proven through last year's report; this year's line restates the comparative"
+            self.writer.log.setdefault("restatements", []).append(
+                f"{ref}: this year's line prints last year at a different figure than the model ({pv_cell:,.2f}); name proven through last year's report")
+            args = dict(args); args["flag"] = None
+            why = "RESTATED COMPARATIVE noted on the report — " + why.split(" [prior NOT corroborated")[0]
         if args.get("nil") and value == 0 and isinstance(pv_cell, (int, float)):
             # THE BRAIN JUDGED A BLANK LINE THE SAME ITEM (owner 2026-09-08):
             # code's part is the prior tie — the line must print last
@@ -1456,7 +1476,7 @@ class ObjectiveLoop:
             evicted = self._evict_claim(round(abs(value), 1), holders, ref)
             verdict = "ALLOW"
         proven = verdict == "ALLOW"
-        flag = "red" if (forced_flag == "red" or args.get("flag")) else None
+        flag = forced_flag if forced_flag in ("red", "orange") else ("red" if args.get("flag") else None)
         if forced_flag == "red":
             why = "UNPROVEN (no prior tie) — " + why
         before_card = self._card()

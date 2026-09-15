@@ -5727,6 +5727,97 @@ def test_consequences_are_measured_and_cash_stays_positive_2026_09_15():
     print("PASS test_consequences_are_measured_and_cash_stays_positive_2026_09_15")
 
 
+def test_a_restated_comparative_is_mapped_through_last_years_report_2026_09_15():
+    """Owner 2026-09-15: "Sales 2024 is 1000 in the model and in the 2024
+    report; the 2025 report restates 2024 to 1200 and prints 2000 for 2025.
+    The agent matches the model's 1000 to last year's line, takes its name,
+    and reads this year's line of that name: 2000." The name proven through
+    last year's report makes the contradicting comparative a restatement,
+    not another item: 2000 lands ORANGE with the restated 2024 in its note;
+    the model's 2024 stays 1000."""
+    from pipeline.ledger import Ledger, Item
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow
+    from pipeline.workqueue import candidates_for
+    wb = _wb({"A2": "Sales of electricity", "T2": 1000.0, "U2": 1000.0, "A3": "Operating costs", "T3": 800.0, "U3": 800.0, "A4": "Staff costs", "T4": 400.0, "U4": 400.0})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
+    led = Ledger()
+    led.add(Item(doc="e_2024.pdf", page=5, table_id=1, row_ord=1, label="Sales of electricity", nums=[1000.0, 900.0], source_line="Sales of electricity 1000 900", table_kind="period", columns=["FY2024", "FY2023"]))
+    led.add(Item(doc="e_2024.pdf", page=5, table_id=1, row_ord=2, label="Operating costs", nums=[800.0, 700.0], source_line="Operating costs 800 700", table_kind="period", columns=["FY2024", "FY2023"]))
+    led.add(Item(doc="T.PDF", page=5, table_id=1, row_ord=1, label="Sales of electricity", nums=[2000.0, 1200.0], source_line="Sales of electricity 2000 1200", table_kind="period", columns=["FY2025", "FY2024"]))
+    led.add(Item(doc="T.PDF", page=5, table_id=1, row_ord=2, label="Operating costs", nums=[900.0, 800.0], source_line="Operating costs 900 800", table_kind="period", columns=["FY2025", "FY2024"]))
+    led.add(Item(doc="T.PDF", page=5, table_id=1, row_ord=3, label="Staff costs", nums=[600.0, 400.0], source_line="Staff costs 600 400", table_kind="period", columns=["FY2025", "FY2024"]))
+    led.doc_meta = {"e_2024.pdf": {}, "T.PDF": {}}
+    led._doc_periods = {"e_2024.pdf": "prior", "T.PDF": "current"}; led.stamp_vintages()
+    class NoClient:
+        def json(self, *a, **k): raise AssertionError("no LLM")
+    targets = [TargetRow("S", 2, "Sales of electricity", 1000.0), TargetRow("S", 3, "Operating costs", 800.0), TargetRow("S", 4, "Staff costs", 400.0)]
+    lp = ObjectiveLoop(wb, spec, "2025", led, targets, {}, Writer(wb), NoClient())
+    lp.writer.flag_ref("S!U2", "red", "STALE INPUT")
+    cands = candidates_for(lp, "S", 2)
+    c200 = next((c for c in cands if abs(c["value"] - 2000.0) < 0.01), None)
+    assert c200 is not None and c200.get("noun_proven"), cands            # last year's report gives the name; this year's line gives 200
+    r = lp.t_set_input({"cell": "S!U2", "value": 2000.0, "why": "p5: 'Sales of electricity' — card-adjudicated", "noun_proven": True})
+    assert not r.startswith(("REFUSED", "REVERTED")), r
+    assert wb["S"]["U2"].value == 2000.0 and wb["S"]["T2"].value == 1000.0
+    # clean, not orange (owner 2026-09-15: mapped from the print); the restatement is a fact for the report page
+    assert not str(wb["S"]["U2"].fill.fgColor.rgb).endswith(("FFC000", "FFC7CE")), wb["S"]["U2"].fill.fgColor.rgb
+    assert lp.writer.log.get("restatements") and "S!U2" in lp.writer.log["restatements"][0]
+    # without last year's report as a witness and without the word, the same write is refused: a contradicting
+    # comparative is another item
+    wb["S"]["U2"] = 1000.0; lp.served.pop(("S", 2), None)
+    kept = [it for it in led.items if it.doc == "e_2024.pdf"]
+    led.items[:] = [it for it in led.items if it.doc != "e_2024.pdf"]
+    r2 = lp.t_set_input({"cell": "S!U2", "value": 2000.0, "why": "p5: 'Sales of electricity'"})
+    assert r2.startswith("REFUSED") and "comparative contradicts" in r2, r2
+    led.items[:] = led.items + kept
+    # the statement SAYS restated (owner 2026-09-15, any language): the brain's column name carries the word,
+    # and a comparative under it is a restatement — orange, never a refusal
+    led.items[:] = [it for it in led.items if it.doc != "e_2024.pdf"]          # no witness this time: the word alone
+    for it in led.items:
+        if it.doc == "T.PDF" and it.label == "Sales of electricity":
+            it.columns = ["FY2025", "FY2024 (restated)"]
+    lp.served.pop(("S", 2), None)
+    r3 = lp.t_set_input({"cell": "S!U2", "value": 2000.0, "why": "p5: 'Sales of electricity'"})
+    assert not r3.startswith("REFUSED") and wb["S"]["U2"].value == 2000.0 and not str(wb["S"]["U2"].fill.fgColor.rgb).endswith(("FFC000", "FFC7CE")), r3
+    assert len(lp.writer.log["restatements"]) >= 2
+    print("PASS test_a_restated_comparative_is_mapped_through_last_years_report_2026_09_15")
+
+
+def test_restating_the_prior_period_on_request_2026_09_15():
+    """Owner 2026-09-15, situation 2: "if we restate the previous period it
+    is similar to a usual update — map using the previous unrestated results,
+    then map with the restated previous-period results". Only when asked
+    (RESTATE=1): last year's report proves the name, this year's report
+    prints that name with a restated comparative, and the prior column is
+    rewritten to it, clean, listed on the report; a formula prior is never
+    touched; disagreeing documents restate nothing."""
+    from pipeline.ledger import Ledger, Item
+    from pipeline.restate import restate_prior_column
+    from pipeline.writer import Writer
+    from pipeline.targets import TargetRow
+    wb = _wb({"A2": "Sales of electricity", "T2": 1000.0, "U2": "=T2", "A3": "Operating costs", "T3": 800.0, "U3": "=T3",
+              "A4": "Staff costs", "T4": 400.0, "U4": "=T4", "A5": "Gross profit", "T5": "=T2-T3", "U5": "=U2-U3"})
+    wbv = _wb({"T2": 1000.0, "T3": 800.0, "T4": 400.0})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
+    led = Ledger()
+    for d, rows in (("e_2024.pdf", [("Sales of electricity", [1000.0, 900.0]), ("Operating costs", [800.0, 700.0]), ("Staff costs", [400.0, 300.0]), ("Gross profit", [200.0, 200.0])]),
+                    ("T.PDF", [("Sales of electricity", [2000.0, 1200.0]), ("Operating costs", [900.0, 800.0]), ("Staff costs", [600.0, 400.0]), ("Gross profit", [1100.0, 400.0])])):
+        for i, (lab, nums) in enumerate(rows):
+            led.add(Item(doc=d, page=5, table_id=1, row_ord=i + 1, label=lab, nums=nums, source_line="x", table_kind="period", columns=["FY2025", "FY2024"]))
+    led._doc_periods = {"e_2024.pdf": "prior", "T.PDF": "current"}; led.stamp_vintages()
+    targets = {("S", 2): TargetRow("S", 2, "Sales of electricity", 1000.0), ("S", 3): TargetRow("S", 3, "Operating costs", 800.0),
+               ("S", 4): TargetRow("S", 4, "Staff costs", 400.0), ("S", 5): TargetRow("S", 5, "Gross profit", 200.0)}
+    w = Writer(wb); logs = []
+    n = restate_prior_column(wb, wbv, spec, 2025, led, targets, w, logs.append)
+    assert n == 1 and wb["S"]["T2"].value == 1200.0 and wbv["S"]["T2"].value == 1200.0 and targets[("S", 2)].prior_value == 1200.0, (n, logs)
+    assert wb["S"]["T3"].value == 800.0 and wb["S"]["T5"].value == "=T2-T3"       # unchanged priors and formula priors stay
+    assert not str(wb["S"]["T2"].fill.fgColor.rgb).endswith(("FFC000", "FFC7CE"))      # clean: a restatement is an update, listed on the report
+    assert w.log["restatements"] and "1,000.00 -> 1,200.00" in w.log["restatements"][0]
+    print("PASS test_restating_the_prior_period_on_request_2026_09_15")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

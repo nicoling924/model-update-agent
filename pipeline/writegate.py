@@ -117,6 +117,47 @@ def ties_prior(item, scale, prior, value=None):
     return False
 
 
+_RESTATED = re.compile(r"restat|re-?present|reclassif|adjust|重述|重列|追溯|重新表述|經重列|经重列", re.I)
+
+
+def restated_comparative(item, value, scale=1.0, all_items=None):
+    """THE RESTATEMENT TEST (owner 2026-09-15: "either it sees 'restated', or
+    the 2024 number in 2025's report does not match the 2024 number in
+    2024's report — then there is a restatement; very simple").
+    (1) the comparative beside `value` sits under a column the brain named
+    restated (any language); or (2) last year's report prints the same-named
+    line with a current figure that differs from this line's comparative."""
+    if _meta(item, "table_kind") != "period":
+        return False
+    ns = [n for n in _nums(item) if isinstance(n, (int, float))]
+    cols = [str(c) for c in (_meta(item, "columns") or [])]
+    ci = None
+    for i, n in enumerate(ns):
+        if _close(abs(n) / scale, abs(value)):
+            if cols and len(cols) == len(ns) and any(_RESTATED.search(c) for k, c in enumerate(cols) if k != i):
+                return True
+            ci = next((k for k in range(i + 1, len(ns)) if abs(ns[k]) <= 30 * abs(n) and abs(ns[k]) * 30 >= abs(n)), None)
+            break
+    if ci is None and cols and any(_RESTATED.search(c) for c in cols):
+        return True
+    if ci is None or not all_items:
+        return False
+    comp = abs(ns[ci]) / scale
+    from .numerics import norm_label
+    me = norm_label(str(_meta(item, "label") or ""))
+    for it in all_items:
+        if _sourceable(it) or _meta(it, "table_kind") == "matrix" or getattr(it, "channel", "") == "prose":
+            continue                                    # last year's report only, its statement lines
+        if norm_label(str(_meta(it, "label") or "")) != me:
+            continue
+        theirs = [n for n in _nums(it) if isinstance(n, (int, float))]
+        if not theirs:
+            continue
+        if not _close(abs(theirs[0]), comp) and abs(theirs[0]) >= 1:
+            return True                                 # same name, last year's own figure ≠ this year's comparative
+    return False
+
+
 def contradicts_prior(item, scale, prior, value):
     """THE COMPARATIVE CONTRADICTS (owner 2026-09-14, CLP Ecogen: 'Hong
     Kong number 5,484 | 5,397' was written into a row whose last year is
@@ -212,7 +253,7 @@ def claimed_keys(served):
     return out
 
 
-def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False):
+def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False, all_items=None):
     """Returns (verdict, reason, forced_flag).
     verdict: ALLOW | ALLOW_FLAGGED | REFUSE | EVICT.
 
@@ -264,6 +305,10 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
                 "another cell — one row, one claim", None)
     if isinstance(prior, (int, float)) and abs(prior) >= 1 \
             and all(contradicts_prior(it, s, prior, value) for it, s in free):
+        if any(restated_comparative(it, value, s, all_items) for it, s in free):
+            return ("ALLOW",
+                    "RESTATED comparative: this year's figure under the same name, last year restated away from "
+                    f"the model's {prior:,.2f} — proven by the print, the model's history untouched", None)
         return ("REFUSE",
                 "every line printing this value shows a DIFFERENT last-year "
                 f"figure beside it — the model's last year is {prior:,.2f}; "

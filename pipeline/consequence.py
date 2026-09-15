@@ -529,7 +529,10 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                 if kind == "check":
                     from .orchestrator import terminal_ladder
                     terminal_ladder(loop, log)
-                # a forecast-year check or a key: the repairs (forecast plugs, the key tie) re-solve below
+                elif kind == "key":
+                    from .keytie import key_tie as _kt
+                    _kt(wb, spec, ty, writer, panel_path, log, ledger=loop.ledger, panel=key_panel, absorbers="any")
+                # a forecast-year check: the repairs (forecast plugs) re-solve below
             elif pick == "question":
                 log(f"[queue] CONSEQUENCE {sheet}!{coord} -> question")
                 writer.flag_ref(f"{sheet}!{coord}", "red", f"OPEN, by the brain's judgment: {obj[4]} — a question for the analyst"

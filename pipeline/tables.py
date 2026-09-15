@@ -47,7 +47,11 @@ header lines and, when the header is missing, from the rows themselves
 
 For "periods" and "grid", name each column's period exactly as the document
 means it, in the form FY2025, FY2024, 1H2025, 2H2024, 3Q2025, and for a grid
-also the segment or category, e.g. "Hong Kong FY2025". For the other kinds
+also the segment or category, e.g. "Hong Kong FY2025". If a column is marked
+as restated, re-presented, reclassified or adjusted in any language (restated,
+重述, 重列, 追溯调整, 經重列, 重新表述 …), add the word "restated" to that
+column's name, e.g. "FY2024 restated" — the model's history was built from the
+original figures, and the reader must know the comparative moved. For the other kinds
 name each column in the document's own words. Columns are counted left to
 right over the NUMBER columns only (the row label is not a column). If a
 table has a single numeric column say so with one column. If the rows you
