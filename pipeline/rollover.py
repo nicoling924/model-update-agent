@@ -253,7 +253,10 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
     for w in writes_all or []:
         s, c, old = w[0], w[1], w[2]
         first_old.setdefault((s, c), old)
-    leaves = set(leaf_fn(sheet, target))
+    # the model's own order, deduped — a SET's order is the interpreter's, and
+    # the card shows the head of this list (2026-09-16: two runs of the same
+    # ledger offered different 5th options on the ROLLOVER cards)
+    leaves = list(dict.fromkeys(leaf_fn(sheet, target)))
     # THE RESIDUAL DISCOUNT (run-229 autopsy): the model's own residual
     # rows (=total - SUM(parts), 'Others') absorb whatever does not add
     # up, and the forecast copies the residual forward — so reverting
@@ -318,8 +321,15 @@ def dossier(wb, spec, target_year, sheet, row, old_f, writes_all, leaf_fn,
                       "share": share, "share_x": share_x,
                       "via_residual": bool(residuals) and abs(share - share_x) > 0.15,
                       "prov": prov, "proven": proven})
-    cands.sort(key=lambda d: (-d["share_x"], -d["share"]))
+    cands.sort(key=lambda d: (-d["share_x"], -d["share"], d["sheet"], _row_of(d["coord"]), d["coord"]))
     return cands[:max_inputs]
+
+
+def _row_of(coord):
+    """The row number of a coordinate — the model's own order within a sheet."""
+    import re as _re2
+    m = _re2.match(r"^[A-Z]{1,3}(\d+)$", str(coord))
+    return int(m.group(1)) if m else 0
 
 
 def residual_cells(wb, spec, target_year, max_row=300):

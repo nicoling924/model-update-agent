@@ -6671,6 +6671,14 @@ def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
         chosen.append(tuple(str(wb["S"][c].value) for c in ("U3", "U4")))
     assert chosen[0] == chosen[1], f"the reading order chose the absorber: {chosen}"
     assert chosen[0][0] != "40.0" and chosen[0][1] == "40.0", chosen
+    # the same law on the rollover dossier: its leaves were a set too, and the
+    # card shows the head of that list (two floor runs offered different 5th
+    # options on the ROLLOVER cards while agreeing on everything else)
+    import inspect
+    from pipeline import rollover as _ro
+    src = inspect.getsource(_ro.dossier)
+    assert "dict.fromkeys(leaf_fn" in src and "set(leaf_fn" not in src, "the dossier still reads a set"
+    assert '_row_of(d["coord"])' in src, "the dossier's ranking is not total"
     print("PASS test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16")
 
 
