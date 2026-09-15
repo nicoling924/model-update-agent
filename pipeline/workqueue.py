@@ -99,7 +99,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     from .stage2_join import ratify_page_scales, _tying_pairs, _world_tol
     pv, t = _prior_of(loop, sheet, row)
     if pv is None or pv == 0:
-        return _label_only_candidates(loop, sheet, row, t, k)
+        return _reader_first(loop, sheet, row, _label_only_candidates(loop, sheet, row, t, k))
     p2 = getattr(t, "prior2_value", None) if t is not None else None
     periods = getattr(loop.ledger, "_doc_periods", None) or {}
     # WIDER than join_pool (face authority relaxed): a card is a judged
@@ -346,13 +346,33 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             continue
         seen.add(key)
         uniq.append(c)
-    sug = (getattr(loop.ledger, "reader_suggestions", None) or {}).get(f"{sheet}!{row}")
-    if isinstance(sug, dict) and not any(abs(abs(c.get("value") or 0) - abs(sug["value"])) <= 0.6 for c in uniq):
-        uniq.append({"value": sug["value"], "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
-                     "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0, "no_prior": True,
-                     "warnings": ["the reader's suggestion: no prior tie, and the line is not named like the row — "
-                                  "judge whether this is the item (it lands red)"]})
+    uniq = _reader_first(loop, sheet, row, uniq)
     return uniq if k is None else uniq[:k]
+
+
+def _reader_first(loop, sheet, row, cands):
+    """THE READER'S OWN READING GOES FIRST (run 34993405014: Final!16's card
+    offered a 250 MW battery and four tax lines; the reader had already read
+    'Other gain 460' off the P&L face with the check that closes the printed
+    operating profit, and its reading never reached the card at all). The
+    brain read the whole disclosure for this row — its answer is the first
+    thing the card shows, with the line it quoted and the check it stated."""
+    sug = (getattr(loop.ledger, "reader_suggestions", None) or {}).get(f"{sheet}!{row}")
+    if not isinstance(sug, dict) or not isinstance(sug.get("value"), (int, float)):
+        return cands
+    why = str(sug.get("check") or sug.get("reason") or "").strip()
+    note = ("OPTION A IS THE READER'S OWN READING of this row from the whole disclosure — "
+            f"the reader's suggestion, quoted from p{sug['page']} '{str(sug['line'])[:44]}'"
+            + (f"; its check: {why[:120]}" if why else "")
+            + " — no prior tie, and the line is not named like the row: judge whether this is "
+              "the item (it lands red)")
+    same = next((c for c in cands if abs(abs(c.get("value") or 0) - abs(sug["value"])) <= 0.6), None)
+    if same is not None:
+        same["warnings"] = [note] + list(same.get("warnings") or [])
+        return [same] + [c for c in cands if c is not same]
+    return [{"value": float(sug["value"]), "doc": sug["doc"], "page": sug["page"], "line": sug["line"],
+             "face": loop.ledger.face(sug["doc"], sug["page"]) or "no-face", "tie_off": 9.0,
+             "no_prior": True, "warnings": [note]}] + list(cands)
 
 
 def _label_only_candidates(loop, sheet, row, t, k=MAX_CANDS):

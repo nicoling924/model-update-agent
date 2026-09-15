@@ -6303,6 +6303,36 @@ def test_the_check_terms_are_read_as_printed_2026_09_16():
 
 
 
+def test_the_readers_reading_is_option_A_with_its_check_2026_09_16():
+    """Run 34993405014: the SERVE card for Final!16 'Other Income, net'
+    offered a 250 MW battery, two tax lines and a finance-cost line; the
+    reader had already read 'Other gain 460' off the P&L face and stated the
+    check that closes the printed operating profit — and the card never
+    showed it (a row with no prior returned from the label-only generator,
+    which never looked at the reader's reading). The reader's value, the line
+    it quoted and its check are option A on the card."""
+    from pipeline.workqueue import candidates_for
+    wb = _wb({"A2": "Other Income, net", "T2": 300.0, "A3": "Other Income, net (never filled)"})
+    lp = _loop(wb, _spec_tiny())
+    for it in _clp_p23_items():
+        lp.ledger.add(it)
+    lp.ledger._doc_periods = {DOC: "current"}
+    lp.ledger.reader_suggestions = {
+        "S!2": {"value": 460.0, "doc": DOC, "page": 23, "line": "Other gain",
+                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"},
+        "S!3": {"value": 460.0, "doc": DOC, "page": 23, "line": "Other gain",
+                "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"}}
+    for sheet_row, prior in (("S!2", 2), ("S!3", 3)):
+        cands = candidates_for(lp, "S", int(sheet_row.split("!")[1]))
+        assert cands, f"{sheet_row}: no candidates at all"
+        a = cands[0]
+        assert abs(a["value"] - 460.0) < 1e-6, f"{sheet_row}: the reader's reading is not option A: {[c['value'] for c in cands[:4]]}"
+        assert a.get("no_prior") and "reader's suggestion" in a["warnings"][0], a["warnings"]
+        assert "14,272" in a["warnings"][0], "the check the reader stated must be on the card"
+    print("PASS test_the_readers_reading_is_option_A_with_its_check_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

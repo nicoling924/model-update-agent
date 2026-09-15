@@ -516,8 +516,13 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                 # the suggestion is kept for the row's card (audit 2026-09-15: 'Other gain 460'
                 # and 'net exchange difference −352' were the analyst's own answers and never
                 # reached the brain) — the name is the brain's judgment, not code's
+                # the READING travels whole: the value, the line it was quoted from
+                # and the check the reader stated for it — the card shows all three
                 ledger.__dict__.setdefault("reader_suggestions", {})[rid] = {
-                    "value": value, "printed": locals().get("printed_value", value), "doc": item.doc, "page": page, "line": str(item.label)[:60]}
+                    "value": value, "printed": locals().get("printed_value", value), "doc": item.doc,
+                    "page": page, "line": str(item.label)[:60],
+                    "check": str(a.get("check") or "")[:160],
+                    "reason": str(a.get("reason") or "")[:160]}
                 continue
             out[rid] = {"value": value, "conf": 3, "flag": "red",
                         "note": (f"Read from the disclosure (p{page} '{str(item.label)[:30]}'); the printed "
