@@ -28,11 +28,13 @@ TOL_REL = 0.002          # 0.2% — keys tie the print or get backed out
 TOL_ABS = 1.0
 
 
-def _leaves(wb, sheet, coord, depth=0, seen=None):
+def _leaves(wb, sheet, coord, depth=0, seen=None, order=None):
     seen = seen if seen is not None else set()
     if depth > 6 or (sheet, coord) in seen or len(seen) > 300:
         return []
     seen.add((sheet, coord))
+    if order is not None:
+        order.append((sheet, coord))
     v = wb[sheet][coord].value if sheet in wb.sheetnames else None
     if not (isinstance(v, str) and v.startswith("=")):
         return [(sheet, coord)]
@@ -47,15 +49,36 @@ def _leaves(wb, sheet, coord, depth=0, seen=None):
         if sh in wb.sheetnames and m.group(3) == m.group(5):
             r1, r2 = int(m.group(4)), int(m.group(6))
             for rr in range(min(r1, r2), max(r1, r2) + 1):
-                out += _leaves(wb, sh, f"{m.group(3)}{rr}", depth + 1, seen)
+                out += _leaves(wb, sh, f"{m.group(3)}{rr}", depth + 1, seen, order)
     txt = re.sub(r"[A-Z]{1,3}\d+:[A-Z]{1,3}\d+", " ", txt)
     for m in re.finditer(r"(?:(?:'([^']+)'|([A-Za-z0-9_][A-Za-z0-9 _]*))!)?"
                          r"([A-Z]{1,3})(\d+)", txt):
         sh = (m.group(1) or m.group(2) or sheet).strip()
         if sh in wb.sheetnames:
             out += _leaves(wb, sh, f"{m.group(3)}{m.group(4)}",
-                           depth + 1, seen)
+                           depth + 1, seen, order)
     return out or [(sheet, coord)]
+
+
+def _chain_cells(wb, sheet, coord):
+    """THE KEY'S CHAIN IN THE MODEL'S OWN READING ORDER (2026-09-16: the
+    absorber search read the chain out of a SET, whose iteration order is
+    the interpreter's hash order, so the same ledger absorbed 'total
+    liabilities and equity' into Final!AI80 on one run and Final!AI87 on
+    the next — a truncation then decided which of two equally ranked cells
+    was even probed). The chain is the formula's own order, first visit
+    first; the evidence keys decide the rest and the coordinate is the
+    final tiebreak, so nothing about the outcome depends on hashing.
+    -> [(sheet, coord)] deduped."""
+    seen, order = set(), []
+    _leaves(wb, sheet, coord, seen=seen, order=order)
+    return order
+
+
+def _cell_row(coord):
+    """The row number of a coordinate — the model's own order within a sheet."""
+    m = re.match(r"^[A-Z]{1,3}(\d+)$", str(coord))
+    return int(m.group(1)) if m else 0
 
 
 def _printed(ledger, v):
@@ -163,10 +186,8 @@ def _bridge_rows(wb, spec, target_year, sheet, key_coord, pcol,
     -> [(sheet, row, label)] or None."""
     from itertools import combinations
     tcol = year_columns(spec, sheet).get(str(target_year))
-    seen = set()
-    _leaves(wb, sheet, key_coord, seen=seen)
     rows = []
-    for (sh, coord) in seen:
+    for (sh, coord) in _chain_cells(wb, sheet, key_coord):
         m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
         if not m or (sh, coord) == (sheet, key_coord):
             continue
@@ -191,7 +212,7 @@ def _bridge_rows(wb, spec, target_year, sheet, key_coord, pcol,
                 lab = v.strip()[:30]
                 break
         rows.append((sh, int(m.group(2)), lab, pv, cv))
-    rows = sorted(rows, key=lambda x: -abs(x[3]))[:25]
+    rows = sorted(rows, key=lambda x: (-abs(x[3]), x[0], x[1]))[:25]
     tol_p = max(1.0, abs(d_prior) * 0.01)
     tol_c = max(1.0, abs(d_cur) * 0.01)
     for size in (1, 2, 3):
@@ -435,8 +456,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         # =AH14*(AI7/AH7) sums into the key through EBITDA), the
         # estimate-in-actual class first (formula over a hardcode
         # prior — the type violation), then by size
-        seen = set()
-        _leaves(wb, sheet, f"{tcol}{row}", seen=seen)
+        chain = _chain_cells(wb, sheet, f"{tcol}{row}")
         cands = []
         # THE ABSORBER IS THE LEAST CONFIDENT LEAF (owner 2026-09-10: "trace
         # the components within the formula and back out or plug the least
@@ -454,7 +474,9 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 for kk in key_rows:
                     if kk.get("name") == nm_t and _cell_of(kk):
                         tied_leaves |= leaf_sets.get(_cell_of(kk), set())
-        for (sh, coord) in seen - {(sheet, f"{tcol}{row}")}:
+        for (sh, coord) in chain:
+            if (sh, coord) == (sheet, f"{tcol}{row}"):
+                continue
             m = re.match(r"^([A-Z]{1,3})(\d+)$", coord)
             if not m or m.group(1) != year_columns(spec, sh).get(
                     str(target_year)):
@@ -523,7 +545,12 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 def _wrap(d, v=cv):
                     return f"=({v:g})-({d:.6g})"
             cands.append((rank, -abs(cv), sh, coord, f, _wrap))
-        for _r, _sz, sh, coord, f, _wrap in ([prev_c] if prev_c else []) + sorted(cands, key=lambda c: (c[0], c[1]))[:8]:
+        # the order is TOTAL: least confident first, then the larger figure,
+        # then the cell's own place in the model — two candidates equal on
+        # every piece of evidence are ordered by coordinate, never by the
+        # order they happened to be read in
+        for _r, _sz, sh, coord, f, _wrap in ([prev_c] if prev_c else []) + sorted(
+                cands, key=lambda c: (c[0], c[1], c[2], _cell_row(c[3]), c[3]))[:8]:
             # probe: the component absorbs the delta — either sign, since a
             # component may enter the key negatively (one-offs are deducted)
             old = wb[sh][coord].value

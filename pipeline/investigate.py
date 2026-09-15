@@ -46,6 +46,12 @@ def named_ref(text, wb):
     return out
 
 
+def _cell_row(coord):
+    """The row number of a coordinate — the model's own order within a sheet."""
+    m = re.match(r"^[A-Z]{1,3}(\d+)$", str(coord))
+    return int(m.group(1)) if m else 0
+
+
 def _refs(formula, sheet, wb, max_cells=400):
     """Direct references of a formula, ranges expanded in both directions
     (owner 2026-09-14, CLP: the Australia generation formula averages
@@ -210,7 +216,10 @@ def swing_leaves(wb, pre_wb, sheet, coord, stable=(), flagged=(), floor=0.05, de
             continue
         for sh, c, s_ in cs:
             todo.append(((sh, c), share * s_, d + 1, seen))
-    return sorted(out.items(), key=lambda kv: (0 if kv[0] in flagged else 1, -abs(kv[1])))
+    # a TOTAL order (2026-09-16): the caller keeps only the head of this list,
+    # so two leaves carrying the same share must not swap places between runs
+    return sorted(out.items(), key=lambda kv: (0 if kv[0] in flagged else 1, -abs(kv[1]),
+                                               kv[0][0], _cell_row(kv[0][1])))
 
 
 def input_leaves(wb, sheet, coord, cols=None, depth=25, budget_s=None):

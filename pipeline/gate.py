@@ -139,7 +139,7 @@ def flag_budget(wb, spec, target_year, flags, load_bearing=None):
     Colour is read from the cell itself, the one source of truth."""
     fails = []
     per_sheet = {}
-    for ref in set(flags):
+    for ref in sorted(set(flags)):     # a set's order is the interpreter's, not the model's
         sh, _, coord = ref.partition("!")
         if sh not in wb.sheetnames or not coord:
             continue

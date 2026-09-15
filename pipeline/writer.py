@@ -581,12 +581,12 @@ def clobber_diff(pre_map, post_wb, allowed_cols, allowed_cells=(), skip_sheets=(
     col_pat = (re.compile(rf"^(?:{'|'.join(allowed_cols)})\d+$")
                if allowed_cols else None)
     bad = []
-    for sheet in set(pre_map) | set(post):
+    for sheet in sorted(set(pre_map) | set(post)):     # the violations report reads the same way every run
         if sheet in skip_sheets:
             continue
         pre_cells = pre_map.get(sheet, {})
         post_cells = post.get(sheet, {})
-        for k in set(pre_cells) | set(post_cells):
+        for k in sorted(set(pre_cells) | set(post_cells)):
             a, b = pre_cells.get(k), post_cells.get(k)
             if a == b:
                 continue

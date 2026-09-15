@@ -6551,6 +6551,53 @@ def test_the_roll_base_backout_asks_the_brain_where_2026_09_16():
 
 
 
+def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
+    """Floors 2026-09-16: the CLP FY25 floor delivered 8/8 keys on three runs
+    and 7/8 on two, from the same ledger and the same code — key_tie read the
+    key's chain out of a SET, so 'total liabilities and equity' absorbed into
+    Final!AI80 or Final!AI87 by the interpreter's hash order, and a truncation
+    decided which of the equally ranked cells was probed at all (proved by
+    running the same head twice under PYTHONHASHSEED=7: both landed on AI87).
+    The chain is now read in the model's own order and ranked on a TOTAL key,
+    so the order the cells arrive in cannot decide the outcome."""
+    import openpyxl
+    from openpyxl.styles import PatternFill
+    from pipeline import keytie
+    from pipeline.keytie import key_tie, _chain_cells
+    from pipeline.writer import Writer
+
+    def build():
+        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
+        ws["A2"], ws["T2"], ws["U2"] = "Revenue", 100.0, 100.0
+        # two equally uncertain (red) components of the key, same size:
+        # nothing but the coordinate separates them
+        ws["A3"], ws["T3"], ws["U3"] = "Component one", 40.0, 40.0
+        ws["A4"], ws["T4"], ws["U4"] = "Component two", 40.0, 40.0
+        ws["A5"], ws["T5"], ws["U5"] = "Total", "=T2+T3+T4", "=U2+U3+U4"
+        for c in ("U3", "U4"):
+            ws[c].fill = PatternFill("solid", fgColor="FFC7CE")
+        return wb
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
+            "key_rows": [{"name": "total", "sheet": "S", "row": 5}]}
+    panel = {"total": {"print": 200.0, "prior": 180.0}}
+    chosen = []
+    real_chain = _chain_cells
+    for reverse in (False, True):
+        wb = build()
+        keytie._chain_cells = (lambda w, sh, co, _r=reverse:
+                               list(reversed(real_chain(w, sh, co))) if _r else real_chain(w, sh, co))
+        try:
+            n = key_tie(wb, spec, 2025, Writer(wb), None, lambda s: None, panel=panel)
+        finally:
+            keytie._chain_cells = real_chain
+        assert n == 1, (n, reverse)
+        chosen.append(tuple(str(wb["S"][c].value) for c in ("U3", "U4")))
+    assert chosen[0] == chosen[1], f"the reading order chose the absorber: {chosen}"
+    assert chosen[0][0] != "40.0" and chosen[0][1] == "40.0", chosen
+    print("PASS test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
