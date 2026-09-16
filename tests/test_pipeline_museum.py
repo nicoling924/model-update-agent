@@ -7275,6 +7275,77 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     print("PASS test_the_review_never_eats_the_finish_margin_2026_09_16")
 
 
+def _ladder_walk_model():
+    """A check whose FIRST site by code's own ranking cannot take a plug (this
+    run's own orange back-out over a served, proven figure — CLP's Final!AI65)
+    and whose second site can."""
+    from openpyxl.styles import PatternFill
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": "=100+9", "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    wb["S"]["U2"].fill = PatternFill("solid", fgColor="FFFFC000")
+    lp = _loop(wb, _spec_tiny(),
+               served={("S", 2): {"value": 109.0, "conf": 5, "doc": "T.PDF", "page": 1,
+                                  "line": "the printed line"}})
+    lp.writer.log["written"] = ["S!U2"]
+    lp.writer.served = lp.served
+    lp.writer.plugs_allowed = True
+    return wb, lp
+
+
+def test_the_ladder_walks_when_nobody_named_a_home_2026_09_16():
+    """Owner 2026-09-16, after the first live review: F6 made the brain's named
+    home the only home — right — but the no-name path stopped at the first site
+    too, so CLP run 35089032559 logged "plug Final!99 into Final!AI65 -> REFUSED:
+    PROVEN … left OPEN" and shipped +3,150 out of balance. With no home named,
+    code's own ranking is a ranking: the ladder walks it until a site TAKES the
+    plug. A home the brain named is still the only home tried."""
+    from pipeline.orchestrator import terminal_ladder
+    from pipeline.evaluator import Evaluator
+    # (a) nobody named a home — the first site refuses, the second takes it
+    wb, lp = _ladder_walk_model()
+    assert lp._failing_target_checks(), "the exhibit's check already passes"
+    logs = []
+    closed = terminal_ladder(lp, logs.append)
+    body = "\n".join(logs)
+    assert "REFUSED" in body and "S!U2" in body, body
+    assert wb["S"]["U2"].value == "=100+9", "the refused site was written anyway"
+    assert closed == 1 and not lp._failing_target_checks(), body
+    assert abs(Evaluator(wb).cell("S", "U9")) < 0.5, "the walk did not close the check"
+    assert abs(wb["S"]["U4"].value - 169.0) < 0.5, wb["S"]["U4"].value
+    # (b) the brain named that same first site — it is the only home tried
+    wb2, lp2 = _ladder_walk_model()
+    lp2.ask = lambda _text, _options, _default: "site:1"
+    logs2 = []
+    closed2 = terminal_ladder(lp2, logs2.append)
+    assert closed2 == 0 and lp2._failing_target_checks(), "\n".join(logs2)
+    assert wb2["S"]["U4"].value == 171.0, "a site the brain did not name took the plug"
+    assert any("left OPEN" in x for x in logs2), logs2[-3:]
+    # (c) the walk ends on a landing or on its own clock, never on a count:
+    # eight sites that cannot take it, and the ninth that can
+    from openpyxl.styles import PatternFill
+    cells = {"T20": "=SUM(T2:T9)+T10-249", "U20": "=SUM(U2:U9)+U10-249",
+             "T10": 150.0, "U10": 171.0}
+    for r in range(2, 10):
+        cells[f"T{r}"], cells[f"U{r}"] = 10.0, "=5+5"
+    wb3 = _wb(cells)
+    served = {}
+    for r in range(2, 10):
+        wb3["S"][f"U{r}"].fill = PatternFill("solid", fgColor="FFFFC000")
+        served[("S", r)] = {"value": 10.0, "conf": 5, "doc": "T.PDF", "page": 1, "line": "printed"}
+    spec = _spec_tiny()
+    spec["check_rows"] = [{"sheet": "S", "row": 20, "expect": 0}]
+    lp3 = _loop(wb3, spec, served=served)
+    lp3.writer.log["written"] = [f"S!U{r}" for r in range(2, 10)]
+    lp3.writer.served = lp3.served
+    lp3.writer.plugs_allowed = True
+    assert lp3._failing_target_checks(), "the nine-site exhibit's check already passes"
+    logs3 = []
+    assert terminal_ladder(lp3, logs3.append) == 1, "\n".join(logs3)
+    assert abs(wb3["S"]["U10"].value - 169.0) < 0.5, wb3["S"]["U10"].value
+    print("PASS test_the_ladder_walks_when_nobody_named_a_home_2026_09_16")
+
+
 def test_the_review_gets_what_the_run_has_left_2026_09_16():
     """Owner 2026-09-16: the review was handed min(720 s, what is left), so the
     first live run — which reached the review after 12 minutes with 45 still on

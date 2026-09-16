@@ -24,6 +24,7 @@ knows no company, language, or layout.
 """
 import json
 import re
+import time
 from pathlib import Path
 
 from .checks import prior_column, scorecard, summarize, year_columns
@@ -2032,7 +2033,7 @@ class ObjectiveLoop:
         return self.finished
 
 
-def terminal_ladder(loop, log):
+def terminal_ladder(loop, log, walk_budget_s=60.0):
     """The referee's last rung (owner ruling: 'if truly unsolvable —
     back out, mark, still deliver'; a balanced model with a flagged
     plug beats an unbalanced model). Runs AFTER the loop. For each
@@ -2222,8 +2223,21 @@ def terminal_ladder(loop, log):
                 _j = int(_pick.split(":")[1]) - 1
                 ordered = [ordered[_j]]
                 _named = f"{ordered[0][2]}!{ordered[0][3]}"
-        _landed = False
-        for _c, _v, sh, coord in ordered[:8]:
+        # THE LADDER WALKS WHEN NOBODY NAMED A HOME (owner 2026-09-16, after the
+        # first live review: "plug Final!99 into Final!AI65 -> REFUSED: PROVEN …
+        # left OPEN" and the model shipped +3,150 out). A home the BRAIN named is
+        # still the only home tried — that is its call, above. But code's own
+        # ranking is a ranking, not one try: with no answer the ladder walks it in
+        # order until a site TAKES the plug, so a site that refuses is simply the
+        # next site's turn and the model is still delivered balanced. The walk
+        # ends on a landing or on its own clock — never on a count, and it is
+        # said in the log either way.
+        _landed, _walk_t0 = False, time.monotonic()
+        for _c, _v, sh, coord in ordered:
+            if not _named and time.monotonic() - _walk_t0 > walk_budget_s:
+                log(f"[run] terminal ladder: the walk for {sheet}!{row} used its "
+                    f"{walk_budget_s:.0f} s — the sites below are not tried")
+                break
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
                  "why": ("terminal ladder: the loop ended with this "
