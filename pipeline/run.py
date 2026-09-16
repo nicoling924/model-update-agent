@@ -1378,11 +1378,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
 
     _notes = [str(x) for x in (writer.log.get("sense_check") or [])]
     try:
-        _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log)
         ok, failures, card = _run_review(
             loop, _pre_end, log, _ask_review, gate_once, repair_round,
             keys_before, _key_panel, _panel_path,
             deadline_s=max(120.0, min(720.0, _left_e)), notes=_notes,
+            hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
             brain=(client is not None or getattr(stage4_answerer, "reviews", None) is not None))
     except Exception as _e_end:
         log(f"[review] STAGE LOST: {_e_end!r}")

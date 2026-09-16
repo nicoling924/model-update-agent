@@ -6591,16 +6591,12 @@ def test_the_extractor_keeps_the_unlabelled_row_2026_09_16():
 
 def test_cash_counts_in_the_objective_measure_2026_09_16():
     """Run 35043265913: the ending plugged a 2028 balance break and 2026 cash
-    went to -966. The measure a pick is judged by counted the balance checks
-    and the keys and nothing else, so the sanity objective could be broken
-    for free and the pick stood. Cash and total assets under water are part
-    of the mass — a pick that opens or deepens one made the objectives worse
-    and is taken back like any other worsening."""
-    from pipeline.consequence import sanity_breaks
-
-    def sanity_mass(lp):
-        return sum(abs(b[3]) for b in sanity_breaks(lp))
-    # the run's shape: four forecast years, cash a formula off the plug row
+    went to -966, and the measure a pick was judged by counted the balance
+    checks and the keys and nothing else — so the sanity objective could be
+    broken for free. Cash and total assets under water are objectives in the
+    ONE reading (review._metrics), and past the next two periods they are a
+    watch, not a break: the analyst's own assumptions, the analyst's call."""
+    from pipeline.review import _broken, _metrics
     wb = _wb({"A1": "cash", "T20": 1000.0, "U20": "=U30+500", "V20": "=V30+500",
               "W20": "=W30+500", "X20": "=X30+500",
               "T30": 0.0, "U30": 0.0, "V30": 0.0, "W30": 0.0, "X30": 0.0})
@@ -6609,30 +6605,21 @@ def test_cash_counts_in_the_objective_measure_2026_09_16():
             "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
             "key_rows": [{"name": "cash", "sheet": "S", "row": 20}]}
     lp = _loop(wb, spec)
-    assert sanity_mass(lp) == 0.0, sanity_breaks(lp)
-    mass0 = sanity_mass(lp)
+    lp.writer.served = lp.served
+    assert not [o for o in _broken(lp, {}, {}, None) if o[0] == "sanity"], _broken(lp, {}, {}, None)
     # the plug: a 2028 balance break absorbed on the residual row, which the
     # 2026 cash formula also reads — 2026 cash goes to -966
     wb["S"]["V30"] = -1466.0
-    mass1 = sanity_mass(lp)
-    breaks = sanity_breaks(lp)
+    breaks = [o for o in _broken(lp, {}, {}, None) if o[0] == "sanity"]
     assert any("2026" in b[4] and "cash" in b[4] for b in breaks), breaks
-    assert abs(mass1 - 966.0) < 0.5, (mass1, breaks)
-    assert mass1 > mass0 + 1.0, "the objective measure still ignores the cash break — the pick stands"
-    # THE PREVIEW AND THE VERDICT MEASURE THE SAME MODEL (reviewer
-    # 2026-09-16): measure() lifted the plug rows for the whole reading while
-    # check_mass takes the pick back with the plugs live, so the brain was
-    # shown a cash break the verdict did not see. The plug that causes it is
-    # on the residual row itself
-    from pipeline.consequence import measure
-    lp.writer.log.setdefault("plugs", []).append("S!V30")
-    m = measure(lp, {}, None, None)
-    assert sum(abs(o[3]) for o in m["sanity"]) == sanity_mass(lp), (m["sanity"], sanity_mass(lp))
-    assert abs(sanity_mass(lp) - 966.0) < 0.5, sanity_mass(lp)
+    assert abs(sum(abs(b[3]) for b in breaks) - 966.0) < 0.5, breaks
+    # ONE reading: the context's table and the break list are the same numbers
+    assert _metrics(lp, {}, None)["S!V20"][1] == -966.0, _metrics(lp, {}, None)["S!V20"]
     # beyond the next two periods it is the analyst's call, not the run's
     wb["S"]["V30"] = 0.0
     wb["S"]["X30"] = -1466.0
-    assert sanity_mass(lp) == 0.0, sanity_breaks(lp)
+    assert not [o for o in _broken(lp, {}, {}, None) if o[0] == "sanity"], _broken(lp, {}, {}, None)
+    assert _metrics(lp, {}, None)["S!X20"][2] == "watch", _metrics(lp, {}, None)["S!X20"]
     print("PASS test_cash_counts_in_the_objective_measure_2026_09_16")
 
 
@@ -6825,7 +6812,7 @@ def test_the_review_shows_the_written_cell_with_its_history_and_the_printed_line
     assert "was       44.30 → now        1.00" in line, line
     assert "30.20, 46.10, 38.00, 44.30" in line, line
     assert "Fuel Cost Adjustment 1 46.3 46.3 62.0 38.6 28.1" in line, line
-    assert "comparative does NOT tie the model's prior 44.30" in line, line
+    assert "no row carrying this value has a comparative that ties the model's prior 44.30" in line, line
     assert ctx.splitlines().index(line) < ctx.index("## 4"), "the largest move against history is listed first"
     assert "Final!AI99" in ctx and "balance check 2025" in ctx, ctx[:400]
     print("PASS test_the_review_shows_the_written_cell_with_its_history_and_the_printed_line_2026_09_16")
@@ -6837,11 +6824,11 @@ def test_a_try_measures_the_objective_and_restores_2026_09_16():
     from pipeline.review import _one_call
     lp, pre, panel, logs = _review_harness()
     out, res = _one_call(lp, pre, {"tool": "try", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}]},
-                         panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), {})
+                         panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     body = "\n".join(out)
     assert "Final!AK57 cash 2027" in body and "-20,153 → 600" in body, body
     assert res is None and lp.wb["HK Sales"]["AI16"].value == 1.00, (res, lp.wb["HK Sales"]["AI16"].value)
-    assert "restored — nothing was kept" in body, body
+    assert "the trial was unwound" in body, body
     print("PASS test_a_try_measures_the_objective_and_restores_2026_09_16")
 
 
@@ -6854,7 +6841,7 @@ def test_a_compensating_pair_is_one_change_and_closes_the_check_2026_09_16():
     out, res = _one_call(lp, pre, {"tool": "set", "because": "p211 'Balance at' 84,367 and p237 'Other non-controlling interests' 9,815",
                                    "sets": [{"ref": "Final!AI95", "value": 84367.0},
                                             {"ref": "Final!AI97", "value": 9815.0}]},
-                         panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), {})
+                         panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     body = "\n".join(out)
     assert abs(_metrics(lp, panel, None)["Final!AI99"][1]) < 0.5, body
     assert "Final!AI99" in body and "223 → 0" in body, body
@@ -6869,13 +6856,13 @@ def test_a_set_with_no_evidence_lands_red_never_refused_2026_09_16():
     lp, pre, panel, logs = _review_harness()
     out, _res = _one_call(lp, pre, {"tool": "set", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}],
                                     "because": "it looks right"},
-                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), {})
+                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     assert lp.wb["HK Sales"]["AI16"].value == 46.3, lp.wb["HK Sales"]["AI16"].value
     assert "RED:" in "\n".join(out), out
     assert str(lp.wb["HK Sales"]["AI16"].fill.fgColor.rgb).endswith("FFC7CE"), lp.wb["HK Sales"]["AI16"].fill.fgColor.rgb
     # and a write outside the actual column is not a review's business
     out2, _r2 = _one_call(lp, pre, {"tool": "set", "sets": [{"ref": "Final!AJ95", "value": 1.0}], "because": "x"},
-                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), {})
+                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     assert "not in the actual column" in "\n".join(out2) and lp.wb["Final"]["AJ95"].value == 84367.0, out2
     print("PASS test_a_set_with_no_evidence_lands_red_never_refused_2026_09_16")
 
@@ -6897,8 +6884,8 @@ def test_done_before_the_objectives_hold_is_refused_with_the_table_2026_09_16():
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
                {}, panel, None, deadline_s=60.0, max_turns=4)
     assert len(seen) >= 2, seen
-    assert "your statement does not cover all three" in seen[1], seen[1][-1500:]
-    assert "Final!AI99" in seen[1].split("## 6")[-1], seen[1][-1500:]
+    assert "done needs a reading of each objective" in seen[1], seen[1][-1500:]
+    assert "Final!AI99" in seen[1], seen[1][-1500:]
     ending = lp.writer.log["ending"]
     assert any(ln.startswith("balance: cannot be closed") for ln in ending), ending
     print("PASS test_done_before_the_objectives_hold_is_refused_with_the_table_2026_09_16")
@@ -6960,6 +6947,53 @@ def test_a_recorded_review_replays_to_the_same_writes_2026_09_16():
     _logs2, writes2 = run(script2)
     assert writes2 == writes, (writes2[-4:], writes[-4:])
     print("PASS test_a_recorded_review_replays_to_the_same_writes_2026_09_16")
+
+
+def test_the_printed_figure_is_found_at_the_rounding_the_page_uses_2026_09_16():
+    """Reviewer 2026-09-16: the review looked the value up at 0.1 while every tie
+    test in the codebase allows statement rounding, so a model 396.2 against a
+    printed 396 read as 'no printed line' and a genuine tie landed red."""
+    from pipeline.review import _evidence_line, _evidence_verdict
+    lp, pre, panel, _logs = _review_harness()
+    lp.ledger.add(Item(doc="AR.PDF", page=31, table_id=0, row_ord=1, label="Other income",
+                       nums=[396.0, 402.0], source_line="Other income 396 402"))
+    lp.__dict__.pop("_review_vindex", None)
+    said = _evidence_line(lp, "Final", "AI95", 396.2, 402.0)
+    assert "Other income 396 402" in said and "comparative ties the model's prior" in said, said
+    # and a reason whose FIRST arithmetic-looking run is a page range still verifies
+    plain, proven, why = _evidence_verdict(lp, [{"sheet": "HK Sales", "coord": "AI16", "value": 432.2}],
+                                           "pp. 12-14: 396.2 + 36")
+    assert plain and not proven, (plain, proven, why)
+    assert "the world band still polices it" in why, why
+    print("PASS test_the_printed_figure_is_found_at_the_rounding_the_page_uses_2026_09_16")
+
+
+def test_half_a_pair_never_lands_2026_09_16():
+    """Reviewer 2026-09-16: a pair is the way a compensating error is resolved, so
+    a pair that is only half writable must leave the model untouched — half of a
+    compensating pair is worse than neither half."""
+    from pipeline.review import _one_call
+    lp, pre, panel, logs = _review_harness()
+    out, _res = _one_call(lp, pre, {"tool": "set", "because": "no page says this",
+                                    "sets": [{"ref": "Final!AI95", "value": 84367.0},
+                                             {"ref": "HK Sales!AI16", "value": 900000.0}]},
+                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
+    assert lp.wb["Final"]["AI95"].value == 88242.0, lp.wb["Final"]["AI95"].value
+    assert lp.wb["HK Sales"]["AI16"].value == 1.00, lp.wb["HK Sales"]["AI16"].value
+    assert "none of it was kept" in "\n".join(out), out
+    print("PASS test_half_a_pair_never_lands_2026_09_16")
+
+
+def test_the_analysts_own_break_is_reported_not_plugged_2026_09_16():
+    """Reviewer 2026-09-16: the card path filtered the breaks the gate names as
+    the analyst's own pre-update ones. The review must too — a standing imbalance
+    the run did not cause is reported, never plugged into someone's model."""
+    from pipeline.review import _broken, _open
+    lp, pre, panel, _logs = _review_harness()
+    assert any(o[1:3] == ("Final", "AI99") for o in _broken(lp, {}, panel, None)), _broken(lp, {}, panel, None)
+    inherited = (False, [], {"inherited_breaks": ["Final!r99 (2025): the analyst's own book is off by 223"]})
+    assert not any(o[1:3] == ("Final", "AI99") for o in _open(lp, {}, panel, None, inherited)), "worked a break the run did not cause"
+    print("PASS test_the_analysts_own_break_is_reported_not_plugged_2026_09_16")
 
 
 if __name__ == "__main__":

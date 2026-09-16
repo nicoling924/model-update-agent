@@ -14,7 +14,7 @@ import re
 import time
 
 from .checks import CHECK_TOL, forecast_columns, prior_column, year_columns
-from .consequence import _fault, _plug_here, broken_objectives, restore, sanity_rows, sanity_watch, snapshot
+from .consequence import _fault, _plug_here, restore, sanity_rows, snapshot
 from .evaluator import Evaluator
 
 MANDATE = """You are the equity analyst reviewing your own model update before delivery.
@@ -34,7 +34,7 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"try","sets":[{"ref":"Sheet!AI16","value":46.3}]}    preview on a snapshot: the objectives before and after, then restored
   {"tool":"set","sets":[{"ref":"Sheet!AI16","value":46.3}],"because":"p243 'Fuel Cost Adjustment 46.3 46.3'"}
   {"tool":"restore","ref":"Sheet!AI16","why":"..."}   put back what the analyst had, red
-  {"tool":"plug","check":"Sheet!AI99","into":"Sheet!AI95","why":"..."}   orange, reported
+  {"tool":"plug","check":"Sheet!AI99","why":"..."}    the model's own residual site takes the gap; orange, reported
   {"tool":"done","objectives":{"balance":"holds | cannot be closed because ...","keys":"...","rollforward":"..."}}
 A `sets` list with two entries is applied and measured as ONE change — that is how a compensating
 pair is resolved. A `set` lands plain only when its evidence ties (the quote is on the page and the
@@ -106,24 +106,46 @@ def _value_index(loop):
             if not isinstance(n, (int, float)) or n == 0:
                 continue
             for f in _SCALES:
-                idx.setdefault(round(abs(n) / f, 1), []).append((it, f))
+                v = abs(n) / f
+                idx.setdefault(round(v, 1), []).append((it, f))
+                idx.setdefault(float(round(v)), []).append((it, f))   # statement rounding: 396.2 IS the printed 396
     loop.__dict__["_review_vindex"] = idx
     return idx
+
+
+def _hits(loop, value):
+    """Printed rows carrying this value at the tie tolerance the write gate
+    uses — a lookup that only matched to 0.1 called the rounded print a miss."""
+    if not isinstance(value, (int, float)):
+        return []
+    idx, seen, out = _value_index(loop), set(), []
+    for k in (round(abs(value), 1), float(round(abs(value)))):
+        for it, f in idx.get(k, ()):
+            if (id(it), f) not in seen:
+                seen.add((id(it), f))
+                out.append((it, f))
+    return out
+
+
+def _quote(it):
+    return " ".join(str(getattr(it, "source_line", "") or getattr(it, "label", "")).split())
 
 
 def _evidence_line(loop, sheet, coord, value, prior):
     """THE PRINTED LINE, NOT THE CELL'S NOTE (owner 2026-09-16: a note is what
     the run said about itself). -> the quoted line with its page and whether the
-    comparative ties the model's prior, or 'no printed line'."""
+    comparative ties the model's prior, or 'no printed line'. A TYING row wins
+    over the first row that merely carries the number."""
     from .writegate import ties_prior
-    hits = _value_index(loop).get(round(abs(value), 1), []) if isinstance(value, (int, float)) else []
-    for it, scale in hits[:12]:
-        line = " ".join(str(getattr(it, "source_line", "") or getattr(it, "label", "")).split())[:90]
+    first = None
+    for it, scale in _hits(loop, value)[:12]:
         tie = ties_prior(it, scale, prior, value) if isinstance(prior, (int, float)) else False
-        return (f"p{getattr(it, 'page', '?')} '{line}'"
-                + (f" — comparative ties the model's prior {_fmt(prior)}" if tie
-                   else " — the comparative does NOT tie the model's prior "
-                        + (_fmt(prior) if prior is not None else "(none)")))
+        if tie:
+            return f"p{getattr(it, 'page', '?')} '{_quote(it)[:90]}' — comparative ties the model's prior {_fmt(prior)}"
+        first = first or it
+    if first is not None:
+        return (f"p{getattr(first, 'page', '?')} '{_quote(first)[:90]}' — no row carrying this value has a "
+                f"comparative that ties the model's prior {_fmt(prior) if prior is not None else '(none)'}")
     e = (loop.served or {}).get((sheet, _row_of(coord)))
     if isinstance(e, dict) and e.get("line"):
         return f"p{e.get('page')} '{str(e.get('line'))[:70]}' — the value is not printed on any page on file"
@@ -131,10 +153,13 @@ def _evidence_line(loop, sheet, coord, value, prior):
 
 
 def _metrics(loop, key_panel, panel_path):
-    """Every objective as a NUMBER, in one ordered dict {ref: (what, value)} —
-    the balance checks in every year, each key's gap to the print, cash and
-    total assets from the actual period on. What `try` diffs, what `done` is
-    held to, what the context prints."""
+    """ONE READING of every objective, as numbers: {ref: (what, value, kind, off)}
+    — the balance checks in every year, each key against its print, cash and
+    total assets from the actual period on, the headline lines against the
+    analyst's own book. `off` is how far this objective is from where it must
+    be (0 = it holds). What the context prints, what `try` diffs, what `done`
+    is held to and what the last resort reads — the card era measured the same
+    objectives twice, in two places, and the two disagreed."""
     wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
     ev = Evaluator(wb)
     out = {}
@@ -143,20 +168,26 @@ def _metrics(loop, key_panel, panel_path):
         if sheet not in wb.sheetnames:
             continue
         expect = float(c.get("expect", 0))
+        act = _act_col(loop, sheet)
         for year, col in sorted(year_columns(spec, sheet).items(), key=lambda kv: str(kv[0])):
+            if str(year).isdigit() and int(year) < ty:
+                continue                      # the years before the actual are the analyst's own history
             try:
                 v = ev.cell(sheet, f"{col}{row}")
             except Exception as e:  # noqa: BLE001
                 _fault(loop, f"check {sheet}!{col}{row} cannot be evaluated: {e!r}")
                 continue
             if isinstance(v, (int, float)):
-                out[f"{sheet}!{col}{row}"] = (f"balance check {year} (must be {expect:,.0f})", float(v))
+                out[f"{sheet}!{col}{row}"] = (f"balance check {year} (must be {expect:,.0f})", float(v),
+                                              "check" if col == act else "forecast-check", float(v) - expect)
     try:
         from .keytie import key_state
+        judged = set(loop.writer.log.get("key_verdicts", {}) or {})
         for nm, ref, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel):
-            if isinstance(got, (int, float)):
-                out[ref] = (f"key '{nm}' vs print {_fmt(_num(want))}" + ("" if ok else "  ← OFF THE PRINT"),
-                            float(got) - (want if isinstance(want, (int, float)) else float(got)))
+            if not isinstance(got, (int, float)):
+                continue
+            off = (float(got) - want) if isinstance(want, (int, float)) and not ok and nm not in judged else 0.0
+            out[ref] = (f"key '{nm}' vs print {_fmt(_num(want))}" + ("" if ok else "  ← OFF THE PRINT"), float(got), "key", off)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"key objectives unavailable: {e!r}")
     try:
@@ -166,28 +197,72 @@ def _metrics(loop, key_panel, panel_path):
             yc = year_columns(spec, sh)
             cols = [(yc.get(str(ty)), str(ty))] + sorted(((c, y) for y, c in yc.items() if str(y).isdigit() and int(y) > ty),
                                                          key=lambda x: int(x[1]))
-            for col, year in cols[:4]:
+            for i, (col, year) in enumerate(cols):
                 if not col:
                     continue
                 try:
                     v = ev.cell(sh, f"{col}{r}")
                 except Exception:  # noqa: BLE001
                     continue
-                if isinstance(v, (int, float)):
-                    out[f"{sh}!{col}{r}"] = (f"{nm} {year} (must not be negative)", float(v))
+                if not isinstance(v, (int, float)):
+                    continue
+                # a normal roll-forward may go negative later on the analyst's own
+                # assumptions (owner 2026-09-15): past the horizon it is a watch
+                kind = "sanity" if i <= 2 else "watch"
+                out[f"{sh}!{col}{r}"] = (f"{nm} {year} (must not be negative)", float(v), kind,
+                                         float(v) if (v < -0.5 and kind == "sanity") else 0.0)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"sanity objectives unavailable: {e!r}")
+    pre = loop.__dict__.get("_review_pre")
+    try:
+        from .sensecheck import headline_deltas, reason_text, suspicious
+        for d in (suspicious(headline_deltas(wb, pre, spec, ty)) if pre is not None else ()):
+            sh, co = str(d["ref1"]).split("!", 1)
+            out[f"{sh}!{co}"] = (f"roll-forward: {reason_text(d)[:80]}  ← OUT OF LINE",
+                                 float(d["d1"]), "sense", float(d["d1"] - d["d0"]))
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"the roll-forward objective could not be measured: {e!r}")
+    return out
+
+
+def _key_panel_of(loop):
+    return getattr(loop, "key_panel", None)
+
+
+def _broken(loop, keys_before, key_panel, panel_path):
+    """The objectives that are OFF, from that same reading, largest first.
+    -> [(kind, sheet, coord, off, text)]"""
+    out = []
+    for ref, (what, v, kind, off) in _metrics(loop, key_panel, panel_path).items():
+        if abs(off) > CHECK_TOL:
+            sh, co = ref.split("!", 1)
+            out.append((kind, sh, co, float(off), f"{what} at {ref} reads {_fmt(v)}"))
+    try:
+        # RULE 2: a key this run PROVED from the print and then moved off it is
+        # broken even when the panel has no print to compare against
+        from .keytie import key_violations
+        seen = {(o[1], o[2]) for o in out}
+        for nm, ref, then, now in key_violations(loop.wb, loop.spec, int(loop.ty), loop.ledger, panel_path,
+                                                 keys_before, panel=key_panel):
+            sh, co = ref.split("!", 1)
+            if (sh, co) not in seen:
+                out.append(("key", sh, co, float((now if isinstance(now, (int, float)) else 0.0) - then),
+                            f"key '{nm}' at {ref} was proven-printed {then:,.1f}, now "
+                            f"{now if now is None else f'{now:,.1f}'} — printed nowhere"))
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"key violations unavailable: {e!r}")
+    out.sort(key=lambda o: -abs(o[3]))
     return out
 
 
 def _metrics_text(m):
-    return [f"  {ref:<20} {what:<46} {_fmt(v):>14}" for ref, (what, v) in m.items()]
+    return [f"  {ref:<20} {what:<46} {_fmt(v):>14}" for ref, (what, v, _k, _o) in m.items()]
 
 
 def _metric_diff(m0, m1):
     """What a change did to the objectives, line by line — only what moved."""
     out = []
-    for ref, (what, v1) in m1.items():
+    for ref, (what, v1, _k, _o) in m1.items():
         v0 = m0.get(ref, (None, None))[1]
         if v0 is None or abs(v1 - v0) > CHECK_TOL:
             out.append(f"    {ref} {what}: {_fmt(v0)} → {_fmt(v1)}")
@@ -214,6 +289,7 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
     cell with its move against its history and its printed evidence, and the
     trace of the forecast lines that moved."""
     wb, spec, ty = loop.wb, loop.spec, int(loop.ty)
+    loop.__dict__["_review_pre"] = pre_wb        # the analyst's own book: the roll-forward objective is measured against it
     ev, ev0 = Evaluator(wb), Evaluator(pre_wb)
     L = ["## 1. OBJECTIVES, measured by code"]
     L += _metrics_text(_metrics(loop, key_panel, panel_path))
@@ -239,9 +315,11 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
         r = _row_of(co)
         try:
             new = _num(ev.cell(sh, co))
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            L.append(f"  {sh}!{co} — WRITTEN BY THE RUN AND WILL NOT EVALUATE: {type(e).__name__}: {str(e)[:70]}")
             continue
         if new is None:
+            L.append(f"  {sh}!{co} '{_label(wb[sh], r)}' — written by the run, reads as {wb[sh][co].value!r} (not a number)")
             continue
         hist = [h for h in (_num(ev0.cell(sh, f"{c}{r}")) for c in _hist_cols(loop, sh)) if h is not None]
         lo, hi = (min(hist), max(hist)) if hist else (None, None)
@@ -343,6 +421,8 @@ def t_show(loop, pre_wb, ref):
         if time.monotonic() - t0 > 6.0 or len(users) >= 10:
             break
         for row in wb[s2].iter_rows():
+            if time.monotonic() - t0 > 6.0:
+                break                      # one large sheet used to run the whole walk past its own clock
             for c2 in row:
                 v = c2.value
                 if isinstance(v, str) and v.startswith("=") and re.search(rf"(?<![A-Z0-9]){co}(?![0-9])", v) \
@@ -373,7 +453,7 @@ def t_find(loop, q):
     except ValueError:
         v = None
     if v is not None:
-        hits = [it for it, _f in _value_index(loop).get(round(abs(v), 1), [])]
+        hits = [it for it, _f in _hits(loop, v)]
     else:
         ql = q.lower()
         hits = [it for it in (getattr(loop.ledger, "items", []) or [])
@@ -393,63 +473,84 @@ _ARITH = re.compile(r"[-+]?\d[\d,]*\.?\d*(?:\s*[-+*/]\s*[-+]?\d[\d,]*\.?\d*)+")
 
 
 def _evidence_verdict(loop, sets, because):
-    """Does this change land plain? The quote is on a page and the comparative
-    ties the model's prior, OR the brain states arithmetic code verifies.
-    -> (plain: bool, why: str)"""
+    """Does this change land plain, and is its MAGNITUDE proven? The quote is on
+    a page and that row's comparative ties the model's prior (proven: the world
+    band steps aside), or the brain states arithmetic code re-computes (plain,
+    but the band still polices it — code verified the sum, not the operands).
+    -> (plain: bool, proven: bool, why: str)"""
     from .writegate import ties_prior
     because = str(because or "")
-    for s in sets:
-        sh, co, v = s["sheet"], s["coord"], s["value"]
+    proven, arith_only = True, False
+    for s_ in sets:
+        sh, co, v = s_["sheet"], s_["coord"], s_["value"]
         if not isinstance(v, (int, float)):
-            return False, "the value is not a number code can tie"
-        m = _ARITH.search(because)
-        if m:
-            try:
-                got = float(eval(m.group(0).replace(",", ""), {"__builtins__": {}}, {}))  # noqa: S307
-            except Exception:  # noqa: BLE001
-                got = None
-            if got is not None and abs(got - v) <= max(0.05, abs(v) * 1e-4):
-                continue
+            return False, False, "the value is not a number code can tie"
         pcol = prior_column(loop.spec, sh, int(loop.ty))
         prior = _num(Evaluator(loop.wb).cell(sh, f"{pcol}{_row_of(co)}")) if pcol else None
+        words = re.findall(r"[A-Za-z一-鿿]{4,}", because)
         quoted = False
-        for it, scale in _value_index(loop).get(round(abs(v), 1), [])[:20]:
-            line = " ".join(str(getattr(it, "source_line", "") or getattr(it, "label", "")).split())
-            words = [w for w in re.findall(r"[A-Za-z一-鿿]{4,}", because)]
+        for it, scale in _hits(loop, v)[:20]:
+            line = _quote(it)
             named = any(w.lower() in line.lower() for w in words) or str(getattr(it, "page", "")) in because
             if named and ties_prior(it, scale, prior, v):
                 quoted = True
                 break
-        if not quoted:
-            return False, f"{sh}!{co}: no quoted page line whose comparative ties the model's prior, and no arithmetic to verify"
-    return True, "the evidence ties"
+        if quoted:
+            continue
+        # EVERY arithmetic phrase in the reason is tried, not the first one a
+        # regex happens to find ('pp. 12-14: 396.2 + 36' matched '12-14' and a
+        # genuine derivation landed red)
+        if any(_arith_ties(m, v) for m in _ARITH.finditer(because)):
+            proven, arith_only = False, True
+            continue
+        return False, False, f"{sh}!{co}: no quoted page line whose comparative ties the model's prior, and no arithmetic to verify"
+    return True, proven, ("the arithmetic re-computes (the operands are the brain's, so the world band still polices it)"
+                          if arith_only else "the evidence ties")
+
+
+def _arith_ties(m, v):
+    try:
+        got = float(eval(m.group(0).replace(",", ""), {"__builtins__": {}}, {}))  # noqa: S307
+    except Exception:  # noqa: BLE001
+        return False
+    return abs(got - v) <= max(0.05, abs(v) * 1e-4)
 
 
 def _sets_text(sets):
     return ", ".join("{0}!{1}={2}".format(s["sheet"], s["coord"], _fmt(_num(s["value"]))) for s in sets)
 
 
-def _apply_sets(loop, sets, plain, note, log):
-    """One change — a pair is ONE write batch, applied and measured together."""
+def _apply_sets(loop, sets, plain, proven, note, log):
+    """One change — a pair is ONE write batch: all of it lands or none of it
+    does (a half-applied compensating pair is worse than neither half)."""
     w, applied, refused = loop.writer, [], []
-    for s in sets:
-        sh, co, v = s["sheet"], s["coord"], s["value"]
-        pcol = prior_column(loop.spec, sh, int(loop.ty))
-        ok = w.write(sh, co, v, prior_coord=f"{pcol}{_row_of(co)}" if pcol else None,
-                     trusted=bool(plain), force_lock=True, flag=None if plain else "red", note=note)
-        (applied if ok else refused).append(f"{sh}!{co}")
-        if ok and not plain:
-            loop.served.pop((sh, _row_of(co)), None)
-        if ok:
+    snap = snapshot(loop)
+    try:
+        for s_ in sets:
+            sh, co, v = s_["sheet"], s_["coord"], s_["value"]
+            pcol = prior_column(loop.spec, sh, int(loop.ty))
+            ok = w.write(sh, co, v, prior_coord=f"{pcol}{_row_of(co)}" if pcol else None,
+                         trusted=bool(proven), force_lock=True, flag=None if plain else "red", note=note)
+            (applied if ok else refused).append(f"{sh}!{co}")
+            if not ok:
+                continue
+            if not plain:
+                loop.served.pop((sh, _row_of(co)), None)
             back = Evaluator(loop.wb).cell(sh, co)          # read back: never trust the write code
-            if isinstance(back, (int, float)) and isinstance(v, (int, float)) and abs(back - v) > max(0.05, abs(v) * 1e-6):
+            if isinstance(back, (int, float)) and abs(back - v) > max(0.05, abs(v) * 1e-6):
                 log(f"[review] read-back {sh}!{co} shows {back} after writing {v}")
-    return applied, refused
+    except Exception as e:  # noqa: BLE001
+        restore(loop, snap)
+        return [], [f"{s_['sheet']}!{s_['coord']}" for s_ in sets], f"the write raised {type(e).__name__}: {str(e)[:90]}"
+    if refused and applied:
+        restore(loop, snap)
+        return [], refused + applied, "the writer refused part of the change, so none of it was kept"
+    return applied, refused, ""
 
 
 # ── the loop ─────────────────────────────────────────────────────────────
 
-def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, state):
+def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, hold_zero, state):
     """Answer one tool call. -> (lines, result) where result is None, or the
     gate's tuple when the model changed."""
     tool = str(call.get("tool") or "").strip().lower()
@@ -459,15 +560,19 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         return t_find(loop, call.get("q", "")), None
     if tool in ("try", "set"):
         sets, bad = [], []
-        for s in (call.get("sets") or ([call] if call.get("ref") else [])):
-            sh, co, err = _parse_ref(loop, s.get("ref", ""))
+        for s_ in (call.get("sets") or ([call] if call.get("ref") else [])):
+            sh, co, err = _parse_ref(loop, s_.get("ref", ""))
             if err:
                 bad.append(err)
                 continue
             if _col_of(co) != _act_col(loop, sh):
                 bad.append(f"{sh}!{co} is not in the actual column — the review changes the actual period only")
                 continue
-            sets.append({"sheet": sh, "coord": co, "value": s.get("value")})
+            v = _num(s_.get("value"))          # '46.3' is a number the brain typed as text; anything else is not a value
+            if v is None:
+                bad.append(f"{sh}!{co}: '{s_.get('value')}' is not a number — a model cell takes a figure")
+                continue
+            sets.append({"sheet": sh, "coord": co, "value": v})
         if bad:
             return [f"{tool}: " + "; ".join(bad)], None
         if not sets:
@@ -476,32 +581,35 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         if tool == "try":
             snap = snapshot(loop)
             try:
-                _applied, refused = _apply_sets(loop, sets, True, "trial", log)
+                _applied, refused, note = _apply_sets(loop, sets, True, True, "trial", log)
                 repair_round("review try")
                 lines = ["try " + _sets_text(sets) + ":"]
                 if refused:
-                    lines.append(f"    the writer refused {refused} — this change cannot be written as it stands")
+                    lines.append(f"    the writer refused {refused} — {note or 'this change cannot be written as it stands'}")
                 lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
-                lines.append("    (restored — nothing was kept)")
             finally:
-                restore(loop, snap)
-                repair_round("review try restore")
+                restore(loop, snap)              # the repairs the trial ran are inside the snapshot and come back with it
+            lines.append("    (the trial was unwound; the verdict and watch lines it wrote are the run's own record)")
             return lines, None
-        plain, why = _evidence_verdict(loop, sets, call.get("because"))
+        plain, proven, why = _evidence_verdict(loop, sets, call.get("because"))
         note = ((f"Set by the review: {str(call.get('because'))[:200]}") if plain else
                 (f"Set by the review WITHOUT tying evidence — please check: {str(call.get('because') or 'no reason given')[:200]}"))
-        _applied, refused = _apply_sets(loop, sets, plain, note, log)
+        _applied, refused, said = _apply_sets(loop, sets, plain, proven, note, log)
+        if hold_zero:
+            hold_zero()
         repair_round("review")
         res = gate_once()
         lines = ["set " + _sets_text(sets) + " → " + ("plain, " + why if plain else "RED: " + why)]
         if refused:
-            lines.append(f"    the writer refused {refused} (a guard, said out loud — not silently dropped)")
+            lines.append(f"    the writer refused {refused} — {said or 'a guard'} (said out loud, not silently dropped)")
         lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
         return lines, res
     if tool == "restore":
         sh, co, err = _parse_ref(loop, call.get("ref", ""))
         if err:
             return [f"restore: {err}"], None
+        if _col_of(co) != _act_col(loop, sh):
+            return [f"restore {sh}!{co}: not in the actual column — the review changes the actual period only"], None
         from openpyxl.utils import column_index_from_string as _ci
         m0 = _metrics(loop, key_panel, panel_path)
         back = pre_wb[sh].cell(_row_of(co), _ci(_col_of(co))).value
@@ -510,6 +618,8 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
                                note=f"Reverted by the brain: {why}. This input was moved by the run and is put back to what you had.")
         if ok:
             loop.served.pop((sh, _row_of(co)), None)
+        if hold_zero:
+            hold_zero()
         repair_round("review restore")
         res = gate_once()
         return [f"restore {sh}!{co} → {_fmt(_num(back))} ({'written, red' if ok else 'the writer refused it'})"] \
@@ -521,10 +631,12 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         m0 = _metrics(loop, key_panel, panel_path)
         loop.writer.plugs_allowed = True
         _plug_here(loop, sh, co, log)
+        if hold_zero:
+            hold_zero()
         repair_round("review plug")
         res = gate_once()
         state.setdefault("plugged", []).append(f"{sh}!{co}")
-        return [f"plug {sh}!{co} ({str(call.get('why') or '')[:120]}) — orange, reported"] \
+        return [f"plug {sh}!{co} ({str(call.get('why') or '')[:120]}) — the model's own residual site, orange, reported"] \
             + _metric_diff(m0, _metrics(loop, key_panel, panel_path)), res
     return [f"'{tool}' is not one of the tools: show, find, try, set, restore, plug, done"], None
 
@@ -549,13 +661,15 @@ def _finish(loop, pre_wb, log, res, statement):
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"closing sense rows not written: {e!r}")
     try:
-        for w in sanity_watch(loop):
+        for ref, (what, v, kind, _off) in _metrics(loop, _key_panel_of(loop), None).items():
+            if kind != "watch" or v >= -0.5:
+                continue
+            w = (f"{what.split(' (')[0]} is negative ({_fmt(v)} at {ref}) — beyond the next two periods: "
+                 "your assumptions, your call")
             lines.append("WATCH " + w)
             log("[review] watch: " + w)
-            m = re.search(r"at ([^)]+!\S+)\)", w)
-            if m:
-                sh, co = m.group(1).split("!", 1)
-                writer.watch(sh, co, "Sense check: " + w)
+            sh, co = ref.split("!", 1)
+            writer.watch(sh, co, "Sense check: " + w)     # a forecast cell is watch-listed, never painted
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"the watch was not written: {e!r}")
     for f in loop.__dict__.get("objective_faults", []):
@@ -569,8 +683,26 @@ def _finish(loop, pre_wb, log, res, statement):
     return res
 
 
+def _inherited(res, spec):
+    """The analyst's OWN pre-update breaks, named by the gate — reported, never
+    worked: the review does not plug a standing imbalance it did not cause."""
+    out = set()
+    card = res[2] if isinstance(res, tuple) and len(res) > 2 and isinstance(res[2], dict) else {}
+    for ln in card.get("inherited_breaks", []) or []:
+        m = re.match(r"^(.*)!r(\d+) \((\d{4})\)", str(ln).split(": ")[0])
+        col = year_columns(spec, m.group(1)).get(m.group(3)) if m else None
+        if col:
+            out.add((m.group(1), f"{col}{m.group(2)}"))
+    return out
+
+
+def _open(loop, keys_before, key_panel, panel_path, res):
+    inh = _inherited(res, loop.spec)
+    return [o for o in _broken(loop, keys_before, key_panel, panel_path) if (o[1], o[2]) not in inh]
+
+
 def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before, key_panel, panel_path,
-               deadline_s=720.0, max_turns=40, notes=(), brain=True):
+               deadline_s=720.0, max_turns=40, notes=(), brain=True, hold_zero=None):
     """THE REVIEW LOOP. Every turn: code measures and lays out the model, the
     brain calls tools, code applies and measures and logs the turn verbatim.
     `done` is accepted only with a statement per objective. At the clock the
@@ -578,6 +710,8 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
     code makes. -> (ok, failures, card) from the last gate."""
     writer, lines = loop.writer, loop.writer.log.setdefault("ending", [])
     t0 = time.monotonic()
+    if hold_zero:
+        hold_zero()
     repair_round("first")
     result = gate_once()
     statement, state, answers = None, {}, []
@@ -591,7 +725,15 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                 lines.append("the clock ended the review; what remains is written up")
                 log("[review] clock: what remains is written up")
                 break
-            ctx = build_context(loop, pre_wb, key_panel, panel_path, notes=notes, answers=answers)
+            try:
+                ctx = build_context(loop, pre_wb, key_panel, panel_path, notes=notes, answers=answers)
+            except Exception as e:  # noqa: BLE001
+                # THE LAST RESORT IS NEVER SKIPPED (reviewer 2026-09-16: a raise in
+                # the context walked out of the loop and the model shipped unbalanced)
+                _fault(loop, f"the review context could not be built at turn {turn + 1}: {e!r}")
+                lines.append(f"the review context could not be built ({type(e).__name__}) — what remains is written up")
+                log(f"[review] turn {turn + 1}: the context could not be built ({e!r})")
+                break
             log(f"[review] turn {turn + 1}: context {len(ctx):,} chars, {left / 60:.1f} min left")
             try:
                 reply = ask_json(MANDATE, ctx)
@@ -599,24 +741,29 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                 lines.append(f"the brain gave no answer at turn {turn + 1} ({type(e).__name__}) — what remains is written up")
                 log(f"[review] turn {turn + 1}: the brain answered nothing ({e!r})")
                 break
-            log("[review] turn %d reply %s" % (turn + 1, json.dumps(reply, ensure_ascii=False)[:4000]))
+            # VERBATIM, WHOLE (reviewer 2026-09-16: a truncated turn is not JSON, and
+            # the replay that reads these lines then runs a shorter review in silence)
+            log("[review] turn %d reply %s" % (turn + 1, json.dumps(reply, ensure_ascii=False)))
             calls = reply.get("calls") if isinstance(reply, dict) else None
             if not isinstance(calls, list) or not calls:
                 answers = ["    your last reply carried no calls — answer with a JSON list of calls, or `done` with a statement per objective"]
                 continue
             answers, finished = [], False
             for call in calls:
+                if time.monotonic() - t0 > deadline_s:
+                    answers.append("    the clock ended the review inside this turn; the rest of your calls were not run")
+                    log("[review] clock: the rest of the turn's calls were not run")
+                    finished = True
+                    break
                 if not isinstance(call, dict):
                     answers.append(f"    '{str(call)[:60]}' is not a call object")
                     continue
                 if str(call.get("tool") or "").lower() == "done":
-                    st = call.get("objectives")
-                    open_now = broken_objectives(loop, keys_before, key_panel, panel_path)
-                    if not isinstance(st, dict) or not st:
-                        answers.append("    done needs a statement per objective — balance, keys, rollforward: holds, or cannot be closed because ...")
-                        continue
-                    if open_now and len(st) < 3:
-                        answers.append("    objectives still open, and your statement does not cover all three:")
+                    st = call.get("objectives") if isinstance(call.get("objectives"), dict) else {}
+                    said = {k for k in ("balance", "keys", "rollforward") if str(st.get(k) or "").strip()}
+                    if len(said) < 3 and _open(loop, keys_before, key_panel, panel_path, result):
+                        answers.append("    done needs a reading of each objective — balance, keys, rollforward: "
+                                       "'holds', or 'cannot be closed because ...'. What is still open:")
                         answers += _metrics_text(_metrics(loop, key_panel, panel_path))
                         continue
                     statement = {str(k): str(v)[:300] for k, v in st.items()}
@@ -624,7 +771,7 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                     finished = True
                     break
                 try:
-                    out, res = _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, state)
+                    out, res = _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, hold_zero, state)
                 except Exception as e:  # noqa: BLE001
                     _fault(loop, f"the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
                     out, res = [f"    that call failed: {type(e).__name__}: {str(e)[:120]}"], None
@@ -635,8 +782,7 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                     result = res
             if finished:
                 break
-    open_now = broken_objectives(loop, keys_before, key_panel, panel_path)
-    checks = [(o[1], o[2]) for o in open_now if o[0] == "check"]
+    checks = [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == "check"]
     if checks:
         # THE ONLY DECISION CODE MAKES (owner 2026-09-15: "a balanced model with a
         # flagged plug beats an unbalanced model"): whatever was said, an actual-year
@@ -647,15 +793,18 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
         try:
             loop.writer.plugs_allowed = True
             terminal_ladder(loop, log)
+            if hold_zero:
+                hold_zero()
             repair_round("review last resort")
             result = gate_once()
         except Exception as e:  # noqa: BLE001
             _fault(loop, f"the last resort failed: {e!r}")
-    for o in broken_objectives(loop, keys_before, key_panel, panel_path):
+    for o in _open(loop, keys_before, key_panel, panel_path, result):
         why = (statement or {}).get("balance" if o[0] in ("check", "forecast-check") else ("keys" if o[0] == "key" else "rollforward"))
         writer.flag_ref(f"{o[1]}!{o[2]}", "red", f"OPEN: {o[4]}" + (f" — the review's reading: {why}" if why else " — the review did not close it"))
         lines.append(f"OPEN {o[1]}!{o[2]}: {o[4]}")
-    left_n = len(broken_objectives(loop, keys_before, key_panel, panel_path))
+        log(f"[review] {lines[-1]}")
+    left_n = len(_open(loop, keys_before, key_panel, panel_path, result))
     lines.append(f"ended: {left_n} objective(s) still broken" if left_n else "ended: every objective holds")
     log(f"[review] {lines[-1]}")
     return _finish(loop, pre_wb, log, result if result is not None else gate_once(), statement)

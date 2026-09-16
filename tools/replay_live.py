@@ -43,8 +43,8 @@ def reviews_from_log(path):
             continue
         try:
             out.append(json.loads(m.group(1)))
-        except ValueError:
-            pass                                  # a truncated turn is not an answer
+        except ValueError as e:
+            print(f"[replay] a recorded review turn is not readable JSON and is NOT replayed: {e}")
     return out
 
 
