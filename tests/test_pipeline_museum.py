@@ -6830,6 +6830,12 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     two = {(DOC, 23): "Finance income 194 235\nOther income 194 300"}
     assert _page_line(two, 23, 194.0, "Other income 194 300", {DOC})["prior"] == 300.0
     assert _page_line(two, 23, 194.0, "Finance income", {DOC})["prior"] == 235.0
+    # reviewer 2026-09-16: word kinship gave 'Segment B' to 'Segment A', which
+    # shares every word it has — the printed label the answer named decides
+    seg = {(DOC, 5): "Segment A 500 400\nSegment B 500 400"}
+    assert _page_line(seg, 5, 500.0, "Segment B", {DOC})["text"].startswith("Segment B"), \
+        _page_line(seg, 5, 500.0, "Segment B", {DOC})
+    assert _page_line(seg, 5, 500.0, "Segment A", {DOC})["text"].startswith("Segment A")
     # with no page text there is no page proof — the old refusal stands
     assert not verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
     print("PASS test_the_page_proves_the_quoted_line_2026_09_16")

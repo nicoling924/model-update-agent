@@ -240,6 +240,7 @@ def _page_line(page_text, page, printed, line, sources):
         return None
     from .numerics import label_of
     quoted = line_numbers(str(line or ""))
+    lab_q = label_of(str(line or "")).strip()
     hits = []
     for doc in sorted(sources):
         txt = (page_text or {}).get((doc, page))
@@ -254,15 +255,25 @@ def _page_line(page_text, page, printed, line, sources):
                 continue
             if any(not any(_same_figure(q, n) for n in nums) for q in quoted):
                 continue          # the answer quotes a number this line does not print
+            lab_p = label_of(raw).strip()
+            # HOW CLOSELY THE ANSWER NAMED IT, as printed: the longest of the
+            # two labels that is contained in the other (reviewer 2026-09-16:
+            # word kinship gave 'Segment B' to the line 'Segment A', which
+            # shares every word it has). Not a preference — the answer's own
+            # text against the print's own text.
+            named = 0
+            if lab_p and lab_q:
+                if lab_p.lower() in lab_q.lower() or lab_q.lower() in lab_p.lower():
+                    named = min(len(lab_p), len(lab_q))
             hits.append({"doc": doc, "text": raw.strip()[:160], "figure": nums[idx],
                          "prior": (nums[idx + 1] if idx + 1 < len(nums) else None),
-                         "kin": bool(line and kinship(label_of(raw), str(line))),
-                         "comp": nums[idx + 1] is not None if idx + 1 < len(nums) else False})
+                         "named": named, "same": raw.strip() == str(line or "").strip()})
     if not hits:
         return None
-    # the line the answer NAMES comes first (several lines of a page can print
-    # the same figure), then one that prints a comparative to judge it by
-    return max(hits, key=lambda h: (h["kin"], h["prior"] is not None))
+    # the line the answer NAMES comes first (several lines of a page print the
+    # same figure), then the one whose text the answer quoted verbatim, then
+    # one that prints a comparative to judge it by
+    return max(hits, key=lambda h: (h["named"], h["same"], h["prior"] is not None))
 
 
 def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
