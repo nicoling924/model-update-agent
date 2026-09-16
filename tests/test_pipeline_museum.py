@@ -6924,6 +6924,16 @@ def test_cash_counts_in_the_objective_measure_2026_09_16():
     assert any("2026" in b[4] and "cash" in b[4] for b in breaks), breaks
     assert abs(mass1 - 966.0) < 0.5, (mass1, breaks)
     assert mass1 > mass0 + 1.0, "the objective measure still ignores the cash break — the pick stands"
+    # THE PREVIEW AND THE VERDICT MEASURE THE SAME MODEL (reviewer
+    # 2026-09-16): measure() lifted the plug rows for the whole reading while
+    # check_mass takes the pick back with the plugs live, so the brain was
+    # shown a cash break the verdict did not see. The plug that causes it is
+    # on the residual row itself
+    from pipeline.consequence import measure
+    lp.writer.log.setdefault("plugs", []).append("S!V30")
+    m = measure(lp, {}, None, None)
+    assert sum(abs(o[3]) for o in m["sanity"]) == sanity_mass(lp), (m["sanity"], sanity_mass(lp))
+    assert abs(sanity_mass(lp) - 966.0) < 0.5, sanity_mass(lp)
     # beyond the next two periods it is the analyst's call, not the run's
     wb["S"]["V30"] = 0.0
     wb["S"]["X30"] = -1466.0

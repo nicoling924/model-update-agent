@@ -202,8 +202,14 @@ def sanity_watch(loop, horizon=2):
 
 def measure(loop, keys_before, key_panel, panel_path, lift_plugs=True):
     """One reading of the objectives — balance mass across every year, the
-    keys off the print, cash/assets negatives — taken with the plug rows
-    lifted (owner 2026-09-15: a plug masks a consequence). -> dict"""
+    keys off the print, cash/assets negatives — with the plug rows lifted for
+    the balance and the keys (owner 2026-09-15: a plug masks a consequence).
+
+    THE SANITY OBJECTIVE IS READ AS THE VERDICT READS IT — plugs live
+    (reviewer 2026-09-16): check_mass, which takes the pick back, measures
+    the model as it stands, so a preview taken with the plugs lifted showed
+    the brain a cash break the verdict did not see, or hid one it did. One
+    measurement for both. -> dict"""
     wb, writer = loop.wb, loop.writer
     lifted = []
     if lift_plugs:
@@ -219,10 +225,10 @@ def measure(loop, keys_before, key_panel, panel_path, lift_plugs=True):
         objs = broken_objectives(loop, keys_before, key_panel, panel_path, quiet=True)
         balance = sum(abs(o[3]) for o in objs if o[0] in ("check", "forecast-check"))
         keys_off = [(re.search(r"key '(.+?)' at ", o[4]).group(1) if re.search(r"key '(.+?)' at ", o[4]) else o[2]) for o in objs if o[0] == "key"]
-        san = [o for o in objs if o[0] == "sanity"]
     finally:
         for sh, co, v in lifted:
             wb[sh][co].value = v
+    san = sanity_breaks(loop)              # the model as the verdict will measure it
     return {"balance": balance, "keys_off": keys_off, "sanity": san}
 
 
