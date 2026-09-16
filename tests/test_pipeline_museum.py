@@ -5842,13 +5842,22 @@ def test_the_clock_is_the_only_end_of_the_review_2026_09_16():
     stops thinking. The clock is the only end; the turn number is kept for the
     log and decides nothing. A brain that never says `done` runs past 40 turns
     and is stopped by the clock, which says so in the log and on the report."""
+    import time as _t
     from pipeline.review import run_review
     lp, pre, panel, logs = _review_harness()
     turns = []
+    _t0 = _t.monotonic()
     run_review(lp, pre, logs.append,
                lambda _s, _u: turns.append(1) or {"calls": [{"tool": "find", "q": "46.3"}]},
-               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=3.0)
-    assert len(turns) > 40, f"the review stopped after {len(turns)} turns, before its clock"
+               lambda: (True, [], {}), lambda _t_: None, {}, panel, None, deadline_s=3.0)
+    spent = _t.monotonic() - _t0
+    # THE LAW, NOT THE MACHINE'S SPEED (2026-09-17: this exhibit asserted a turn
+    # COUNT — how many turns a laptop fits into three seconds — and a loaded
+    # machine failed it at 33 turns while the loop was behaving exactly as
+    # ruled). What is pinned is that the loop keeps going until its CLOCK: it
+    # spends the whole budget, and no count can end it.
+    assert spent >= 3.0, f"the review stopped after {spent:.1f}s of its 3.0s clock ({len(turns)} turns)"
+    assert len(turns) > 10, f"only {len(turns)} turns in three seconds — the loop is not turning"
     assert any("[review] clock" in x for x in logs), logs[-3:]
     assert any("the clock ended the review" in str(x) for x in lp.writer.log.get("ending", [])), \
         lp.writer.log.get("ending")
@@ -5933,7 +5942,7 @@ def _drive(loop, pages, census, turns, deadline_s=30.0):
     def ask(system, user):
         said.append(user)
         if not turns:
-            raise RuntimeError("no more turns")
+            return {"thinking": "the script is done", "calls": [{"tool": "done"}]}
         return turns.pop(0)
     summary = run_mapping(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=deadline_s)
     return summary, said
@@ -6070,6 +6079,19 @@ def test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17():
     assert not anatomy_wanted(loop)
     bad = _t_anatomy(loop, {"checks": ["Final!999"]}, lambda *a: None)
     assert any("dropped" in x for x in bad), bad
+    # THE KEY THE BRAIN NAMES IS MEASURED AGAINST THE PRINT IT QUOTES, and the
+    # log's count agrees with the table the next turn shows (reviewer 2026-09-17)
+    from pipeline.mapping import _key_table, build_context
+    loop.__dict__["_map_pages"] = pages
+    said = _t_anatomy(loop, {"keys": [{"name": "revenue2", "ref": "Final!2", "printed": 88018,
+                                       "page": 23, "line": "Revenue 88,018 76,061"}]}, lambda *a: None)
+    assert any("the print for 'revenue2': 88,018" in x for x in said), said
+    table = " | ".join(_key_table(loop))
+    assert "revenue2" in table and "88,018" in table, table
+    n_said = int(said[0].split("dropped; ")[1].split(" check")[0]) if "dropped; " in said[0] else None
+    assert str(len(loop.spec["check_rows"])) == str(n_said), (said[0], loop.spec["check_rows"])
+    ctx2 = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
+    assert "revenue2" in ctx2.split("## 2.")[0], "the key the brain named is not in the key table"
     print("PASS test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17")
 
 
@@ -6148,6 +6170,283 @@ def test_the_brains_write_is_not_refused_for_want_of_evidence_2026_09_17():
         "the model's own arithmetic was typed over"
     assert w.log.get("formula_refused"), w.log
     print("PASS test_the_brains_write_is_not_refused_for_want_of_evidence_2026_09_17")
+
+
+
+def test_the_pages_are_keyed_by_the_documents_name_2026_09_17():
+    """Reviewer 2026-09-17, FATAL: the pages were keyed by the PATH the run held
+    while the ledger, the faces and every quote use the basename — so not one
+    page of this period was ever found (CX: 168 of 168 faces "no text on file")
+    and the quoted-line proof was dead. One name for a document, everywhere."""
+    import tempfile
+    from pathlib import Path
+    from pipeline.mapping import Pages
+    from pipeline.reader import _page_line
+    d = Path(tempfile.mkdtemp())
+    (d / "ar.pdf").write_bytes(b"%PDF-1.4\n")          # never parsed: the read is stubbed below
+
+    class P(Pages):
+        def _read(self, p):
+            import os
+            self._d[(os.path.basename(str(p)), 23)] = ("CONSOLIDATED INCOME STATEMENT\n"
+                                                       "Operating expenses (74,206) (76,061)\n")
+    pages = P([str(d / "ar.pdf")], [], lambda *a: None)
+    assert pages.get(("ar.pdf", 23)), f"the page is keyed by path, not name: {list(pages.items())[:1]}"
+    hit = _page_line(pages, 23, 74206.0, "Operating expenses (74,206) (76,061)", {"ar.pdf"})
+    assert hit and abs(hit["prior"]) == 76061.0 and abs(hit["figure"]) == 74206.0, hit
+    print("PASS test_the_pages_are_keyed_by_the_documents_name_2026_09_17")
+
+
+def test_plain_needs_the_line_the_brain_read_2026_09_17():
+    """Reviewer 2026-09-17, FATAL: the ledger fallback matched ANY item on the
+    page by figure-and-prior, so a revenue the brain quoted from one line landed
+    PLAIN with 'Gross billings of the travel agency' as its provenance. Plain
+    needs the brain's OWN line."""
+    from pipeline.ledger import Item
+    loop, pages, census = _map_model()
+    loop.ledger.add(Item(doc="ar.pdf", page=31, table_id=0, row_ord=0,
+                         label="Gross billings of the travel agency",
+                         nums=[88018.0, 76061.0],
+                         source_line="Gross billings of the travel agency 88,018 76,061"))
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C2", "printed": 88018, "page": 31,
+                         "line": "Revenue 88,018 77,000 (restated)", "because": "my revenue row"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, _said = _drive(loop, pages, census, turns)
+    assert "Final!C2" in loop.writer.log["flags"], "a line the brain never read proved a plain write"
+    prov = str((loop.served.get(("Final", 2)) or {}).get("line") or "")
+    assert "Gross billings" not in prov, f"the provenance is a line the brain never read: {prov}"
+    print("PASS test_plain_needs_the_line_the_brain_read_2026_09_17")
+
+
+def test_a_tie_at_another_scale_is_not_plain_2026_09_17():
+    """Owner 2026-09-17: a comparative that ties at 1000x the page's own ratified
+    scale is not proof — thousands reading as millions tie just as neatly."""
+    from pipeline.ledger import Item
+    loop, pages, census = _map_model()
+    loop.ledger.add(Item(doc="ar.pdf", page=40, table_id=0, row_ord=0, label="Staff costs",
+                         nums=[21000000.0, 20000000.0],
+                         source_line="Staff costs 21,000,000 20,000,000"))
+    loop.__dict__["_map_scales"] = {("ar.pdf", 40): 1.0}
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C4", "printed": 21000000, "page": 40,
+                         "line": "Staff costs 21,000,000 20,000,000", "because": "staff costs"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert "scale mismatch" in " ".join(said), said[-1][-400:]
+    assert "Final!C4" in loop.writer.log["flags"], "a 1000x tie landed plain"
+    print("PASS test_a_tie_at_another_scale_is_not_plain_2026_09_17")
+
+
+def test_the_analysts_forecast_is_an_input_the_models_arithmetic_is_not_2026_09_17():
+    """Reviewer 2026-09-17: an actual-column cell holding the analyst's forecast
+    (=AH14*1.03) was never offered, counted or flagged because 'it is a formula'
+    — while the mark-to-actual recipe exists to replace exactly that. The
+    distinction is measured: a formula that reads an earlier column is a
+    forecast; one that reads only this period is the model's own arithmetic."""
+    from pipeline.mapping import input_rows, is_own_arithmetic
+    loop, pages, census = _map_model()
+    ws = loop.wb["Final"]
+    ws["C4"] = "=B4*1.05"                         # the analyst's estimate for 2025
+    rows = {c for _s, c, _r in input_rows(loop, census)}
+    assert "C4" in rows, f"the analyst's forecast is not offered: {sorted(rows)}"
+    assert "C10" not in rows, "the model's own subtotal was offered as an input"
+    assert is_own_arithmetic(loop.wb, "Final", "C10", "C", "B") is True
+    assert is_own_arithmetic(loop.wb, "Final", "C4", "C", "B") is False
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C4", "printed": 21000, "page": 23,
+                         "line": "Staff costs (21,000) (20,000)", "because": "my staff costs row"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, _said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["C4"].value == -21000.0, loop.wb["Final"]["C4"].value
+    print("PASS test_the_analysts_forecast_is_an_input_the_models_arithmetic_is_not_2026_09_17")
+
+
+def test_a_skip_then_a_set_leaves_the_cell_mapped_2026_09_17():
+    """Reviewer 2026-09-17: a row skipped and then mapped still read 'skipped'
+    and kept the skip's red flag. The last action on a cell is the one that
+    stands."""
+    from pipeline.mapping import coverage, input_rows
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "skip", "ref": "Final!C2", "because": "I cannot see it"}]},
+             {"calls": [{"tool": "set", "ref": "Final!C2", "printed": 88018, "page": 23,
+                         "line": "Revenue 88,018 76,061", "because": "found it"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, _said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["C2"].value == 88018.0
+    assert "Final!C2" not in loop.writer.log["flags"], "the skip's red survived the mapping"
+    by_sheet, _open = coverage(loop, input_rows(loop, census), {})
+    assert by_sheet["Final"].get("filled"), by_sheet
+    print("PASS test_a_skip_then_a_set_leaves_the_cell_mapped_2026_09_17")
+
+
+def test_an_unreadable_turn_is_a_turn_not_the_end_2026_09_17():
+    """Reviewer 2026-09-17: three unreadable replies ended the whole mapping and
+    every row shipped red. Only the clock ends it."""
+    from pipeline.mapping import run_mapping
+    loop, pages, census = _map_model()
+    n = [0]
+
+    def ask(_s, _u):
+        n[0] += 1
+        if n[0] in (1, 2, 4, 5):
+            raise ValueError("not JSON")            # a bad reply is a turn, not the end
+        if n[0] == 3:
+            return {"calls": [{"tool": "find", "q": "460"}]}        # reading is work
+        return {"calls": [{"tool": "skip", "ref": "Final!C2", "because": "enough"},
+                          {"tool": "done"}]}
+    run_mapping(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=20.0)
+    assert n[0] >= 6, f"the loop gave up after {n[0]} turns"
+    print("PASS test_an_unreadable_turn_is_a_turn_not_the_end_2026_09_17")
+
+
+def test_the_clock_mid_batch_keeps_what_was_written_2026_09_17():
+    """Reviewer 2026-09-17: a `sets` batch that overruns the clock applies what
+    was verified before it and says how many — nothing is unwound."""
+    from pipeline.mapping import _apply
+    loop, pages, census = _map_model()
+    entries = [{"sheet": "Final", "coord": "C2", "printed": 88018, "page": 23,
+                "line": "Revenue 88,018 76,061", "because": "a"},
+               {"sheet": "Final", "coord": "C3", "printed": 460, "page": 23,
+                "line": "Other gains, net 460 420", "because": "b"}]
+    import time as _t
+    out = _apply(loop, entries, pages, {"ar.pdf"}, lambda *a: None,
+                 deadline=_t.monotonic() - 1.0)
+    assert any("clock mid-batch: 0 of 2" in x for x in out), out
+    assert loop.wb["Final"]["C2"].value == 76061.0, "the clock wrote anyway"
+    out2 = _apply(loop, entries, pages, {"ar.pdf"}, lambda *a: None, deadline=_t.monotonic() + 30)
+    assert loop.wb["Final"]["C2"].value == 88018.0, out2
+    print("PASS test_the_clock_mid_batch_keeps_what_was_written_2026_09_17")
+
+
+def test_the_ladder_undoes_a_plug_that_only_moves_the_break_2026_09_17():
+    """Reviewer 2026-09-17, FATAL (DFE FY25): a plug closed check A by -452 and
+    opened check B by +452; the residual was the same size, the round was called
+    useless and the model shipped unbalanced. The whole model is re-measured
+    after every plug: a plug that only moves the break is taken back."""
+    import pipeline.orchestrator as O
+    calls = {"n": 0}
+
+    class Fake:
+        def __init__(self):
+            self.state = {"A": -452.0, "B": 0.0}
+            self.writer = type("W", (), {"log": {"writes_all": []}, "locked": set()})()
+            self.wb = {}
+
+        def _failing_target_checks(self):
+            return [(k, 9, v) for k, v in self.state.items() if abs(v) > 1.0]
+    f = Fake()
+    assert O._weight_of(f) == 452.0
+    f.state = {"A": 0.0, "B": 452.0}                 # the plug only moved it
+    assert O._weight_of(f) == 452.0, "the measure must see the whole model, not one check"
+    f.state = {"A": 0.0, "B": 0.0}
+    assert O._weight_of(f) == 0.0
+    import inspect
+    src = inspect.getsource(O._ladder_round)
+    assert "moved the break instead of" in src and "_undo_to" in src, "the round does not take a plug back"
+    assert "before_all" in src, src[:200]
+    calls["n"] += 1
+    print("PASS test_the_ladder_undoes_a_plug_that_only_moves_the_break_2026_09_17")
+
+
+def test_a_key_the_brain_named_is_measured_2026_09_17():
+    """Reviewer 2026-09-17: a key named in the anatomy turn never reached the key
+    table, because key_state skipped every key absent from the pre-mapping
+    panel. A key with no print on file is reported untied, not dropped."""
+    import openpyxl
+    from pipeline.keytie import key_state
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["A1"], ws["B1"], ws["C1"] = "Year", 2024, 2025
+    ws["A7"], ws["B7"], ws["C7"] = "Revenue", 100.0, 120.0
+    spec = {"year_axis": {"M": {"columns": {"2024": "B", "2025": "C"}}},
+            "key_rows": [{"name": "revenue", "sheet": "M", "row": 7, "source": "the brain's anatomy"}]}
+    got = key_state(wb, spec, 2025, None, panel={})
+    assert got and got[0][0] == "revenue" and got[0][3] is None and got[0][4] is False, got
+    got2 = key_state(wb, spec, 2025, None, panel={"revenue": {"print": 120.0}})
+    assert got2[0][4] is True, got2
+    print("PASS test_a_key_the_brain_named_is_measured_2026_09_17")
+
+
+def test_the_context_puts_each_face_beside_its_rows_2026_09_17():
+    """The brief's unit of work: a printed face and the model rows it maps onto,
+    together. The refused lines are in front of the brain too, and every section
+    is budgeted."""
+    from pipeline.mapping import build_context, input_rows
+    loop, pages, census = _map_model()
+    loop.__dict__.setdefault("_map_refused", []).append("Final!C9: skipped — p207 合计 is a total line")
+    ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
+    head = ctx.index("===== PL — ar.pdf p23 =====")
+    rows_at = ctx.index("the model rows this face's lines point at", head)
+    assert ctx.index("Revenue 88,018 76,061", head) < rows_at, "the face's text is not above its rows"
+    assert "Final!C2" in ctx[rows_at:rows_at + 1200], ctx[rows_at:rows_at + 400]
+    assert "合计" in ctx and "ALREADY REFUSED" in ctx, "the brain's own refusals are not carried"
+    print("PASS test_the_context_puts_each_face_beside_its_rows_2026_09_17")
+
+
+def test_the_indexes_that_replaced_the_writers_2026_09_17():
+    """What code FINDS survives as an index: the movement schedule's vertical
+    tie, the restatement disagreement, the formula's stale constants, the blank
+    beside a tying prior, and the coverage measure — none of them writes."""
+    import openpyxl
+    from pipeline.ledger import Item
+    from pipeline.mapping import coverage, detection_line, input_rows, nil_leads
+    from pipeline.schedules import _Recorder
+    loop, pages, census = _map_model()
+    rec = _Recorder()
+    assert rec.write("Final", "C2", 1.0) is True and rec.proposed and not loop.writer.log["written"]
+    loop.ledger.add(Item(doc="ar.pdf", page=24, table_id=0, row_ord=0, label="Treasury shares",
+                         nums=[900.0], source_line="Treasury shares 900 —"))
+    loop.__dict__.pop("_map_nilindex", None)
+    assert nil_leads(loop, -900.0), "a blank beside the tying prior is not offered as a lead"
+    loop.wb["Final"]["C9"] = "=4976+23"
+    d = detection_line(loop, "Final", "C9")
+    assert "still carries last period's constants" in d and "4976" in d, d
+    by_sheet, open_rows = coverage(loop, input_rows(loop, census), {"Final!C2": "said so"})
+    assert by_sheet["Final"]["skipped"] == 1 and open_rows, by_sheet
+    from pipeline.restate import restatement_leads
+    out = restatement_leads(loop.wb, loop.wb, loop.spec, 2025, loop.ledger, {}, lambda *a: None)
+    assert isinstance(out, dict), out
+    assert loop.wb["Final"]["B2"].value == 76061.0, "the restatement index wrote a prior cell"
+    print("PASS test_the_indexes_that_replaced_the_writers_2026_09_17")
+
+
+
+def test_a_turn_that_changes_nothing_twice_over_ends_the_mapping_2026_09_17():
+    """Reviewer 2026-09-17: a brain that kept answering `done` turned 19,434
+    times, ate the whole 33-minute budget and shipped every row red — and live,
+    every one of those turns is a call. Not a turn count: the model either moved
+    or it did not, and two turns that move nothing end it."""
+    from pipeline.mapping import run_mapping
+    loop, pages, census = _map_model()
+    logs, n = [], [0]
+
+    def ask(_s, _u):
+        n[0] += 1
+        return {"thinking": "done", "calls": [{"tool": "done"}]}
+    run_mapping(loop, loop.wb, census, pages, logs.append, ask, deadline_s=60.0)
+    assert n[0] <= 5, f"the loop turned {n[0]} times on a brain that does nothing"
+    assert any("changed nothing" in x for x in logs), logs[-3:]
+    assert any("not reached" in x for x in logs), logs[-3:]
+    assert all(f"Final!C{r}" in loop.writer.log["flags"] for r in (2, 3)), loop.writer.log["flags"]
+    print("PASS test_a_turn_that_changes_nothing_twice_over_ends_the_mapping_2026_09_17")
+
+
+def test_the_shelf_is_reached_for_not_swept_2026_09_17():
+    """Last year's report is indexed only when a tool asks for it: a lookup that
+    misses must not read it (owner 2026-09-17, cold runs pay nothing for a
+    document they never open)."""
+    from pipeline.mapping import Pages
+    reads = []
+
+    class P(Pages):
+        def _read(self, p):
+            reads.append(str(p))
+            self._d[("this.pdf", 1)] = "a page"
+    pages = P(["this.pdf"], ["last_year.pdf"], lambda *a: None)
+    assert reads == ["this.pdf"], reads
+    assert pages.get(("this.pdf", 999)) is None and reads == ["this.pdf"], "a miss swept the shelf"
+    pages.ensure_page(999)
+    assert "last_year.pdf" in reads, "the shelf was never reachable"
+    print("PASS test_the_shelf_is_reached_for_not_swept_2026_09_17")
 
 
 if __name__ == "__main__":

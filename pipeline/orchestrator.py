@@ -2074,8 +2074,16 @@ def terminal_ladder(loop, log, walk_budget_s=60.0, only=None):
         if not _left or time.monotonic() - _ladder_t0 > walk_budget_s * 4:
             break
         w = _weight(_left)
-        if _seen is not None and (w >= _seen - 1.0 or _round > 6):
-            log(f"[run] terminal ladder: round {_round} would not bring the checks in further "
+        # THE LADDER STOPS WHEN IT HAS NOTHING LEFT TO TRY, NOT WHEN A ROUND
+        # FAILS TO IMPROVE (reviewer 2026-09-17: a plug that moved -452 to +452
+        # left the residual the same size, the round was called useless and the
+        # model shipped unbalanced). It goes round while ANY actual-year check is
+        # off and the round CHANGED the model; its clock and "no site left" end
+        # it. A plug that only moves the break to another check is undone inside
+        # the round, and the next site is tried.
+        _mark = len(loop.writer.log.get("writes_all", []) or [])
+        if _round > 12:
+            log(f"[run] terminal ladder: {_round} rounds and {len(_left)} check(s) still off "
                 f"(residual {w:,.1f}) — what is left is red for the analyst")
             break
         _seen = w
@@ -2085,7 +2093,31 @@ def terminal_ladder(loop, log, walk_budget_s=60.0, only=None):
         closed += _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _left)
         if only is not None:
             break
+        if len(loop.writer.log.get("writes_all", []) or []) == _mark:
+            log(f"[run] terminal ladder: nothing left to try — {len(_todo())} check(s) stay open, "
+                "red for the analyst")
+            break
     return closed
+
+
+def _weight_of(loop):
+    """How far this model is from balancing, over EVERY check it has."""
+    try:
+        return sum(abs(x[2]) for x in loop._failing_target_checks()
+                   if isinstance(x[2], (int, float)))
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
+def _undo_to(loop, mark):
+    """Take back the writes made since `mark` — the journal is the record."""
+    journal = loop.writer.log.get("writes_all", []) or []
+    for sh, coord, old, _new in reversed(journal[mark:]):
+        try:
+            loop.wb[sh][coord] = old
+        except Exception:  # noqa: BLE001
+            continue
+    del journal[mark:]
 
 
 def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
@@ -2211,6 +2243,7 @@ def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
         # by confidence — held-at-prior / red first, then plain, then
         # orange back-outs; a PROVEN value is never a plug site.
         from .rollover import input_is_proven
+        before_all = _weight_of(loop)
         sites = []
         for (sh, coord) in dict.fromkeys(
                 loop._leaf_inputs(sheet, f"{tcol}{row}")):
@@ -2306,6 +2339,7 @@ def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
                 log(f"[run] terminal ladder: the walk for {sheet}!{row} used the ladder's "
                     f"{walk_budget_s:.0f} s — the sites below are not tried")
                 break
+            _mark_w = len(loop.writer.log.get("writes_all", []) or [])
             r = loop.t_plug_residual(
                 {"check": f"{sheet}!{row}", "into": f"{sh}!{coord}",
                  "why": ("terminal ladder: the loop ended with this "
@@ -2316,6 +2350,16 @@ def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
             for _ln in [x for x in str(r).splitlines()[1:] if x.strip().startswith(("GUILTY", "STALE", "CONFLICT", "RULED OUT"))][:6]:
                 log(f"[run]     {_ln.strip()[:160]}")     # the fixes the ladder says remain
             if str(r).startswith("PLUG"):
+                # DID IT CLOSE, OR ONLY MOVE? (reviewer 2026-09-17) — the whole
+                # model is re-measured; a plug that opens another check by the
+                # same amount has closed nothing, so it is taken back and the
+                # next site tried.
+                after_all = _weight_of(loop)
+                if after_all > before_all - 1.0:
+                    log(f"[run] terminal ladder: the plug into {sh}!{coord} moved the break instead of "
+                        f"closing it (all checks {before_all:,.1f} -> {after_all:,.1f}) — taken back, next site")
+                    _undo_to(loop, _mark_w)
+                    continue
                 closed += 1
                 _landed = True
                 break

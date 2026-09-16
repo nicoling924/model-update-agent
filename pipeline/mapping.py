@@ -27,6 +27,13 @@ from .review import (_act_col, _col_of, _fmt, _held, _hist_cols, _label, _num,
                      _parse_ref, _record_line, _record_text, _row_of, t_find,
                      t_show)
 
+# A RUN OF TURNS THAT READ NOTHING AND CHANGE NOTHING ENDS THE MAPPING (reviewer
+# 2026-09-17: a brain answering `done` turned 19,434 times and ate the whole
+# budget — live, every turn is a call; and a brain that answers nothing at all
+# would spend the budget the same way). Reading IS work, so this only counts the
+# turns that do neither; the number mirrors the review loop's own.
+_EMPTY_RUN = 3
+
 MANDATE = """You are the equity analyst marking your OWN model to this disclosure.
 
 The model is yours; the disclosure is somebody else's document. Your job is to say, row by row,
@@ -41,10 +48,10 @@ COMPOSITION IS YOURS TO STATE. When your row is several printed lines (net finan
 cost - finance income; an opex total the face prints in four pieces), state the arithmetic over
 printed figures and code re-computes it.
 
-DEFINITIONS FOLLOW THE MODEL. What a line means here is what THIS model means by it — read the
-model's own definitions in the context (its spec, its section structure, what each row feeds) and
-reconcile against the company's own bridge, never against a bare label. Every model is different:
-reason in this model's terms.
+DEFINITIONS FOLLOW THE MODEL. What a line means here is what THIS model means by it, and the model
+says so itself: each row's four-year history, the analyst's own estimate for this year, the section
+it sits in and the arithmetic it feeds are printed beside it. Reconcile against the company's own
+bridge, never against a bare label. Every model is different: reason in this model's terms.
 
 NEVER TYPE OVER THE MODEL'S OWN ARITHMETIC. A formula cell is the model thinking; it is refused —
 if the number belongs there, its input site is named for you and you set that instead.
@@ -333,20 +340,65 @@ def _classes(loop, rows):
 
 # ── the model's input rows ───────────────────────────────────────────────
 
+def is_own_arithmetic(wb, sheet, coord, act_col, prior_col):
+    """Is this formula the MODEL'S OWN ARITHMETIC, or a FORECAST waiting to be
+    marked? (reviewer 2026-09-17: the actual column's `=AH14*1.03` — the
+    analyst's estimate for the year now reported — was never offered, counted
+    or flagged, because 'it is a formula'.) The evidence is what the formula
+    reads: a subtotal or a link reads its OWN period (this column, or another
+    sheet's same period); a forecast projects from an earlier column. The
+    mark-to-actual recipe replaces the second and never touches the first."""
+    f = wb[sheet][coord].value
+    if not (isinstance(f, str) and f.startswith("=")):
+        return False
+    refs = re.findall(r"(?<![A-Z0-9])(\$?[A-Z]{1,3})\$?\d+", f)
+    if not refs:
+        return True                      # =SUM() over nothing, a constant: the model's own
+    from openpyxl.utils import column_index_from_string as _ci
+    try:
+        here = _ci(act_col)
+        back = _ci(prior_col) if prior_col else here - 1
+    except Exception:  # noqa: BLE001
+        return True
+    reads_back = False
+    for c in refs:
+        try:
+            n = _ci(c.replace("$", ""))
+        except Exception:  # noqa: BLE001
+            continue
+        if n <= back:
+            reads_back = True
+    return not reads_back
+
+
 def input_rows(loop, census):
     """[(sheet, coord, row)] — the actual column's INPUT cells: the rows that
-    arrived as hardcodes, in this model's own order. A formula cell is not an
-    input; the model's own arithmetic is never a mapping target."""
-    out = []
+    arrived as hardcodes, AND the rows still holding the analyst's forecast for
+    the year now being reported. The model's own arithmetic — a subtotal, a
+    link, a check — is never a mapping target."""
+    out, extra = [], 0
     for sheet in sorted(census or {}):
         if sheet not in loop.wb.sheetnames:
             continue
         col = _act_col(loop, sheet)
         if not col:
             continue
-        for r in sorted(census[sheet]):
-            v = loop.wb[sheet][f"{col}{r}"].value
+        pcol = prior_column(loop.spec, sheet, int(loop.ty))
+        rows = set(int(r) for r in census[sheet])
+        ws = loop.wb[sheet]
+        for r in range(1, min(ws.max_row, 400) + 1):
+            v = ws[f"{col}{r}"].value
             if isinstance(v, str) and v.startswith("="):
+                if r in rows or not is_own_arithmetic(loop.wb, sheet, f"{col}{r}", col, pcol):
+                    if _label(ws, r).startswith("row "):
+                        continue         # a formula on an unlabelled row is not a line of this model
+                    rows.add(r)
+                    extra += 1
+                continue
+        for r in sorted(rows):
+            v = loop.wb[sheet][f"{col}{r}"].value
+            if isinstance(v, str) and v.startswith("=") \
+                    and is_own_arithmetic(loop.wb, sheet, f"{col}{r}", col, prior_column(loop.spec, sheet, int(loop.ty))):
                 continue
             out.append((sheet, f"{col}{r}", int(r)))
     return out
@@ -445,11 +497,26 @@ def _key_table(loop):
         for nm, ref, got, want, ok in key_state(loop.wb, loop.spec, int(loop.ty),
                                                 getattr(loop, "key_panel_path", None),
                                                 panel=getattr(loop, "key_panel", None)):
+            said = ("ties" if ok else ("no printed figure on file — quote one in a `set` or in `anatomy`"
+                                       if want is None else "OFF THE PRINT"))
             out.append(f"  {nm:<24} {ref:<18} model {_fmt(_num(got)):>14} | print "
-                       f"{_fmt(_num(want)):>14} | {'ties' if ok else 'OFF THE PRINT'}")
+                       f"{_fmt(_num(want)):>14} | {said}")
         return out or ["  (no key rows resolved in this model)"]
     except Exception as e:  # noqa: BLE001
         return [f"  (the keys could not be measured: {type(e).__name__}: {str(e)[:70]})"]
+
+
+def _cand_line(c):
+    """One candidate, whatever shape the index hands back (an item, a pair, or
+    the serve dict the join speaks in). -> (item or None, one line)"""
+    it = c[0] if isinstance(c, (tuple, list)) and c else (None if isinstance(c, dict) else getattr(c, "item", None))
+    if isinstance(c, dict):
+        return None, (f"p{c.get('page', '?')} '{str(c.get('line') or c.get('label') or '')[:60]}' → "
+                      f"{c.get('value')}" if c.get("value") is not None
+                      else f"p{c.get('page', '?')} '{str(c.get('line') or '')[:60]}'")
+    if it is not None:
+        return it, f"p{getattr(it, 'page', '?')} '{_quote(it)[:70]}'"
+    return None, str(c)[:80]
 
 
 def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
@@ -478,6 +545,27 @@ def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
         blk.append("      lead: no printed line on file carries a comparative equal to this row's prior")
     for extra in (getattr(loop, "leads", None) or {}).get((sheet, r), ())[:3]:
         blk.append(f"      lead: {str(extra)[:150]}")
+    # the label-only and companion searches: what the card queue used to show
+    # and nothing showed after it (reviewer 2026-09-17) — information, no ranks
+    try:
+        from .workqueue import _label_only_candidates, candidates_for
+        seen_l = set()
+        for c in (candidates_for(loop, sheet, r) or [])[:3]:
+            it_c, q = _cand_line(c)
+            if q in seen_l:
+                continue
+            seen_l.add(q)
+            blk.append(f"      lead: {q[:110]}")
+        t_row = (loop.targets or {}).get((sheet, r))
+        if t_row is not None:
+            for c in (_label_only_candidates(loop, sheet, r, t_row) or [])[:2]:
+                it_c, q = _cand_line(c)
+                if q in seen_l:
+                    continue
+                seen_l.add(q)
+                blk.append(f"      lead: {q[:110]} — the label names this row, no number ties")
+    except Exception:  # noqa: BLE001
+        pass
     d = detection_line(loop, sheet, coord)
     if d:
         blk.append(d)
@@ -561,43 +649,81 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     L.append("## 3. THE MODEL'S OWN DEFINITIONS (its spec, its memory)")
     L += _definitions(loop) or ["  (this model carries no written spec)"]
     L.append("")
-    L.append("## 4. THE PRINTED FACES, each with the model rows still to map "
-             "(history | the analyst's estimate | status | what the row feeds, then its LEADS — "
-             "printed lines whose comparative equals the row's prior: information, not a pick)")
-    room_f = faces_cap
-    for face, doc, pg in _faces(loop):
+    L.append("## 4. THE PRINTED FACES, each with the model rows it maps onto (history | the analyst's "
+             "estimate | status | what the row feeds, then its LEADS — printed lines whose comparative "
+             "equals the row's prior: information, not a pick)")
+    order = sorted(rows, key=lambda t: (status_of(loop, t[0], t[1], written, skipped) != "unfilled", t[0], t[2]))
+    lead_pages = {}
+    for sheet, coord, r in order:
+        pcol = prior_column(loop.spec, sheet, ty)
+        prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
+        for it, _cur in leads_for(loop, prior, k=2):
+            lead_pages.setdefault((str(getattr(it, "doc", "")), int(getattr(it, "page", 0) or 0)), []).append(
+                (sheet, coord, r))
+    placed, room = set(), size_cap
+    faces = sorted(_faces(loop), key=lambda t: -len(lead_pages.get((t[1], t[2]), [])))
+    for face, doc, pg in faces:
+        mine = [x for x in lead_pages.get((doc, pg), []) if x not in placed]
         txt = (page_text or {}).get((doc, pg))
         head = f"  ===== {face.upper()} — {doc} p{pg} ====="
-        if not txt:
-            L.append(head + " (no text on file — `find` reads its extracted lines)")
+        if not txt and not mine:
             continue
-        body = "\n".join("   " + ln for ln in str(txt).splitlines()[:70])
-        if room_f - len(body) < 0:
-            L.append(head + f" (not shown here — `page {pg}`)")
-            continue
-        room_f -= len(body)
-        L.append(head)
-        L.append(body)
+        L.append(head if txt else head + " (no text on file — `find` reads its extracted lines)")
+        if txt:
+            # each face is capped to its own statement lines: the face is the
+            # unit of work, not the whole document
+            body = [ln for ln in str(txt).splitlines() if ln.strip()][:60]
+            cost = sum(len(x) for x in body)
+            if room - cost < 0:
+                L.append(f"    (this face's text is not shown here — `page {pg}`)")
+            else:
+                room -= cost
+                L += ["   " + x for x in body]
+        L.append(f"    --- the model rows this face's lines point at ({len(mine)}) ---"
+                 if mine else "    --- no model row's prior is matched by a line of this face ---")
+        for sheet, coord, r in mine:
+            st = status_of(loop, sheet, coord, written, skipped)
+            block = "\n".join(_row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls.get((sheet, coord), "")))
+            if room - len(block) < 0:
+                L.append("    (more rows of this face are not shown here — they come back as these are filled)")
+                break
+            room -= len(block)
+            placed.add((sheet, coord, r))
+            L.append(block)
     L.append("")
-    L.append("  ----- the model rows (unfilled first) -----")
-    room, shown, unshown = size_cap, 0, 0
-    order = sorted(rows, key=lambda t: (status_of(loop, t[0], t[1], written, skipped) != "unfilled", t[0], t[2]))
+    L.append("  ----- the model rows no face's line points at (unfilled first) -----")
+    unshown = 0
     for sheet, coord, r in order:
+        if (sheet, coord, r) in placed:
+            continue
         st = status_of(loop, sheet, coord, written, skipped)
         text = "\n".join(_row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls.get((sheet, coord), "")))
         if room - len(text) < 0:
             unshown += 1
             continue
         room -= len(text)
-        shown += 1
         L.append(text)
     L.append(f"  ({len(rows)} input rows in total"
              + (f"; {unshown} more not shown here — `show` any of them, and they come back "
                 "as the ones above are filled" if unshown else "") + ")")
+    ref_lines = list(loop.__dict__.get("_map_refused") or [])
+    if ref_lines:
+        L.append("")
+        L.append("## 4b. WHAT YOU HAVE ALREADY REFUSED, AND WHY — it is not offered to you again as new")
+        L += [f"  {x[:160]}" for x in ref_lines[-25:]]
     if answers:
         L.append("")
         L.append("## 5. YOUR LAST TURN")
-        L += list(answers)
+        # a budget, like every other section (reviewer 2026-09-17: one batch of
+        # 40 answers could outweigh the model itself)
+        room_a, kept = 6000, 0
+        for a in answers:
+            if room_a - len(str(a)) < 0:
+                L.append(f"  ({len(answers) - kept} more answers from that turn are not carried here)")
+                break
+            room_a -= len(str(a))
+            kept += 1
+            L.append(str(a))
     if history:
         L.append("")
         L.append("## 6. EVERY TURN BEFORE THAT — including every line you refused, and why")
@@ -648,6 +774,9 @@ def verdict(loop, entry, page_text, sources, log):
     Weak evidence lands RED with the brain's reason."""
     sheet, coord = entry["sheet"], entry["coord"]
     held = loop.wb[sheet][coord].value
+    if isinstance(held, str) and held.startswith("=") and not is_own_arithmetic(
+            loop.wb, sheet, coord, _act_col(loop, sheet), prior_column(loop.spec, sheet, int(loop.ty))):
+        held = None                      # the analyst's forecast for this year: the actual replaces it
     if isinstance(held, str) and held.startswith("="):
         site = ""
         try:
@@ -677,15 +806,24 @@ def verdict(loop, entry, page_text, sources, log):
             return float(printed), False, f"'{page}' is not a page number — the figure lands red", {}
         hit = _page_line(page_text, pg, float(printed), line or "", sources)
         if hit is None:
-            # THE EXTRACTED LINE IS ALSO THE PRINT (a scanned page has no text to
-            # quote from, and the table extractor is what read it): the same law
-            # applied to the ledger's own line — the figure is on that page and
-            # its comparative ties the model's prior.
+            # THE EXTRACTED LINE IS ALSO THE PRINT — BUT IT MUST BE THE LINE THE
+            # BRAIN READ (reviewer 2026-09-17: a fallback that matched any item
+            # on the page by figure-and-prior landed 'Gross billings of the
+            # travel agency' as the provenance of a revenue the brain quoted from
+            # another line — plain, on evidence nobody had read). A scanned page
+            # has no text to quote, so the ledger's line stands in for the page's
+            # — only when it IS the brain's line.
             from .writegate import _SCALES, _nums, ties_prior
+            from .numerics import line_cells
+            want = [x for x in line_cells(str(line or "")) if isinstance(x, (int, float))]
             for it in _items(loop):
                 if str(getattr(it, "page", "")) != str(pg):
                     continue
                 ns = [n for n in _nums(it) if isinstance(n, (int, float))]
+                if not want or any(not any(abs(abs(q) - abs(n)) <= max(0.05, abs(q) * 1e-3) for n in ns)
+                                   for q in want):
+                    continue          # the brain quoted figures this line does not print: not its line
+                f_page = _page_scales(loop).get((getattr(it, "doc", None), pg))
                 for f in _SCALES:
                     if not any(abs(abs(n) - abs(float(printed))) <= max(0.05, abs(float(printed)) * 1e-3)
                                for n in ns):
@@ -693,15 +831,27 @@ def verdict(loop, entry, page_text, sources, log):
                     v_m = float(printed) / f
                     if not ties_prior(it, f, prior, v_m):
                         continue
+                    if f_page and f != f_page:
+                        # A TIE AT A SCALE THE PAGE DOES NOT CARRY IS NOT PROOF
+                        # (owner 2026-09-17): thousands reading as millions ties
+                        # a prior 1000x away just as neatly.
+                        return (v_m, False, f"p{pg} '{_quote(it)[:50]}' ties your prior only at a scale this "
+                                f"page does not carry ({f:,.0f} against the page's {f_page:,.0f}) — "
+                                "scale mismatch, red", {"doc": getattr(it, "doc", None), "page": pg,
+                                                        "line": _quote(it)[:60]})
                     if isinstance(prior, (int, float)) and prior < 0 < v_m:
                         v_m = -v_m                 # the model owns the sign convention
-                    return v_m, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line) — the comparative "
-                                       "ties your prior"), {"doc": getattr(it, "doc", None), "page": pg,
-                                                            "line": _quote(it)[:60]}
+                    return v_m, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line you quoted) — the "
+                                       "comparative ties your prior"), {"doc": getattr(it, "doc", None),
+                                                                        "page": pg, "line": _quote(it)[:60]}
             return (float(printed), False,
                     f"no line of p{pg} on file prints {printed:,} as you quoted it — it lands red with your reason",
                     {"page": pg, "line": str(line or "")[:60]})
-        v = _quoted_verdict(hit, float(printed), prior, pg, scales, _dominant(scales), log, f"{sheet}!{coord}")
+        # THE PRINT OWNS THE SIGN (reviewer 2026-09-17: the brain typed 21000 for
+        # a line the page prints as '(21,000)' and the cost landed positive). The
+        # brain names the line; the figure — and its sign — is read off the page.
+        v = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg, scales,
+                            _dominant(scales), log, f"{sheet}!{coord}")
         ev = {"doc": hit.get("doc"), "page": pg, "line": hit["text"][:60]}
         if v is None:
             return float(printed), False, f"p{pg} carries no proven scale — the printed figure lands red", ev
@@ -727,10 +877,17 @@ def verdict(loop, entry, page_text, sources, log):
     return v, False, "no quoted printed line and no arithmetic code can re-compute — it lands red with your reason", {}
 
 
-def _apply(loop, entries, page_text, sources, log):
+def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
     """Apply one change (a `sets` batch is ONE change). -> lines"""
     out, ty = [], int(loop.ty)
-    for e in entries:
+    for n_done, e in enumerate(entries):
+        if deadline is not None and time.monotonic() > deadline:
+            # THE CLOCK INSIDE A BATCH (reviewer 2026-09-17): what was verified
+            # and written before it stands — nothing is unwound, and the count
+            # is said out loud.
+            out.append(f"  clock mid-batch: {n_done} of {len(entries)} applied; the rest were not reached")
+            log(f"[map] clock mid-batch: {n_done} of {len(entries)} applied")
+            break
         sheet, coord = e["sheet"], e["coord"]
         v, plain, why, ev = verdict(loop, e, page_text, sources, log)
         if v is None:
@@ -744,10 +901,18 @@ def _apply(loop, entries, page_text, sources, log):
                 (f"Backed out by the brain: {because} [{why[:90]}]" if colour == "orange" else
                  f"Mapped by the brain WITHOUT tying evidence — please check. Because: {because} [{why[:90]}]"))
         val = v if isinstance(v, str) else float(v)
+        # the cell still holding a formula here is the analyst's FORECAST for
+        # the year now reported (the gate refused the model's own arithmetic
+        # above): the mark-to-actual recipe replaces it, and says so
+        _cur = loop.wb[sheet][coord].value
+        _over = isinstance(_cur, str) and _cur.startswith("=")
+        if _over:
+            note += f" [replaced the analyst's forecast for {ty}: {str(_cur)[:40]}]"
         ok = loop.writer.write(sheet, coord, val,
                                prior_coord=f"{pcol}{_row_of(coord)}" if pcol else None,
                                trusted=(plain is True or plain == "orange"), force_lock=True,
-                               allow_empty=True, author_brain=True, flag=colour, note=note)
+                               allow_empty=True, author_brain=True, over_formula=_over,
+                               flag=colour, note=note)
         if not ok:
             # A CELL THAT CANNOT TAKE THE FIGURE IS SAID ONCE, NOT ASKED AGAIN
             # (pace test 2026-09-17: a merged cell refused the write, the row
@@ -774,7 +939,13 @@ def _apply(loop, entries, page_text, sources, log):
             "conf": 4 if colour is None else 3, "homed": True, "home": (sheet, coord),
             "flag": colour,
             "note": f"mapping: {because[:90]} — {why[:100]}"}
+        # THE LAST ACTION WINS (reviewer 2026-09-17: a row skipped and then
+        # mapped still read 'skipped' and kept the skip's red flag)
         _written(loop)[f"{sheet}!{coord}"] = "filled" if colour is None else "red"
+        if skipped is not None:
+            skipped.pop(f"{sheet}!{coord}", None)
+        if colour is None:
+            loop.writer.flag(sheet, coord, None)
         out.append(f"  {sheet}!{coord} = {_fmt(shown) if isinstance(shown, (int, float)) else str(val)[:40]} → "
                    + ("plain, " if colour is None else ("ORANGE (backed out): " if colour == "orange" else "RED: "))
                    + why)
@@ -925,8 +1096,34 @@ def _t_anatomy(loop, call, log):
             dropped.append(f"{k.get('ref')}: reads nothing the model computes — a key is a computed row")
             continue
         r = _row_of(co)
-        loop.spec.setdefault("key_rows", []).append({"name": str(k.get("name") or "key")[:40],
-                                                     "sheet": sh, "row": r, "source": "the brain's anatomy"})
+        nm_k = str(k.get("name") or "key")[:40]
+        loop.spec.setdefault("key_rows", []).append({"name": nm_k, "sheet": sh, "row": r,
+                                                     "source": "the brain's anatomy"})
+        if isinstance(k.get("printed"), (int, float)) and k.get("page") is not None:
+            # the print of a key is evidence like any other: the quoted line
+            # must be on that page, and code converts it at the page's scale
+            try:
+                from .reader import _page_line, _quoted_verdict
+                sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
+                pg = int(k["page"])
+                hit = _page_line(getattr(loop, "_map_pages", None) or {}, pg, float(k["printed"]),
+                                 k.get("line") or "", sources)
+                pcol = prior_column(loop.spec, sh, int(loop.ty))
+                prior = _held(loop.wb, ev, sh, f"{pcol}{r}") if pcol else None
+                scales = _page_scales(loop)
+                vv = _quoted_verdict(hit, float(k["printed"]), prior, pg, scales, _dominant(scales),
+                                     log, f"{sh}!{co}") if hit else None
+                if vv:
+                    panel = getattr(loop, "key_panel", None)
+                    if panel is None:
+                        panel = loop.key_panel = {}
+                    panel[nm_k] = {"print": float(vv["value"]), "prior": prior,
+                                   "line": hit["text"][:60], "page": pg}
+                    out.append(f"  the print for '{nm_k}': {vv['value']:,.2f} from p{pg} '{hit['text'][:50]}'")
+                else:
+                    dropped.append(f"the print you quoted for '{nm_k}' is not on p{k.get('page')}")
+            except Exception as e_k:  # noqa: BLE001
+                dropped.append(f"the print for '{nm_k}' could not be verified ({type(e_k).__name__})")
         took += 1
         out.append(f"  key '{k.get('name')}' at {sh}!{r} '{_label(loop.wb[sh], r)}' reads {_fmt(_num(v))}")
     loop.writer.log.setdefault("anatomy", []).append(
@@ -936,12 +1133,23 @@ def _t_anatomy(loop, call, log):
         f"{str(call.get('because') or '')[:150]}")
     for d in dropped:
         out.append(f"  dropped {d}")
-    log(f"[map] anatomy: {took} row(s) taken, {len(dropped)} dropped — "
-        f"{len(loop.spec.get('check_rows') or [])} check row(s), {len(loop.spec.get('key_rows') or [])} key row(s) now measured")
-    return [f"anatomy: {took} row(s) taken, {len(dropped)} dropped"] + out
+    # WHAT WAS TAKEN, AND WHAT IS MEASURED, MUST AGREE (reviewer 2026-09-17: the
+    # log said "2 key rows now measured" by counting the spec, while the key
+    # table showed none — the next turn contradicted the log).
+    try:
+        from .keytie import key_state as _ks
+        measured = len(_ks(loop.wb, loop.spec, int(loop.ty), getattr(loop, "key_panel_path", None),
+                           panel=getattr(loop, "key_panel", None)))
+    except Exception:  # noqa: BLE001
+        measured = 0
+    n_checks = len(loop.spec.get("check_rows") or [])
+    log(f"[map] anatomy: {took} row(s) taken, {len(dropped)} dropped — {n_checks} check row(s) and "
+        f"{measured} key row(s) are measured from this turn on")
+    return [f"anatomy: {took} row(s) taken, {len(dropped)} dropped; {n_checks} check row(s) and "
+            f"{measured} key row(s) are measured from now on"] + out
 
 
-def _one_call(loop, pre_wb, call, page_text, sources, skipped, log):
+def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=None):
     tool = str(call.get("tool") or "").strip().lower()
     if tool == "page":
         return _page_text_of(page_text, call.get("n") or call.get("page") or 0)
@@ -955,7 +1163,7 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log):
         if bad:
             out.append("  " + "; ".join(bad))
         if entries:
-            out += _apply(loop, entries, page_text, sources, log)
+            out += _apply(loop, entries, page_text, sources, log, skipped=skipped, deadline=deadline)
         elif not bad:
             out = ["set: no cell named"]
         return out
@@ -972,6 +1180,7 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log):
                 continue
             loop.writer.flag_ref(ref, "red", f"NOT MAPPED — the analyst's own judgment: {why[:200]}")
             skipped[ref] = why
+            _written(loop).pop(ref, None)      # the last action on a cell is the one that stands
             loop.__dict__.setdefault("_map_refused", []).append(f"{ref}: skipped — {why[:110]}")
             out.append(f"skip {ref}: recorded red — {why[:100]}")
         return out
@@ -991,8 +1200,9 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
     every unfilled row lands red 'not reached' — never a silent estimate.
     -> a one-line summary."""
     rows = input_rows(loop, census)
+    loop.__dict__["_map_pages"] = page_text
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
-    skipped, state, answers, dead, turn = {}, {"history": []}, [], 0, 0
+    skipped, state, answers, dead, turn, stuck = {}, {"history": []}, [], 0, 0, 0
     t0 = time.monotonic()
     log(f"[map] {len(rows)} input rows in the actual column; {deadline_s / 60:.1f} min for the mapping")
     if ask_json is None or not brain:
@@ -1017,9 +1227,19 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                 dead += 1
                 answers = [f"    your last reply could not be read ({type(e).__name__}: {str(e)[:120]}). "
                            "Answer with JSON only: {\"thinking\": \"...\", \"calls\": [ ... ]}."]
-                log(f"[map] turn {turn}: the reply could not be read ({e!r}) — asked again")
-                if dead >= 3:
-                    log("[map] three unreadable turns running — the rest is not reached")
+                # ONLY THE CLOCK ENDS THE MAPPING (reviewer 2026-09-17: three
+                # unreadable turns ended the whole stage and every row shipped
+                # red). An unreadable turn is a turn: say what was wrong and ask
+                # again until the budget is spent.
+                log(f"[map] turn {turn}: the reply could not be read ({e!r}) — asked again "
+                    f"({dead} unreadable in a row)")
+                # an unreadable turn read nothing and changed nothing: it counts
+                # towards the no-progress measure like any other empty turn, so a
+                # brain that answers nothing at all cannot spend the whole budget
+                stuck += 1
+                if stuck >= _EMPTY_RUN:
+                    log(f"[map] {stuck} turns running read nothing and changed nothing — the mapping ends; "
+                        "the rows still open go red 'not reached'")
                     break
                 continue
             dead = 0
@@ -1029,9 +1249,11 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                 answers = ["    your last reply carried no calls — answer with a JSON list of calls"]
                 continue
             answers, finished = [], False
+            _before = len(_written(loop)) + len(skipped)
             for call in calls:
                 if time.monotonic() - t0 > deadline_s:
-                    answers.append("    the clock ended the mapping inside this turn")
+                    answers.append("    the clock ended the mapping inside this turn; what was already "
+                                   "verified and written stands")
                     log("[map] clock: the rest of the turn's calls were not run")
                     finished = True
                     break
@@ -1043,6 +1265,11 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                     if still:
                         answers.append(f"    not done: {len(still)} input row(s) are neither filled nor skipped "
                                        "with a reason. Map them, or `skip` each with your reason:")
+                        for _sh_c in sorted(_by):
+                            _c = _by[_sh_c]
+                            answers.append(f"      {_sh_c}: unfilled {_c.get('unfilled', 0)} | filled "
+                                           f"{_c.get('filled', 0)} | red {_c.get('red', 0)} | skipped "
+                                           f"{_c.get('skipped', 0)}")
                         answers += [f"      {sh}!{co}" for sh, co in still[:40]]
                         log(f"[map] done refused: {len(still)} input row(s) still open")
                         continue
@@ -1050,7 +1277,8 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                     finished = True
                     break
                 try:
-                    out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log)
+                    out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log,
+                                    deadline=t0 + deadline_s)
                 except Exception as e:  # noqa: BLE001
                     out = [f"    that call failed: {type(e).__name__}: {str(e)[:120]}"]
                     log(f"[map] the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
@@ -1060,6 +1288,29 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                     log(f"[map]   {ln.strip()[:300]}")
             if finished:
                 break
+            # A TURN THAT CHANGES NOTHING, TWICE OVER, IS THE END (reviewer
+            # 2026-09-17: a brain that kept answering `done` turned 19,434 times,
+            # ate the whole budget and shipped every row red — and live, every
+            # one of those turns is a call). Not a turn count: a measure of
+            # whether the model moved.
+            # READING IS WORK (owner 2026-09-17 / reviewer's F9 and F14 read
+            # together): a turn that looked at a page, searched for a figure or
+            # read a row is progress even though no cell moved. A turn that
+            # neither read nor changed anything — a bare `done`, an unreadable
+            # reply — is the one that counts towards the end.
+            _read = any(isinstance(c, dict) and str(c.get("tool") or "").lower()
+                        in ("page", "find", "show", "anatomy") for c in calls)
+            if len(_written(loop)) + len(skipped) == _before and not _read:
+                stuck += 1
+                answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
+                               "your reason — another turn that changes nothing ends the mapping and the "
+                               "rows still open go red.")
+                if stuck >= _EMPTY_RUN:
+                    log(f"[map] {stuck} turns running read nothing and changed nothing — the mapping ends; "
+                        "the rows still open go red 'not reached'")
+                    break
+            else:
+                stuck = 0
     n_open = _close_out(loop, rows, skipped, log)
     by_sheet, _ = coverage(loop, rows, skipped)
     filled = sum(c.get("filled", 0) for c in by_sheet.values())
@@ -1098,8 +1349,14 @@ class Pages:
             self._read(p)
 
     def _read(self, p):
+        # ONE NAME FOR A DOCUMENT, EVERYWHERE (reviewer 2026-09-17: the pages
+        # were keyed by the PATH the run happened to hold — a string from the
+        # disclosures walk — while the ledger, the faces and every quote use the
+        # basename, so not one page of this period was ever found: 168 of 168
+        # faces printed "no text on file" and the quoted-line proof was dead).
+        import os
         from .stage1_read import page_texts
-        name = p.name if hasattr(p, "name") else str(p)
+        name = os.path.basename(str(getattr(p, "name", None) or p))
         try:
             for pn, txt, _cls in page_texts(str(p)):
                 if txt:
@@ -1120,10 +1377,10 @@ class Pages:
             self._read(p)
 
     def get(self, key, default=None):
+        # THE SHELF IS REACHED FOR, NOT SWEPT (reviewer 2026-09-17): a lookup
+        # that misses does not read last year's report — only `page` and `find`
+        # do, when the brain asks.
         v = self._d.get(key)
-        if v is None and not self._loaded:
-            self._ensure()
-            v = self._d.get(key)
         return default if v is None else v
 
     def items(self):

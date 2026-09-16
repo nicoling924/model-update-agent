@@ -732,12 +732,19 @@ def key_state(wb, spec, target_year, panel_path, panel=None):
         nm, sh, r = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
         want = (panel.get(nm) or {}).get("print")
         tc = year_columns(spec, sh).get(str(target_year)) if sh in wb.sheetnames else None
-        if not isinstance(want, (int, float)) or not tc:
+        if not tc:
             continue
         try:
             v = ev.cell(sh, f"{tc}{r}")
         except Exception:
             v = None
+        if not isinstance(want, (int, float)):
+            # A KEY WITH NO PRINT ON FILE IS STILL A KEY (reviewer 2026-09-17:
+            # a key the brain named in its anatomy turn was dropped here, so it
+            # never appeared in the table it was named for). It is reported
+            # untied, with nothing to tie to, until someone quotes its print.
+            out.append((nm, f"{sh}!{tc}{r}", v, None, False))
+            continue
         ok = isinstance(v, (int, float)) and abs(v - want) <= max(TOL_ABS, abs(want) * TOL_REL)
         out.append((nm, f"{sh}!{tc}{r}", v, float(want), bool(ok)))
     return out

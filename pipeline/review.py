@@ -1094,7 +1094,18 @@ def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
         lines.append(f"OPEN {o[1]}!{o[2]}: {o[4]}")
         log(f"[review] {lines[-1]}")
     left_n = len(left)
-    lines.append(f"ended: {left_n} objective(s) still broken" if left_n else "ended: every objective holds")
+    # AN OBJECTIVE THAT WAS NEVER MEASURED DOES NOT "HOLD" (reviewer 2026-09-17:
+    # the CX cold delivery said every objective holds with no check row in the
+    # model and every row red).
+    if not (loop.spec.get("check_rows") or []):
+        for n_ in (loop.spec.get("check_notes") or ["no row of this model subtracts two live totals to zero"])[:2]:
+            lines.append("BALANCE NOT MEASURED: " + str(n_)[:200])
+            log("[review] " + lines[-1])
+        lines.append("BALANCE NOT MEASURED: this model carries no check row — name the identity in the "
+                     "_SPEC tab (or let the agent's anatomy turn name it) and the balance is measured next run.")
+    lines.append(f"ended: {left_n} objective(s) still broken" if left_n
+                 else ("ended: every objective that could be measured holds"
+                       if not (loop.spec.get("check_rows") or []) else "ended: every objective holds"))
     log(f"[review] {lines[-1]}")
     try:
         return _finish(loop, pre_wb, log, result if result is not None else gate_once(), statement)
