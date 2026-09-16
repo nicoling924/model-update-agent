@@ -208,7 +208,7 @@ def _headline_rows(loop):
         return []
 
 
-def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap=260):
+def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap=260, trace_budget_s=40.0):
     """One reading of the model for the brain: the objectives measured, the
     headline lines against the analyst's own book, every written actual-column
     cell with its move against its history and its printed evidence, and the
@@ -263,21 +263,35 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
     L.append("")
     L.append("## 4. TRACE — the headline lines whose next-year forecast moved more than 10% against the analyst's book, "
              "and the typed inputs that carry the move")
-    try:
-        from .investigate import swing_leaves
-        for role, sh, r in _headline_rows(loop):
-            fcs = forecast_columns(spec, sh, ty) or []
-            if not fcs:
-                continue
-            f0, f1 = _num(ev0.cell(sh, f"{fcs[0]}{r}")), _num(ev.cell(sh, f"{fcs[0]}{r}"))
-            if f0 is None or f1 is None or abs(f0) < 1 or abs(f1 - f0) / abs(f0) < 0.10:
-                continue
-            leaves = swing_leaves(wb, pre_wb, sh, f"{fcs[0]}{r}", budget_s=20)[:6]
-            parts = [f"{s2}!{c2} '{_label(wb[s2], _row_of(c2))}' {_fmt(_num(ev0.cell(s2, c2)))} → {_fmt(_num(ev.cell(s2, c2)))}"
-                     for (s2, c2), _share in leaves]
-            L.append(f"  {sh}!{fcs[0]}{r} {role} {_fmt(f0)} → {_fmt(f1)}: " + "; ".join(parts))
-    except Exception as e:  # noqa: BLE001
-        L.append(f"  (the trace could not be walked: {type(e).__name__}: {str(e)[:80]})")
+    # the trace is the expensive half of the context: it is walked once per
+    # state of the model (the write journal's mark), not once per turn, and the
+    # whole section shares ONE budget — a turn is a turn, not a census
+    mark, cached = loop.__dict__.get("_review_trace", (None, None))
+    if mark == len(loop.writer.log.get("writes_all", []) or []):
+        L += cached
+    else:
+        trace, t0 = [], time.monotonic()
+        try:
+            from .investigate import swing_leaves
+            for role, sh, r in _headline_rows(loop):
+                fcs = forecast_columns(spec, sh, ty) or []
+                left = trace_budget_s - (time.monotonic() - t0)
+                if not fcs or left <= 0:
+                    if left <= 0:
+                        trace.append("  (the trace used its budget — the lines below it are not walked)")
+                        break
+                    continue
+                f0, f1 = _num(ev0.cell(sh, f"{fcs[0]}{r}")), _num(ev.cell(sh, f"{fcs[0]}{r}"))
+                if f0 is None or f1 is None or abs(f0) < 1 or abs(f1 - f0) / abs(f0) < 0.10:
+                    continue
+                leaves = swing_leaves(wb, pre_wb, sh, f"{fcs[0]}{r}", budget_s=left)[:6]
+                parts = [f"{s2}!{c2} '{_label(wb[s2], _row_of(c2))}' {_fmt(_num(ev0.cell(s2, c2)))} → {_fmt(_num(ev.cell(s2, c2)))}"
+                         for (s2, c2), _share in leaves]
+                trace.append(f"  {sh}!{fcs[0]}{r} {role} {_fmt(f0)} → {_fmt(f1)}: " + "; ".join(parts))
+        except Exception as e:  # noqa: BLE001
+            trace.append(f"  (the trace could not be walked: {type(e).__name__}: {str(e)[:80]})")
+        loop.__dict__["_review_trace"] = (len(loop.writer.log.get("writes_all", []) or []), trace)
+        L += trace
     if notes:
         L.append("")
         L.append("## 5. WHAT THE EARLY LOOK FOUND (the checkpoint sense check, before the writes)")
