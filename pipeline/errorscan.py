@@ -38,8 +38,28 @@ def error_cells(wb, spec, max_row=300):
     return out
 
 
-def new_errors(baseline, current):
+def new_errors(baseline, current, spec=None, target_year=None):
     """Errors the update INTRODUCED (the agent's fault, refusal items).
+
+    A FORMULA THE EVALUATOR CANNOT READ IS NOT A BROKEN MODEL (CX cold run
+    2026-09-17: the roll carried 34 SUMIFS-over-dates formulas into the actual
+    column and every one was called an error the update caused — the same
+    formula does not read in the column it was copied FROM either). When the
+    prior year's cell of the same row fails in exactly the same way, this is
+    the reader's limit, not the update's damage: reported, never refused.
     -> [(sheet, coord, why)] sorted."""
-    return sorted((s, c, why) for (s, c), why in current.items()
-                  if (s, c) not in baseline)
+    from .checks import prior_column
+    out = []
+    for (s, c), why in current.items():
+        if (s, c) in baseline:
+            continue
+        if spec is not None and target_year is not None:
+            try:
+                pcol = prior_column(spec, s, target_year)
+                row = "".join(ch for ch in c if ch.isdigit())
+                if pcol and baseline.get((s, f"{pcol}{row}")) == why:
+                    continue
+            except Exception:  # noqa: BLE001
+                pass
+        out.append((s, c, why))
+    return sorted(out)

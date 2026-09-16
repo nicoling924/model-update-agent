@@ -55,6 +55,8 @@ at a time spends the clock; the batch is measured as one change.
 
 You answer in JSON only: {"thinking": "...", "calls": [ ... ]}. Any number of calls per turn,
 executed in the order you write them; their answers come back in the next turn. The calls:
+  {"tool":"anatomy","checks":["Sheet!99"],"keys":[{"name":"revenue","ref":"Sheet!7"}],
+      "statements":["Sheet"],"because":"..."}   only when section 0 asks: what this model's rows ARE
   {"tool":"page","n":23}                                the page's own text
   {"tool":"find","q":"46.3"}   or  {"q":"Fuel Cost"}    printed lines carrying that number or label
   {"tool":"show","ref":"Sheet!AI16"}                    the row, its history, what uses it
@@ -163,8 +165,11 @@ def _nil_index(loop):
     return idx
 
 
-def _hits_printed(loop, value):
-    """Is this figure printed on any page on file, at any legal scale?"""
+def _hits_printed(loop, value, page_text=None):
+    """Is this figure printed on any page on file, at any legal scale? THE PAGE
+    IS THE PROOF (the same law the quoted line lives by): the extractor's lines
+    first, then the pages themselves — a face the table extractor could not
+    parse still prints its figures."""
     from .writegate import _SCALES, _nums, _sourceable
     v = abs(float(value))
     for it in _items(loop):
@@ -174,6 +179,13 @@ def _hits_printed(loop, value):
             if isinstance(n, (int, float)) and n and any(
                     abs(abs(n) / f - v) <= max(0.05, v * 1e-3) for f in _SCALES):
                 return True
+    if page_text is None:
+        return False
+    digits = f"{v:,.0f}".replace(",", "")
+    pat = re.compile(r"(?<!\d)" + r",?".join(digits) + r"(?![\d])")
+    for _k, txt in page_text.items():
+        if pat.search(str(txt)):
+            return True
     return False
 
 
@@ -472,6 +484,50 @@ def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
     return blk
 
 
+def anatomy_wanted(loop):
+    """Is this model's anatomy still unknown? A cold model from another team
+    has no spec: code finds the year axes, but which rows are the checks and
+    which are the keys is a reading of the model — the brain's first turn."""
+    return not (loop.spec.get("check_rows") or []) or not (loop.spec.get("key_rows") or [])
+
+
+def _anatomy_section(loop, cap=6000):
+    """What code could work out about this model, and what it could not."""
+    L = ["## 0. THE ANATOMY OF THIS MODEL — code could not finish it; this is your first job",
+         "  Code found the year axes by reading the headers. It could NOT find:"]
+    if not (loop.spec.get("check_rows") or []):
+        L.append("  - the model's own CHECK rows (objective 1, balance, is unmeasured until you name them)")
+    if not (loop.spec.get("key_rows") or []):
+        L.append("  - the model's KEY rows (objective 2, the keys against the print)")
+    for note in (loop.spec.get("check_notes") or [])[:4]:
+        L.append(f"  code's own note: {note[:200]}")
+    L.append("  Answer with {\"tool\":\"anatomy\", \"checks\":[\"Sheet!row\", ...], "
+             "\"keys\":[{\"name\":\"revenue\",\"ref\":\"Sheet!row\"}, ...], \"statements\":[\"Sheet\"], "
+             "\"because\":\"...\"} — a check is a row the model works out and expects to be zero "
+             "(assets less liabilities and equity, cash less the cash-flow roll); a key is the row the "
+             "MODEL computes, never a copy of the printed statement.")
+    L.append("  The sheets, their year columns, and their labels:")
+    room = cap
+    for sh, ax in (loop.spec.get("year_axis") or {}).items():
+        if sh not in loop.wb.sheetnames:
+            continue
+        cols = (ax.get("columns") or {}) if isinstance(ax, dict) else {}
+        L.append(f"  --- {sh}: {len(cols)} year column(s); {loop.ty} is column {cols.get(str(loop.ty), '?')} ---")
+        ws = loop.wb[sh]
+        for r in range(1, min(ws.max_row, 400) + 1):
+            lab = _label(ws, r)
+            if lab.startswith("row "):
+                continue
+            f = ws[f"{cols.get(str(loop.ty), 'A')}{r}"].value
+            ln = f"    {r}: {lab[:44]}" + (f"   {str(f)[:40]}" if isinstance(f, str) and f.startswith("=") else "")
+            if room - len(ln) < 0:
+                L.append(f"    (… more rows of {sh} — `show` any)")
+                break
+            room -= len(ln)
+            L.append(ln)
+    return L
+
+
 def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=(),
                   size_cap=26000, faces_cap=10000):
     """One reading of the MODEL and the print: the keys against the print, the
@@ -482,7 +538,11 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     written = _written(loop)
     by_sheet, open_rows = coverage(loop, rows, skipped)
     cls = _classes(loop, rows)
-    L = [f"## 1. THE KEYS against the print ({ty})"]
+    L = []
+    if anatomy_wanted(loop):
+        L += _anatomy_section(loop)
+        L.append("")
+    L.append(f"## 1. THE KEYS against the print ({ty})")
     L += _key_table(loop)
     L.append("")
     L.append(f"## 2. COVERAGE of the actual column ({ty})")
@@ -617,6 +677,27 @@ def verdict(loop, entry, page_text, sources, log):
             return float(printed), False, f"'{page}' is not a page number — the figure lands red", {}
         hit = _page_line(page_text, pg, float(printed), line or "", sources)
         if hit is None:
+            # THE EXTRACTED LINE IS ALSO THE PRINT (a scanned page has no text to
+            # quote from, and the table extractor is what read it): the same law
+            # applied to the ledger's own line — the figure is on that page and
+            # its comparative ties the model's prior.
+            from .writegate import _SCALES, _nums, ties_prior
+            for it in _items(loop):
+                if str(getattr(it, "page", "")) != str(pg):
+                    continue
+                ns = [n for n in _nums(it) if isinstance(n, (int, float))]
+                for f in _SCALES:
+                    if not any(abs(abs(n) - abs(float(printed))) <= max(0.05, abs(float(printed)) * 1e-3)
+                               for n in ns):
+                        continue
+                    v_m = float(printed) / f
+                    if not ties_prior(it, f, prior, v_m):
+                        continue
+                    if isinstance(prior, (int, float)) and prior < 0 < v_m:
+                        v_m = -v_m                 # the model owns the sign convention
+                    return v_m, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line) — the comparative "
+                                       "ties your prior"), {"doc": getattr(it, "doc", None), "page": pg,
+                                                            "line": _quote(it)[:60]}
             return (float(printed), False,
                     f"no line of p{pg} on file prints {printed:,} as you quoted it — it lands red with your reason",
                     {"page": pg, "line": str(line or "")[:60]})
@@ -633,7 +714,7 @@ def verdict(loop, entry, page_text, sources, log):
         # see how the number was built. Code checks that every term of it is a
         # figure the print carries; the arithmetic is the model's own from then on.
         terms = [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*\.?\d*", f_)]
-        missing = [t for t in terms if abs(t) >= 0.5 and not _hits_printed(loop, t)]
+        missing = [t for t in terms if abs(t) >= 0.5 and not _hits_printed(loop, t, page_text)]
         if missing:
             return f_, False, (f"the back-out lands red: {', '.join(f'{m:,.2f}' for m in missing[:3])} "
                                "is not a figure printed on any page on file"), {"line": f_[:60]}
@@ -666,10 +747,20 @@ def _apply(loop, entries, page_text, sources, log):
         ok = loop.writer.write(sheet, coord, val,
                                prior_coord=f"{pcol}{_row_of(coord)}" if pcol else None,
                                trusted=(plain is True or plain == "orange"), force_lock=True,
-                               allow_empty=True, flag=colour, note=note)
+                               allow_empty=True, author_brain=True, flag=colour, note=note)
         if not ok:
-            out.append(f"  {sheet}!{coord}: the writer refused it — said out loud, not silently dropped")
-            loop.__dict__.setdefault("_map_refused", []).append(f"{sheet}!{coord}: the writer refused it")
+            # A CELL THAT CANNOT TAKE THE FIGURE IS SAID ONCE, NOT ASKED AGAIN
+            # (pace test 2026-09-17: a merged cell refused the write, the row
+            # stayed 'unfilled', and the loop offered it back turn after turn —
+            # 1,670 turns). The row is red with what happened and is not
+            # re-offered as if nothing had been tried.
+            why_r = "; ".join(x for x in (loop.writer.log.get("skipped_merged") or [])[-1:]) or "a writer's law"
+            loop.writer.flag_ref(f"{sheet}!{coord}", "red",
+                                 f"COULD NOT BE WRITTEN: you mapped {str(val)[:20]} here and the cell would not "
+                                 f"take it ({why_r}). Please place it. Because: {because[:120]}")
+            _written(loop)[f"{sheet}!{coord}"] = "red"
+            out.append(f"  {sheet}!{coord}: the cell would not take it ({why_r}) — red, and not offered again")
+            loop.__dict__.setdefault("_map_refused", []).append(f"{sheet}!{coord}: the cell would not take the figure")
             continue
         back = Evaluator(loop.wb).cell(sheet, coord)
         shown = back if isinstance(back, (int, float)) else val
@@ -791,6 +882,65 @@ def _find(loop, page_text, q):
     return out
 
 
+def _t_anatomy(loop, call, log):
+    """THE BRAIN READS THE MODEL'S ANATOMY (owner 2026-09-17, the CX cold model:
+    no spec, no labelled check, so objective 1 could not be measured at all).
+    The brain names the check rows, the key rows and the statement sheets; code
+    VERIFIES each row computes a number in the model and then measures the
+    objectives on them from this turn on. Code records the reading (the _SPEC
+    draft) and names anything it had to drop."""
+    out, took, dropped = [], 0, []
+    ev = Evaluator(loop.wb)
+    for ref in (call.get("checks") or []):
+        sh, co, err = _parse_ref(loop, ref)
+        if err:
+            dropped.append(f"{ref}: {err}")
+            continue
+        try:
+            v = ev.cell(sh, co)
+        except Exception as e:  # noqa: BLE001
+            dropped.append(f"{ref}: the model cannot work this row out ({type(e).__name__})")
+            continue
+        if not isinstance(v, (int, float)):
+            dropped.append(f"{ref}: reads {str(v)[:20]!r}, not a number — a check computes a figure")
+            continue
+        r = _row_of(co)
+        if any(c.get("sheet") == sh and int(c.get("row")) == r for c in (loop.spec.get("check_rows") or [])):
+            continue
+        loop.spec.setdefault("check_rows", []).append({"sheet": sh, "row": r, "expect": 0})
+        took += 1
+        out.append(f"  check {sh}!{r} '{_label(loop.wb[sh], r)}' reads {_fmt(_num(v))} — measured from now on")
+    for k in (call.get("keys") or []):
+        if not isinstance(k, dict):
+            continue
+        sh, co, err = _parse_ref(loop, k.get("ref", ""))
+        if err:
+            dropped.append(f"{k.get('ref')}: {err}")
+            continue
+        try:
+            v = ev.cell(sh, co)
+        except Exception:  # noqa: BLE001
+            v = None
+        if not isinstance(v, (int, float)):
+            dropped.append(f"{k.get('ref')}: reads nothing the model computes — a key is a computed row")
+            continue
+        r = _row_of(co)
+        loop.spec.setdefault("key_rows", []).append({"name": str(k.get("name") or "key")[:40],
+                                                     "sheet": sh, "row": r, "source": "the brain's anatomy"})
+        took += 1
+        out.append(f"  key '{k.get('name')}' at {sh}!{r} '{_label(loop.wb[sh], r)}' reads {_fmt(_num(v))}")
+    loop.writer.log.setdefault("anatomy", []).append(
+        f"the brain's reading of this model: {len(call.get('checks') or [])} check row(s), "
+        f"{len(call.get('keys') or [])} key row(s), statements on "
+        f"{', '.join(str(x) for x in (call.get('statements') or []))[:80]} — "
+        f"{str(call.get('because') or '')[:150]}")
+    for d in dropped:
+        out.append(f"  dropped {d}")
+    log(f"[map] anatomy: {took} row(s) taken, {len(dropped)} dropped — "
+        f"{len(loop.spec.get('check_rows') or [])} check row(s), {len(loop.spec.get('key_rows') or [])} key row(s) now measured")
+    return [f"anatomy: {took} row(s) taken, {len(dropped)} dropped"] + out
+
+
 def _one_call(loop, pre_wb, call, page_text, sources, skipped, log):
     tool = str(call.get("tool") or "").strip().lower()
     if tool == "page":
@@ -825,6 +975,8 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log):
             loop.__dict__.setdefault("_map_refused", []).append(f"{ref}: skipped — {why[:110]}")
             out.append(f"skip {ref}: recorded red — {why[:100]}")
         return out
+    if tool == "anatomy":
+        return _t_anatomy(loop, call, log)
     if tool == "restate":
         return _t_restate(loop, call, page_text, sources, log)
     return [f"'{tool}' is not one of the tools: page, find, show, set, sets, skip, restate, done"]

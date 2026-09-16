@@ -388,7 +388,7 @@ def deliver_or_refuse(wb, spec, target_year, pre_map, writer_log,
     if error_baseline is not None:
         from .errorscan import error_cells, new_errors
         cur = error_cells(wb, spec)
-        for s, c, why in new_errors(error_baseline, cur):
+        for s, c, why in new_errors(error_baseline, cur, spec, target_year):
             failures.append(f"NEW ERROR {s}!{c}: {why} — this cell "
                             "computed before the update; the update "
                             "broke it (trace_error names the cause)")

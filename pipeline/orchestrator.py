@@ -2052,7 +2052,46 @@ def terminal_ladder(loop, log, walk_budget_s=60.0, only=None):
     # inside the run's finish margin, and three checks would have spent it three
     # times over).
     _ladder_t0 = time.monotonic()
-    for sheet, row, resid in loop._failing_target_checks():
+    # A PLUG THAT CLOSES ONE CHECK CAN OPEN ANOTHER (DFE FY25 floor 2026-09-17:
+    # the plug that closed Driver!109 moved Raw financials!U93 by +452 and
+    # Model!95 came off by exactly that; the ladder had already read its list of
+    # failing checks and never looked again, so the model shipped unbalanced).
+    # The ladder re-reads the model after every closure and goes round again
+    # while the total residual is still coming down — code's one guarantee is
+    # that the checks close, and a measurement, not a judgment, ends it.
+    def _todo():
+        try:
+            return list(loop._failing_target_checks())
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _weight(items):
+        return sum(abs(x[2]) for x in items if isinstance(x[2], (int, float)))
+    _round, _seen = 0, None
+    while True:
+        _round += 1
+        _left = _todo()
+        if not _left or time.monotonic() - _ladder_t0 > walk_budget_s * 4:
+            break
+        w = _weight(_left)
+        if _seen is not None and (w >= _seen - 1.0 or _round > 6):
+            log(f"[run] terminal ladder: round {_round} would not bring the checks in further "
+                f"(residual {w:,.1f}) — what is left is red for the analyst")
+            break
+        _seen = w
+        if _round > 1:
+            log(f"[run] terminal ladder: round {_round} — {len(_left)} check(s) still off "
+                f"(residual {w:,.1f}) after the last plug moved the model")
+        closed += _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _left)
+        if only is not None:
+            break
+    return closed
+
+
+def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
+    """ONE pass of the ladder over the checks that are off right now."""
+    closed = 0
+    for sheet, row, resid in _failing:
         if only is not None and (str(only[0]), int(only[1])) != (str(sheet), int(row)):
             continue          # the brain named ONE check; the others are not its call
         diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})

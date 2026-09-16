@@ -203,6 +203,63 @@ def find_check_rows(ws_f, ws_v, axis):
     return out
 
 
+def zero_difference_rows(ws_f, ws_v, axis, min_years=3, target_year=None, wb_f=None):
+    """THE MODEL'S OWN CHECKS WHEN NOTHING IS LABELLED (owner 2026-09-17, the CX
+    cold model: a wide single sheet, no 'check' anywhere, and objective 1 could
+    not be measured at all). A row whose formula SUBTRACTS and comes out at zero
+    in every HISTORY year it computes, over operands that are not themselves
+    zero, IS a check — the model testing itself, whatever it is called. A
+    measurement of the model's own arithmetic, not a judgment about meaning.
+    -> [row]"""
+    years = sorted(y for y in axis if str(y).isdigit()
+                   and (target_year is None or int(y) < int(target_year)))
+    cols = [axis[y] for y in years[-6:]] or list(axis.values())[:6]
+    ev = None
+    if wb_f is not None:
+        try:
+            from .evaluator import Evaluator
+            ev = Evaluator(wb_f)
+        except Exception:  # noqa: BLE001
+            ev = None
+    sheet = ws_f.title
+
+    def _value(col, r):
+        v = ws_v[f"{col}{r}"].value
+        if isinstance(v, (int, float)):
+            return v
+        if ev is None:
+            return None
+        try:                       # a workbook saved with no cached values
+            return ev.cell(sheet, f"{col}{r}")
+        except Exception:  # noqa: BLE001
+            return None
+    out = []
+    for r in range(1, min(ws_f.max_row, 400) + 1):
+        zeros = nonzero = alive = 0
+        for col in cols:
+            f = ws_f[f"{col}{r}"].value
+            if not (isinstance(f, str) and f.startswith("=") and "-" in f):
+                continue
+            v = _value(col, r)
+            if not isinstance(v, (int, float)):
+                continue
+            if abs(v) > 0.01:
+                nonzero += 1
+                continue
+            zeros += 1
+            # A ZERO OVER NOTHING IS NOT A CHECK (CX 2026-09-17: '=B27/B40-1'
+            # reads 0 because both cells are empty). Something the row
+            # subtracts must itself be a real number.
+            for m in re.finditer(r"(?<![A-Z0-9])([A-Z]{1,3})\$?(\d+)", str(f)):
+                ov = _value(m.group(1), int(m.group(2)))
+                if isinstance(ov, (int, float)) and abs(ov) >= 1:
+                    alive += 1
+                    break
+        if zeros >= min_years and nonzero == 0 and alive >= min_years:
+            out.append(r)
+    return out
+
+
 def find_key_rows(ws, axis, sheet):
     """First label hit per key pattern, provided the row holds numbers."""
     cols = list(axis.values())
@@ -252,7 +309,20 @@ def discover(wb_f, wb_v, target_year=None, period_kind="FY",
                 axis[str(target_year)] = n2col(col2n(last_c) + 1)
         spec["year_axis"][sheet] = {"columns": axis}
         ws_f = wb_f[sheet]
-        for r in find_check_rows(ws_f, ws, axis):
+        found = find_check_rows(ws_f, ws, axis)
+        if not found:
+            found = zero_difference_rows(ws_f, ws, axis, target_year=target_year, wb_f=wb_f)
+            if found:
+                spec.setdefault("check_notes", []).append(
+                    f"{sheet}: {len(found)} check row(s) found by the model's own arithmetic — rows whose "
+                    f"formula subtracts and comes out at zero in every year it computes (rows "
+                    f"{', '.join(str(x) for x in found[:8])}); nothing on this sheet is labelled a check")
+        for r in found:
             spec["check_rows"].append({"sheet": sheet, "row": r, "expect": 0})
         spec["key_rows"] += find_key_rows(ws, axis, sheet)
+    if not spec["check_rows"]:
+        spec.setdefault("check_notes", []).append(
+            "NO CHECK ROW IN THIS MODEL: no row subtracts two live totals to zero in its history, on any "
+            "sheet with a year axis. Objective 1 (balance) cannot be measured from the model's own "
+            "arithmetic — the anatomy turn must name the identity, or the analyst must.")
     return spec

@@ -262,7 +262,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         """MEASURED, NOT UNDONE (owner 2026-09-17: code never takes back what
         the brain wrote). Cells that stopped computing after a stage are named,
         flagged red where they live, and reach the brain and the gate."""
-        cur = new_errors(err_base, error_cells(wb, spec_d))
+        cur = new_errors(err_base, error_cells(wb, spec_d), spec_d, target_year)
         if not cur:
             return
         for s_e, c_e, _w in cur[:cap]:
@@ -695,6 +695,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     def _ask_map(system, user):
         """One mapping turn. A replay's recorded turns stand in for the brain."""
         _scripted = getattr(stage4_answerer, "maps", None)
+        if callable(_scripted):
+            return _scripted(system, user)     # a harness that answers from the context (the pace test)
         if _scripted is not None:
             if not _scripted:
                 raise RuntimeError("the replay has no further mapping turns recorded")

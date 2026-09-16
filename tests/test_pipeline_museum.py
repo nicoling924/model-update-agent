@@ -5879,6 +5879,277 @@ def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():
     print("PASS test_the_mandate_shows_how_a_break_is_closed_2026_09_16")
 
 
+
+# ── THE MAPPING (owner 2026-09-17: the brain maps the model, code indexes) ──
+
+def _map_model():
+    """The CLP p23 shape in miniature: an opex total the face prints in pieces,
+    the other gain of 460, a minority-interests row whose definition is the
+    model's, a formula subtotal, and a row the print does not carry."""
+    import openpyxl
+    from pipeline.writer import Writer
+    from pipeline.ledger import Ledger, Item
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Final"
+    ws["A1"], ws["B1"], ws["C1"] = "Year", 2024, 2025
+    rows = [(2, "Revenue", 76061.0), (3, "Other gain", 420.0), (4, "Staff costs", -20000.0),
+            (5, "Fuel", -30000.0), (6, "Depreciation", -15000.0), (7, "Other opex", -11061.0),
+            (8, "Minority interests", -900.0), (9, "Segment detail", -55.0)]
+    for r, lab, v in rows:
+        ws[f"A{r}"], ws[f"B{r}"], ws[f"C{r}"] = lab, v, v
+    ws["A10"], ws["B10"], ws["C10"] = "Operating profit", "=SUM(B2:B7)", "=SUM(C2:C7)"
+    spec = {"year_axis": {"Final": {"columns": {"2024": "B", "2025": "C"}, "header_row": 1}},
+            "check_rows": [], "key_rows": []}
+    led = Ledger()
+    led.add(Item(doc="ar.pdf", page=23, table_id=0, row_ord=0, label="Revenue",
+                 nums=[88018.0, 76061.0], source_line="Revenue 88,018 76,061", stmt_face="pl"))
+    led.add(Item(doc="ar.pdf", page=23, table_id=0, row_ord=1, label="Other gains, net",
+                 nums=[460.0, 420.0], source_line="Other gains, net 460 420", stmt_face="pl"))
+    led.faces[("ar.pdf", 23)] = "pl"
+
+    class L:
+        pass
+    loop = L()
+    loop.wb, loop.spec, loop.ty, loop.ledger = wb, spec, 2025, led
+    loop.targets, loop.served, loop.writer = {}, {}, Writer(wb)
+    loop.period = "FY25"
+    pages = {("ar.pdf", 23): ("CONSOLIDATED INCOME STATEMENT\n"
+                              "Revenue 88,018 76,061\n"
+                              "Other gains, net 460 420\n"
+                              "Staff costs (21,000) (20,000)\n"
+                              "Fuel (31,000) (30,000)\n"
+                              "Depreciation (16,000) (15,000)\n"
+                              "Other operating expenses (6,206) (11,061)\n"
+                              "Perpetual securities distributions (1,000) (900)\n")}
+    census = {"Final": [r for r, _l, _v in rows]}
+    return loop, pages, census
+
+
+def _drive(loop, pages, census, turns, deadline_s=30.0):
+    from pipeline.mapping import run_mapping
+    said = []
+
+    def ask(system, user):
+        said.append(user)
+        if not turns:
+            raise RuntimeError("no more turns")
+        return turns.pop(0)
+    summary = run_mapping(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=deadline_s)
+    return summary, said
+
+
+def test_the_mapping_writes_what_the_page_proves_2026_09_17():
+    """CLP p23: the brain quotes the printed line, code proves the scale off its
+    own comparative and the model's sign convention, and the cell lands PLAIN.
+    Other gain 460 — the figure one run mapped and the next called 'not
+    disclosed' — is mapped from the line, not from a tie table."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "sets", "sets": [
+        {"ref": "Final!C2", "printed": 88018, "page": 23, "line": "Revenue 88,018 76,061",
+         "because": "my revenue row"},
+        {"ref": "Final!C3", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
+         "because": "my other gain row"}]}]},
+        {"calls": [{"tool": "done"}]}]
+    _s, _said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["C2"].value == 88018.0, loop.wb["Final"]["C2"].value
+    assert loop.wb["Final"]["C3"].value == 460.0, loop.wb["Final"]["C3"].value
+    assert "Final!C2" not in loop.writer.log["flags"], "a tying quote landed red"
+    print("PASS test_the_mapping_writes_what_the_page_proves_2026_09_17")
+
+
+def test_a_set_over_the_models_own_arithmetic_is_refused_2026_09_17():
+    """CLP live turn 4 wrote four printed subtotals over four formula cells and
+    the gate called it 'plain, the evidence ties'. A formula cell is the model
+    thinking: refused, in the tool AND in the writer."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C10", "printed": 14272, "page": 23,
+                         "line": "Revenue 88,018 76,061", "because": "operating profit"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert str(loop.wb["Final"]["C10"].value).startswith("="), loop.wb["Final"]["C10"].value
+    assert any("own arithmetic" in x for x in loop.__dict__["_map_refused"]), loop.__dict__["_map_refused"]
+    ok = loop.writer.write("Final", "C10", 14272.0, trusted=True, force_lock=True)
+    assert ok is False and loop.writer.log.get("formula_refused"), "the writer let a figure over a formula"
+    print("PASS test_a_set_over_the_models_own_arithmetic_is_refused_2026_09_17")
+
+
+def test_the_brains_arithmetic_is_recomputed_not_trusted_2026_09_17():
+    """CLP p23 opex: the model's row is four printed lines. The brain states the
+    arithmetic, code re-computes it — and a back-out written as a FORMULA lands
+    orange with every term checked against the print."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [
+        {"tool": "set", "ref": "Final!C7", "value": -6206.0,
+         "because": "p23: the print splits my other opex; -31000+31000-6206 is the piece that is mine"},
+        {"tool": "set", "ref": "Final!C9", "formula": "=88018-21000-31000", "because": "backed out of the face"},
+        {"tool": "set", "ref": "Final!C4", "value": -21000.0, "because": "no line, no arithmetic"}]},
+        {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["C7"].value == -6206.0
+    assert str(loop.wb["Final"]["C9"].value).startswith("="), "a back-out must stay a formula"
+    assert "Final!C4" in loop.writer.log["flags"], "a figure with no evidence landed plain"
+    assert "RED" in said[-1] and "ORANGE" in said[-1], said[-1][-500:]
+    print("PASS test_the_brains_arithmetic_is_recomputed_not_trusted_2026_09_17")
+
+
+def test_a_coincidental_tie_is_a_lead_not_a_write_2026_09_17():
+    """phase0 wrote SOC Accounts!AI7 = 20 from a coincidental tie and cleared two
+    red doubts with no note. A tie is shown as a LEAD beside the row; nothing
+    lands until the brain says what the line IS."""
+    from pipeline.mapping import build_context, input_rows, leads_for
+    loop, pages, census = _map_model()
+    rows = input_rows(loop, census)
+    ctx = build_context(loop, loop.wb, rows, pages, {})
+    assert "lead: p23 'Revenue 88,018 76,061'" in ctx, ctx[:1500]
+    for banned in ("prefer", "ranked", "best match", "✓"):
+        assert banned not in ctx.lower(), banned
+    assert loop.wb["Final"]["C2"].value == 76061.0, "a lead wrote a cell"
+    assert leads_for(loop, 420.0), "the tie on the prior is found"
+    print("PASS test_a_coincidental_tie_is_a_lead_not_a_write_2026_09_17")
+
+
+def test_done_before_coverage_is_refused_and_the_clock_reds_the_rest_2026_09_17():
+    """`done` is accepted only when every input row is filled or skipped with a
+    reason; on the clock the rest land red 'not reached' — never a silent
+    estimate, never a code guess."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "done"}]},
+             {"calls": [{"tool": "skip", "ref": "Final!C9", "because": "not disclosed in this announcement"}]}]
+    summary, said = _drive(loop, pages, census, turns, deadline_s=30.0)
+    assert "not done:" in " ".join(said), said[-1][-300:]
+    assert "NOT MAPPED" in str(loop.writer.log["flags"]) or "Final!C9" in loop.writer.log["flags"]
+    assert "not reached (red)" in summary and summary.count("skipped with a reason"), summary
+    assert "7 not reached" in summary, summary
+    print("PASS test_done_before_coverage_is_refused_and_the_clock_reds_the_rest_2026_09_17())".replace("())", ""))
+
+
+def test_the_brain_refuses_once_and_remembers_2026_09_17():
+    """DFE p207: the name judge refused a 合计 total line, a serve card re-offered
+    it with a tick and no memory, the brain took it, net profit -1,076. What the
+    brain refused stays in its own record, in front of it, every turn."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "skip", "ref": "Final!C9", "because": "p207 合计 is a total line, not my row"}]},
+             {"calls": [{"tool": "show", "ref": "Final!C9"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert "合计" in said[-1], "the refusal is not carried into the next turn"
+    assert "skipped" in said[-1], said[-1][-400:]
+    print("PASS test_the_brain_refuses_once_and_remembers_2026_09_17")
+
+
+def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
+    """Owner's standing law: the agent never changes the analyst's history. A
+    comparative that disagrees is recorded as a question and the actual-year
+    cell is marked red; the prior column is untouched."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "restate", "ref": "Final!B2", "printed": 77000, "page": 23,
+                         "line": "Revenue 88,018 77,000", "because": "the print restates last year"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["B2"].value == 76061.0, "the analyst's history was changed"
+    assert any("QUESTION" in x for x in loop.writer.log.get("restatements", [])), loop.writer.log.get("restatements")
+    assert "Final!C2" in loop.writer.log["flags"], "the question is not visible in the actual column"
+    print("PASS test_a_restatement_is_a_question_not_a_correction_2026_09_17")
+
+
+def test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17():
+    """CX: another team's model, no spec, no labelled check row — objective 1
+    unmeasured. The brain reads the sheet and names the checks and the keys;
+    code verifies each row computes a number and measures them from then on."""
+    from pipeline.mapping import anatomy_wanted, build_context, input_rows, _t_anatomy
+    loop, pages, census = _map_model()
+    assert anatomy_wanted(loop)
+    ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
+    assert "THE ANATOMY OF THIS MODEL" in ctx and "CHECK rows" in ctx, ctx[:600]
+    out = _t_anatomy(loop, {"checks": ["Final!10"], "keys": [{"name": "operating profit", "ref": "Final!10"},
+                                                             {"name": "revenue", "ref": "Final!2"}],
+                            "statements": ["Final"], "because": "row 10 is the model's own sum"}, lambda *a: None)
+    assert loop.spec["check_rows"] == [{"sheet": "Final", "row": 10, "expect": 0}], loop.spec["check_rows"]
+    assert {k["name"] for k in loop.spec["key_rows"]} == {"operating profit", "revenue"}, loop.spec["key_rows"]
+    assert not anatomy_wanted(loop)
+    bad = _t_anatomy(loop, {"checks": ["Final!999"]}, lambda *a: None)
+    assert any("dropped" in x for x in bad), bad
+    print("PASS test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17")
+
+
+def test_a_cold_run_reads_no_spec_2026_09_17():
+    """Owner 2026-09-17: the agent is run on other teams' models with no
+    MODEL_SPEC.md and no _SPEC tab. Cold is the default and the context says so;
+    a spec, when there is one, is marked optional."""
+    import os
+    from pipeline.mapping import _definitions, cold_run
+    loop, _p, _c = _map_model()
+    loop.model_spec_text = "core profit excludes the IP revaluation"
+    assert cold_run()
+    assert "cold run: no spec" in " ".join(_definitions(loop))
+    os.environ["COLD_RUN"] = "0"
+    try:
+        assert any("optional" in x and "core profit" in x for x in _definitions(loop)), _definitions(loop)
+    finally:
+        os.environ.pop("COLD_RUN", None)
+    print("PASS test_a_cold_run_reads_no_spec_2026_09_17")
+
+
+def test_the_map_turns_replay_from_the_log_2026_09_17():
+    """A floor drives the mapping exactly as the live run did: every turn is
+    logged verbatim as '[map] turn N reply {json}' and read back by
+    tools/replay_live.py, the same contract the review already keeps."""
+    import json
+    import tempfile
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    from replay_live import maps_from_log
+    turn = {"thinking": "t", "calls": [{"tool": "set", "ref": "Final!C2", "printed": 88018, "page": 23}]}
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+        fh.write("[map] turn 1 reply " + json.dumps(turn) + "\n[map]   Final!C2 = 88,018\n")
+        fh.write("[map] turn 2 reply " + json.dumps({"calls": [{"tool": "done"}]}) + "\n")
+        path = fh.name
+    got = maps_from_log(path)
+    assert got == [turn, {"calls": [{"tool": "done"}]}], got
+    print("PASS test_the_map_turns_replay_from_the_log_2026_09_17")
+
+
+
+def test_a_formula_the_reader_cannot_parse_is_not_a_new_error_2026_09_17():
+    """CX cold run: the roll carried 34 SUMIFS-over-dates formulas into the
+    actual column and the gate called every one an error the update caused —
+    the same formula does not read in the column it was copied FROM either."""
+    from pipeline.errorscan import new_errors
+    spec = {"year_axis": {"M": {"columns": {"2024": "AN", "2025": "AO"}}}}
+    base = {("M", "AN10"): "invalid syntax (<string>, line 1)"}
+    cur = dict(base)
+    cur[("M", "AO10")] = "invalid syntax (<string>, line 1)"      # the same formula, rolled
+    cur[("M", "AO11")] = "division by zero"                        # this one the update really broke
+    got = new_errors(base, cur, spec, 2025)
+    assert [c for _s, c, _w in got] == ["AO11"], got
+    assert [c for _s, c, _w in new_errors(base, cur)] == ["AO10", "AO11"], "the plain call must not change"
+    print("PASS test_a_formula_the_reader_cannot_parse_is_not_a_new_error_2026_09_17")
+
+
+def test_the_brains_write_is_not_refused_for_want_of_evidence_2026_09_17():
+    """Owner 2026-09-17: code refuses the brain's write in two cases only — the
+    model's own arithmetic, and outside the actual column. The world band, the
+    empty-row law and the never-filled law exist to stop CODE writing where it
+    has no business; they do not overrule the analyst reading the print."""
+    import openpyxl
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["A2"], ws["B2"], ws["C2"] = "Revenue", 10.0, 10.0
+    ws["A3"], ws["B3"] = "Total", "=B2"
+    ws["C3"] = "=C2"
+    w = Writer(wb)
+    assert w.write("S", "C2", 9000.0, prior_coord="B2") is False, "the band must still police code"
+    assert w.write("S", "C2", 9000.0, prior_coord="B2", author_brain=True) is True
+    assert ws["C2"].value == 9000.0
+    assert w.write("S", "C3", 9000.0, prior_coord="B3", author_brain=True) is False, \
+        "the model's own arithmetic was typed over"
+    assert w.log.get("formula_refused"), w.log
+    print("PASS test_the_brains_write_is_not_refused_for_want_of_evidence_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

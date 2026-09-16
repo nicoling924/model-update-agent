@@ -321,7 +321,7 @@ class Writer:
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
               flag=None, trusted=False, force_lock=False, allow_empty=False,
-              kind=None, over_formula=False):
+              kind=None, over_formula=False, author_brain=False):
         """Write one cell through every guard, then read it back.
 
         trusted=True is for values whose magnitude is PROVEN (a checksummed
@@ -362,6 +362,16 @@ class Writer:
                 guard_v = float(eval(value[1:], {"__builtins__": {}}, {}))
             except Exception:
                 guard_v = None
+        # THE BRAIN'S OWN WRITE IS NOT REFUSED FOR WANT OF EVIDENCE (owner
+        # 2026-09-17): the analyst reading the print outranks the world band,
+        # the empty-row law and the never-filled law — those laws exist to stop
+        # CODE writing where it has no business. What the brain says lands; if
+        # the evidence does not tie, it lands RED, and the reason is on the cell.
+        # (The two guards that still refuse it: the model's own arithmetic, and
+        # a cell outside the actual column.)
+        if author_brain:
+            trusted = True
+            allow_empty = True
         # world-band guard (run-112b/115)
         if not trusted and isinstance(guard_v, (int, float)) and guard_v != 0:
             pv = self._prior_for(ws, sheet, coord, prior_coord)
@@ -379,7 +389,7 @@ class Writer:
         # over the segment lines and MW headings with fractions). Trusted
         # writes are refused too: the law is the writer's, not a step's.
         if (isinstance(value, (int, float)) or (isinstance(value, str) and value.startswith("="))) \
-                and row_never_filled(ws, coord):
+                and not author_brain and row_never_filled(ws, coord):
             self.log.setdefault("never_filled_refused", []).append(ref)
             return False
         # the empty-row law (owner ruling 2026-08-31): a row whose prior
