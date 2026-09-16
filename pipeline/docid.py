@@ -761,9 +761,30 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
                               "source": "brain"})
     if not found and not dropped:
         return []
+    def _computed(sheet, row):
+        """Does the MODEL work this row out, or does it just hold a copy of the
+        statement? A key is the model's own answer (DFE 2026-09-17: 'net profit'
+        was pinned to Raw financials!40, a transcription of the printed
+        statement, so the key measured the disclosure against itself and the
+        model's own Reported net profit was never tested). The evidence is the
+        cell itself: the model's arithmetic, or a typed number."""
+        try:
+            for c in (list((axis.get(sheet, {}).get("columns") or {}).values()) or [])[:12]:
+                v = wb_values[sheet][f"{c}{row}"].value
+                if isinstance(v, str) and v.startswith("="):
+                    return True
+        except Exception:  # noqa: BLE001
+            return False
+        return False
     by_name = {}
     for k in found:
-        by_name.setdefault(k["name"], k)      # first sheet wins per name
+        cur = by_name.get(k["name"])
+        if cur is None:
+            by_name[k["name"]] = k
+        elif _computed(k["sheet"], int(k["row"])) and not _computed(cur["sheet"], int(cur["row"])):
+            dropped.append(f"{cur['sheet']}!{cur['row']} as {k['name']} (a copy of the statement; "
+                           f"the model computes {k['sheet']}!{k['row']})")
+            by_name[k["name"]] = k
     old = spec.get("key_rows") or []
     # A VERIFIED EXISTING PICK IS NOT DISPLACED by a brain pick from another
     # sheet (run 232: 'operating profit' moved from Final!15 to Driver!28 —
@@ -773,7 +794,8 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
         nm = k.get("name")
         b = by_name.get(nm)
         if b and b["sheet"] != k.get("sheet") and k.get("sheet") in wb_values.sheetnames \
-                and _prior_ties(k["sheet"], int(k["row"]), nm):
+                and _prior_ties(k["sheet"], int(k["row"]), nm) \
+                and (_computed(k["sheet"], int(k["row"])) or not _computed(b["sheet"], int(b["row"]))):
             keep_old[nm] = k
     for nm in keep_old:
         dropped.append(f"{by_name[nm]['sheet']}!{by_name[nm]['row']} as {nm} "

@@ -125,3 +125,55 @@ def restate_prior_column(wb, wb_values, spec, target_year, ledger, targets, writ
         n += 1
     log(f"[run] restate: {n} prior-period cell(s) restated to this year's report" if n else "[run] restate: nothing to restate — this year's report prints last year as the model holds it")
     return n
+
+
+class _Recorder:
+    """A writer that writes nothing: the restatement stage becomes an INDEX
+    (owner 2026-09-17) without a second implementation of the finding."""
+
+    def __init__(self):
+        self.log = {"written": [], "flags": [], "restatements": [], "writes_all": []}
+        self.locked = set()
+        self.proposed = []
+
+    def write(self, sheet, coord, value, **kw):
+        self.proposed.append((sheet, coord, value, str(kw.get("note") or "")))
+        return False          # nothing is written, so nothing downstream changes
+
+    def flag_ref(self, *a, **k):
+        pass
+
+    def flag(self, *a, **k):
+        pass
+
+    def lock(self, *a, **k):
+        pass
+
+    def watch(self, *a, **k):
+        pass
+
+
+def restatement_leads(wb, wb_values, spec, target_year, ledger, targets, log=print, period=None):
+    """{(sheet, row): one line} — where this year's comparative disagrees with
+    the model's own prior, with the printed line that says so. Information for
+    the brain; the write is the brain's `restate`."""
+    rec = _Recorder()
+    try:
+        restate_prior_column(wb, wb_values, spec, target_year, ledger, dict(targets), rec,
+                             lambda *a, **k: None, period=period)
+    except Exception as e:  # noqa: BLE001
+        log(f"[run] the restatement index could not be built: {e!r}")
+        return {}
+    out = {}
+    for sheet, coord, value, note in rec.proposed:
+        m = re.search(r"(\d+)$", str(coord))
+        if not m:
+            continue
+        held = wb[sheet][coord].value
+        v = f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)[:30]
+        out[(sheet, int(m.group(1)))] = (
+            f"this year's report prints last year as {v} where your model holds "
+            f"{held if not isinstance(held, (int, float)) else f'{held:,.2f}'} — a restatement? "
+            f"{note[:100]}")
+    log(f"[run] restatement index: {len(out)} prior cell(s) where the comparative disagrees with the model")
+    return out

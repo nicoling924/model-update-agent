@@ -464,3 +464,51 @@ def serve_schedules(wb, spec, target_year, ledger, served, writer, log):
                                    f"vs the printed closing {abs(closing):,.2f} ({where}). Please check the movements.")
             log(f"[run] schedule '{b['label'][:30]}' does not close: {abs(got):,.2f} vs printed {abs(closing):,.2f}")
     return n
+
+
+class _Recorder:
+    """A writer that writes NOTHING and remembers what would have been written.
+    This is how a writer becomes an INDEX (owner 2026-09-17) without a second
+    implementation of the finding: the same code finds the vertical tie, and
+    what it finds reaches the brain as a lead beside the row."""
+
+    def __init__(self):
+        self.log = {"written": [], "flags": [], "restatements": [], "writes_all": []}
+        self.locked = set()
+        self.proposed = []
+
+    def write(self, sheet, coord, value, **kw):
+        self.proposed.append((sheet, coord, value, str(kw.get("note") or "")))
+        return True
+
+    def flag_ref(self, ref, colour, note=None):
+        sheet, _, coord = str(ref).partition("!")
+        self.proposed.append((sheet, coord, None, str(note or "")))
+
+    def flag(self, sheet, coord, colour, note=None):
+        self.proposed.append((sheet, coord, None, str(note or "")))
+
+    def lock(self, *a, **k):
+        pass
+
+    def watch(self, *a, **k):
+        pass
+
+
+def schedule_leads(wb, spec, target_year, ledger, log=print):
+    """The vertical tie as INFORMATION: {(sheet, row): one line} — what the
+    movement table would say about this row, for the brain to judge."""
+    rec = _Recorder()
+    try:
+        serve_schedules(wb, spec, target_year, ledger, {}, rec, lambda *a, **k: None)
+    except Exception as e:  # noqa: BLE001
+        log(f"[run] the schedule index could not be built: {e!r}")
+        return {}
+    out = {}
+    for sheet, coord, value, note in rec.proposed:
+        m = re.search(r"(\d+)$", str(coord))
+        if not m:
+            continue
+        v = f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)[:40]
+        out[(sheet, int(m.group(1)))] = f"a movement schedule's vertical tie: {v} — {note[:120]}"
+    return out

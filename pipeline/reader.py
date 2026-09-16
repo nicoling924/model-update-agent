@@ -545,96 +545,11 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None, page_text=
     return out
 
 
-def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledger,
-               served, writer, log, rows=None, chunk=None):
-    """The stage. -> number of rows written. One call carries the whole
-    disclosure and every row (CLP run 262: four 90-row chunks re-sent
-    three documents four times — 37 of the run's 60 minutes)."""
-    if client is None:
-        return 0
-    rows = rows if rows is not None else rows_to_read(wb, spec, target_year, targets, served)
-    if not rows:
-        return 0
-    sources = {it.doc for it in ledger.items} - set(ledger.noncurrent_docs())  # evidence: the brain reads this period's documents; last year's is never a SOURCE of this year's number
-    docs = [p for p in sorted((Path(company_dir) / "disclosures" / str(period)).glob("*.pdf"))
-            if p.name in sources]
-    if not docs:
-        return 0
-    text, image_pages = _doc_text(docs)
-    # the PAGES themselves (disk-cached by stage 1 — free on a re-read): the
-    # evidence a quoted line is checked against, whatever the table extractor
-    # made of it
-    from .stage1_read import page_texts as _page_texts
-    page_text = {}
-    for _p in docs:
-        try:
-            for _pn, _t, _cls in _page_texts(str(_p)):
-                if _t:
-                    page_text[(_p.name, _pn)] = _t
-        except Exception as _e:
-            log(f"[read] page text unavailable for {_p.name}: {_e!r} — quoted lines fall back to the ledger")
-    imgs = _images(image_pages)
-    from .stage2_join import ratify_page_scales
-    priors = [t.prior_value for t in targets.values()
-              if isinstance(getattr(t, "prior_value", None), (int, float))]
-    page_scales = ratify_page_scales([it for it in ledger.items if it.joinable()], priors, [])
-    units = str(spec.get("units") or "the model's units")
-
-    def _val(o):
-        return [] if isinstance(o, dict) and isinstance(o.get("rows"), list) else ["rows list required"]
-    answers = []
-    import time as _time
-    _t0 = _time.monotonic()
-    chunk = chunk or max(1, len(rows))
-    for i in range(0, len(rows), chunk):
-        part = rows[i:i + chunk]
-        user = (f"MODEL UNITS: {units}\n\nMODEL ROWS (id | sheet > section headers > label | last-period value):\n"
-                + "\n".join(f"{r['row']} | {r['sheet']}" + (f" > {r['context']}" if r.get('context') else "") + f" > {r['label']} | {r['prior']}" for r in part)
-                + "\n\nDISCLOSURE (full text, page-marked; scanned pages attached as images in order):\n"
-                + text)
-        try:
-            obj = client.json(_SYSTEM, user, _val, repair_retries=1, images=imgs or None)
-        except Exception as e:
-            log(f"[read] call failed: {e}")
-            continue
-        answers += [a for a in (obj.get("rows") or []) if isinstance(a, dict)]
-    log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers "
-        f"({_time.monotonic() - _t0:,.0f}s)")
-    verdicts = verify(answers, rows, ledger, page_scales, log, priors=priors, page_text=page_text)
-    # the reading is evidence for the replay and the morning grade
-    try:
-        import json as _json
-        rp = Path(company_dir) / "replay" / str(period)
-        rp.mkdir(parents=True, exist_ok=True)
-        (rp / "reader.json").write_text(_json.dumps(
-            {"rows": rows, "answers": answers,
-             "verdicts": {k: v for k, v in verdicts.items() if v}}, ensure_ascii=False, indent=1))
-    except Exception:
-        pass
-    n = 0
-    for r in rows:
-        v = verdicts.get(r["row"])
-        if not v:
-            continue
-        sheet, row = r["sheet"], r["r"]
-        tcol = year_columns(spec, sheet).get(str(target_year))
-        pcol = prior_column(spec, sheet, target_year)
-        if not tcol:
-            continue
-        held = wb[sheet][f"{tcol}{row}"].value
-        if isinstance(held, str) and held.startswith("="):
-            continue                     # a formula row is never an input
-        ok = writer.write(sheet, f"{tcol}{row}", float(v["value"]),
-                          prior_coord=f"{pcol}{row}" if pcol else None,
-                          flag=v.get("flag"), note=v.get("note"),
-                          allow_empty=(r["prior"] is None), trusted=(v["conf"] >= 4))
-        if ok:
-            served[(sheet, row)] = {"value": float(v["value"]), "status": "OK", "doc": v["doc"],
-                                    "page": v["page"], "line": v["line"], "conf": v["conf"],
-                                    "note": v["why"]}
-            n += 1
-            log(f"[read]   {r['row']} = {v['value']:,.2f} ({v['why']})" + ("" if v["conf"] >= 4 else " — RED"))
-    log(f"[read] reader stage: {n} rows written "
-        f"({sum(1 for v in verdicts.values() if v and v['conf'] >= 4)} proven, "
-        f"{sum(1 for v in verdicts.values() if v and v['conf'] < 4)} red)")
-    return n
+# THE READER'S ONE-SHOT STAGE IS FOLDED INTO THE MAPPING LOOP (owner
+# 2026-09-17): `brain_read` asked the brain for every row once, in one blind
+# pass, and wrote what it could verify — one draw, no memory, no second look at
+# a row the brain had doubts about. pipeline/mapping.py holds the same reading
+# open across turns, with the model in front of the brain. What survives here
+# is the VERIFICATION it invented and the mapping now uses: _page_line (the
+# quoted line must be on the page) and _quoted_verdict (its comparative must
+# tie the model's prior, at the scale the page proves).

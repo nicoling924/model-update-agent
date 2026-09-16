@@ -23,13 +23,12 @@ from . import gate as gate_mod
 from . import report as report_mod
 from . import spec as spec_mod
 from . import targets as targets_mod
-from .ledger import Ledger, vintage_ban as _vintage_ban, sourceable as _sourceable
+from .ledger import Ledger, vintage_ban as _vintage_ban
 from .orchestrator import ObjectiveLoop
 from .stage1_read import read_documents
 from .stage2_join import decisions_to_json, join, join_bound_tables
-from .stage3_read import read_gaps
-from .writer import (Writer, formula_map, load, resolve_input_site,
-                     roll_year_headers, rollover_column, save)
+from .writer import (Writer, formula_map, load, roll_year_headers,
+                     rollover_column, save)
 
 
 def artifact_dir(company_dir, period, pinned_ledger):
@@ -60,74 +59,6 @@ def _disclosures(company_dir, period):
     sub = d / period
     root = sub if sub.is_dir() else d
     return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
-
-
-def _write_served(wb, spec_d, target_year, served, writer, priors, log):
-    """Served values -> input cells, per the mark-to-actual law: only where
-    the number is actually TYPED. Formula rows redirect to their input site
-    (link-through models) or stay computed (derived rows).
-
-    THE REDIRECT SIGN LAW (run-1 autopsy: GP = revenue + |COGS|): a served
-    value is signed for the ORIGINAL row's convention; the input site may
-    hold the opposite convention behind a negating link (Model COGS -18,615
-    <- Raw financials +18,615). Re-sign by the SITE's own prior. And a site
-    that is itself directly served is never overwritten by a redirect — the
-    direct serving is the authoritative read of that cell."""
-    from .checks import prior_column, year_columns
-    n_written = n_redirect = n_skip = 0
-    for (sheet, row), entry in sorted(served.items()):
-        tcol = year_columns(spec_d, sheet).get(str(target_year))
-        pcol = prior_column(spec_d, sheet, target_year)
-        if not tcol or sheet not in wb.sheetnames:
-            continue
-        site = (sheet, row)
-        value = entry["value"]
-        held = wb[sheet][f"{tcol}{row}"].value
-        # A CLAIM NEEDS A HOME (run-227 autopsy): an entry that never
-        # lands in a cell must not hold the figure in the one-home
-        # register — mark it un-homed on every skip path
-        entry["homed"] = False
-        if isinstance(held, str) and held.startswith("=") and pcol:
-            site = resolve_input_site(wb, sheet, row, pcol) or (None, None)
-            if site == (None, None):
-                n_skip += 1     # derived row: its formula computes it
-                continue
-            if site != (sheet, row):
-                if site in served:
-                    n_skip += 1     # the site has its own authoritative read
-                    continue
-                n_redirect += 1
-        s_sheet, s_row = site
-        s_tcol = year_columns(spec_d, s_sheet).get(str(target_year))
-        s_pcol = prior_column(spec_d, s_sheet, target_year)
-        if not s_tcol:
-            n_skip += 1
-            continue
-        s_hdr = (spec_d.get("year_axis") or {}).get(s_sheet,
-                                                    {}).get("header_row")
-        if s_hdr and int(s_row) == int(s_hdr):
-            n_skip += 1     # a formula that reads the YEAR HEADER redirects
-            continue        # here — a header is never a data input site
-        if site != (sheet, row) and s_pcol:
-            row_pv = (priors or {}).get((sheet, row))
-            site_pv = wb[s_sheet][f"{s_pcol}{s_row}"].value
-            if isinstance(row_pv, (int, float)) and row_pv != 0 \
-                    and isinstance(site_pv, (int, float)) and site_pv != 0 \
-                    and (row_pv < 0) != (site_pv < 0):
-                value = -value      # the link between site and row negates
-        ok = writer.write(
-            s_sheet, f"{s_tcol}{s_row}", value,
-            prior_coord=f"{s_pcol}{s_row}" if s_pcol else None,
-            note=entry.get("note"), flag=entry.get("flag"),
-            trusted=int(entry.get("conf") or 0) >= 4)
-        if ok:
-            n_written += 1
-            entry["homed"] = True
-            entry["home"] = (s_sheet, f"{s_tcol}{s_row}")
-            if int(entry.get("conf") or 0) >= 5:
-                writer.lock(s_sheet, f"{s_tcol}{s_row}")
-    log(f"[run] wrote {n_written} served values "
-        f"({n_redirect} redirected to input sites, {n_skip} derived/skipped)")
 
 
 RUN_TARGET_S = 60 * 60      # the owner's acceptance criterion: one run, one hour
@@ -328,101 +259,41 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     est_base = estimate_baseline(wb, spec_d, target_year)
 
     def err_guard(stage, cap=60):
-        """A stage that made cells stop computing gets its journaled
-        writes reverted, newest first, until the grid is back to the
-        baseline — a 'proven' value that breaks the model is
-        auto-disproven (the run-203 nuclear-capacity lesson)."""
+        """MEASURED, NOT UNDONE (owner 2026-09-17: code never takes back what
+        the brain wrote). Cells that stopped computing after a stage are named,
+        flagged red where they live, and reach the brain and the gate."""
         cur = new_errors(err_base, error_cells(wb, spec_d))
         if not cur:
             return
-        undo = writer.log.get("undo", [])
-        popped = 0
-        while cur and undo and popped < cap:
-            sh, coord, old = undo.pop()
-            popped += 1
-            prev = wb[sh][coord].value
-            wb[sh][coord] = old
-            now = new_errors(err_base, error_cells(wb, spec_d))
-            if len(now) < len(cur):
-                log(f"[run]   error guard [{stage}]: REVERTED {sh}!{coord} "
-                    f"({str(prev)[:24]!r} -> restored {str(old)[:24]!r}) — "
-                    "the write made cells stop computing (auto-disproven)")
-                # the restored prior is unconfirmed: RED, plain note — through
-                # the gate: unlocked, un-served, journaled
-                wb[sh][coord] = prev
-                writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
-                cur = now
-            else:
-                wb[sh][coord] = prev      # innocent write: keep it
-        if cur:
-            log(f"[run]   error guard [{stage}]: {len(cur)} new errors "
-                "remain — the gate will refuse them: "
-                + "; ".join(f"{s}!{c}" for s, c, _w in cur[:5]))
+        for s_e, c_e, _w in cur[:cap]:
+            writer.flag_ref(f"{s_e}!{c_e}", "red",
+                            f"This cell stopped computing after the {stage} stage — its inputs no longer "
+                            "make sense to the model. Please check what feeds it.")
+        log(f"[run]   error guard [{stage}]: {len(cur)} new errors — red, said, not reverted: "
+            + "; ".join(f"{s_e}!{c_e}" for s_e, c_e, _w in cur[:5]))
 
     def collapse_guard(stage, cap=40):
         """A write must survive its consequences (the run-204 tariff: an
-        evidence-clean ZERO deleted next year's revenue). A ZERO write
-        that collapsed a healthy forecast row is auto-disproven and
-        reverted; a NON-zero write that did so is red-tripwired for the
-        loop — it might be a real actual with a real consequence."""
-        from openpyxl.comments import Comment
+        evidence-clean ZERO deleted next year's revenue) — SO IT IS MEASURED
+        AND SAID (owner 2026-09-17). The forecast rows that collapsed against
+        the analyst's own baseline go on the watch list with the actual-column
+        cause; nothing is reverted by code."""
         cur = collapsed_forecasts(wb, spec_d, target_year, fc_base)
         if not cur:
             return
-        undo = writer.log.get("undo", [])
-        popped = 0
-        while cur and undo and popped < cap:
-            sh, coord, old = undo.pop()
-            popped += 1
-            prev = wb[sh][coord].value
-            if not (isinstance(prev, (int, float)) and abs(prev) < 0.5):
-                continue                  # only zero-writes auto-revert
-            # a PRINTED nil is a read, not a guess (owner 2026-09-08: "if
-            # 0 then 0"): the disclosure showed last year's figure and a
-            # blank current slot — the forecast that dies with it is the
-            # rollover check's business, never grounds to restore a hold
-            _rr = int("".join(ch for ch in coord if ch.isdigit()) or 0)
-            try:
-                _pe = served.get((sh, _rr))
-            except NameError:
-                _pe = None
-            if isinstance(_pe, dict) and _pe.get("value") == 0.0 \
-                    and int(_pe.get("conf") or 0) >= 4:
-                writer.watch(sh, coord, "printed nil this year; the forecast "
-                                        "row it feeds moved with it")
-                continue
-            if f"{sh}!{coord}" in (writer.log.get("rulings") or {}):
-                # the brain ruled on this cell (a sense-check pick): code notes the
-                # consequence, it does not overturn the ruling (owner 2026-09-15)
-                writer.watch(sh, coord, "the brain's own pick; the forecast row it feeds moved with it — your call")
-                continue
-            wb[sh][coord] = old
-            now = collapsed_forecasts(wb, spec_d, target_year, fc_base)
-            if len(now) < len(cur):
-                log(f"[run]   collapse guard [{stage}]: REVERTED "
-                    f"{sh}!{coord} (zero -> restored {str(old)[:22]!r}) — "
-                    "the zero killed a healthy forecast row "
-                    "(auto-disproven)")
-                wb[sh][coord] = prev
-                writer.revert(sh, coord, old, "red", "Not confirmed in the documents. Kept last period's figure — please check.")
-                cur = now
-            else:
-                wb[sh][coord] = prev
-        for (sh, r, now, was) in cur[:10]:
+        for (sh, r, now, was) in cur[:cap]:
             from .checks import forecast_columns as _fc
             fc1 = _fc(spec_d, sh, target_year)
             if not fc1:
                 continue
             # a forecast cell is never painted (owner 2026-09-07): the
-            # row goes on the watch list; the loop traces the cause in
-            # the actual column and flags THAT
+            # row goes on the watch list; the cause lives in the actual column
             writer.watch(sh, f"{fc1[0]}{r}",
                          f"forecast moved from {was:,.0f} to {now:,.0f} "
                          "after the update")
-        if cur:
-            log(f"[run]   collapse guard [{stage}]: {len(cur)} forecast "
-                "rows collapsed vs the analyst's baseline — red-flagged, "
-                "loop must trace the actual-column cause")
+        log(f"[run]   collapse guard [{stage}]: {len(cur)} forecast rows collapsed against the "
+            "analyst's baseline — watch-listed with their cause, not reverted")
+
     # the OLD estimates: snapshot from the FORMULAS workbook (a
     # manual-calc model's data_only load caches nothing) — this line
     # runs before any write, so what it evaluates IS the old estimate
@@ -489,18 +360,21 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if _ban:
         log(f"[run] vintage law: {len(_ban)} document(s) may not source "
             f"current-year values: {sorted(_ban)}")
-    writer = Writer(wb)          # the one writer of the run (the restatement below writes through it)
-    if _restate:
-        # RESTATE (owner 2026-09-15, only when asked): the prior column is first
-        # mapped to this year's restated comparatives through last year's names;
-        # this year's figures then map against the restated priors
-        try:
-            from .restate import restate_prior_column
-            restate_prior_column(wb, wb_values, spec_d, target_year, ledger, {t.key: t for t in targets}, writer, log, period=period)
-            known = targets_mod.known_prior_values(targets)
-        except Exception as _e_rs:
-            log(f"[run] restate STAGE LOST: {_e_rs!r}")
-            run_log.append(f"[run] restate STAGE LOST: {_e_rs!r}")
+    writer = Writer(wb)          # the one writer of the run
+    # ONE RESTATEMENT DECIDER (owner 2026-09-17): the disagreements between
+    # this year's comparatives and the model's own prior column are FOUND here
+    # and shown to the brain beside the row; the brain's `restate` tool is the
+    # only thing that writes a prior cell.
+    _restate_leads = {}
+    log(f"[run] restate: RESTATE={'on' if _restate else 'off'} — "
+        "comparative disagreements are indexed for the brain either way")
+    try:
+        from .restate import restatement_leads
+        _restate_leads = restatement_leads(wb, wb_values, spec_d, target_year, ledger,
+                                           {t.key: t for t in targets}, log, period=period)
+    except Exception as _e_rs:
+        log(f"[run] restate index STAGE LOST: {_e_rs!r}")
+        run_log.append(f"[run] restate index STAGE LOST: {_e_rs!r}")
 
     # -- Stage 2 (pure code): statement faces, then bound non-statement
     # tables (the Driver/MD&A path — council two-level binding)
@@ -508,14 +382,30 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # statements walked line-by-line — the by-hand method as the serve
     # engine. Its serves are authoritative; the scattered joins only
     # fill what reconciliation left open.
+    # WHAT CODE FINDS IS A LEAD, NOT A WRITE (owner 2026-09-17): the
+    # statement walk and the number-tie join are candidate INDEXES now —
+    # their pairings reach the brain in the mapping context, beside the row
+    # they are a lead for, and nothing here fills a cell.
     from .reconcile import reconcile
     recon_serves, recon_map = reconcile(wb, spec_d, target_year, ledger,
                                         log)
-    served, decisions = join(ledger, targets, run_log)
-    extra, dec2 = join_bound_tables(ledger, targets, served, run_log)
-    served.update(extra)
-    served.update(recon_serves)      # reconciliation wins conflicts
+    join_serves, decisions = join(ledger, targets, run_log)
+    extra, dec2 = join_bound_tables(ledger, targets, join_serves, run_log)
     decisions += dec2
+    leads = {}
+    for _k_rs, _v_rs in (_restate_leads or {}).items():
+        leads.setdefault(_k_rs, []).append(_v_rs)
+    for src, pool in (("the statement walk", recon_serves), ("the number tie", join_serves),
+                      ("a bound table", extra)):
+        for (sh_l, r_l), e_l in (pool or {}).items():
+            if not isinstance(e_l, dict) or not isinstance(e_l.get("value"), (int, float)):
+                continue
+            leads.setdefault((sh_l, r_l), []).append(
+                f"{src}: {e_l['value']:,.2f} from {e_l.get('doc', '?')} p{e_l.get('page', '?')} "
+                f"'{str(e_l.get('line') or '')[:60]}'")
+    log(f"[run] leads: {len(leads)} rows carry a candidate from the statement walk / the number tie "
+        f"(shown to the brain, never written)")
+    served = {}                       # nothing is served until the brain maps it
     for ln in run_log[-4:]:
         log(f"[run] {ln}")
 
@@ -608,64 +498,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             n_pin += 1
         log(f"[run] served PINNED: {n_pin} live serves replayed from "
             f"{pinned_served}")
-    # THE NAME JUDGMENT (owner 2026-09-15): every tie whose printed name is
-    # not kin to the model row goes to the brain before it lands
-    try:
-        from .naming import judge_names as _judge_names
-        _judge_names(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log, target_year=target_year)
-    except Exception as _e_nm:
-        log(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
-        run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
-    _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
-
     # -- ROLL-FORWARD SCHEDULES (owner 2026-09-10): the vertical prior tie —
-    # a movement table's opening row is last year's closing; the model's
-    # schedule blocks and the analyst's carried literals are served from
-    # this year's table, roles settled by the model's own prior-year values
-    if True:
-        try:
-            from .schedules import serve_schedules as _serve_schedules
-            _n_sched = _serve_schedules(wb, spec_d, target_year, ledger, served, writer, log)
-            if _n_sched:
-                log(f"[run] schedules: {_n_sched} cells served by the vertical tie")
-                err_guard("schedules")
-        except Exception as _e_sched:
-            log(f"[run] schedules skipped: {_e_sched!r}")
-
-    # -- THE READER FIRST (CLP 2026-09-08: stage 3 read 168 rows from page
-    # images in 31 silent minutes while the reader stage covered three
-    # documents in 58 seconds from text): the whole-document text read
-    # goes first; the per-region image read then takes only what it left
-    if client is not None:
-        try:
-            from .reader import brain_read as _brain_read_early
-            _n_read0 = _brain_read_early(client, company_dir, period, target_year, wb, spec_d,
-                                         {t.key: t for t in targets}, ledger, served, writer, log)
-            if _n_read0:
-                err_guard("reader")
-        except Exception as _e_read0:
-            log(f"[read] reader stage skipped: {_e_read0!r}")
-    # -- Stage 3 (LLM, checksummed) — only what Stage 2 and the reader left
-    if client is not None:
-        gap_served = read_gaps(ledger, targets, served, client, docs, run_log)
-        served.update(gap_served)
-        try:
-            from .naming import judge_names as _judge_names2
-            _judge_names2(client, wb, spec_d, ledger, served, {t.key: t for t in targets}, writer, log, target_year=target_year)
-            # a doubt on a cell ALREADY written (the schedules, the reader) is painted now;
-            # the gap serves below carry their doubt into the write itself
-            for _k, _e in list(served.items()):
-                if _k in gap_served or not isinstance(_e, dict) or _e.get("flag") != "red" or "NAME DOUBTED" not in str(_e.get("note") or ""):
-                    continue
-                _tc = year_columns(spec_d, _k[0]).get(str(target_year)) if _k[0] in wb.sheetnames else None
-                if _tc and wb[_k[0]][f"{_tc}{_k[1]}"].value not in (None, ""):
-                    writer.flag_ref(f"{_k[0]}!{_tc}{_k[1]}", "red", _e.get("note"))
-        except Exception as _e_nm2:
-            log(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
-            run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
-        _write_served(wb, spec_d, target_year, gap_served, writer, prior_map, log)
-    else:
-        log("[run] stage 3 skipped: no client (dry run)")
+    # a movement table's opening row is last year's closing. A LEAD now: the
+    # tie is found and shown, the brain says whether that row IS this one.
+    try:
+        from .schedules import schedule_leads as _schedule_leads
+        for (_sh_s, _r_s), _txt_s in (_schedule_leads(wb, spec_d, target_year, ledger, log) or {}).items():
+            leads.setdefault((_sh_s, _r_s), []).append(_txt_s)
+    except Exception as _e_sched:
+        log(f"[run] schedule leads skipped: {_e_sched!r}")
 
     # -- SILENT STALENESS is illegal: a rolled-over hardcode that no proven
     # read overwrote still holds LAST year's number — flag every one red.
@@ -709,374 +550,98 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     if n_stale:
         log(f"[run] {n_stale} unserved hardcode inputs flagged STALE (red)")
 
-    # -- THE COMPOSITE-CONSTANTS LAW (owner ruling 2026-08-31): formulas
-    # still embedding last year's literals (=4976+23) are rewritten from
-    # their own disclosed comparatives — the run-51 silent-carry class,
-    # rebuilt as a proof-gated law (see composites.py).
-    from .composites import sweep as composites_sweep
-    n_cw, n_cr = composites_sweep(wb, spec_d, target_year, ledger, writer,
-                                  log, check_rows=spec_d.get("check_rows"), served=served)
-    if n_cw or n_cr:
-        log(f"[run] constants law: {n_cw} stale composites rewritten from "
-            f"disclosed comparatives (orange), {n_cr} unproven (red, "
-            "evidence noted)")
-    err_guard("constants law")
-    collapse_guard("constants law")
-
-    # -- PRE-LOOP DETERMINISTIC SWEEP (owner ruling: find it and fix it;
-    # the loop's budget must not be spent on rows code can prove). For each
-    # stale row: unique identity-grade face evidence -> write it (stage-2-
-    # grade, no LLM); else a prior-column composition identity -> write the
-    # SUM formula, orange-flagged per the house back-out law.
-    # (an earlier kinship-free WORLD-tolerance evidence sweep here measured
-    # 15 wrong writes — that idea now lives INSIDE join() as tier 2, behind
-    # every gate; only the composition back-out remains a sweep)
+    # -- WHAT THE SWEEPS USED TO WRITE IS NOW A LEAD (owner 2026-09-17).
+    # The constants law, the composition sweep, the tier-3 hold, the dash-nil
+    # sweep and the new-line serve all DECIDED a cell from a coincidence of
+    # numbers. What they found is kept — the formula's stale constants and the
+    # prior year's own composition reach the brain in the mapping context,
+    # beside the row — and none of them writes.
     from .stage2_join import infer_composition
     targets_by_key = {t.key: t for t in targets}
-    n_comp = 0
-    for sheet, rows in hardcode_census.items():
-        tcol = year_columns(spec_d, sheet).get(str(target_year))
-        pcol = prior_column(spec_d, sheet, target_year)
-        for r in rows:
-            ref = f"{sheet}!{tcol}{r}"
-            if ref not in writer.log["flags"]:
-                continue
-            if pcol:
-                f = infer_composition(wb, sheet, r, pcol, tcol)
-                # every term must itself be trustworthy: a SUM over cells
-                # still holding LAST year's numbers bakes mixed-year garbage
-                # (measured -128k check residual), and the formula string
-                # escapes the magnitude sweep
-                if f:
-                    import re as _re
-                    m2 = _re.match(rf"^=SUM\({tcol}(\d+):{tcol}(\d+)\)$", f)
-                    if m2 and any(f"{sheet}!{tcol}{k}" in writer.log["flags"]
-                                  for k in range(int(m2.group(1)),
-                                                 int(m2.group(2)) + 1)):
-                        f = None
-                # NOT A BACK-OUT (owner 2026-09-08): a row the prior year
-                # proves to be the sum of its own component rows — a Wind
-                # aggregate of printed lines — is summed the same way
-                # this year, plain, unflagged; the pattern is the model's
-                if f and writer.write(
-                        sheet, f"{tcol}{r}", f,
-                        prior_coord=f"{pcol}{r}"):
-                    from openpyxl.styles import PatternFill as _PFc
-                    wb[sheet][f"{tcol}{r}"].fill = _PFc()
-                    wb[sheet][f"{tcol}{r}"].comment = None
-                    writer.log["flags"] = [x for x in writer.log["flags"] if x != ref]
-                    n_comp += 1
-    if n_comp:
-        log(f"[run] stale sweep: {n_comp} aggregate rows summed from their own "
-            "component rows (the prior year proves the pattern; plain)")
-
-    # -- THE LOAD-BEARING TRACE + TIER-3 SWEEP (owner ruling, CLP
-    # campaign): effort follows the wiring. Rows the model's own
-    # formulas consume on the way to the key rows are LOAD-BEARING —
-    # staleness there stays red and must be adjudicated. Everything
-    # THE READER STAGE (owner 2026-09-09, the reading test): before any
-    # row is held at growth, the brain reads the whole disclosure in one
-    # view and answers every row the deterministic stages left unproven;
-    # code verifies each answer against a printed number (tie, units,
-    # sign, one home) and writes only what it can prove — plain when the
-    # comparative ties the prior, red with its citation otherwise.
-    # (the reader ran before stage 3 — see THE READER FIRST above; a second
-    # pass here would re-send the documents for rows the sweeps just held)
-    _n_read = 0
-    # else is tier-3: never searched, held at the group's growth as a
-    # traceable orange formula, awaiting true-up.
-    from .loadbearing import trace as lb_trace
-    lb = lb_trace(wb, spec_d, target_year)
-    rev_key = next((k for k in (spec_d.get("key_rows") or [])
-                    if "rev" in str(k.get("name", "")).lower()), None)
-    n_t3 = 0
+    n_lead_comp = 0
     for sheet, rows in hardcode_census.items():
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         pcol = prior_column(spec_d, sheet, target_year)
         if not tcol or not pcol:
             continue
         for r in rows:
-            ref = f"{sheet}!{tcol}{r}"
-            if ref not in writer.log["flags"] or (sheet, r) in lb:
-                continue
-            if (sheet, r) in served:
-                continue                     # a SERVED row is never a stale input,
-                                             # whatever its flag (two readings, big
-                                             # move): holding it at growth threw away
-                                             # 21 proven reads on the fence-free floor
-            cell_now = wb[sheet][f"{tcol}{r}"]
-            from openpyxl.styles import PatternFill as _PF
-            try:
-                rgb = cell_now.fill.start_color.rgb
-            except Exception:
-                rgb = ""
-            if not (isinstance(rgb, str) and rgb.upper().endswith("FFC7CE")):
-                continue                     # already handled by a sweep
-            pv = wb[sheet][f"{pcol}{r}"].value
-            if not isinstance(pv, (int, float)):
-                continue
-            # A BLANK BESIDE THE PRIOR IS THE BRAIN'S CALL, NOT A HOLD (run
-            # 248: the differently named bond line was held at growth here
-            # before the card could ask 'same item?') — such rows stay red
-            from .writegate import nil_current_zero as _ncz0
-            try:
-                _blank = _ncz0(ledger.items, pv,
-                               {(i_.doc, i_.page) for i_ in ledger.items},
-                               set(_vintage_ban(ledger)))
-            except Exception:
-                _blank = None
-            if _blank is not None:
-                continue
-            if rev_key:
-                ks, kr = rev_key["sheet"], rev_key["row"]
-                ktc = year_columns(spec_d, ks).get(str(target_year))
-                kpc = prior_column(spec_d, ks, target_year)
-                f = (f"={pcol}{r}*('{ks}'!{ktc}{kr}/'{ks}'!{kpc}{kr})")
-            else:
-                f = f"={pcol}{r}"
-            if writer.write(sheet, f"{tcol}{r}", f,
-                            prior_coord=f"{pcol}{r}", flag="orange",
-                            note=("tier-3 back-out: not load-bearing for "
-                                  "the key rows; held at the group's "
-                                  "growth — true up when segment detail "
-                                  "is disclosed")):
-                n_t3 += 1
-    if n_t3:
-        log(f"[run] tier-3 sweep: {n_t3} non-load-bearing stale inputs "
-            "held at group growth (orange)")
-
-    # -- THE DASH-NIL SWEEP (run-11 pin): a stale row whose disclosure
-    # line prints a nil mark in the current slot next to a prior that
-    # ties is PROVEN zero this period (cancelled treasury shares).
-    from .stage2_join import ratify_page_scales
-    from .writegate import nil_current_zero
-    banned_docs = set(_vintage_ban(ledger)) \
-        if hasattr(ledger, "prior_period_docs") else set()
-    # the face register = pages stage-2 RATIFIED as statement faces (the
-    # served-pages shortcut was too narrow: with a rich AR present, an
-    # announcement face's rows all serve from AR pages and the page
-    # never enters the register, blocking its own true nil — run 12)
-    face_pages = set(ratify_page_scales(
-        ledger.items, [t.prior_value for t in targets
-                       if isinstance(t.prior_value, (int, float))]))
-    face_pages |= {(e.get("doc"), e.get("page")) for e in served.values()
-                   if isinstance(e, dict) and e.get("doc")}
-    n_nil = 0
-    for sheet, rows in hardcode_census.items():
-        tcol = year_columns(spec_d, sheet).get(str(target_year))
-        pcol = prior_column(spec_d, sheet, target_year)
-        for r in rows:
-            ref = f"{sheet}!{tcol}{r}"
-            if ref not in writer.log["flags"] or not pcol:
-                continue
-            pv = wb[sheet][f"{pcol}{r}"].value
-            lab = next((wb[sheet].cell(row=r, column=k).value
-                        for k in range(1, 7)
-                        if isinstance(wb[sheet].cell(row=r, column=k).value,
-                                      str)), "")
-            import re as _re
-            if _re.search(r"合计|小计|总计|total", str(lab), _re.IGNORECASE):
-                continue                # a subtotal is never nil-proven
-            from .checks import year_columns as _yc_nil
-            _p2c = _yc_nil(spec_d, sheet).get(str(target_year - 2))
-            _p2 = wb[sheet][f"{_p2c}{r}"].value if _p2c else None
-            it = (nil_current_zero(ledger.items, pv, face_pages, banned_docs,
-                                   row_label=lab, prior2=_p2)
-                  if isinstance(pv, (int, float)) else None)
-            # an interim balance sheet prints the YEAR-END comparative:
-            # the annual prior is the second figure a nil may sit beside
-            if it is None:
-                _acol = (spec_d.get("annual_prior_axis") or {}).get(sheet)
-                _apv = wb[sheet][f"{_acol}{r}"].value if _acol else None
-                if isinstance(_apv, (int, float)) and abs(_apv) >= 0.5:
-                    it = nil_current_zero(ledger.items, _apv, face_pages, banned_docs,
-                                          row_label=lab)
-            if it is not None:
-                log(f"[run]   0 means 0: {ref} — prior {pv:,.2f} printed with a "
-                    f"blank/nil current slot ({it.doc} p{it.page} "
-                    f"{str(getattr(it, 'label', ''))[:24]!r})")
-            if it is not None and writer.write(
-                    sheet, f"{tcol}{r}", 0.0, prior_coord=f"{pcol}{r}",
-                    trusted=True,
-                    note=(f"disclosure prints nil (–) this period beside "
-                          f"the tying prior — proven zero "
-                          f"({it.doc} p{it.page})")):
-                from openpyxl.styles import PatternFill
-                writer.flag(sheet, f"{tcol}{r}", None)          # the flag cleared through the gate
-                # a printed nil is a READ, not a hold: registered as a
-                # proven serve so no plug or revert lands on it (owner
-                # 2026-09-08: "if 0 then 0"; the 240 replay plugged the
-                # cash gap into the freshly served nil)
-                served[(sheet, r)] = {
-                    "value": 0.0, "doc": it.doc, "page": it.page,
-                    "line": str(getattr(it, "label", ""))[:60], "conf": 4,
-                    "homed": True, "home": (sheet, f"{tcol}{r}"),
-                    "note": (f"reconciliation: printed nil this period beside "
-                             f"the tying prior ({it.doc} p{it.page}) — 0")}
-                n_nil += 1
-            elif it is not None:
-                log(f"[run]   0 means 0: {ref} write REFUSED by the guard "
-                    f"(locked={ref in writer.locked})")
-    if n_nil:
-        log(f"[run] dash-nil sweep: {n_nil} proven zeros served")
-    # A LINE NEW THIS YEAR (owner 2026-09-08, run 254: 'other cash received
-    # relating to investing' printed 19,078,348 with '不适用' last year;
-    # the model row had no prior, so nothing tied and the cash check was
-    # 19 off): no number to tie, so the LABEL is the proof — the printed
-    # line's label IS the row's label, it carries one number, and its
-    # comparative is blank — served red for the analyst. Any page.
-    from .numerics import norm_label as _nl_new
-    _scales_new = ratify_page_scales(
-        ledger.items, [t.prior_value for t in targets
-                       if isinstance(t.prior_value, (int, float))])
-    n_new = 0
-    from .writegate import _ties_full_precision as _tfp_new
-    _all_priors = [abs(float(t.prior_value)) for t in targets
-                   if isinstance(getattr(t, "prior_value", None), (int, float))
-                   and abs(t.prior_value) >= 0.5]
-    for t in targets:
-        if isinstance(getattr(t, "prior_value", None), (int, float)):
-            continue
-        sh_n, r_n = t.sheet, int(t.row)
-        tcol_n = year_columns(spec_d, sh_n).get(str(target_year)) if sh_n in wb.sheetnames else None
-        if not tcol_n or wb[sh_n][f"{tcol_n}{r_n}"].value not in (None, ""):
-            continue
-        _strip = lambda x: re.sub(r"[（(][^（）()]{1,12}[）)]", "", _nl_new(str(x or ""))).replace(" ", "")
-        rl = _strip(t.label)
-        # the label must NAME an item: 'Note', 'Total', 'Other' name nothing
-        # (CLP floor 2026-09-09: a 'Note:' memo row took 25 from a '(Note' line)
-        _cjk = sum(1 for ch in rl if "一" <= ch <= "鿿")
-        if len(rl) < 4 or re.fullmatch(r"(note|notes|total|subtotal|other|others|合计|小计|总计|其他|其中)", rl, re.IGNORECASE) \
-                or (_cjk < 3 and len(str(t.label).split()) < 2):
-            continue
-        reads = {}
-        for it in ledger.items:
-            if not _sourceable(it) or getattr(it, "channel", "") == "prose":
-                continue
-            if _strip(it.label) != rl:
-                continue
-            nums = [n for n in (it.nums or []) if isinstance(n, (int, float))]
-            if len(nums) == 2 and nums[1] == 0:
-                nums = [nums[0]]
-            if len(nums) != 1:
-                continue
-            sc = _scales_new.get((it.doc, it.page))
-            if not sc:
-                continue
-            v = nums[0] / sc
-            # the one number may be LAST year's (the bond line, relabelled,
-            # printed 593.54 beside a blank): if it ties any model prior it
-            # is a comparative, not a new line — the nil law's territory
-            if any(_tfp_new(abs(v), pv_) for pv_ in _all_priors):
-                continue
-            reads.setdefault(round(v, 2), (v, it))
-        if len(reads) != 1:
-            continue
-        v, it = next(iter(reads.values()))
-        pcol_n = prior_column(spec_d, sh_n, target_year)
-        if writer.write(sh_n, f"{tcol_n}{r_n}", float(v),
-                        prior_coord=f"{pcol_n}{r_n}" if pcol_n else None,
-                        flag="red", allow_empty=True,
-                        note=(f"New line this year (blank last year). Label matches the "
-                              f"statement ({it.doc} p{it.page}). Please confirm.")):
-            served[(sh_n, r_n)] = {"value": float(v), "status": "OK", "doc": it.doc,
-                                   "page": it.page, "line": str(it.label)[:60],
-                                   "conf": 3, "note": "new line: exact label, blank prior"}
-            n_new += 1
-            log(f"[run]   new line: {sh_n}!{tcol_n}{r_n} = {v:,.2f} ({it.doc} p{it.page} "
-                f"{str(it.label)[:30]!r}) — blank last year, label matches")
-    if n_new:
-        log(f"[run] new-line sweep: {n_new} rows new this year served (red, exact label)")
-    err_guard("tier-3 + dash-nil")
-    collapse_guard("tier-3 + dash-nil")
-
-    # -- THE RECLASSIFICATION RECIPE (owner rulings 2026-08-30): stale
-    # segment inputs in a block whose total is known are backed out at
-    # the total's growth rate; the residual lands in the analyst's own
-    # designed plug row (or the smallest stale segment). Then flag every
-    # formula smuggling a prior-period constant (key drivers, mindmap).
+            f = infer_composition(wb, sheet, r, pcol, tcol)
+            if f:
+                leads.setdefault((sheet, r), []).append(
+                    f"last year this row IS its own component rows added up ({f}) — "
+                    "the same arithmetic this year is yours to state")
+                n_lead_comp += 1
+    if n_lead_comp:
+        log(f"[run] composition leads: {n_lead_comp} rows whose prior year proves a sum of their own "
+            "component rows (shown to the brain, never written)")
+    # the load-bearing trace stays a MEASURE: which rows the model's own
+    # formulas carry to the key rows (shown as 'what this row feeds')
+    from .loadbearing import trace as lb_trace
+    lb = lb_trace(wb, spec_d, target_year)
+    # -- WHAT THE MODEL'S OWN STRUCTURE SAYS, AS INFORMATION (owner
+    # 2026-09-17): the segment block whose total is known, the forecast
+    # assumption wired to the past, the quantity with a second home, the
+    # roll base that no longer reproduces its actual. Each is FOUND by code
+    # and SAID — to the brain in the mapping context and to the review on the
+    # watch list — and none of them decides a cell any more.
     from .evaluator import Evaluator
-    from .reclass import flag_embedded_hardcodes, reclass_sweep
+    from .reclass import flag_embedded_hardcodes
     sheets_ax = list(spec_d.get("year_axis") or {})
     ycols = {s: year_columns(spec_d, s).get(str(target_year))
              for s in sheets_ax}
-    pcols = {s: prior_column(spec_d, s, target_year) for s in sheets_ax}
-    try:
-        _ev = Evaluator(wb)
-        _evaluate = (lambda sh, coord: _ev.cell(sh, coord))
-    except Exception:
-        _evaluate = None
-    n_seg = reclass_sweep(wb, sheets_ax, ycols, pcols, writer, log,
-                          evaluate=_evaluate)
-    if n_seg:
-        log(f"[run] reclassification: {n_seg} segment inputs held at the "
-            "total's growth (orange)")
     flag_embedded_hardcodes(wb, sheets_ax, ycols, writer, log)
 
-    # -- THE ASSUMPTION FREEZE (owner ruling 2026-08-30): a forecast
-    # assumption wired to the past (%-formatted, formula referencing the
-    # newly actual column or earlier) would silently rebase onto the
-    # actual. Hold it at its PRE-UPDATE value as an orange hardcode; the
-    # report lists each with its old formula so restoring is one paste.
     from openpyxl.utils import column_index_from_string
-    from .freeze import apply_freezes, plan_freezes
+    from .freeze import plan_freezes
     wb_pre_formulas = load(archive)      # manual-calc models cache nothing
-    frozen_lines = []
+    n_fz = 0
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
         if not tcol or sheet not in wb.sheetnames \
                 or sheet not in wb_values.sheetnames:
             continue
-        plans = plan_freezes(wb, wb_values, [sheet],
-                             column_index_from_string(tcol),
-                             pre_formulas_wb=wb_pre_formulas)
-        frozen_lines += apply_freezes(wb, plans, writer=writer)
-    if frozen_lines:
-        writer.log.setdefault("frozen", []).extend(frozen_lines)
-        log(f"[run] assumption freeze: {len(frozen_lines)} forecast "
-            "assumptions held at their pre-update values (orange)")
-    err_guard("reclass + freeze")
-    collapse_guard("reclass + freeze")
+        for pl in plan_freezes(wb, wb_values, [sheet],
+                               column_index_from_string(tcol),
+                               pre_formulas_wb=wb_pre_formulas):
+            _ref_fz = f"{sheet}!{pl.get('coord')}" if isinstance(pl, dict) else str(pl)
+            _co_fz = _ref_fz.split("!", 1)[-1]
+            writer.watch(sheet, _co_fz,
+                         "this forecast assumption reads the column that has just become actual — "
+                         "it rebases onto the actual year unless you hold it; the analyst's own value "
+                         f"was {str((pl.get('value') if isinstance(pl, dict) else ''))[:20]}")
+            n_fz += 1
+    if n_fz:
+        log(f"[run] assumption watch: {n_fz} forecast assumptions read the newly actual column "
+            "(watch-listed for the review — nothing frozen by code)")
+    err_guard("structure watch")
+    collapse_guard("structure watch")
 
-    # -- TWIN RE-ANCHOR (by-hand teaching #2): a served quantity's other
-    # homes (same prior, still stale) re-anchor with it — the run-204
-    # NFA lesson: a stale twin base breaks every forecast year.
-    from .teachings import plug_meter, twin_reanchor
-    n_rw, n_tw = twin_reanchor(wb, wb_values, spec_d, target_year, writer,
-                               log)
-    if n_rw or n_tw:
-        log(f"[run] twin re-anchor: {n_rw} stale twin hardcodes re-served, "
-            f"{n_tw} formula twins red-tripwired")
-    err_guard("twin re-anchor")
-    collapse_guard("twin re-anchor")
+    from .teachings import plug_meter, twin_leads
+    for (_sh_t, _r_t), _txt_t in (twin_leads(wb, wb_values, spec_d, target_year, log) or {}).items():
+        leads.setdefault((_sh_t, _r_t), []).append(_txt_t)
 
-    # -- ROLL-BASE CONSISTENCY (owner ruling 2026-09-01): every typed
-    # actual whose forecast is computed must be REPRODUCED by its own
-    # roll formula pointed back one year — a right hardcode over a stale
-    # roll base balances the actual year and breaks every forecast year
-    # by a constant. Stale base inputs are flagged into the queue.
+    # -- ROLL-BASE CONSISTENCY (owner ruling 2026-09-01): a typed actual whose
+    # forecast is computed must be REPRODUCED by its own roll formula pointed
+    # back one year. Measured and flagged red; re-anchoring is the brain's.
     from .teachings import roll_base_mismatches
     n_rb = roll_base_mismatches(wb, spec_d, target_year, writer, log,
                                 served=served)
     if n_rb:
         log(f"[run] roll-base consistency: {n_rb} rows roll from bases "
-            "that do not reproduce their typed actuals — base inputs "
-            "flagged for the queue")
+            "that do not reproduce their typed actuals — red, for the brain")
 
     # -- THE MOVE-ON LAW (owner ruling 2026-08-31): code does the
-    # exhaustive not-disclosed looking for every stale red; the loop's
-    # queue shrinks to the rows where evidence actually exists.
+    # exhaustive not-disclosed looking for every stale red, and says so.
     from .moveon import machine_look
     machine_look(wb, spec_d, target_year, ledger, writer, log)
 
-    # -- Stage 4: the work queue (machine plans, LLM answers cards) or
-    # the legacy free loop, then the gate
+    # -- THE MAPPING (owner 2026-09-17): the brain maps the disclosure into
+    # the model. Code lays out the model's own input rows with their leads and
+    # the printed faces, answers the tools, verifies every write and measures
+    # coverage. No cards, no code-decided serves, no one-shot per-row answers.
     undo_mark = len(writer.log.get("writes_all", []))
-    # RULE 2 AT THE GATE (owner, 2026-09-03: "why didn't it fill the 2025
-    # keys correctly? rule 1 is balance, rule 2 is the keys"): the keys
-    # that are proven-printed HERE — before any brain answer — must
-    # still be so at delivery. Run 229 had them right at this point and
-    # two late reverts broke four of them; the gate never looked.
+    # RULE 2 AT THE GATE (owner, 2026-09-03: "rule 1 is balance, rule 2 is the
+    # keys"): the keys proven-printed HERE must still be so at delivery.
     from .keytie import key_snapshot as _key_snapshot
     _panel_path = company_dir / "replay" / str(period) / "key_panel.json"
     # THE KEY PANEL BY PRIOR TIE (owner 2026-09-08): each headline row's
@@ -1092,159 +657,98 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     keys_before = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
     if keys_before:
         log(f"[run] rule 2 armed: {len(keys_before)} key(s) proven-printed "
-            f"before stage 4 ({', '.join(sorted(keys_before))})")
-    import os as _os
-    mode = (stage4_mode or _os.environ.get("STAGE4_MODE") or "queue").strip()
+            f"before the mapping ({', '.join(sorted(keys_before))})")
     loop_summary = ""
     loop = ObjectiveLoop(wb, spec_d, target_year, ledger, targets, served,
                          writer, client, run_log, budget=loop_budget)
-    loop.load_bearing = lb           # tier law: the loop sees the wiring
-    loop.key_panel = _key_panel      # the proven prints of the key rows (derivations solve against them)
+    loop.load_bearing = lb           # the wiring: what each input row feeds
+    loop.key_panel = _key_panel      # the proven prints of the key rows
+    loop.key_panel_path = _panel_path
     loop.period = period
-    loop.brain = client is not None or stage4_answerer is not None
-    if client is not None or stage4_answerer is not None:
-        loop.brain = client is not None or stage4_answerer is not None
+    loop.leads = leads               # what code found, for the brain to judge
+    loop.pre_path = str(archive)
+    loop.est_base = est_base
+    loop.brain = client is not None or getattr(stage4_answerer, "maps", None) is not None
+    if stage4_mode:
+        log(f"[run] stage4_mode={stage4_mode!r} is not read any more: the mapping loop is the stage")
+    # THE SENSE CHECK'S CHECKPOINT (owner 2026-09-09): the headline lines
+    # against the analyst's pre-update model, for the review to read
+    try:
+        from .sensecheck import checkpoint as _sense_checkpoint
+        _pre_wb_sense = load(str(archive))
+        _sense_checkpoint(loop, _pre_wb_sense, log)
+    except Exception as _e_sc:
+        _pre_wb_sense = load(str(archive))
+        log(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
+        run_log.append(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
+    from .mapping import page_text_of_docs as _page_text_of_docs, run_mapping as _run_mapping
+    # the EARLIER periods' documents are on the shelf, not in the context: the
+    # brain reaches for last year's report only to triangulate a row whose
+    # comparative no longer matches, and the index is built then (owner 2026-09-17)
+    _earlier = sorted(q for q in (Path(company_dir) / "disclosures").glob("*/*.pdf")
+                      if q.parent.name != str(period))
+    _page_text = _page_text_of_docs(docs, _earlier, log)
+    if _earlier:
+        log(f"[map] {len(_earlier)} earlier-period document(s) on the shelf, indexed only if the brain "
+            f"reaches for them: {', '.join(q.name for q in _earlier[:4])}")
 
-        def _ask(text, options, default):
-            """The brain picks (owner 2026-09-14: 'brain picks the rung, code verifies'); a replay's answerer stands in.
-            Both paths leave the same trace: last_why (a derive:via names its cells there) and last_ask_error."""
-            loop.last_why, loop.last_ask_error = "", None
-            if stage4_answerer is not None:
-                _r = stage4_answerer(text, options, default)
-                if isinstance(_r, tuple):
-                    _r, loop.last_why = _r[0], str(_r[1] or "")
-                return _r
-            if client is None:
-                loop.last_ask_error = "no brain in this run"
-                return default
-            try:
-                from .workqueue import _llm_answer
-                _ans, _why = _llm_answer(loop, client, text, options, log)
-                loop.last_why = _why
-                return _ans
-            except Exception as _e_ask:
-                loop.last_ask_error = repr(_e_ask)
-                log(f"[sense] the brain could not answer a card: {_e_ask!r}")
-                return default
-        loop.ask = _ask
-        loop.est_base = est_base         # rollover cards: the analyst's baseline
-        # sense tripwires (owner ruling 2026-08-31): sign-flipped
-        # forecasts are handed to the loop as mistake-detector items —
-        # investigate once, verdict on _REPORT; the terminal freeze
-        # after the loop takes only what remains unresolved
-        loop.tripwires = gate_mod.sign_absurd_rows(wb, spec_d, target_year)
-        if loop.tripwires:
-            log(f"[run] sense tripwires: {len(loop.tripwires)} sign-flip "
-                "forecasts handed to the loop for investigation")
-        # error-baseline law: NEW errors are the loop's mandatory work —
-        # trace_error walks each to its cause (with the pre-update
-        # archive as the before-picture)
-        loop.pre_path = str(archive)
-        loop.error_items = new_errors(err_base, error_cells(wb, spec_d))
-        if loop.error_items:
-            log(f"[run] {len(loop.error_items)} NEW evaluation errors "
-                "handed to the loop (trace_error each to its cause)")
-        # by-hand teaching #5: the model's own residual rows are truth
-        # meters — a wild plug means an input feeding its total is wrong
-        loop.plugmeters = plug_meter(wb, spec_d, target_year)
-        if loop.plugmeters:
-            log(f"[run] plug meter: {len(loop.plugmeters)} of the model's "
-                "own residual rows moved wildly — the loop investigates "
-                "their inputs")
-        if mode == "loop":
-            loop_summary = loop.run()
-            log(f"[run] objective loop: {loop_summary[:150]}")
-        else:
-            from .workqueue import run_queue
-            # THE SENSE CHECK'S CHECKPOINT (owner 2026-09-09): the headline
-            # lines against the analyst's pre-update model — a forecast that
-            # moved out of line with the actual sends its inputs to the front
-            try:
-                from .sensecheck import checkpoint as _sense_checkpoint
-                _pre_wb_sense = load(str(archive))
-                _sense_checkpoint(loop, _pre_wb_sense, log)
-            except Exception as _e_sc:
-                _pre_wb_sense = None
-                log(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
-                run_log.append(f"[sense] checkpoint STAGE LOST: {_e_sc!r}")
-            _left = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
-            log(f"[run] queue budget: {_left/60:.1f} min of the hour left for cards")
-            loop_summary = run_queue(loop, client, log,
-                                     answerer=stage4_answerer,
-                                     deadline_s=max(60.0, _left))
-            if mode == "queue+loop" and client is not None:
-                # the residual free loop is OPT-IN only (run-224
-                # autopsy: with 10 free actions it plugged proven cells
-                # BEFORE the repair suite ran and wedged a state the
-                # queue-only path delivers — the red-team verdict,
-                # observed live). 'queue' == cards + machinery.
-                loop.budget = min(loop.budget, 10)
-                loop_summary += " | residual loop: " + loop.run()
-                log(f"[run] residual loop: {loop_summary[-120:]}")
-        undo_mark2 = len(writer.log.get("writes_all", []))   # end of stage-4 serves
-        err_guard("loop")
-        collapse_guard("loop")
-        # loop serves get the twin treatment too
-        n_rw2, n_tw2 = twin_reanchor(wb, wb_values, spec_d, target_year,
-                                     writer, log)
-        if n_rw2 or n_tw2:
-            err_guard("twin re-anchor 2")
-            collapse_guard("twin re-anchor 2")
-        # unresolved plug meters: reported, never silent
-        from openpyxl.comments import Comment as _C2
-        done_v = {v.split(":", 1)[0]
-                  for v in writer.log.get("verdicts", [])}
-        for (pm_sh, pm_r, pm_now, pm_was) in plug_meter(wb, spec_d,
-                                                        target_year):
-            tc_pm = spec_d["year_axis"][pm_sh]["columns"].get(
-                str(target_year)) if pm_sh in spec_d.get(
-                    "year_axis", {}) else None
-            if not tc_pm or f"{pm_sh}!{tc_pm}{pm_r}" in done_v:
-                continue
-            cell = wb[pm_sh][f"{tc_pm}{pm_r}"]
-            writer.flag_ref(f"{pm_sh}!{tc_pm}{pm_r}", "red",
-                f"PLUG METER: this residual row computed {pm_was:,.1f} "
-                f"last year and {pm_now:,.1f} now — the model's own plug "
-                "is absorbing something wrong in the inputs that feed "
-                "its total. ANALYST REVIEW.")
-            writer.log.setdefault("verdicts", []).append(
-                f"{pm_sh}!{tc_pm}{pm_r}: SUSPICIOUS — the model's own "
-                f"residual swung {pm_was:,.1f} -> {pm_now:,.1f}; an "
-                "input feeding its total is probably wrong")
-        # -- THE KEY-TIE LAW (owner ruling 2026-08-31): every key row
-        # must tie its pinned printed value; the unresolvable component
-        # is backed out (orange, traceable) so the key ties exactly.
-        from .keytie import key_tie
-        # THE OWNER'S RULE (2026-09-04): a key that is off is backed out
-        # into a number the run could NOT find (a red component), within
-        # a bound — never into a proven line like cash (the total-assets
-        # tie on run 231's replay wrapped cash, then NFA, round after
-        # round, and refused)
-        key_tie(wb, spec_d, target_year, writer,
-                company_dir / "replay" / str(period) / "key_panel.json",
-                log, ledger=ledger, panel=_key_panel,
-                absorbers=("none" if client is not None else "any"))
-        err_guard("key tie")
-        collapse_guard("key tie")
-        # THE PRINTED-SUBTOTAL LAW (owner 2026-09-04): current assets,
-        # non-current assets, total assets, liabilities, equity — every
-        # subtotal the statements print ties or is backed out (orange)
-        # (built and museum-tested; NOT wired yet — inside the gate loop it
-        # compounded wraps across rounds and landed a back-out on another
-        # sheet on run 231's replay. Wiring is its own session.)
-        # from .keytie import subtotal_tie as _subtotal_tie
-        # keys_before.update(_subtotal_tie(wb, spec_d, target_year, writer,
-        #                                  ledger, log, priors=known))
-        # RULE 2, re-armed: keys the key tie just proved must also hold
-        # through the repair suite and the gate loop
-        _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
-        _new_keys = sorted(set(_more) - set(keys_before))
-        keys_before.update(_more)
-        if _new_keys:
-            log(f"[run] rule 2 re-armed after key tie: +{len(_new_keys)} "
-                f"({', '.join(_new_keys)})")
-    else:
-        log("[run] stage 4 loop skipped: no client (dry run)")
+    def _ask_map(system, user):
+        """One mapping turn. A replay's recorded turns stand in for the brain."""
+        _scripted = getattr(stage4_answerer, "maps", None)
+        if _scripted is not None:
+            if not _scripted:
+                raise RuntimeError("the replay has no further mapping turns recorded")
+            return _scripted.pop(0)
+        if client is None:
+            raise RuntimeError("no brain in this run")
+        return client.json(system, user,
+                           lambda o: [] if isinstance(o, dict) and isinstance(o.get("calls"), list)
+                           else ["reply must be {\"thinking\": ..., \"calls\": [...]}"],
+                           repair_retries=1)
+    # THE BUDGET SPLIT (owner 2026-09-17): the mapping takes the larger share
+    # of what the hour has left; the review takes the rest, and the finish
+    # margin is never touched.
+    _left_map = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+    _map_budget = max(60.0, _left_map * 0.6)
+    log(f"[run] budget: {_left_map/60:.1f} min left — {_map_budget/60:.1f} to the mapping, "
+        f"{(_left_map - _map_budget)/60:.1f} to the review")
+    loop_summary = _run_mapping(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
+                                deadline_s=_map_budget, brain=loop.brain)
+    undo_mark2 = len(writer.log.get("writes_all", []))   # end of the mapping's writes
+    err_guard("mapping")
+    collapse_guard("mapping")
+    # the model's own residual rows are truth meters — a wild plug means an
+    # input feeding its total is wrong (reported, never silent)
+    done_v = {v.split(":", 1)[0] for v in writer.log.get("verdicts", [])}
+    for (pm_sh, pm_r, pm_now, pm_was) in plug_meter(wb, spec_d, target_year):
+        tc_pm = spec_d["year_axis"][pm_sh]["columns"].get(
+            str(target_year)) if pm_sh in spec_d.get("year_axis", {}) else None
+        if not tc_pm or f"{pm_sh}!{tc_pm}{pm_r}" in done_v:
+            continue
+        writer.flag_ref(f"{pm_sh}!{tc_pm}{pm_r}", "red",
+            f"PLUG METER: this residual row computed {pm_was:,.1f} "
+            f"last year and {pm_now:,.1f} now — the model's own plug "
+            "is absorbing something wrong in the inputs that feed "
+            "its total. ANALYST REVIEW.")
+        writer.log.setdefault("verdicts", []).append(
+            f"{pm_sh}!{tc_pm}{pm_r}: SUSPICIOUS — the model's own "
+            f"residual swung {pm_was:,.1f} -> {pm_now:,.1f}; an "
+            "input feeding its total is probably wrong")
+    # THE KEYS ARE MEASURED, NEVER CLOSED BY CODE (owner 2026-09-17: the key
+    # tie's automatic back-out is gone). What is off the print is said here
+    # and reaches the review, which can set it with evidence.
+    try:
+        from .keytie import key_state as _key_state
+        for _nm, _ref, _got, _want, _ok in _key_state(wb, spec_d, target_year, _panel_path, panel=_key_panel):
+            log(f"[run] key '{_nm}' at {_ref}: model {_got if _got is None else f'{_got:,.2f}'} vs print "
+                f"{_want if _want is None else f'{_want:,.2f}'} — {'ties' if _ok else 'OFF THE PRINT'}")
+    except Exception as _e_ks:
+        log(f"[run] the keys could not be measured: {_e_ks!r}")
+    _more = _key_snapshot(wb, spec_d, target_year, ledger, _panel_path, panel=_key_panel)
+    _new_keys = sorted(set(_more) - set(keys_before))
+    keys_before.update(_more)
+    if _new_keys:
+        log(f"[run] rule 2 re-armed after the mapping: +{len(_new_keys)} ({', '.join(_new_keys)})")
 
     for sheet in (spec_d.get("year_axis") or {}):
         tcol = year_columns(spec_d, sheet).get(str(target_year))
@@ -1252,22 +756,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if tcol and pcol and sheet in wb.sheetnames:
             writer.format_rollover(sheet, pcol, tcol)
 
-    # the one-off no-propagate law (roll-forward checklist; the one
-    # sanctioned forecast edit — run-206's hedging leak, +352/yr) runs
-    # BEFORE any forecast plug is sized
-    from .teachings import auto_probe_holds, oneoff_no_propagate
-    n_oo = oneoff_no_propagate(wb, spec_d, target_year, writer, log)
-    if n_oo:
-        log(f"[run] one-off law: {n_oo} forecast links to new one-off "
-            "actuals set to 0 (orange)")
-    # the mechanized bisect (owner 2026-09-01): probe-proven holds at
-    # the analyst's own baseline — run-208's recurring hedging row had
-    # a 2024 value, so the static one-off test missed it; the analyst's
-    # pre-update FORECAST (0) is the true intent test
-    n_ap = auto_probe_holds(wb, spec_d, target_year, fc_base, writer, log)
-    if n_ap:
-        log(f"[run] auto-probe: {n_ap} probe-proven roll artifacts held "
-            "at the analyst's baseline (orange, reported)")
+    # THE ONE-OFF THAT WOULD PROPAGATE, AS A WATCH (owner 2026-09-17): a
+    # forecast link to an actual-year one-off, and a roll artifact the
+    # analyst's own baseline disowns, are FOUND by code and said on the watch
+    # list — the review's brain decides whether to hold them, with `set` and
+    # `restore` in its hand. Code no longer edits a forecast by rule.
+    from .teachings import oneoff_watch, probe_watch
+    n_oo = oneoff_watch(wb, spec_d, target_year, writer, log)
+    n_ap = probe_watch(wb, spec_d, target_year, fc_base, writer, log)
+    if n_oo or n_ap:
+        log(f"[run] forecast watch: {n_oo} forecast link(s) to an actual-year one-off, "
+            f"{n_ap} roll artifact(s) against the analyst's baseline — watch-listed for the review")
 
     # -- FORECAST-YEAR BALANCE, LAST RESORT (owner ruling: balance is
     # for ALL years; plug only what genuine attribution could not place;
@@ -1281,23 +780,16 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from openpyxl.comments import Comment as _Cmt
 
     writer.plugs_allowed = True                  # THE PLUG LAW: the repair rounds are the last resort
-    from .writer import hold_zero_forecasts as _hold_zero
     def repair_round(tag):
         """THE REPAIR SUITE — everything that closes checks after the
         actual column is marked: roll-base re-anchoring, forecast plugs,
         the sign-flip terminal, the final closer. Idempotent by design
         (anchors re-solve, plugs re-measure, verdicts skip the done),
         so the gate loop can run it again on a corrected state."""
-        # RULE 2 inside the suite (run-230: the clean-slate take-back
-        # removed the key tie's CFI back-out and nothing re-tied it —
-        # rule 2 then refused, correctly). The key tie is idempotent.
-        if tag != "first":
-            from .keytie import key_tie as _kt_again
-            _kt_again(wb, spec_d, target_year, writer, _panel_path, log,
-                      ledger=ledger, panel=_key_panel,
-                      absorbers=("none" if client is not None else "any"))
-        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served,
-                      ask=getattr(loop, "ask", None))
+        # (the key tie's automatic back-out is gone — owner 2026-09-17: a key
+        # that is off the print is measured and said; closing it is the
+        # brain's, with evidence, in the review)
+        n_rb2 = _rbm2(wb, spec_d, target_year, writer, log, served=served)
         if n_rb2:
             err_guard(f"roll-base {tag}")
             collapse_guard(f"roll-base {tag}")
@@ -1398,7 +890,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             loop, _pre_end, log, _ask_review, gate_once, repair_round,
             keys_before, _key_panel, _panel_path,
             deadline_s=_left_e, notes=_notes,
-            hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
             brain=(client is not None or getattr(stage4_answerer, "reviews", None) is not None))
     except Exception as _e_end:
         log(f"[review] STAGE LOST: {_e_end!r}")

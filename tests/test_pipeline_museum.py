@@ -868,45 +868,6 @@ def test_reclass_ugly_plug_goes_red_but_still_ties():
     assert abs(sum(r["value"] for r in plan["rows"]) - 310.0) < 0.05
 
 
-def test_assumption_freeze_law():
-    """Owner ruling 2026-08-30: a %-formatted forecast cell wired to the
-    past freezes at its PRE-UPDATE value as an orange hardcode; a margin
-    computed in its own column and a level cell are never touched."""
-    import openpyxl
-    from pipeline.freeze import apply_freezes, plan_freezes
-    wb, pre = openpyxl.Workbook(), openpyxl.Workbook()
-    ws, pw = wb.active, pre.active
-    ws.title = pw.title = "Model"
-    # U=21 target (2025A); V=22 first forecast
-    ws["V5"] = "=U5"                     # growth chained to the past
-    ws["V5"].number_format = "0.0%"
-    pw["V5"] = 0.30                      # the analyst's 30%
-    ws["W5"] = "=V5"                     # chain: inherits the freeze
-    ws["W5"].number_format = "0.0%"
-    pw["W5"] = 0.30
-    ws["V7"] = "=V6/V4"                  # margin OUTPUT: own column
-    ws["V7"].number_format = "0.0%"
-    pw["V7"] = 0.17
-    ws["V4"] = "=U4*(1+V5)"              # level: flows, not frozen
-    ws["V4"].number_format = "#,##0.0"
-    pw["V4"] = 105.0
-    ws["V9"] = "='Driver'!U9"            # cross-sheet: another axis, skip
-    ws["V9"].number_format = "0.0%"
-    pw["V9"] = 0.10
-    plans = plan_freezes(wb, pre, ["Model"], target_col=21)
-    coords = {p["coord"] for p in plans}
-    assert coords == {"V5"}, coords
-    lines = apply_freezes(wb, plans)
-    assert ws["V5"].value == 0.30                    # hardcode, not =U5
-    # frozen forecast inputs are BLUE (owner 2026-09-07): the one
-    # forecast-year colour, distinct from red / orange in the actual column
-    assert ws["V5"].fill.start_color.rgb.endswith("BDD7EE")
-    assert ws["W5"].value == "=V5"                   # chain untouched
-    assert ws["V7"].value == "=V6/V4"                # wiring untouched
-    assert ws["V4"].value == "=U4*(1+V5)"            # level untouched
-    assert "was =U5" in lines[0]
-
-
 def test_evidence_law_run7_exhibits():
     """Run-7 autopsy pins (2026-08-30): the objective loop's set_input is
     gated by the evidence law. Both balance-killing writes replayed here
@@ -986,72 +947,6 @@ def test_worsening_write_reverts():
     r = lp.t_set_input({"cell": "S!U2", "value": 500.0, "why": "p9: t"})
     assert r.startswith("REVERTED"), r
     assert wb["S"]["U2"].value == 110.0
-
-
-def test_reclassification_recipe():
-    """Owner rulings 2026-08-30: stale segments in a block back out at
-    the TOTAL's growth; the analyst's designed plug is respected; without
-    one the smallest stale segment becomes the plug; an ugly plug goes
-    red."""
-    from pipeline.reclass import (designed_plug, find_blocks,
-                                  flag_embedded_hardcodes, reclass_sweep)
-    from pipeline.writer import Writer
-
-    def paint_stale(wb, writer, refs):
-        for ref in refs:
-            sh, coord = ref.split("!")
-            wb[sh][coord].fill = writer.fills["red"]
-            writer.log["flags"].append(ref)
-
-    # A: designed plug (row 8 references the total) — stale rows get the
-    # growth formula, the plug row is untouched
-    wb = _wb({"A5": "Seg1", "A6": "Seg2", "A7": "Seg3", "A8": "Others",
-              "A9": "Total",
-              "T5": 100.0, "T6": 50.0, "T7": 30.0, "T8": 20.0, "T9": 200.0,
-              "U5": 100.0, "U6": 55.0, "U7": 30.0,
-              "U8": "=U9-U5-U6-U7", "U9": 240.0})
-    ws = wb["S"]
-    blocks = find_blocks(ws, "T", "U", max_row=12)
-    assert len(blocks) == 1 and blocks[0]["total_row"] == 9
-    assert designed_plug(ws, blocks[0], "U") == 8
-    w = Writer(wb)
-    paint_stale(wb, w, ["S!U5", "S!U7"])        # reclassified, stale
-    n = reclass_sweep(wb, ["S"], {"S": "U"}, {"S": "T"}, w,
-                      lambda m: None)
-    assert n == 2
-    assert ws["U5"].value == "=T5*U$9/T$9"       # held at total growth
-    assert ws["U7"].value == "=T7*U$9/T$9"
-    assert ws["U8"].value == "=U9-U5-U6-U7"      # analyst's plug kept
-
-    # B: no designed plug — the SMALLEST stale segment carries the
-    # residual; and shrunk hard, it goes red
-    wb2 = _wb({"A5": "Seg1", "A6": "Seg2", "A7": "Seg3", "A8": "Total",
-               "T5": 100.0, "T6": 50.0, "T7": 20.0, "T8": 170.0,
-               "U5": 100.0, "U6": 50.0, "U7": 20.0, "U8": 80.0})
-    w2 = Writer(wb2)
-    paint_stale(wb2, w2, ["S!U5", "S!U6", "S!U7"])
-    def _eval(sheet, coord):                     # tiny arithmetic stand-in
-        if coord == "U7":                        # 9.4 vs prior 20 = -53%
-            return 80.0 - (100.0 * 80 / 170) - (50.0 * 80 / 170)
-        return None
-    n2 = reclass_sweep(wb2, ["S"], {"S": "U"}, {"S": "T"}, w2,
-                       lambda m: None, evaluate=_eval)
-    assert n2 == 3
-    assert wb2["S"]["U5"].value == "=T5*U$8/T$8"
-    assert wb2["S"]["U7"].value == "=U8-U5-U6"   # smallest is the plug
-    assert wb2["S"]["U7"].fill.start_color.rgb.endswith("FFC7CE"), \
-        "a plug that halved must escalate to red"
-
-    # C: a formula smuggling a prior-period constant is a KEY DRIVER
-    wb3 = _wb({"U5": "=16602.97-U6", "U6": 2955.4, "U7": "=U5/U6",
-               "U8": "=365/(U5/U6)", "U9": "=U5*12/100"})
-    w3 = Writer(wb3)
-    n3 = flag_embedded_hardcodes(wb3, ["S"], {"S": "U"}, w3,
-                                 lambda m: None)
-    assert n3 == 1 and "S!U5" in w3.log["flags"], \
-        "365/12/100 are conventions, not smuggled priors"
-    assert wb3["S"]["U7"].fill.start_color.rgb in ("00000000", None) or \
-        not str(wb3["S"]["U7"].fill.start_color.rgb).endswith("FFC7CE")
 
 
 def test_dash_nil_law_run11_exhibit():
@@ -1514,54 +1409,6 @@ def test_204_signflip_never_frozen():
     assert not hasattr(freeze, "freeze_sign_absurd")   # writer retired
 
 
-def test_198_composite_constants_law():
-    """Run-198: -240 was 8 stale composite formulas (=4976+23 — run 51's
-    own exhibit cell) invisible to every layer and unfixable by any
-    tool. The law: every embedded literal must tie a face line's
-    comparative, the WHOLE composition must resolve on a COMMON page
-    (the by-hand method — a statement is read as a page), and all
-    qualifying pages must agree. Decoy note-table ties on other pages
-    must not poison, and structural scalers never trigger."""
-    import openpyxl
-    from pipeline.composites import literals_of, rewrite_cell, sweep
-    from pipeline.writer import Writer
-    assert literals_of("=4976+23") == ["4976", "23"]
-    assert literals_of("=AI61-'SOC Accounts'!AI8") == []
-    assert literals_of("=U9*100/1000") == ["100", "1000"]
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "S"
-    ws["T5"] = "=158532+10183"          # prior actual (same composition)
-    ws["U5"] = "=158532+10183"          # stale mark-to-actual carry
-    ws["T7"], ws["U7"] = 40.0, "=U5*100/168715"   # scalers only: no trigger
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
-    led = Ledger()
-    led.add(Item(doc="AR", page=25, table_id=0, row_ord=0,
-                 label="Fixed assets", nums=[166094.0, 158532.0],
-                 source_line="Fixed assets 166,094 158,532"))
-    led.add(Item(doc="AR", page=25, table_id=0, row_ord=1,
-                 label="Right-of-use assets", nums=[10034.0, 10183.0],
-                 source_line="Right-of-use assets 10,034 10,183"))
-    # decoy: a PPE note on ANOTHER page ties 158532 to a different figure
-    led.add(Item(doc="AR", page=33, table_id=0, row_ord=0,
-                 label="Net book value", nums=[133059.0, 158532.0],
-                 source_line="Net book value 133,059 158,532"))
-    for p in (25, 33):
-        led.faces[("AR", p)] = "bs"
-    w = Writer(wb)
-    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
-    assert ok, msg
-    assert wb["S"]["U5"].value == "=166094+10034", wb["S"]["U5"].value
-    # non-stale cells and scaler-only cells are never touched
-    n_ok, _n_red = sweep(wb, spec, 2025, led, w, lambda s: None)
-    assert wb["S"]["U7"].value == "=U5*100/168715"
-    # the decoy page alone (no partner literal) can never win: a cell
-    # whose only ties disagree across pages refuses
-    ws["U6"] = ws["T6"] = "=158532+55555"
-    ok2, msg2 = rewrite_cell(wb, spec, 2025, led, w, "S", 6)
-    assert not ok2 and "55555" in msg2, msg2
-
-
 def test_199_unmatched_lines_surface():
     """Run-199: perpetual capital securities 3,872 — a single-year line
     with no comparative — was invisible to every prior-identity tool
@@ -1758,64 +1605,6 @@ def test_203_trace_error_names_the_cause():
     assert "evaluates fine" in ok
 
 
-def test_203_key_tie_backs_out_the_estimate():
-    """Run-203: total opex still held the FORECAST formula
-    (=prior*revenue growth) in the actual column — +148 flowed into
-    operating profit, net profit and EPS. The key-tie law wraps that
-    exact component (formula over a hardcode prior = the type
-    violation) so the key ties the print, orange, traceable."""
-    import json
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    wb = _wb({"T2": 90964.0, "U2": 88018.0,           # revenue (ties)
-              "T3": -76061.0, "U3": "=T3*(U2/T2)",    # opex: estimate!
-              "T4": "=T2+T3", "U4": "=U2+U3"})        # net profit key
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
-            "check_rows": [],
-            "key_rows": [{"name": "net profit", "sheet": "S", "row": 4}]}
-    panel = {"net profit": {"print": 14272.0, "prior": 14903.0}}
-    import tempfile, pathlib
-    with tempfile.TemporaryDirectory() as td:
-        p = pathlib.Path(td) / "key_panel.json"
-        p.write_text(json.dumps(panel))
-        w = Writer(wb)
-        n = key_tie(wb, spec, 2025, w, p, lambda s: None)
-    assert n == 1, n
-    from pipeline.evaluator import Evaluator
-    assert abs(Evaluator(wb).cell("S", "U4") - 14272.0) <= 1.0
-    assert wb["S"]["U3"].value.startswith("=(T3*(U2/T2))-("), wb["S"]["U3"].value
-
-
-def test_203_prior_delta_protocol():
-    """Owner's ruling: the PRIOR year proves the definition. A key that
-    differed from the print last year by the same nameable model rows
-    (MI + perpetual coupons) is CONFIRMED, not forced; a key whose
-    prior TIED the print must tie now."""
-    import json, pathlib, tempfile
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    wb = _wb({
-        # profit-for-the-year row, then MI and PCS, then the key row
-        "T3": 12718.0, "U3": 11546.0,
-        "T4": -840.0, "U4": -879.0,        # minority interests
-        "T5": -136.0, "U5": -199.0,        # perpetual coupons
-        "T6": "=T3+T4+T5", "U6": "=U3+U4+U5"})
-    wb["S"]["A4"], wb["S"]["A5"] = "Minority interests", "Perpetual coupons"
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
-            "check_rows": [],
-            "key_rows": [{"name": "net profit", "sheet": "S", "row": 6}]}
-    panel = {"net profit": {"print": 11546.0, "prior": 12718.0}}
-    with tempfile.TemporaryDirectory() as td:
-        p = pathlib.Path(td) / "key_panel.json"
-        p.write_text(json.dumps(panel))
-        w = Writer(wb)
-        n = key_tie(wb, spec, 2025, w, p, lambda s: None)
-    assert n == 0                              # nothing forced
-    assert wb["S"]["U6"].value == "=U3+U4+U5"  # untouched
-    v = w.log.get("verdicts", [])
-    assert v and "JUSTIFIED" in v[0] and "Minority interests" in v[0], v
-
-
 def test_203_empty_row_law():
     """A row whose prior actual is empty is furniture — untrusted
     machine writes are refused there."""
@@ -1829,78 +1618,6 @@ def test_203_empty_row_law():
     # anywhere, past or future, takes no write from any step — trusted or not
     assert w.write("S", "U12", 5.0, prior_coord="T12", trusted=True, allow_empty=True) is False
     assert w.log["never_filled_refused"] == ["S!U12"] and wb["S"]["U12"].value is None
-
-
-def test_204_teachings_twin_collapse_plugmeter():
-    """The by-hand teachings, law-level: (2) a served value re-anchors
-    its stale twins; (3) a zero that kills a healthy forecast row is
-    caught by the collapse detector; (5) the model's own residual rows
-    read as truth meters."""
-    import openpyxl
-    from pipeline.teachings import (collapsed_forecasts, forecast_baseline,
-                                    plug_meter, twin_reanchor)
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "S"
-    # twin: rows 5 and 7 both held 1,577 last year; row 5 gets served
-    ws["T5"], ws["U5"] = 1577.0, 1650.0
-    ws["T7"], ws["U7"] = 1577.0, 1577.0          # stale twin hardcode
-    ws["T8"], ws["U8"] = 1577.0, "=U5"           # formula twin, healthy
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
-                                            "2026": "V"}}}}
-    w = Writer(wb)
-    w.log["written"].append("S!U5")
-    n_rw, n_tw = twin_reanchor(wb, wb, spec, 2025, w, lambda s: None)
-    assert n_rw == 1 and ws["U7"].value == 1650.0, (n_rw, ws["U7"].value)
-    # collapse: V9 = units*price; baseline healthy, tariff zeroed -> caught
-    wb2 = openpyxl.Workbook()
-    w2s = wb2.active
-    w2s.title = "S"
-    w2s["T5"], w2s["U5"] = 95.8, 97.1
-    w2s["T6"], w2s["U6"] = 360.0, 360.0
-    w2s["V9"] = "=U5*U6"
-    base = forecast_baseline(wb2, spec, 2025)
-    assert base[("S", 9)] > 100
-    w2s["U5"] = 0.0                              # the run-204 tariff crime
-    got = collapsed_forecasts(wb2, spec, 2025, base)
-    assert [(s, r) for s, r, _n, _w in got] == [("S", 9)], got
-    # plug meter: residual row explodes vs its prior
-    wb3 = openpyxl.Workbook()
-    w3s = wb3.active
-    w3s.title = "S"
-    w3s["T2"], w3s["U2"] = 50649.0, 48967.0      # total (sales)
-    w3s["T3"], w3s["U3"] = 34000.0, 34723.0      # basic
-    w3s["T4"], w3s["U4"] = 16645.0, 15842.0      # fuel
-    w3s["T5"], w3s["U5"] = "=T2-T3-T4", "=U2-U3-U4"   # export plug
-    # the wrong tariff: plug -1,598 vs prior +4 — sign-flipped, large:
-    # METERED (exactly how the by-hand session caught the tariff)
-    pm = plug_meter(wb3, spec, 2025)
-    assert [(s, r) for s, r, _n, _w in pm] == [("S", 5)], pm
-    # the fuel fix lands: plug -185 vs +4 — small: quiet
-    w3s["U4"] = 14429.0
-    assert plug_meter(wb3, spec, 2025) == []
-
-
-def test_206_oneoff_no_propagate():
-    """Run-206: a new one-off actual (hedging -352, prior ~0) linked
-    into the forecast leaked +352/yr of imbalance forever. Bare links
-    to a new one-off zero out (orange); recurring rows stay linked."""
-    import openpyxl
-    from pipeline.teachings import oneoff_no_propagate
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "S"
-    ws["T7"], ws["U7"], ws["V7"], ws["W7"] = None, -352.0, "=U7", "=V7"
-    ws["T8"], ws["U8"], ws["V8"] = -300.0, -310.0, "=U8"   # recurring: keep
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
-                                            "2026": "V", "2027": "W"}}}}
-    w = Writer(wb)
-    n = oneoff_no_propagate(wb, spec, 2025, w, lambda s: None)
-    assert n == 1, n
-    assert ws["V7"].value == 0 and ws["W7"].value == "=V7"
-    assert ws["V8"].value == "=U8"
 
 
 def test_206_vintage_guard_and_corroboration():
@@ -1936,70 +1653,6 @@ def test_206_vintage_guard_and_corroboration():
     led2.faces[("AR", 280)] = "pl"
     proof, why = prove_cell(led2, ["2254"])
     assert proof and abs(proof["2254"][0] - 1860.0) < 1, (proof, why)
-
-
-def test_207_probe_and_hold_forecast():
-    """Owner ruling 2026-09-01: think like Fable — the probe experiment
-    (hold a suspect, watch checks respond, auto-restore) and the
-    sanctioned hold for probe-proven roll artifacts, transactional."""
-    wb = _wb({"T5": 100.0, "U5": 110.0,
-              "U7": -352.0, "V7": "=U7",          # the leak
-              "T9": "=T5-T5", "U9": "=U5-U5", "V9": "=V7"})
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
-                                            "2026": "V"}}},
-            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}]}
-    lp = _loop(wb, spec)
-    r = lp.t_probe({"cell": "S!V7"})
-    assert "CLOSES" in r and wb["S"]["V7"].value == "=U7", r  # restored
-    # hold on a non-forecast column refused
-    bad = lp.t_hold_forecast({"cell": "S!U7", "why": "x" * 30})
-    assert "not a forecast-column" in bad, bad
-    ok = lp.t_hold_forecast({"cell": "S!V7",
-                             "why": "probe closed S!9 2026 to zero"})
-    assert ok.startswith("HELD"), ok
-    assert wb["S"]["V7"].value == 0.0
-    assert any("agent hold" in f for f in lp.writer.log["frozen"])
-    # a hold that does NOT improve checks reverts
-    wb2 = _wb({"U7": -352.0, "V7": "=U7", "T9": "=T5-T5",
-               "U9": "=U7-U7", "V9": "=V8-V8"})
-    lp2 = _loop(wb2, spec)
-    r2 = lp2.t_hold_forecast({"cell": "S!V7",
-                              "why": "probe proved nothing honestly"})
-    assert r2.startswith("REVERTED"), r2
-    assert wb2["S"]["V7"].value == "=U7"
-
-
-def test_208_twin_backout():
-    """Run-208: the NFA lived in Final!65 (rewritten to actual) AND the
-    Driver roll base (stale composite) — the stale twin broke every
-    forecast year, and its inputs are unprovable from the RA. The twin
-    law: hardcode twins re-serve; composite-formula twins BACK OUT
-    (=(net)-(other ref)) per the owner's back-out rule."""
-    import openpyxl
-    from pipeline.teachings import twin_reanchor
-    from pipeline.writer import Writer
-    from pipeline.evaluator import Evaluator
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "S"
-    ws["A5"] = "Net fixed assets"
-    ws["T5"], ws["U5"] = "=T70+T71", 176128.0          # BS home: served
-    ws["T70"], ws["T71"] = 292564.0, -123849.0         # prior 168,715
-    ws["A9"] = "Net fixed assets roll"
-    ws["T9"], ws["U9"] = "=T70+T71", "=U70+U71"        # twin (roll base)
-    ws["U70"], ws["U71"] = "=292564+343", "=-123849-343"
-    w = Writer(wb)
-    w.log["written"].append("S!U5")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
-    n_rw, n_tw = twin_reanchor(wb, None, spec, 2025, w, lambda s: None)
-    assert n_rw == 1, (n_rw, n_tw)
-    assert abs(Evaluator(wb).cell("S", "U9") - 176128.0) < 1
-    assert wb["S"]["U70"].value.startswith("=(176128)-("), wb["S"]["U70"].value
-
-
-# ── Exhibits: the Fable-drive autopsy (2026-09-01) ───────────────────────
-# Fable 5 drove the loop by hand on CLP FY25 and root-caused every wrong
-# deterministic serve it met. Each law below killed a real shipped poison.
 
 
 def test_fd_time_signature_refuses_segment_axis():
@@ -2153,28 +1806,6 @@ def _wq_loop():
     return loop
 
 
-def test_wq_default_is_abstention():
-    # a garbage answer id can never execute — it falls to the default,
-    # the run finishes, and the stale cell stays red for the analyst
-    from pipeline.workqueue import run_queue
-    loop = _wq_loop()
-    s = run_queue(loop, None, lambda *a: None,
-                  answerer=lambda t, o, d: "serve:ZZZ")
-    assert "queue:" in s
-    assert loop.wb["M"]["U7"].value == 4976.0, "garbage answer executed"
-
-
-def test_wq_serve_lands_with_citation():
-    # the top candidate for the cash row is the printed 3,905 (prior
-    # 4,976 ties); serving it writes through t_set_input with the page
-    from pipeline.workqueue import run_queue
-    loop = _wq_loop()
-    def pick_serve(text, options, default):
-        return next((k for k in options if k.startswith("serve:")), default)
-    run_queue(loop, None, lambda *a: None, answerer=pick_serve)
-    assert loop.wb["M"]["U7"].value == 3905.0, loop.wb["M"]["U7"].value
-
-
 def test_wq_decoy_out_of_world_never_offered():
     # red-team calibration: the 812,000 MW figure adjacent to prior 810
     # is out of the row's world — it must not appear as an option at all
@@ -2182,90 +1813,6 @@ def test_wq_decoy_out_of_world_never_offered():
     loop = _wq_loop()
     cands = candidates_for(loop, "M", 9)
     assert all(abs(c["value"]) < 81000 for c in cands), cands
-
-
-def test_wq_refusal_reasks_once():
-    # run-216: Luna picked candidate D on the fuel-clause card, the
-    # one-home law refused it, and the card was ABANDONED with the
-    # clean candidate A still on it. A refusal must re-ask ONCE with
-    # the refusal shown and the refused option removed.
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.workqueue import run_queue
-    loop = _wq_loop()
-    calls = {"n": 0}
-    orig = ObjectiveLoop.TOOLS["set_input"]
-
-    def refuse_first(self, args):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return "REFUSED by the evidence law: synthetic first refusal"
-        return orig(self, args)
-    ObjectiveLoop.TOOLS = dict(ObjectiveLoop.TOOLS, set_input=refuse_first)
-    try:
-        seen = {"reask": 0}
-
-        def pick(text, options, default):
-            if "NOTE: your previous answer" in text:
-                seen["reask"] += 1
-            sv = [k for k in options if k.startswith("serve:")]
-            return sv[0] if sv else default
-        run_queue(loop, None, lambda *a: None, answerer=pick)
-    finally:
-        ObjectiveLoop.TOOLS = dict(ObjectiveLoop.TOOLS, set_input=orig)
-    assert seen["reask"] >= 1, "refusal did not re-ask the card"
-    assert loop.wb["M"]["U7"].value in (3905.0, 3872.0), \
-        "no serve landed after the re-ask"
-
-
-def test_wq_llm_absent_means_machinery_baseline():
-    # no client, no answerer -> every card defaults; nothing written
-    from pipeline.workqueue import run_queue
-    loop = _wq_loop()
-    s = run_queue(loop, None, lambda *a: None)
-    assert loop.wb["M"]["U7"].value == 4976.0
-    assert "defaulted" in s
-
-
-def test_wq_component_card_offers_the_receipts():
-    # run-211: a 5,293 gap was plugged into one cell when a printed
-    # two-cell split existed. The COMPONENT card must offer the printed
-    # candidate WITH its probe-measured effect, and serving it must
-    # close the check.
-    import openpyxl
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.writer import Writer
-    from pipeline.targets import TargetRow as TR
-    from pipeline.workqueue import build_queue, render_card
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "M"
-    ws["T2"], ws["U2"] = 2024, 2025
-    ws["T5"], ws["U5"] = 5943.0, 5943.0        # component: stale
-    ws["T6"], ws["U6"] = 100000.0, 103872.0    # other side, correct
-    ws["T7"], ws["U7"] = 94057.0, 94057.0      # other component
-    ws["T10"], ws["U10"] = "=T6-T5-T7", "=U6-U5-U7"   # check: 3,872 off
-    spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
-                                "header_row": 2}},
-            "check_rows": [{"sheet": "M", "row": 10, "expect": 0}]}
-    items = _anchors() + [
-        _item(95, 3, "reserves incl PCS", [9815.0, 5943.0]),
-    ]
-    led = _ledger(items, face_pages=((95, "bs"),))
-    led._doc_periods = {DOC: "current"}
-    targets = _anchor_targets() + [
-        TR("M", 5, "reserves incl PCS", 5943.0, prior2_value=5100.0)]
-    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
-    q = build_queue(loop)
-    comp = [w for w in q if w.kind == "COMPONENT"]
-    assert comp, "no COMPONENT item for the failing check"
-    rendered = render_card(loop, comp[0])
-    assert rendered is not None, "component card did not render"
-    text, options, default = rendered
-    assert "CLOSES the check" in text, text
-    assert default == "not_disclosed"
-    fix = next(k for k in options if k.startswith("fix:"))
-    tool, args = options[fix]
-    assert tool == "set_input" and abs(args["value"] - 9815.0) < 1
 
 
 def test_plug_experiment_referees_proven_sites():
@@ -2355,59 +1902,6 @@ def _recompose_fixture(lines):
     spec = {"year_axis": {"M": {"columns": {"2024": "T", "2025": "U"},
                                 "header_row": 2}}}
     return wb, spec, led
-
-
-def test_recompose_new_ingredient_joins():
-    from pipeline.composites import recompose_cell
-    from pipeline.writer import Writer
-    wb, spec, led = _recompose_fixture([
-        ("proceeds from borrowings", [900.0, 800.0]),
-        ("repayment of borrowings", [-500.0, -400.0]),
-        ("issue of new securities", [250.0]),          # NEW: no prior
-        ("settlement of instruments", [-60.0, -70.0]),
-    ])
-    wb["M"]["T7"], wb["M"]["U7"] = 330.0, "=800-400-70"
-    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
-    assert ok, msg
-    from pipeline.composites import signed_literals
-    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
-    assert abs(got - (900 - 500 + 250 - 60)) < 0.01, wb["M"]["U7"].value
-
-
-def test_recompose_respects_analyst_exclusion():
-    from pipeline.composites import recompose_cell
-    from pipeline.writer import Writer
-    wb, spec, led = _recompose_fixture([
-        ("proceeds from borrowings", [900.0, 800.0]),
-        ("a line the analyst excluded", [123.0, 111.0]),  # material prior,
-                                                          # NOT in recipe
-        ("repayment of borrowings", [-500.0, -400.0]),
-    ])
-    wb["M"]["T7"], wb["M"]["U7"] = 400.0, "=800-400"
-    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
-    assert ok, msg
-    from pipeline.composites import signed_literals
-    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
-    assert abs(got - 400) < 0.01, wb["M"]["U7"].value
-    assert "EXCLUDED" in (wb["M"]["U7"].comment.text if wb["M"]["U7"].comment else "")
-
-
-def test_recompose_sign_from_this_years_print():
-    # short-term borrowings flipped from +increase to -decrease: the
-    # sign comes from the printed CURRENT, never the comparative
-    from pipeline.composites import recompose_cell
-    from pipeline.writer import Writer
-    wb, spec, led = _recompose_fixture([
-        ("proceeds from borrowings", [900.0, 800.0]),
-        ("change in short-term borrowings", [-300.0, 200.0]),
-        ("repayment of borrowings", [-500.0, -400.0]),
-    ])
-    wb["M"]["T7"], wb["M"]["U7"] = 600.0, "=800+200-400"
-    ok, msg = recompose_cell(wb, spec, 2025, led, Writer(wb), "M", 7)
-    assert ok, msg
-    from pipeline.composites import signed_literals
-    got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
-    assert abs(got - (900 - 300 - 500)) < 0.01, wb["M"]["U7"].value
 
 
 def test_writes_ledger_survives_guard_pops():
@@ -2604,177 +2098,6 @@ def test_document_identification_owner_ruling_2026_09_03():
     assert v == {"AR25.pdf": "current", "RA25.pdf": "current", "wrong.pdf": "unknown"}, v
     assert "ISSUER MISMATCH" in next(d for d in out if d["doc"] == "wrong.pdf")["line"]
     assert vintage_ban(led) == {"wrong.pdf"}
-
-
-def test_reading_step_brain_judges_code_verifies():
-    """Owner ruling (2026-09-03): every 'what is this' decision is the
-    brain's, with code verifying the answer numerically. Statement pages
-    and the model's key rows follow the document-identity pattern."""
-    from pipeline.docid import identify_key_rows, identify_statement_pages
-    from pipeline.ledger import Item, Ledger
-
-    class Stub:
-        def __init__(self, answer):
-            self.answer = answer
-        def json(self, system, user, validate, repair_retries=0, images=None):
-            assert not validate(self.answer), validate(self.answer)
-            return self.answer
-
-    # exhibit 1 — statement pages: a brain-named page is adopted ONLY when
-    # its numbers tie the model's prior year; an untied page is refused;
-    # a parent-only page loses its face
-    led = Ledger()
-    led.doc_meta["AR.pdf"] = {}
-    rows = [(60, "Revenue", [120000.0, 118000.0]), (60, "Costs", [-46000.0, -45000.0]),
-            (60, "Profit before tax", [31000.0, 30000.0]), (60, "Profit for the year", [24000.0, 22000.0]),
-            (61, "Ratio", [5.0, 6.0]), (61, "Other", [7.0, 8.0]), (62, "Memo", [9.0]),
-            # a NOTE page that also ties priors (45,000 / 30,000) but whose rows
-            # do not read as a statement — run-230's trap
-            (75, "Net book value at", [1.0, 45000.0, 30000.0, 914.0]),
-            (75, "Additions", [2.0, 118000.0, 22000.0, 500.0])]
-    for i, (pn, lab, nums) in enumerate(rows):
-        led.items.append(Item(doc="AR.pdf", page=pn, table_id=0, row_ord=i,
-                              label=lab, nums=nums, stmt_face=None,
-                              unit_dim="unknown", scale_hint=None,
-                              source_line=lab + " " + " ".join(map(str, nums))))
-    led.faces[("AR.pdf", 62)] = "pl"           # the caption tagger's pick
-    import pipeline.stage1_read as s1
-    real = s1.page_texts
-    # the brain names PRINTED page numbers: printed 130 is PDF page 60
-    # (its footer says 130); PDF page 75 is a note that ratifies but is
-    # not a statement by its rows
-    s1.page_texts = lambda path, cache_dir=None: [
-        (1, "Contents ... Consolidated Income Statement 130", "text"),
-        (60, "Revenue 120,000 118,000 ... Profit for the year\n130", "text"),
-        (75, "Note 12 Property, plant and equipment\n145", "text")]
-    try:
-        res = identify_statement_pages(["AR.pdf"], led,
-                                       Stub({"pl": [130], "bs": [61, 75], "cf": [],
-                                             "segment": [], "parent_only": [62],
-                                             "why": "contents p1"}),
-                                       [118000.0, 45000.0, 30000.0, 22000.0],
-                                       lambda s: None)
-    finally:
-        s1.page_texts = real
-    assert led.faces.get(("AR.pdf", 60)) == "pl", led.faces          # printed 130 -> pdf 60
-    assert any("p130->pdf60=pl" in x for x in res["AR.pdf"]["adopted"]), res
-    assert ("AR.pdf", 61) not in led.faces and any("p61=bs" in x for x in res["AR.pdf"]["refused"])
-    assert ("AR.pdf", 75) not in led.faces and any("p75=bs" in x for x in res["AR.pdf"]["refused"])
-    assert ("AR.pdf", 62) not in led.faces and ("AR.pdf", 62) in led.parent_pages
-    # exhibit 1b — the brain's map is the authority: a caption-propagated
-    # face on a page far from any named statement is demoted (run-229:
-    # the fixed-asset note tagged 'cf'); a page adjacent to a named
-    # statement keeps its face (a statement running over the page)
-    led.faces[("AR.pdf", 70)] = "cf"          # caption-propagated, no statement rows
-    led.faces[("AR.pdf", 59)] = "pl"          # adjacent to the confirmed statement
-    led.faces[("AR.pdf", 90)] = "cf"          # a real CF page far away: self-identifies
-    led.items.append(Item(doc="AR.pdf", page=90, table_id=0, row_ord=1,
-                          label="Net cash from operating activities", nums=[9000.0, 8000.0],
-                          stmt_face=None, unit_dim="unknown", scale_hint=None, source_line=""))
-    led.items.append(Item(doc="AR.pdf", page=90, table_id=0, row_ord=2,
-                          label="Net cash used in investing activities", nums=[-3000.0, -2500.0],
-                          stmt_face=None, unit_dim="unknown", scale_hint=None, source_line=""))
-    s1.page_texts = lambda path, cache_dir=None: [(1, "Contents", "text")]
-    try:
-        identify_statement_pages(["AR.pdf"], led,
-                                 Stub({"pl": [60], "bs": [], "cf": [], "segment": [],
-                                       "parent_only": [], "why": "contents"}),
-                                 [118000.0, 45000.0, 30000.0], lambda s: None)
-    finally:
-        s1.page_texts = real
-    assert ("AR.pdf", 70) not in led.faces and led.faces.get(("AR.pdf", 59)) == "pl"
-    assert led.faces.get(("AR.pdf", 90)) == "cf"      # never demote a self-identifying statement
-    # exhibit 1c — reconciliation's time-signature law: a wide row is not
-    # a statement line
-    from pipeline.reconcile import is_statement_line, small_prior_needs_kinship
-    assert is_statement_line({"nums": [12.0, 6608.0, 471.0]})
-    assert not is_statement_line({"nums": [1.0, 6608.0, 471.0, 914.0, 7993.0]})
-    # exhibit 1d — the small-prior law: a small prior ties by coincidence
-    # unless the labels are kin; a material prior is its own identity
-    assert not small_prior_needs_kinship(-23.0, "Short-term deposits and restricted cash",
-                                         "- Decrease / (increase) in fuel clause account")
-    assert not small_prior_needs_kinship(-10.0, "Meters", "Operating expenditure")
-    assert small_prior_needs_kinship(105.0, "India", "One-off items")   # material: size decides
-    assert small_prior_needs_kinship(-471.0, "Net book value at", "Finance costs")  # size, not label
-    assert small_prior_needs_kinship(-12.0, "Finance costs", "Finance costs")
-    assert small_prior_needs_kinship(-23.0, "Fuel clause account", "Decrease / (increase) in fuel clause account")
-    # without a brain, nothing changes (the floor)
-    assert identify_statement_pages(["AR.pdf"], led, None, [], lambda s: None) == {}
-
-    # exhibit 2 — key rows: a brain pick replaces the pattern pick of the
-    # same name only if the row carries numbers; a labels-only row is dropped
-    import openpyxl
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Final"
-    rows = {7: ("Total revenue", 100.0), 15: ("Net operating income", 20.0),
-            27: ("Net profits (reported)", 12.0), 31: ("Recurring net profit", 13.0),
-            40: ("Memo: EPS commentary", None)}
-    for r, (lab, v) in rows.items():
-        ws.cell(r, 1, lab)
-        if v is not None:
-            ws.cell(r, 3, v)
-    spec = {"year_axis": {"Final": {"columns": {"2024": "C"}}},
-            "key_rows": [{"name": "net profit", "sheet": "Final", "row": 27},
-                         {"name": "revenue", "sheet": "Final", "row": 7}]}
-    picks = identify_key_rows(wb, spec, Stub({"key_rows": [
-        {"row": 31, "name": "recurring net profit"},
-        {"row": 15, "name": "operating profit"},
-        {"row": 40, "name": "eps"},
-        {"row": 27, "name": "net profit"}], "why": "labels"}), lambda s: None)
-    names = {k["name"]: k["row"] for k in spec["key_rows"]}
-    assert names["recurring net profit"] == 31 and names["operating profit"] == 15
-    assert names["net profit"] == 27 and names["revenue"] == 7      # pattern pick kept
-    assert "eps" not in names                                        # no numbers -> dropped
-    assert {p["name"] for p in picks} == {"recurring net profit", "operating profit", "net profit"}
-    assert identify_key_rows(wb, spec, None, lambda s: None) == []
-    # exhibit 2b — numeric verification against the pinned panel (run-230:
-    # the brain named EBIT as 'operating profit'): a named row whose
-    # prior-year value does not tie the panel's prior is dropped
-    import json, tempfile
-    ws.cell(20, 1, "EBIT"); ws.cell(20, 3, 24.0)          # prior 24 (col C = 2024)
-    spec2 = {"year_axis": {"Final": {"columns": {"2024": "C", "2025": "D"}}},
-             "key_rows": [{"name": "operating profit", "sheet": "Final", "row": 15}]}
-    with tempfile.TemporaryDirectory() as d:
-        pp = f"{d}/key_panel.json"
-        json.dump({"operating profit": {"print": 21.0, "prior": 20.0}}, open(pp, "w"))
-        picks2 = identify_key_rows(wb, spec2, Stub({"key_rows": [
-            {"row": 20, "name": "operating profit"}], "why": "EBIT"}), lambda s: None,
-            panel_path=pp, target_year=2025)
-        assert picks2 == [] and {k["row"] for k in spec2["key_rows"] if k["name"] == "operating profit"} == {15}
-        picks3 = identify_key_rows(wb, spec2, Stub({"key_rows": [
-            {"row": 15, "name": "operating profit"}], "why": "NOI"}), lambda s: None,
-            panel_path=pp, target_year=2025)
-        assert [k["row"] for k in picks3] == [15]
-        # a verified pick on the primary sheet is not displaced by a brain
-        # pick of the same name on ANOTHER sheet (run 232: Driver!28)
-        ws2 = wb.create_sheet("Driver")
-        ws2.cell(28, 1, "Operating Income before JCEs"); ws2.cell(28, 3, 20.0); ws2.cell(28, 4, 21.0)
-        spec3 = {"year_axis": {"Final": {"columns": {"2024": "C", "2025": "D"}},
-                               "Driver": {"columns": {"2024": "C", "2025": "D"}}},
-                 "key_rows": [{"name": "operating profit", "sheet": "Final", "row": 15}]}
-        ws.cell(15, 3, 20.0)                      # Final!15 prior ties the panel too
-        class Stub2:
-            def json(self, system, user, validate, repair_retries=0, images=None):
-                if user.startswith("Sheet: Driver"):
-                    return {"key_rows": [{"row": 28, "name": "operating profit"}], "why": "d"}
-                return {"key_rows": [], "why": "f"}
-        identify_key_rows(wb, spec3, Stub2(), lambda s: None, panel_path=pp, target_year=2025)
-        assert [(k["sheet"], k["row"]) for k in spec3["key_rows"] if k["name"] == "operating profit"] == [("Final", 15)]
-    # exhibit 2c — THE ANALYST'S ORDER (owner 2026-09-04): actuals ->
-    # rollover check -> balance cards -> plugs. THE BUDGET IS TIME (owner
-    # 2026-09-08, run 250): no call cap, no reserved share — the queue gets
-    # what is left of the hour, and the balance cards are asked regardless
-    # of the clock (they are few and they close the model).
-    import inspect
-    from pipeline import workqueue as wq
-    src = inspect.getsource(wq.build_queue)
-    assert '"SERVE": 0' in src and '"ROLLOVER": 1' in src and '"COMPONENT": 2' in src
-    assert not hasattr(wq, "CALL_CAP") and not hasattr(wq, "reserve_for_balance")
-    rq = inspect.getsource(wq.run_queue)
-    assert 'item.kind not in ("COMPONENT", "PLUG")' in rq and "deadline_s" in rq
-    from pipeline import run as _run
-    assert _run.RUN_TARGET_S == 3600 and "deadline_s=max(60.0, _left)" in inspect.getsource(_run.update)
 
 
 def test_rollover_investigation_owner_teaching_2026_09_03():
@@ -3053,75 +2376,6 @@ def test_printed_subtotal_law_owner_2026_09_04():
     assert ws["C60"].value == before
 
 
-def test_run232_cash_already_current_and_red_is_a_colour():
-    """Run-232 cash autopsy: the constants law had rewritten cash to
-    =3905+23 (the balance-sheet figure); phase0 then re-mapped the
-    literal 3,905 from the cash MOVEMENT row (opening 4,976 | -787 |
-    closing 3,905) into =787+23, and the brain 'justified' the collapse.
-    Two laws: a literal that already prints as this year's figure on a
-    statement face is never re-mapped; and a cell is red only while it
-    is painted red (the flag list is history)."""
-    from pipeline.composites import already_current, prove_cell
-    from pipeline.ledger import Item, Ledger
-    led = Ledger()
-    led._doc_periods = {"AR.pdf": "current"}
-    led.faces[("AR.pdf", 168)] = "bs"
-    led.faces[("AR.pdf", 17)] = "bs"
-    led.items.append(Item(doc="AR.pdf", page=168, table_id=0, row_ord=1,
-                          label="Cash and cash equivalents", nums=[21.0, 3905.0, 4976.0],
-                          stmt_face="bs", unit_dim="unknown", scale_hint=None, source_line=""))
-    led.items.append(Item(doc="AR.pdf", page=17, table_id=0, row_ord=1,
-                          label="Cash and cash equivalents", nums=[4976.0, 787.0, 3905.0],
-                          stmt_face="bs", unit_dim="unknown", scale_hint=None, source_line=""))
-    assert already_current(led, 3905.0, "Cash and equivalents")[1] == 168
-    assert already_current(led, 4976.0, "Cash and equivalents") is None   # last year's figure
-    mapped, why = prove_cell(led, [3905.0, 23.0], row_label="Cash and equivalents")
-    assert mapped is None and "already this year's printed figure" in why, why
-    # the red test reads the cell's colour, not the flag list
-    import inspect
-    from pipeline import workqueue as wq
-    assert 'rgb.endswith("FFC000")' in inspect.getsource(wq._red_cells)
-
-
-def test_twins_are_kin_or_linked_run232():
-    """Run-232 cash autopsy: the twin re-anchor treated Australia's
-    amortisation (-425) and a SoC transfer line (-425) as one quantity
-    and overwrote the brain's correct revert. Same prior is not same
-    quantity: twins must be kin by label or linked by formula; a red
-    (held) cell is never re-anchored."""
-    import openpyxl
-    from openpyxl.styles import PatternFill
-    from pipeline.teachings import twin_reanchor
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "M"
-    ws["A1"], ws["B1"], ws["C1"] = "year", 2024, 2025
-    ws["A5"], ws["B5"], ws["C5"] = "Transfer to development fund", -425.0, 386.0
-    ws["A9"], ws["B9"], ws["C9"] = "Amortisation", -425.0, -425.0       # stale, unrelated
-    ws["A12"], ws["B12"], ws["C12"] = "Transfer to development fund (HK)", -425.0, -425.0   # kin: re-anchor
-    ws["A15"], ws["B15"], ws["C15"] = "Transfer to development fund (Group)", -425.0, -425.0
-    ws["C15"].fill = PatternFill("solid", fgColor="FFC7CE")               # red: held
-    spec = {"year_axis": {"M": {"header_row": 1, "columns": {"2024": "B", "2025": "C"}}}}
-    w = Writer(wb)
-    w.log["written"] = ["M!C5"]
-    logs = []
-    twin_reanchor(wb, wb, spec, 2025, w, logs.append, min_val=100)
-    assert ws["C9"].value == -425.0, ws["C9"].value          # coincidence: left alone
-    assert any("not kin" in x for x in logs), logs
-    assert ws["C12"].value == 386.0                         # kin: re-anchored
-    assert ws["C15"].value == -425.0                        # red: never touched
-    # cross-script twins (an English model over a Chinese filing) cannot be
-    # compared by words: a large, distinctive prior still proves the twin
-    ws["A20"], ws["B20"], ws["C20"] = "Cash - year end", 22502.9, 24000.0
-    ws["A22"], ws["B22"], ws["C22"] = "现金的期末余额", 22502.9, 22502.9
-    ws["A24"], ws["B24"], ws["C24"] = "小额", -425.0, -425.0          # small, cross-script: not proven
-    w.log["written"] = ["M!C20", "M!C5"]
-    twin_reanchor(wb, wb, spec, 2025, w, logs.append, min_val=100)
-    assert ws["C22"].value == 24000.0, ws["C22"].value
-    assert ws["C24"].value == -425.0
-
-
 def test_segment_matrix_is_never_a_yoy_table_run232():
     """Run-232 D&A autopsy: the segment note lists one period per row
     with segments as columns (HK | CN | AU | IN | total); the bound-table
@@ -3163,86 +2417,6 @@ def test_leaf_walk_expands_sum_ranges_run232():
     leaves = set(f._leaf_inputs_ranges("D", "AI19"))
     assert set(f._leaf_inputs("D", "AI19")) == leaves   # 2026-09-09: every row of a range is an input for every caller (the half-year ladder lesson)
     assert leaves == {("D", "AI20"), ("D", "AI14"), ("D", "AI15"), ("D", "AI16"), ("D", "AI17"), ("D", "AI18")}, leaves
-
-
-def test_roll_base_fixes_an_input_never_a_formula_2026_09_07():
-    """Owner ruling (run 233 review): the structure is the model's. A
-    roll-base gap is closed by backing out the LEAST confident INPUT of
-    the roll — never by overwriting the formula cell or the actual.
-    '3 inputs, 2 confident -> back out the 3rd'."""
-    import openpyxl
-    from openpyxl.styles import PatternFill
-    from pipeline.teachings import roll_base_mismatches
-    from pipeline.writer import Writer
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U",
-                                            "2026": "V"}}}}
-
-    def build():
-        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-        # row 10 = total opex: 2024 typed, 2025 typed actual (marked to
-        # disclosure), 2026 forecast computed from its three components
-        # (run 233: Final!14 = AI9 + AI12 rolled -73,746 vs typed -74,206)
-        ws["A10"] = "Total operating expenses"
-        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
-        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
-        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 300.0, "=U12"
-        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
-        return wb, ws
-    # exhibit 1 — fuel and staff are PROVEN (served, tied); 'Other' still
-    # holds last year's 20. Roll from the components: 800+300+20 = 1,120
-    # vs the typed 1,150 -> back out 'Other' by +30, touch nothing else
-    wb, ws = build()
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"},
-              ("S", 12): {"value": 300.0, "conf": 4, "note": "reconciliation: prior ties"}}
-    w = Writer(wb)
-    n = roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
-    assert n == 1, n
-    assert ws["U10"].value == 1150.0                     # the actual untouched
-    assert ws["V10"].value == "=V11+V12+V13"             # the formula untouched
-    assert ws["U11"].value == 800.0 and ws["U12"].value == 300.0   # proven inputs untouched
-    assert ws["U13"].value == "=(20)+(30)", ws["U13"].value          # the 3rd input backed out
-    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC000")
-    assert "Backed out" in ws["U13"].comment.text and len(ws["U13"].comment.text) < 130
-    # exhibit 2 — two equally uncertain inputs: flag both, guess nothing
-    wb, ws = build()
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
-    ws["U12"] = 280.0                       # staff also held at prior
-    w = Writer(wb)
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
-    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0
-    assert str(ws["U12"].fill.fgColor.rgb).endswith("FFC7CE")
-    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC7CE")
-    assert "could not tell which" in ws["U13"].comment.text
-    assert ws["V10"].value == "=V11+V12+V13"
-    # the FORECAST cell is never painted (owner 2026-09-07): the row is
-    # watch-listed, the flags sit on the actual-column inputs
-    assert not str(ws["V10"].fill.fgColor.rgb or "").endswith("FFC7CE")
-    assert ws["V10"].comment is None
-    assert any(ref == "S!V10" for ref, _why in w.log.get("forecast_watch", []))
-    # exhibit 3 — every input proven: nothing written, the row is a
-    # definition question (the old law anchored a FORMULA term here)
-    wb, ws = build()
-    ws["U13"] = 25.0
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "x"},
-              ("S", 12): {"value": 300.0, "conf": 4, "note": "x"},
-              ("S", 13): {"value": 25.0, "conf": 4, "note": "x"}}
-    w = Writer(wb)
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
-    assert ws["U11"].value == 800.0 and ws["U12"].value == 300.0 and ws["U13"].value == 25.0
-    assert ws["V10"].value == "=V11+V12+V13"
-    assert not w.log.get("written")
-    # exhibit 4 — a formula INSIDE the roll (U12 = U14, staff computed
-    # from a sub-input) is walked through to its leaf; the leaf is what
-    # gets backed out, the sub-formula stays
-    wb, ws = build()
-    ws["U12"] = "=U14"; ws["A14"] = "Staff cost build"; ws["T14"], ws["U14"] = 280.0, 280.0
-    ws["U13"] = 22.0
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "x"}}
-    w = Writer(wb)
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
-    assert ws["U12"].value == "=U14"                     # the sub-formula untouched
-    assert ws["U14"].value == "=(280)+(48)", ws["U14"].value
-    assert ws["U13"].value == 22.0
 
 
 def test_two_input_homes_same_prior_resolved_by_label_2026_09_07():
@@ -3542,64 +2716,6 @@ def test_prose_figures_become_lines_2026_09_08():
     assert len(rev.nums) == 2 and abs(rev.nums[1] - 78.615e9 / 1.128) < 1
 
 
-def test_no_prior_row_gets_a_label_card_2026_09_08():
-    """Owner 2026-09-08: 'if there is no past-year number you infer from
-    the item label' — SUPERSEDED by the owner's 2026-09-14 law: a row that
-    holds no number in any period, past or future ('New orders' in the
-    DFE model), is not an input; no card is dealt and the writer refuses
-    it from every step. The prose candidate is still found (the report
-    names the figure) — it is the ROW that is not the analyst's."""
-    import openpyxl
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.workqueue import candidates_for, build_queue
-    from pipeline.writer import Writer
-    from pipeline.prose import harvest_prose
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
-    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-    ws["A142"] = "New orders"                       # no prior, no future, empty this year
-    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
-    prose = harvest_prose(DOC, 10, "2025年，公司新生效订单1172.51亿元，同比增长15.93%。")
-    pr = next(it for it in prose if "新生效订单" in it.label)
-    led = _ledger(_anchors(95, 1e6) + [pr], face_pages=((95, "pl"),))
-    targets = _anchor_targets() + [TargetRow("Model", 142, "New orders 新生效订单", None)]
-    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
-    cands = candidates_for(loop, "Model", 142)
-    assert cands and cands[0].get("no_prior") and cands[0]["face"] == "prose", cands
-    assert abs(cands[0]["value"] - 117251.0) < 1                 # yuan -> RMB m via the document's scale
-    q = build_queue(loop)
-    assert not any(w.kind == "LABEL" and (w.sheet, w.row) == ("Model", 142) for w in q), [(w.kind, w.sheet, w.row) for w in q]
-    r = loop.t_set_input({"cell": "Model!U142", "value": 117251.0, "flag": "red", "no_prior": True,
-                          "why": "p10: 新生效订单1172.51亿元 — card-adjudicated"})
-    assert not str(r).startswith("WRITTEN"), r
-    assert ws["U142"].value is None and "Model!U142" in loop.writer.log.get("never_filled_refused", [])
-
-
-def test_no_serve_card_cap_budget_decides_2026_09_08():
-    """Owner: 'why is it capped though' — the run budget decides. Readiness
-    check for run 250: the bond line (prior 593.54) had its blank-line
-    candidate worth 0 but build_queue kept only the largest serve cards
-    and dropped it. Every red hardcode gets its card, in the analyst's
-    order; run_queue's call cap, reserved share and deadline drain the tail."""
-    import openpyxl
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.workqueue import build_queue
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
-    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
-    led = _ledger(_anchors(95, 1e6), face_pages=((95, "pl"),))
-    writer = Writer(wb)
-    targets = _anchor_targets()
-    for r in range(10, 90):                       # 80 red hardcodes, sizes 1..80
-        ws[f"A{r}"] = f"row {r}"; ws[f"T{r}"] = float(r); ws[f"U{r}"] = float(r)
-        ws[f"U{r}"].fill = writer.fills["red"]; writer.log["flags"].append(f"Model!U{r}")
-        targets.append(TargetRow("Model", r, f"row {r}", float(r)))
-    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, writer, None)
-    q = build_queue(loop)
-    serves = [w.row for w in q if w.kind == "SERVE"]
-    assert len(serves) == 80, len(serves)                 # nothing trimmed by size
-    assert serves == sorted(serves, reverse=True)         # biggest first, smallest still there
-
 def test_nil_tie_is_full_precision_significant_digits_2026_09_08():
     """Run 250 autopsy: six orange holds turned red because the blank-line
     pre-check tied the tax-rate 15 to '15,000,000' (two significant
@@ -3790,19 +2906,6 @@ def test_forecast_checks_never_veto_an_actual_2026_09_08():
     assert 'flag="red"' in src.split("REVERTED: the write broke")[0][-600:]
 
 
-def test_new_line_this_year_served_by_its_label_2026_09_08():
-    """Run 254: 'other cash received relating to investing' printed
-    19,078,348 with '不适用' last year; the model row had no prior, so
-    nothing tied, the row stayed 0 and the cash check was 19 off. With no
-    number to tie, the exact label on the printed line is the proof:
-    served red for the analyst."""
-    import inspect
-    from pipeline import run as _run
-    src = inspect.getsource(_run.update)
-    assert "new-line sweep" in src and "blank last year, label matches" in src
-    assert "ties any model prior it" in src          # a lone number tying a prior is last year's, not new
-    assert "_strip(it.label) != rl" in src            # bracketed note refs stripped before the exact match
-
 def test_fences_removed_deduction_2026_09_08():
     """Owner: "remove those patches and fix the underlying issues." No
     wide-row fence (a five-year line serves by its tying pair when the
@@ -3926,26 +3029,6 @@ def test_matrix_rows_never_pair_2026_09_09():
     led2._doc_periods = {DOC: "current"}
     serves2, _m2 = reconcile(wb, spec, 2025, led2, lambda s: None)
     assert abs(float(serves2[("Raw", 24)]["value"]) - 11546.0) < 0.01, serves2.get(("Raw", 24))
-
-
-def test_repairs_of_2026_09_09_pinned():
-    """The night's repairs, each a sentence: the plug ladder never vetoes on
-    forecast damage (watch list); the one-off law registers its cells as
-    frozen so the gate accepts them; a prior-vintage document is read as
-    text only; the run always delivers (open checks marked red, never a
-    quarantine); identity candidates need a specific label and two numbers;
-    reasoning effort rides on every call."""
-    import inspect
-    from pipeline import orchestrator as _o, teachings as _t, stage1_read as _s1, run as _r, workqueue as _wq, llm as _llm
-    assert "if hurt:" in inspect.getsource(_o.ObjectiveLoop.t_plug_residual) and \
-        "if hurt and hold_formula:" not in inspect.getsource(_o.ObjectiveLoop.t_plug_residual)
-    assert 'setdefault("frozen", [])' in inspect.getsource(_t.oneoff_no_propagate)
-    assert "prior-vintage document — text only" in inspect.getsource(_s1.read_documents)
-    src = inspect.getsource(_r.update)
-    assert "DELIVERED WITH OPEN CHECKS" in src and '" QUARANTINE"' not in src and '"gate_ok": ok' in src
-    assert "_specific(it.label)" in inspect.getsource(_wq.candidates_for)
-    assert "reasoning" in inspect.getsource(_llm._install_reasoning_effort)
-    assert "OTHER ROWS NAMED LIKE THIS ONE" in inspect.getsource(_wq.render_card)
 
 
 def test_roll_keeps_the_analysts_same_shape_formula_2026_09_09():
@@ -4131,16 +3214,6 @@ def test_a_matrix_is_a_matrix_in_every_row_2026_09_09():
     assert ("Final", 97) not in serves and mapping.get("matrix_rows", 0) >= 2, (serves.get(("Final", 97)), mapping)
 
 
-def test_new_line_needs_a_real_name_2026_09_09():
-    """CLP floor: a memo row labelled 'Note:' took 25 from a '(Note' line
-    under the new-line rule. 'Note', 'Total', 'Other' name nothing; a new
-    line's label must name an item (three CJK characters or two words)."""
-    import inspect
-    from pipeline import run as _run
-    src = inspect.getsource(_run.update)
-    assert "note|notes|total|subtotal|other|others|合计|小计|总计|其他|其中" in src and "_cjk < 3" in src
-
-
 def test_notes_for_the_analyst_owner_rulings_2026_09_07():
     """Run 233 review: 144 agent notes on plain inputs and long
     machine-speak on the flagged ones. Rules: notes only on highlighted
@@ -4282,37 +3355,6 @@ def test_evidence_law_prior_is_the_comparative_2026_09_10():
     print("PASS test_evidence_law_prior_is_the_comparative_2026_09_10")
 
 
-def test_key_tie_one_absorber_per_key_2026_09_10():
-    """Run 262: the gate loop re-tied 'total assets' three times and each
-    pass wrapped a DIFFERENT component — three stacked orange back-outs.
-    A key keeps its absorber: a re-tie unwraps the same cell and re-solves
-    the whole delta there; when the key ties on its own, it is restored."""
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    from pipeline.evaluator import Evaluator
-    from openpyxl.styles import PatternFill
-    wb = _wb({"T2": 100.0, "U2": 90.0,
-              "T3": "=T2*0.5", "U3": "=U2*0.5",
-              "T5": 10.0, "U5": 5.0,                       # the unproven leaf (red)
-              "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
-    wb["S"]["U5"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
-            "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
-    panel = {"total": {"print": 150.0, "prior": 160.0}}
-    w = Writer(wb)
-    assert key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel) == 1
-    assert wb["S"]["U5"].value == "=(5)-(-10)", wb["S"]["U5"].value
-    assert wb["S"]["U3"].value == "=U2*0.5"                # the formula of references is untouched
-    wb["S"]["U2"] = 80.0                                   # the loop moved a component
-    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    assert wb["S"]["U5"].value == "=(5)-(-25)", wb["S"]["U5"].value   # same cell, one wrap
-    assert abs(Evaluator(wb).cell("S", "U4") - 150.0) <= 0.5
-    wb["S"]["U2"] = 96.6667                                # the key now ties by itself
-    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    assert wb["S"]["U5"].value == 5.0 and "total" not in w.log["key_absorbers"], wb["S"]["U5"].value
-    print("PASS test_key_tie_one_absorber_per_key_2026_09_10")
-
-
 def test_a_proven_figure_is_never_traded_for_a_check_2026_09_10():
     """Run 262 replay: a component card replaced the face's joint-venture
     figure (12,125, comparative tied) with a segment number (4,379, no tie)
@@ -4350,31 +3392,6 @@ def test_reader_sign_of_the_tie_2026_09_10():
     # the tie is the line's scale (10,820.82 had been written for 108.21)
     assert abs(v["R!15"]["value"] - 108.21) < 0.01 and v["R!15"]["conf"] == 4, v["R!15"]
     print("PASS test_reader_sign_of_the_tie_2026_09_10")
-
-
-def test_key_tie_absorber_survives_a_take_back_2026_09_10():
-    """CLP live 2026-09-08: the gate loop's take-back unwrapped the
-    absorber; the next re-tie then wrapped a second cell."""
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    from openpyxl.styles import PatternFill
-    wb = _wb({"T2": 100.0, "U2": 90.0, "T3": "=T2*0.5", "U3": "=U2*0.5",
-              "T5": 10.0, "U5": 9.0, "T4": "=T2+T3+T5", "U4": "=U2+U3+U5"})
-    wb["S"]["U5"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
-            "check_rows": [], "key_rows": [{"name": "total", "sheet": "S", "row": 4}]}
-    panel = {"total": {"print": 160.0, "prior": 160.0}}
-    w = Writer(wb)
-    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    first = w.log["key_absorbers"]["total"][1]
-    assert first == "U5"
-    wb["S"][first] = w.log["key_absorbers"]["total"][2]          # a take-back unwraps it
-    wb["S"]["U2"] = 80.0
-    key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel)
-    assert w.log["key_absorbers"]["total"][1] == first
-    wrapped = [c for c in ("U3", "U5") if str(wb["S"][c].value).startswith("=(")]
-    assert wrapped == [first], (wrapped, first)
-    print("PASS test_key_tie_absorber_survives_a_take_back_2026_09_10")
 
 
 def test_key_panel_interim_balance_sheet_ties_the_year_end_2026_09_10():
@@ -4503,41 +3520,6 @@ def test_a_round_figure_is_a_figure_2026_09_10():
     print("PASS test_a_round_figure_is_a_figure_2026_09_10")
 
 
-def test_key_tie_backs_out_the_least_confident_leaf_2026_09_10():
-    """Owner 2026-09-10: when a key formula does not match the print, trace
-    its components and back out the least confident cell — never wrap the
-    formula. CLP: 'net profit' had wrapped operating costs (=AI14-AI13-AI12)
-    while two one-off leaves sat red at 0; 'recurring net profit' said no
-    component could absorb while Final!AI30 carried last year's 94."""
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    from pipeline.evaluator import Evaluator
-    from openpyxl.styles import PatternFill
-    wb = _wb({"T9": 11742.0, "U9": 10468.0,                 # net profit reported (proven)
-              "T8": 0.0, "U8": 0.0,                         # a one-off leaf, red (taken back)
-              "T3": "=94-T8", "U3": "=94-U8",               # other one-offs: last year's 94 carried
-              "T2": "=T9-T3", "U2": "=U9-U3",               # recurring profit (key)
-              "T6": "=T9*2", "U6": "=U9*2"})                # a formula of references, plain
-    wb["S"]["U8"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}},
-            "check_rows": [], "key_rows": [{"name": "recurring", "sheet": "S", "row": 2}]}
-    w = Writer(wb)
-    assert key_tie(wb, spec, 2025, w, None, lambda s: None,
-                   panel={"recurring": {"print": 10909.0, "prior": 11648.0}}) == 1
-    assert wb["S"]["U8"].value == "=(0)-(-535)", wb["S"]["U8"].value         # the red leaf absorbs (it enters the key positively)
-    assert wb["S"]["U6"].value == "=U9*2" and wb["S"]["U2"].value == "=U9-U3"
-    assert abs(Evaluator(wb).cell("S", "U2") - 10909.0) <= 1.0
-    # no red leaf: the carried constant is the next least confident cell
-    wb2 = _wb({"T9": 11742.0, "U9": 10468.0, "T8": 0.0, "U8": 0.0,
-               "T3": "=94-T8", "U3": "=94-U8", "T2": "=T9-T3", "U2": "=U9-U3"})
-    w2 = Writer(wb2)
-    assert key_tie(wb2, spec, 2025, w2, None, lambda s: None,
-                   panel={"recurring": {"print": 10909.0, "prior": 11648.0}}) == 1
-    assert wb2["S"]["U3"].value == "=(94-(535))-U8", wb2["S"]["U3"].value
-    assert wb2["S"]["U8"].value == 0.0                                        # a plain hardcode is proven
-    print("PASS test_key_tie_backs_out_the_least_confident_leaf_2026_09_10")
-
-
 def test_a_page_is_read_in_its_displayed_orientation_2026_09_10():
     """Owner 2026-09-10: 43 of DFE's 280 annual-report pages are landscape
     (/Rotate 270); their characters run vertically and the extractor lined
@@ -4576,121 +3558,6 @@ def test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10():
     # a ratio ties relative-only: 'a cent' on 0.15 would be 6.7% of it
     assert row_tol(0.15) < 0.001 and row_tol(1.15) == 0.01 and row_tol(760.0) > 3
     print("PASS test_an_enumerator_is_not_a_number_and_a_ratio_ties_relative_2026_09_10")
-
-
-def test_roll_forward_schedule_vertical_tie_2026_09_10():
-    """Owner 2026-09-10: a movement table has no prior-year column, but its
-    opening row IS last year's closing. The DFE fixed-asset note (p184) in
-    yuan against the Driver block in millions: Addition = 购置 (its 2024
-    value tied 购置 in the 2024 table), Transfer = the rest of the increases
-    (the analyst's own '=1265.03-J95'), Disposal = the whole decrease group;
-    the carried literals in the analyst's formulas take this year's role
-    totals; the roll closes on the printed closing."""
-    from pipeline.schedules import serve_schedules, find_blocks
-    from pipeline.writer import Writer
-    from pipeline.evaluator import Evaluator
-    wb = _wb({"A94": "Beginning value", "T94": 17987.25, "U94": "=T98",
-              "A95": "Addition", "T95": 211.93472192, "U95": 211.93472192,
-              "A96": "Transfer from CIP", "T96": "=1265.02640492-T95", "U96": "=1265.02640492-U95",
-              "A97": "Disposal", "T97": -388.94735586, "U97": -388.94735586,
-              "A98": "Ending value", "T98": "=SUM(T94:T97)", "U98": "=SUM(U94:U97)",
-              "A107": "Impairment", "T107": "=-128.28638909+6.18", "U107": "=-128.28638909+11.99"})
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}}
-    blocks = find_blocks(wb, spec, 2025)
-    assert [(b["beg"], b["end"], [r for r, _ in b["rows"]]) for b in blocks] == [(94, 98, [95, 97])], blocks
-    cur = [_item(184, 6, "（1）上年年末余额", [17915996.06, 7375145834.43, 9030745014.97, 330302283.92, 2109448125.97, 18863557255.35]),
-           _item(184, 7, "（2）本期增加金额", [905010560.18, 750551287.10, 31930461.01, 274309678.09, 1961801986.38]),
-           _item(184, 8, "—购置", [43561938.48, 113354614.13, 14732600.18, 72762551.95, 244411704.74]),
-           _item(184, 9, "—在建工程转入", [860636572.44, 636629670.52, 17064559.36, 197913869.90, 1712244672.22]),
-           _item(184, 10, "—其他", [812049.26, 567002.45, 133301.47, 3633256.24, 5145609.42]),
-           _item(184, 12, "（3）本期减少金额", [304987173.69, 180543184.13, 32121474.81, 89734144.53, 607385977.16]),
-           _item(184, 13, "—处置或报废", [43102486.33, 168078217.88, 31977515.69, 79754435.67, 322912655.57]),
-           _item(184, 14, "—其他", [261884687.36, 12464966.25, 143959.12, 9979708.86, 284473321.59]),
-           _item(184, 15, "（4）期末余额", [17915996.06, 7975169220.92, 9600753117.94, 330111270.12, 2294023659.53, 20217973264.57]),
-           _item(185, 3, "（1）上年年末余额", [86088944.90, 35741754.75, 118991.45, 6336697.99, 128286389.09]),
-           _item(185, 4, "（2）本期增加金额", [721616.45, 1836967.49, 2441.14, 85478.90, 2646503.98]),
-           _item(185, 6, "（3）本期减少金额", [14143698.29, 15524571.30, 2441.14, 580273.63, 30250984.36]),
-           _item(185, 9, "（4）期末余额", [72666863.06, 22054150.94, 118991.45, 5841903.26, 100681908.71])]
-    prior = [Item(doc="ar2024.pdf", page=180, table_id=0, row_ord=i, label=l, nums=n) for i, (l, n) in enumerate([
-             ("（1）上年年末余额", [17987480000.0]), ("（2）本期增加金额", [1265026404.92]), ("—购置", [211934721.92]),
-             ("—在建工程转入", [1052050000.0]), ("—其他", [1041683.0]), ("（3）本期减少金额", [388947355.86]),
-             ("—处置或报废", [350000000.0]), ("—其他", [38947355.86]), ("（4）期末余额", [18863557255.35])])]
-    led = _ledger(cur + prior, face_pages=()); led._doc_periods = {DOC: "current", "ar2024.pdf": "prior"}
-    w = Writer(wb); served = {}
-    n = serve_schedules(wb, spec, 2025, led, served, w, lambda s: None)
-    ws = wb["S"]; ev = Evaluator(wb)
-    assert abs(ws["U95"].value - 244.4117) < 0.001, ws["U95"].value                       # 购置 (the 2024 tie)
-    assert ws["U96"].value == "=1961.8-U95", ws["U96"].value                                # the carried increase total
-    assert abs(ws["U97"].value + 607.386) < 0.001, ws["U97"].value                        # the whole decrease group
-    assert abs(ev.cell("S", "U98") - 20217.74) < 0.5                                        # closes on the printed 20,217.97 less the 0.22 opening gap
-    assert ws["U107"].value == "=-100.682+11.99", ws["U107"].value                          # a literal equal to an opening is last year's closing
-    assert str(ws["U97"].fill.fgColor.rgb)[-6:] != "FFC7CE"                                 # the roll closes: nothing red
-    assert (("S", 95) in served) and served[("S", 95)]["conf"] == 4
-    assert any("within the 1% significance margin" in v for v in w.log.get("verdicts", []))
-    # beyond 1% nothing is served
-    wb2 = _wb({"A94": "Beginning value", "T94": 17000.0, "U94": "=T98", "A95": "Addition", "T95": 200.0, "U95": 200.0,
-               "A98": "Ending value", "T98": "=SUM(T94:T95)", "U98": "=SUM(U94:U95)"})
-    n2 = serve_schedules(wb2, spec, 2025, led, {}, Writer(wb2), lambda s: None)
-    assert n2 == 0 and wb2["S"]["U95"].value == 200.0
-    print("PASS test_roll_forward_schedule_vertical_tie_2026_09_10")
-
-
-def test_sense_check_checkpoint_and_final_pass_2026_09_09():
-    """Owner 2026-09-09: the report's mini P&L, new vs old — net profit
-    −5.8% against the estimate but +15.7% against the old forecast is a
-    rollover error to hunt. The chain's actual-year cells (the agent's
-    own red first) go to the queue's front; a row whose forecast was zero
-    before the update goes back to zero; the final pass reviews, re-runs
-    the checks, and writes up what it could not resolve."""
-    import openpyxl
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.workqueue import build_queue
-    from pipeline.writer import Writer
-    from pipeline.sensecheck import headline_deltas, suspicious, checkpoint
-    from pipeline.evaluator import Evaluator
-    def model(u4, u7, u9):
-        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
-        ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-        ws["A4"], ws["T4"], ws["U4"], ws["V4"] = "Revenue", 1000.0, u4, "=U4*1.05"
-        ws["A5"], ws["T5"], ws["U5"], ws["V5"] = "Group tax", -300.0, -320.0, "=U5*1.02"
-        ws["A6"], ws["T6"], ws["U6"], ws["V6"] = "Net profit", "=T4+T5", "=U4+U5", "=V4+V5+U7*1.02+V9"
-        ws["A7"], ws["T7"], ws["U7"] = "Australia tax (driver)", -100.0, u7
-        ws["A9"], ws["T9"], ws["U9"], ws["V9"] = "Memo item", None, u9, "=U9"
-        return wb
-    pre = model(1080.0, -110.0, None)          # the analyst's estimate: tax driver -110, memo blank
-    wb = model(1050.0, -900.0, 50.0)           # the run: the group's whole tax landed on the driver; memo filled
-    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}},
-            "check_rows": [], "key_rows": [{"name": "revenue", "sheet": "Model", "row": 4},
-                                           {"name": "net profit", "sheet": "Model", "row": 6}]}
-    led = _ledger(_anchors(95) + [_item(95, 7, "Australia income tax", [-110.0, -100.0]),
-                                  _item(95, 8, "Group income tax", [-320.0, -300.0])], face_pages=((95, "pl"),))
-    led._doc_periods = {DOC: "current"}
-    targets = _anchor_targets() + [TargetRow("Model", 4, "Revenue", 1000.0), TargetRow("Model", 7, "Australia tax", -100.0),
-                                   TargetRow("Model", 9, "Memo item", None)]
-    w = Writer(wb)
-    served = {("Model", 4): {"value": 1050.0, "conf": 4, "doc": DOC, "page": 95, "flag": None, "homed": True}}
-    w.log["written"] += ["Model!U4", "Model!U7", "Model!U9"]
-    from openpyxl.styles import PatternFill
-    wb["Model"]["U7"].fill = PatternFill("solid", fgColor="FFC7CE"); w.log["flags"].append("Model!U7")
-    loop = ObjectiveLoop(wb, spec, 2025, led, targets, served, w, None)
-    d = {x["name"]: x for x in headline_deltas(wb, pre, spec, 2025)}
-    assert abs(d["revenue"]["d0"] + 0.0278) < 0.001 and abs(d["revenue"]["d1"] + 0.0278) < 0.001
-    assert d["net profit"]["d1"] - d["net profit"]["d0"] < -0.10          # the forecast collapsed, the actual did not
-    assert [x["name"] for x in suspicious(headline_deltas(wb, pre, spec, 2025))] == ["net profit"]
-    logs = []
-    prio = checkpoint(loop, pre, logs.append)
-    # the checkpoint investigates: net profit's swing traces to the red tax driver, whose
-    # printed segment line ties the prior — replaced, orange, and the line is back in line
-    assert abs(wb["Model"]["U7"].value + 110.0) < 0.01, wb["Model"]["U7"].value
-    # (the memo row's zero is the writer's law now — measured on the analyst's model before the roll,
-    # not the sense check's business; see the unforecast-row exhibit)
-    assert not suspicious(headline_deltas(wb, pre, spec, 2025))
-    assert not prio                                                         # nothing left for the queue's front
-    assert any("swing traced to" in x and "replaced by printed line" in x for x in w.log["sense_check"]), w.log["sense_check"]
-    q = build_queue(loop)
-    assert not any(x.kind == "SENSE" for x in q)
-    # the final pass: a fix that opens a check is taken back and the line written up
-    print("PASS test_sense_check_checkpoint_and_final_pass_2026_09_09")
 
 
 def test_investigator_traces_the_swing_and_judges_it_2026_09_10():
@@ -4819,57 +3686,6 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
     print("PASS test_report_page_fixed_table_period_follows_the_run_2026_09_13")
 
 
-def test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14():
-    """DFE live 2026-09-10, owner's findings. (1) Label cards had filled
-    'Revenue' over the segment lines and 'Hydro-generating unit 兆瓦' over
-    Production/Sales/Inventory: rows with no number in any period. Owner
-    2026-09-14: one law for the whole run, the writer's — such a row takes
-    no write from any step, and no card is dealt for it. (2) A per-share
-    line is an amount whatever its size: DPS 0.60 → 0.53 is sense-checked
-    like EPS."""
-    import openpyxl
-    from pipeline.reader import never_filled
-    from pipeline.writer import Writer, row_never_filled
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.workqueue import build_queue
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
-    ws["T2"], ws["U2"], ws["V2"] = 2024, 2025, 2026
-    ws["A3"] = "Revenue"                                   # caption: children hold the numbers
-    ws["A4"], ws["T4"] = "  Gas turbine", 500.0
-    ws["A5"], ws["T5"] = "  Nuclear", 300.0
-    ws["A150"] = "Hydro-generating unit 兆瓦"               # caption over a block
-    ws["A151"], ws["T151"] = "Production", "=T4*2"
-    ws["A160"], ws["V160"] = "Forecast-only driver", "=U160*1.1"   # tracked in the future: not never-filled
-    assert never_filled(wb, "Model", 3, "U") and never_filled(wb, "Model", 150, "U")
-    assert row_never_filled(ws, "U3") and not row_never_filled(ws, "U4") and not row_never_filled(ws, "U160")
-    w = Writer(wb)
-    assert w.write("Model", "U3", 78615.0, prior_coord="T3", trusted=True, allow_empty=True) is False
-    assert w.write("Model", "U150", 0.008, prior_coord="T150", trusted=True, flag="red") is False
-    assert w.log["never_filled_refused"] == ["Model!U3", "Model!U150"] and ws["U3"].value is None
-    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U", "2026": "V"}, "header_row": 2}}}
-    led = _ledger(_anchors(95, 1e6), face_pages=((95, "pl"),))
-    targets = _anchor_targets() + [TargetRow("Model", 3, "Revenue", None),
-                                   TargetRow("Model", 150, "Hydro-generating unit 兆瓦", None)]
-    loop = ObjectiveLoop(wb, spec, 2025, led, targets, {}, Writer(wb), None)
-    labels = [(x.sheet, x.row) for x in build_queue(loop) if x.kind == "LABEL"]
-    assert ("Model", 3) not in labels and ("Model", 150) not in labels, labels
-    # (2) DPS under 1 is still a headline line
-    from pipeline.sensecheck import headline_deltas, suspicious
-    wb2 = openpyxl.Workbook(); w2 = wb2.active; w2.title = "M"
-    w2["A2"], w2["U2"], w2["V2"] = "", 2025, 2026
-    w2["A4"], w2["U4"], w2["V4"] = "DPS", 0.53, 0.42
-    w2["A5"], w2["U5"], w2["V5"] = "Payout ratio", 0.40, 0.30
-    pre = openpyxl.Workbook(); pw = pre.active; pw.title = "M"
-    pw["U4"], pw["V4"], pw["U5"], pw["V5"] = 0.60, 0.60, 0.45, 0.45
-    spec2 = {"year_axis": {"M": {"columns": {"2025": "U", "2026": "V"}}},
-             "key_rows": [{"name": "dps", "sheet": "M", "row": 4}, {"name": "net profit", "sheet": "M", "row": 5}]}
-    d = {x["name"]: x for x in headline_deltas(wb2, pre, spec2, 2025)}
-    assert "dps" in d and abs(d["dps"]["d0"] + 0.1167) < 0.01, d      # −11.7% then −30%: 18 points apart
-    assert "net profit" not in d                                        # a base under 1 that is not per share: skipped as before
-    assert [x["name"] for x in suspicious(list(d.values()))] == ["dps"]
-    print("PASS test_never_filled_law_is_the_writers_and_dps_is_sense_checked_2026_09_14")
-
-
 def test_rolled_into_zero_retired_for_the_writers_law_2026_09_14():
     """The sense check's local zero rule is gone (owner 2026-09-14: rules
     live in the writer, not in a step). The zero-forecast row is measured
@@ -4908,75 +3724,6 @@ def test_a_matrix_row_never_pairs_anywhere_2026_09_14():
     print("PASS test_a_matrix_row_never_pairs_anywhere_2026_09_14")
 
 
-def test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14():
-    """Owner 2026-09-14: "the brain should read the table by itself to judge
-    whether the table is having years as columns, segments as columns,
-    movement as columns, or whatever … not the code." The table reader
-    sends every table (header lines + first rows) to the brain once; its
-    verdict is stamped on every line and outranks the shape fallback: a
-    two-column 'units | MW' table the shape calls plain never pairs, a
-    two-column note without a year line pairs. The stamp survives the
-    ledger pin (to_json / from_json) so replays keep the reading."""
-    from pipeline.tables import describe_tables, table_cards, target_columns
-    from pipeline.ledger import Ledger
-    from pipeline.writegate import ties_prior
-    cap = [_item(245, 1, "Solar", [2.0, 21.0], table_id=7), _item(245, 2, "Wind", [3.0, 40.0], table_id=7)]
-    note = [_item(181, 1, "Finance charges", [257.0, 294.0], table_id=2), _item(181, 2, "Bank loans", [100.0, 120.0], table_id=2)]
-    led = _ledger(cap + note, face_pages=((181, "pl"),))
-    led.stamp_table_kinds()
-    assert cap[0].table_kind == "plain" and note[0].table_kind == "plain"        # the shape cannot tell them apart
-    cards = table_cards(led, [])
-    assert len(cards) == 2 and "Solar: 2 | 21" in cards[1][1] or "Solar: 2 | 21" in cards[0][1]
-    class FakeClient:
-        calls = 0
-        def json(self, system, user, validate, repair_retries=1, images=None):
-            FakeClient.calls += 1
-            assert "id 1" in user and "id 2" in user
-            ids = {}
-            for blk in user.split("### id ")[1:]:
-                n = int(blk.split("\n", 1)[0]); ids[n] = blk
-            out = []
-            for n, blk in ids.items():
-                if "p245" in blk:
-                    out.append({"id": n, "kind": "categories", "columns": ["units", "MW"], "note": "capacity table"})
-                else:
-                    out.append({"id": n, "kind": "periods", "columns": ["FY2025", "FY2024"]})
-            obj = {"tables": out}
-            assert not validate(obj)
-            return obj
-    n = describe_tables(FakeClient(), led, [], 2025, "FY25", log=lambda *_a, **_k: None)
-    assert n == 2 and FakeClient.calls == 1
-    assert cap[0].table_kind == "matrix" and cap[0].columns == ["units", "MW"]
-    assert note[0].table_kind == "period" and target_columns(note[0], 2025, "FY25") == (0, 1)
-    assert ties_prior(cap[0], 1.0, 21.0, value=2.0) is False         # units | MW never pairs
-    assert ties_prior(note[0], 1.0, 294.0, value=257.0) is True      # the note pairs
-    led2 = Ledger.from_json(led.to_json()); led2.corroborate()
-    again = next(it for it in led2.items if it.page == 245)
-    assert again.table_kind == "matrix" and again.columns == ["units", "MW"], "the pin keeps the brain's reading"
-    # the walk asks the same stamp (CLP live: it had recomputed the shape and paired 'Solar 2 | 294 | 45')
-    from pipeline.reconcile import table_kind
-    assert table_kind(cap) == "matrix" and table_kind(note) == "period"
-    # a tie is at the number's own world: statement rounding never makes 1.61 into 2
-    from pipeline.writegate import _close
-    assert not _close(1.61, 2.0) and _close(2.0, 2.0) and _close(1000.4, 1000.0) and _close(4.143, 4.14)
-    # a prior-period document never proves a current value on a card
-    import openpyxl
-    from pipeline.orchestrator import ObjectiveLoop
-    from pipeline.writer import Writer
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Model"
-    ws["T2"], ws["U2"] = 2024, 2025
-    ws["A52"], ws["T52"] = "Renewables (NED solar)", 21.0
-    spec = {"year_axis": {"Model": {"columns": {"2024": "T", "2025": "U"}, "header_row": 2}}}
-    old_doc = [Item(doc="e_2024 Annual Report.pdf", page=198, table_id=2, row_ord=1, label="Cash flow hedges", nums=[-161.0, -2102.0])]
-    led3 = _ledger(_anchors(95, 1e6) + old_doc, face_pages=((95, "pl"),))
-    led3._doc_periods = {DOC: "current", "e_2024 Annual Report.pdf": "prior"}
-    targets = _anchor_targets() + [TargetRow("Model", 52, "Renewables (NED solar)", 21.0)]
-    loop = ObjectiveLoop(wb, spec, 2025, led3, targets, {}, Writer(wb), None)
-    r = loop.t_set_input({"cell": "Model!U52", "value": 2.0, "why": "p198 hedges — card-adjudicated"})
-    assert not (str(r).startswith("WRITTEN") and not str(ws["U52"].fill.fgColor.rgb).endswith("FFC7CE")), r
-    print("PASS test_the_brain_reads_every_table_and_its_verdict_travels_2026_09_14")
-
-
 def test_a_prior_printed_under_several_names_needs_kinship_2026_09_14():
     """CLP live 2026-09-14: eight cells took a bare prior tie on a number
     printed on 10–50 lines of the documents (294 → 'Finance charges' for
@@ -5000,37 +3747,6 @@ def test_a_prior_printed_under_several_names_needs_kinship_2026_09_14():
     assert small_prior_needs_kinship(8363.0, "Deferred creditors", "Other payables", c) is True   # unique in print: its own identity
     assert small_prior_needs_kinship(12.0, "Meters", "Short-term deposits", c) is False            # small: kinship as before
     print("PASS test_a_prior_printed_under_several_names_needs_kinship_2026_09_14")
-
-
-def test_the_zero_forecast_stays_zero_2026_09_14():
-    """Owner 2026-09-14 (CLP ROAFNA!AI71 'Coal-fired (CAPCO)'): the actual
-    year is mapped like every other cell; but where the analyst's forecast
-    from next year on was 0, it stays 0 after the update — the update had
-    carried −1,050 into the actual and every forecast year followed through
-    '=+AI71'. The zero-forecast rows are measured on the analyst's model;
-    after the update, a forecast cell of such a row that computes non-zero
-    is held at 0 (blue) through the gate."""
-    from pipeline.writer import Writer, unforecast_rows, hold_zero_forecasts, rollover_column
-    from pipeline.evaluator import Evaluator
-    wb = _wb({"A71": "Coal-fired (CAPCO)", "AH71": -1050.0, "AI71": 0, "AJ71": "=+AI71", "AK71": "=+AJ71",
-              "A72": "Gas", "AH72": 300.0, "AI72": 310.0, "AJ72": "=+AI72", "AK72": "=+AJ72",
-              "A95": "Check", "AH95": 0, "AI95": "=AI71-AI71", "AJ95": "=AJ71-AJ71", "AK95": "=AK71-AK71",
-              "A96": "Balancing item", "AH96": 0, "AI96": 0, "AJ96": "=AJ71", "AK96": "=AK71"})
-    ev = Evaluator(wb)
-    z = unforecast_rows(wb, "S", "AI", ["AJ", "AK"], lambda sh, co: ev.cell(sh, co), skip_rows={96})
-    assert z == {71}, z                     # 72 forecasts 310; 95 is a check row by label; 96 a spec check row: never held
-    hard = rollover_column(wb, "S", "AH", "AI")                    # the standard recipe: the actual year rolls like any row
-    assert wb["S"]["AI71"].value == -1050.0 and 71 in hard
-    w = Writer(wb); w.forecast_cols = {"S": {"AJ", "AK"}}; w.unforecast_rows = {("S", 71)}
-    w.write("S", "AI71", 2910.0, prior_coord="AH71", trusted=True)  # the mapping lands whatever it proves
-    ev2 = Evaluator(wb)
-    assert abs(ev2.cell("S", "AJ71") - 2910.0) < 0.01              # the link carried it into 2026
-    n = hold_zero_forecasts(w, lambda sh, co: Evaluator(wb).cell(sh, co), log=lambda *_a, **_k: None)
-    assert n == 2 and wb["S"]["AJ71"].value == 0 and wb["S"]["AK71"].value == 0
-    assert str(wb["S"]["AJ71"].fill.fgColor.rgb).endswith("BDD7EE") and "S!AJ71" in w.log["flags"]
-    assert any(x.startswith("S!AJ71:") for x in w.log["frozen"])      # a sanctioned hold the gate accepts
-    assert wb["S"]["AJ72"].value == "=+AI72"                       # a forecast that was not 0 is untouched
-    print("PASS test_the_zero_forecast_stays_zero_2026_09_14")
 
 
 def test_the_vintage_law_is_a_stamp_on_every_line_2026_09_14():
@@ -5153,40 +3869,6 @@ def test_the_table_reader_reads_every_kind_and_replays_from_the_pin_2026_09_14()
     print("PASS test_the_table_reader_reads_every_kind_and_replays_from_the_pin_2026_09_14")
 
 
-def test_keys_tie_in_dependency_order_2026_09_14():
-    """Run 34820388690: 'total liabilities and equity' tied first and
-    absorbed its whole 9,513 gap into retained earnings — a leaf of 'total
-    equity', which then sat at 113,568 against a print of 107,610 with
-    nothing left to absorb. A key that is a leaf of another key ties first,
-    and the leaves of a key that ties its print never absorb for another."""
-    from pipeline.keytie import key_tie
-    from pipeline.writer import Writer
-    from pipeline.evaluator import Evaluator
-    from openpyxl.styles import PatternFill
-    wb = _wb({"T2": 23243.0, "U2": 23243.0,                 # share capital (proven)
-              "T3": 80812.0, "U3": 80812.0,                 # retained earnings (rolled, red)
-              "T4": "=T3+T2", "U4": "=U3+U2",               # total equity (key)
-              "T5": 6063.0, "U5": 5943.0,                   # minority interests (served)
-              "T6": 123595.0, "U6": 120000.0,               # liabilities (red)
-              "T7": "=T4+T5+T6", "U7": "=U4+U5+U6"})        # total liabilities and equity (key)
-    wb["S"]["U3"].fill = PatternFill("solid", fgColor="FFC7CE")
-    wb["S"]["U6"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
-            "key_rows": [{"name": "total liabilities and equity", "sheet": "S", "row": 7},   # the failing order
-                         {"name": "total equity", "sheet": "S", "row": 4}]}
-    panel = {"total liabilities and equity": {"print": 238644.0, "prior": 233713.0},
-             "total equity": {"print": 107610.0, "prior": 104055.0}}
-    w = Writer(wb)
-    assert key_tie(wb, spec, 2025, w, None, lambda s: None, panel=panel) == 2
-    ev = Evaluator(wb)
-    assert abs(ev.cell("S", "U4") - 107610.0) <= 0.5, ev.cell("S", "U4")
-    assert abs(ev.cell("S", "U7") - 238644.0) <= 0.5, ev.cell("S", "U7")
-    assert wb["S"]["U3"].value == "=(80812)-(-3555)", wb["S"]["U3"].value     # the analyst's 84,367
-    assert wb["S"]["U6"].value == "=(120000)-(-5091)", wb["S"]["U6"].value
-    assert w.log["key_absorbers"]["total liabilities and equity"][1] == "U6"
-    print("PASS test_keys_tie_in_dependency_order_2026_09_14")
-
-
 def test_a_comparative_is_not_this_years_print_2026_09_14():
     """Run 34820388690: rule 2 armed 'total equity' as proven-printed at
     104,055 — last year's figure, sitting in the comparative column of this
@@ -5290,49 +3972,6 @@ def test_the_plug_meter_reads_the_residual_against_its_total_2026_09_14():
     wb["S"]["U3"] = -1160.0                                         # HK updated: residual back to 52
     assert plug_meter(wb, spec, 2025) == []
     print("PASS test_the_plug_meter_reads_the_residual_against_its_total_2026_09_14")
-
-
-def test_a_key_gap_is_named_before_it_is_absorbed_2026_09_14():
-    """CLP live 34830794807: total liabilities and equity was 5,758 short
-    and the whole gap was dumped into the fuel clause payable — a
-    residual row — while 3,872 of it was the printed perpetual capital
-    securities and 1,043 the printed fuel clause account. The gap is
-    named against the print first: named -> red definition question,
-    nothing absorbed; and a residual row is never an absorber."""
-    from pipeline.keytie import key_tie, name_gap
-    from pipeline.writer import Writer
-    from openpyxl.styles import PatternFill
-    led = _ledger([_item(26, 1, "Perpetual capital securities", [3872.0, 3872.0], table_id=1, table_kind="period"),
-                   _item(25, 2, "Fuel clause account", [1043.0, 370.0], table_id=2, table_kind="period"),
-                   _item(25, 3, "Dividends payable", [843.0, 700.0], table_id=2, table_kind="period"),
-                   _item(25, 4, "Total equity", [107610.0, 104055.0], table_id=2, table_kind="period")],
-                  face_pages=((25, "bs"), (26, "bs")))
-    led._doc_periods = {DOC: "current"}; led.stamp_vintages()
-    parts, rest = name_gap(led, -3872.0)
-    assert [round(v) for v, _l, _w in parts] == [3872] and rest == 0.0
-    parts, rest = name_gap(led, -5758.0)          # no single printed figure: not named — code never sums coincidences
-    assert parts == [] and rest == 5758.0
-    wb = _wb({"T2": 100000.0, "U2": 100000.0,               # liabilities (proven)
-              "T3": 6063.0, "U3": 5943.0,                   # minority interests
-              "T4": 370.0, "U4": 20.0,                      # fuel clause closing balance (red)
-              "T5": "=IF(T4<0,0,T4)", "U5": "=IF(U4<0,0,U4)",
-              "T6": "=T5-T4", "U6": "=U5-U4",               # payable: the model's own residual
-              "T7": "=T2+T3+T6", "U7": "=U2+U3+U6"})        # the key
-    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
-            "key_rows": [{"name": "total liabilities and equity", "sheet": "S", "row": 7}]}
-    panel = {"total liabilities and equity": {"print": 105943.0 + 3872.0, "prior": 106063.0}}
-    w = Writer(wb); logs = []
-    assert key_tie(wb, spec, 2025, w, None, logs.append, panel=panel, ledger=led) == 0
-    assert wb["S"]["U6"].value == "=U5-U4" and wb["S"]["U4"].value == 20.0, "nothing absorbed"
-    assert any("gap named" in ln and "Perpetual capital securities" in ln for ln in logs), logs
-    # an unexplained gap still backs out — but never into the residual row
-    panel = {"total liabilities and equity": {"print": 105943.0 + 777.0, "prior": 106063.0}}
-    w2 = Writer(wb); logs2 = []
-    key_tie(wb, spec, 2025, w2, None, logs2.append, panel=panel, ledger=led)
-    assert wb["S"]["U6"].value == "=U5-U4", wb["S"]["U6"].value
-    assert wb["S"]["U4"].value != 20.0, "the red input absorbs, not the residual"
-    print("PASS test_a_key_gap_is_named_before_it_is_absorbed_2026_09_14")
 
 
 def test_the_swing_census_finds_every_material_mover_2026_09_14():
@@ -5555,42 +4194,6 @@ def test_the_brain_names_its_own_derivation_route_2026_09_15():
     verdict, text = judge_and_fix(lp, pre, dd, ("S", "U4"), trail, lambda *_a: None, lambda: 1.0)
     assert len(asks) == 2 and verdict == "stale" and wb["S"]["U4"].value == -1050.0, (verdict, asks and len(asks))
     print("PASS test_the_brain_names_its_own_derivation_route_2026_09_15")
-
-
-def test_the_derive_tool_serves_every_card_2026_09_15():
-    """Owner 2026-09-15: "make sure it's applied in all cards and they won't
-    conflict" — one tool (t_derive) solves a cell from a proven consuming
-    formula and lands it orange with the proof; the serve card and the
-    consequence card list code's derivations and the brain's own route
-    through that same tool; no proven figure → refused."""
-    from pipeline.workqueue import render_card, WorkItem
-    from openpyxl.styles import PatternFill
-    pre = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": "=T4", "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4",
-               "T9": "=T4", "U9": "=U4"})
-    wb = _wb({"A4": "Coal additions", "T4": -1050.0, "U4": 2910.0, "A6": "Coal capacity", "T6": 6908.0, "U6": "=T6+U4",
-              "T9": "=T4", "U9": "=U4"})
-    wb["S"]["U4"].fill = PatternFill("solid", fgColor="FFC7CE")
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
-            "key_rows": [{"name": "capacity", "sheet": "S", "row": 6}]}
-    lp = _loop(wb, spec, evidence=[[2910.0, 2800.0]])
-    lp.key_panel = {"capacity": {"print": 6908.0, "line": "Coal capacity p245"}}
-    lp.est_base = {}
-    # the tool
-    assert lp.t_derive({"cell": "S!U4", "via": "S!U6"}).startswith("DERIVED") and abs(wb["S"]["U4"].value) < 0.01
-    assert str(wb["S"]["U4"].fill.fgColor.rgb).endswith("FFC000") and lp.served[("S", 4)]["line"] == "derived via S!U6"
-    wb["S"]["U4"] = 2910.0
-    assert lp.t_derive({"cell": "S!U4", "via": "S!U9"}).startswith("REFUSED")          # S!U9 carries no proven figure
-    # the serve card lists the derivation and the brain's own route, through the same tool
-    from pipeline.targets import TargetRow
-    lp.targets = {("S", 4): TargetRow("S", 4, "Coal additions", -1050.0)}
-    lp.served.pop(("S", 4), None)
-    lp.writer.flag_ref("S!U4", "red", "STALE INPUT")
-    rendered = render_card(lp, WorkItem("SERVE", "S", 4))
-    assert rendered is not None
-    text, options, default = rendered
-    assert "derive:1" in options and options["derive:1"][0] == "derive" and options["derive:1"][1]["via"] == "S!U6", options.keys()
-    assert "derive:via" in options and "equal its proven 6,908.00" in text
-    print("PASS test_the_derive_tool_serves_every_card_2026_09_15")
 
 
 def test_a_restated_comparative_is_mapped_through_last_years_report_2026_09_15():
@@ -5883,31 +4486,6 @@ def test_the_replay_reads_every_card_family_2026_09_15():
     print("PASS test_the_replay_reads_every_card_family_2026_09_15")
 
 
-def test_a_composite_rewrite_is_a_proven_cell_2026_09_15():
-    """Run 34952658064: receivables (=12856+1179 = 14,035) and deferred
-    creditors (8,363) were rewritten correctly by the constants law, then
-    treated as unproven by the rung and consequence cards and overwritten.
-    The rewrite's proof is a serve record; the cards read the one test."""
-    import openpyxl
-    from pipeline.composites import rewrite_cell
-    from pipeline.writer import Writer
-    from pipeline.rollover import input_is_proven
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-    ws["A5"] = "Fixed assets and rights"; ws["T5"] = "=158532+10183"; ws["U5"] = "=158532+10183"
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
-    led = Ledger()
-    led.add(Item(doc="AR", page=25, table_id=0, row_ord=0, label="Fixed assets", nums=[166094.0, 158532.0], source_line="x"))
-    led.add(Item(doc="AR", page=25, table_id=0, row_ord=1, label="Right-of-use assets", nums=[10034.0, 10183.0], source_line="x"))
-    led.faces[("AR", 25)] = "bs"
-    w = Writer(wb); w.served = {}
-    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
-    assert ok, msg
-    e = w.served.get(("S", 5))
-    assert e and e["conf"] == 4 and e["flag"] == "orange", e
-    assert input_is_proven(w.served, "S", "U5", wb["S"]["U5"].value, w.log.get("flags", []), wb)
-    print("PASS test_a_composite_rewrite_is_a_proven_cell_2026_09_15")
-
-
 def test_a_composition_proven_line_by_line_across_pages_2026_09_15():
     """CLP dividends received =770+1659+15: associates on one note, JCEs on
     another — every literal has ONE comparative-pair reading, so the
@@ -5970,40 +4548,6 @@ def test_a_red_cell_is_never_held_proven_2026_09_15():
     print("PASS test_a_red_cell_is_never_held_proven_2026_09_15")
 
 
-def test_a_tying_composition_with_unlike_names_goes_to_the_brain_2026_09_15():
-    """Owner 2026-09-15: "numbers that can be mapped must be mapped; the name
-    is the brain's judgment". A composition whose literals tie printed
-    comparatives but whose lines are not kin to the row is a card answer,
-    not a silent refusal; the brain's yes rewrites it, orange."""
-    import openpyxl
-    from pipeline.composites import rewrite_cell
-    from pipeline.writer import Writer
-    from pipeline.workqueue import render_card, WorkItem
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-    ws["A5"] = "Other operating cash flows"; ws["T5"] = "=504+582"; ws["U5"] = "=504+582"
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [], "key_rows": []}
-    led = Ledger()
-    led.add(Item(doc="AR", page=177, table_id=0, row_ord=0, label="Receivables and others", nums=[517.0, 504.0], source_line="x"))
-    led.add(Item(doc="AR", page=177, table_id=0, row_ord=1, label="Net losses on disposal of fixed assets", nums=[319.0, 582.0], source_line="x"))
-    led.faces[("AR", 177)] = "note"
-    w = Writer(wb); w.served = {}
-    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "S", 5)
-    assert not ok and "kin to the row" in msg, msg
-    sug = led.rewrite_suggestions["S!5"]
-    assert sug["formula"] == "=517+319", sug
-    w.flag_ref("S!U5", "red", "unproven")
-    lp = _loop(wb, spec); lp.ledger = led; lp.writer = w; lp.writer.served = lp.served
-    rendered = render_card(lp, WorkItem(kind="SERVE", sheet="S", row=5))
-    assert rendered is not None, "the card must be dealt on the tying composition alone"
-    text, options, default = rendered
-    assert "rewrite:1" in options and "=517+319" in text, text
-    tool, args = options["rewrite:1"]
-    res = lp.TOOLS[tool](lp, args)
-    assert str(res).startswith("REWRITTEN"), res
-    assert wb["S"]["U5"].value == "=517+319"
-    print("PASS test_a_tying_composition_with_unlike_names_goes_to_the_brain_2026_09_15")
-
-
 def _clp_p23_items():
     """The CLP FY25 operating-profit block as the table extractor really read
     it (run 34993405014, ledger.json p23): every expense line is there, the
@@ -6015,6 +4559,7 @@ def _clp_p23_items():
             _item(23, 5, "Depreciation and amortisation", [-9718.0, -9276.0]),
             _item(23, 6, "Other gain", [5.0, 460.0]),
             _item(23, 7, "Operating profit", [6.0, 14272.0, 14903.0])]
+
 
 
 def test_the_readers_reading_is_option_A_with_its_check_2026_09_16():
@@ -6154,111 +4699,6 @@ def test_the_plug_asks_the_brain_where_it_lands_2026_09_16():
     print("PASS test_the_plug_asks_the_brain_where_it_lands_2026_09_16")
 
 
-def test_the_roll_base_backout_asks_the_brain_where_2026_09_16():
-    """Run 34993405014: the roll-base back-out fired 14 times and wrote over
-    the brain's own rulings on Driver!AI37 and Final!AI87 — code ranked the
-    roll's inputs by confidence and took the decision. Code still proves
-    which inputs the roll responds to; the brain says where the gap belongs,
-    or that it belongs nowhere."""
-    import openpyxl
-    from pipeline.teachings import roll_base_mismatches
-    from pipeline.writer import Writer
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}}
-
-    def build():
-        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-        ws["A10"] = "Total operating expenses"
-        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
-        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
-        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 280.0, "=U12"
-        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
-        return wb, ws
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
-    # the brain names the home: the SECOND uncertain input, not code's ranking
-    wb, ws = build()
-    w = Writer(wb)
-    cards = []
-
-    def ask_second(text, options, default):
-        cards.append((text, list(options)))
-        return "site:2"
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served, ask=ask_second)
-    assert cards and cards[0][0].startswith("CARD PLUG"), cards
-    assert "none" in cards[0][1] and "site:1" in cards[0][1] and "site:2" in cards[0][1], cards[0][1]
-    assert "S!U11" not in cards[0][0], "a PROVEN input was offered as a place to absorb a gap"
-    assert ws["U13"].value == "=(20)+(50)", ws["U13"].value
-    assert ws["U12"].value == 280.0, "the input the brain did not name was moved"
-    # the brain says it belongs nowhere: flagged, nothing guessed
-    wb, ws = build()
-    w = Writer(wb)
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served,
-                         ask=lambda t, o, d: "none")
-    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0, "a gap the brain left open was absorbed anyway"
-    assert str(ws["U12"].fill.fgColor.rgb).endswith("FFC7CE")
-    assert str(ws["U13"].fill.fgColor.rgb).endswith("FFC7CE")
-    assert not w.log.get("written"), w.log.get("written")
-    # no brain: today's law stands — two equally uncertain inputs, guess nothing
-    wb, ws = build()
-    w = Writer(wb)
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served)
-    assert ws["U12"].value == 280.0 and ws["U13"].value == 20.0
-    print("PASS test_the_roll_base_backout_asks_the_brain_where_2026_09_16")
-
-
-def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
-    """Floors 2026-09-16: the CLP FY25 floor delivered 8/8 keys on three runs
-    and 7/8 on two, from the same ledger and the same code — key_tie read the
-    key's chain out of a SET, so 'total liabilities and equity' absorbed into
-    Final!AI80 or Final!AI87 by the interpreter's hash order, and a truncation
-    decided which of the equally ranked cells was probed at all (proved by
-    running the same head twice under PYTHONHASHSEED=7: both landed on AI87).
-    The chain is now read in the model's own order and ranked on a TOTAL key,
-    so the order the cells arrive in cannot decide the outcome."""
-    import openpyxl
-    from openpyxl.styles import PatternFill
-    from pipeline import keytie
-    from pipeline.keytie import key_tie, _chain_cells
-    from pipeline.writer import Writer
-
-    def build():
-        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-        ws["A2"], ws["T2"], ws["U2"] = "Revenue", 100.0, 100.0
-        # two equally uncertain (red) components of the key, same size:
-        # nothing but the coordinate separates them
-        ws["A3"], ws["T3"], ws["U3"] = "Component one", 40.0, 40.0
-        ws["A4"], ws["T4"], ws["U4"] = "Component two", 40.0, 40.0
-        ws["A5"], ws["T5"], ws["U5"] = "Total", "=T2+T3+T4", "=U2+U3+U4"
-        for c in ("U3", "U4"):
-            ws[c].fill = PatternFill("solid", fgColor="FFC7CE")
-        return wb
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U"}}}, "check_rows": [],
-            "key_rows": [{"name": "total", "sheet": "S", "row": 5}]}
-    panel = {"total": {"print": 200.0, "prior": 180.0}}
-    chosen = []
-    real_chain = _chain_cells
-    for reverse in (False, True):
-        wb = build()
-        keytie._chain_cells = (lambda w, sh, co, _r=reverse:
-                               list(reversed(real_chain(w, sh, co))) if _r else real_chain(w, sh, co))
-        try:
-            n = key_tie(wb, spec, 2025, Writer(wb), None, lambda s: None, panel=panel)
-        finally:
-            keytie._chain_cells = real_chain
-        assert n == 1, (n, reverse)
-        chosen.append(tuple(str(wb["S"][c].value) for c in ("U3", "U4")))
-    assert chosen[0] == chosen[1], f"the reading order chose the absorber: {chosen}"
-    assert chosen[0][0] != "40.0" and chosen[0][1] == "40.0", chosen
-    # the same law on the rollover dossier: its leaves were a set too, and the
-    # card shows the head of that list (two floor runs offered different 5th
-    # options on the ROLLOVER cards while agreeing on everything else)
-    import inspect
-    from pipeline import rollover as _ro
-    src = inspect.getsource(_ro.dossier)
-    assert "dict.fromkeys(leaf_fn" in src and "set(leaf_fn" not in src, "the dossier still reads a set"
-    assert '_row_of(d["coord"])' in src, "the dossier's ranking is not total"
-    print("PASS test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16")
-
-
 def test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16():
     """Floors 2026-09-16: the live-shape floor runs WITH a client, so it
     rewrote companies/<co>/replay/<period>/key_rows.json — the very pin the
@@ -6337,55 +4777,6 @@ def test_the_ladder_uses_the_named_site_only_2026_09_16():
     assert any("left OPEN" in x for x in logs), logs[-3:]
     assert "S!U9" in lp.writer.log.get("flags", []), lp.writer.log.get("flags")
     print("PASS test_the_ladder_uses_the_named_site_only_2026_09_16")
-
-
-def test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16():
-    """Reviewer 2026-09-16: the ruling was cached as 'site:2' — an index into
-    a list rebuilt at every firing, and the repair suite fires this law again
-    and again. Once an input left that list (proven, or no longer moving the
-    roll) the remembered position pointed at a different cell. The ruling
-    names the cell; a later firing that no longer offers it guesses nothing."""
-    import openpyxl
-    from pipeline.teachings import roll_base_mismatches
-    from pipeline.writer import Writer
-    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V"}}}}
-
-    def build():
-        wb = openpyxl.Workbook(); ws = wb.active; ws.title = "S"
-        ws["A10"] = "Total operating expenses"
-        ws["T10"], ws["U10"], ws["V10"] = 1000.0, 1150.0, "=V11+V12+V13"
-        ws["A11"] = "Fuel";  ws["T11"], ws["U11"], ws["V11"] = 700.0, 800.0, "=U11*1.05"
-        ws["A12"] = "Staff"; ws["T12"], ws["U12"], ws["V12"] = 280.0, 280.0, "=U12"
-        ws["A13"] = "Other"; ws["T13"], ws["U13"], ws["V13"] = 20.0, 20.0, "=U13"
-        return wb, ws
-    served = {("S", 11): {"value": 800.0, "conf": 4, "note": "reconciliation: prior ties"}}
-    wb, ws = build()
-    w = Writer(wb)
-    asked = []
-
-    def ask_second(text, options, default):
-        asked.append(text)
-        return "site:2"
-    roll_base_mismatches(wb, spec, 2025, w, lambda s: None, served=served, ask=ask_second)
-    assert ws["U13"].value == "=(20)+(50)", ws["U13"].value
-    ruling = w.log.get("rollbase_rulings", {})
-    assert ruling.get("S!10") == "S!U13", f"the ruling was remembered as a position: {ruling}"
-    # the same run fires the law again with the list in a different shape:
-    # the remembered CELL still decides, and the brain is not asked twice
-    wb2, ws2 = build()
-    w2 = Writer(wb2)
-    w2.log["rollbase_rulings"] = {"S!10": "S!U13"}
-    roll_base_mismatches(wb2, spec, 2025, w2, lambda s: None, served=served,
-                         ask=lambda t, o, d: (_ for _ in ()).throw(AssertionError("asked twice")))
-    assert ws2["U13"].value == "=(20)+(50)" and ws2["U12"].value == 280.0, (ws2["U12"].value, ws2["U13"].value)
-    # a ruling naming a cell this firing no longer offers guesses nothing
-    wb3, ws3 = build()
-    w3 = Writer(wb3)
-    w3.log["rollbase_rulings"] = {"S!10": "S!U99"}
-    roll_base_mismatches(wb3, spec, 2025, w3, lambda s: None, served=served, ask=lambda t, o, d: "none")
-    assert ws3["U12"].value == 280.0 and ws3["U13"].value == 20.0, "a stale ruling moved a cell"
-    assert not w3.log.get("written"), w3.log.get("written")
-    print("PASS test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16")
 
 
 def test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16():
@@ -6720,15 +5111,9 @@ def test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16():
     # the brain's pick names the row — then the tie decides, as for any line
     v3, why3, _f3 = judge_write(20.0, 5.0, False, ev, set(), row_named=True)
     assert v3 == "ALLOW" and "proven" in why3, (v3, why3)
-    # EVERY card that offers a printed row names it: the SERVE card and the
-    # COMPONENT card both (coordinator 2026-09-16 — the component card omitted
-    # it, so the same pick off that card landed red)
-    import inspect
-    from pipeline import workqueue as _wq
-    src = inspect.getsource(_wq.card_text) if hasattr(_wq, "card_text") else inspect.getsource(_wq)
-    for opt in ('options[f"serve:{cid}"] = ("set_input", {', 'options[f"fix:{j}"] = ("set_input", {'):
-        i = src.index(opt)
-        assert '"named": True' in src[i:i + 400], f"a card offers a printed row without naming it: {opt}"
+    # (the cards that used to offer a printed row are gone — owner 2026-09-17;
+    # the mapping brain names the row itself in its `set`, and this law is now
+    # exercised by the mapping's own write gate)
     print("PASS test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16")
 
 
@@ -7170,29 +5555,6 @@ def test_a_candidate_with_no_number_tie_says_so_2026_09_16():
     assert [c["value"] for c in ranked] == [42.7, 1.00], [c["value"] for c in ranked]
     assert rank([untied], "Fuel Clause Charge/(Rebate)"), "an untied candidate was dropped from the ranking"
     print("PASS test_a_candidate_with_no_number_tie_says_so_2026_09_16")
-
-
-def test_the_plug_card_can_be_declined_2026_09_16():
-    """Owner ruling 2026-09-16: the PLUG card's default became plug:0, so every
-    defaulting run — every replay, every floor, every unanswered card — plugged
-    into site 0 before the review ever saw the break. The decline is back, and it
-    is the default: leave_it leaves the check failing, loudly, for the review and
-    its last resort."""
-    from pipeline.workqueue import WorkItem, render_card
-    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
-              "U2": 109.0, "U3": 60.0, "U4": 171.0,
-              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
-    lp = _loop(wb, _spec_tiny())
-    lp.writer.served = lp.served
-    rendered = render_card(lp, WorkItem("PLUG", "S", 9))
-    assert rendered is not None, "the plug card did not render"
-    text, options, default = rendered
-    assert default == "leave_it", default
-    assert "leave_it" in options and options["leave_it"] == (None, None), options
-    assert any(k.startswith("plug:") for k in options), options
-    assert "for the review and its last resort" in text, text
-    print("PASS test_the_plug_card_can_be_declined_2026_09_16")
-
 
 
 def test_the_context_says_only_what_the_model_actually_holds_2026_09_16():

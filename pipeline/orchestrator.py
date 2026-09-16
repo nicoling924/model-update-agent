@@ -1287,10 +1287,9 @@ class ObjectiveLoop:
         if not rr:
             return (f"MISS: cell '{ref}' unparseable — use \"Final!65\" "
                     "(column letters tolerated)")
-        from .composites import rewrite_cell
-        ok, msg = rewrite_cell(self.wb, self.spec, self.ty, self.ledger,
-                               self.writer, rr[0], rr[1], trust_names=bool(args.get("trust_names")))
-        return ("REWRITTEN " + msg) if ok else ("MISS: " + msg)
+        return ("MISS: the constants law is detection only now (owner 2026-09-17) — "
+                "code does not rewrite a formula's constants. The mapping context shows each "
+                "embedded constant with the printed figures that carry it; state the composition.")
 
     def t_apply_diff(self, args):
         """One action from finding to fixing: write the disclosed value for

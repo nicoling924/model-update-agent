@@ -321,7 +321,7 @@ class Writer:
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
               flag=None, trusted=False, force_lock=False, allow_empty=False,
-              kind=None):
+              kind=None, over_formula=False):
         """Write one cell through every guard, then read it back.
 
         trusted=True is for values whose magnitude is PROVEN (a checksummed
@@ -343,6 +343,17 @@ class Writer:
         cell = ws[coord]
         if type(cell).__name__ == "MergedCell":
             self.log["skipped_merged"].append(ref)
+            return False
+        # THE MODEL'S OWN ARITHMETIC IS NEVER TYPED OVER (owner 2026-09-17;
+        # CLP live turn 4 wrote four printed subtotals over four formula
+        # cells and the evidence "tied" — a tie proves the number, never the
+        # right to replace the model's thinking). The cell that HOLDS a
+        # formula takes a figure only when the caller says so in as many
+        # words (a declared hardcode conversion), whatever its evidence.
+        if isinstance(cell.value, str) and cell.value.startswith("=") \
+                and not (isinstance(value, str) and str(value).startswith("=")) \
+                and not over_formula:
+            self.log.setdefault("formula_refused", []).append(f"{ref}: {str(cell.value)[:60]}")
             return False
         # numeric preview (run-114): judge the NUMBER inside '=a*b' strings
         guard_v = value

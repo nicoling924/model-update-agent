@@ -884,21 +884,18 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                     linear = isinstance(got3, (int, float)) \
                         and abs((got3 - got) - 2.0 * coeff) <= 1e-6 * max(1.0, abs(coeff))
                     if linear:
-                        adj = -gap / coeff
-                        adj = round(adj, 6)
-                        ok = writer.write(
-                            sh2, f"{c2}{r2}", f"=({v2:g})+({adj:g})",
-                            prior_coord=None, trusted=True, flag="orange",
-                            note=(f"Backed out ({adj:+,.1f}) so {sheet}!{r} "
-                                  f"reproduces the disclosed {h:,.0f}: the "
-                                  "least confident input of that roll. "
-                                  "True up when disclosed."))
-                        if ok:
-                            backed = True
-                            log(f"[run]   roll-base back-out: {sh2}!{c2}{r2} "
-                                f"= {v2:,.1f} {adj:+,.1f} (least confident "
-                                f"input; {sheet}!{r} now rolls from its "
-                                "typed actual)")
+                        # MEASURED, NOT SOLVED (owner 2026-09-17): code says by
+                        # how much this input is off and what it would take to
+                        # make the roll reproduce the typed actual; the brain
+                        # decides whether that input is what is wrong.
+                        adj = round(-gap / coeff, 6)
+                        writer.flag_ref(f"{sh2}!{c2}{r2}", "red",
+                            (f"Least confident input of the {sheet}!{r} roll: with "
+                             f"{adj:+,.1f} on this cell the roll would reproduce the "
+                             f"disclosed {h:,.0f}. Code does not make that change — "
+                             "check whether this input is the one that is wrong."))
+                        log(f"[run]   roll-base: {sh2}!{c2}{r2} is {adj:+,.1f} short of "
+                            f"reproducing {sheet}!{r}'s typed actual — red, not solved")
                     if not backed:
                         writer.flag_ref(f"{sh2}!{c2}{r2}", "red",
                             (f"Least confident input of the {sheet}!{r} roll "
@@ -928,3 +925,62 @@ def roll_base_mismatches(wb, spec, target_year, writer, log, tol_base=2.0,
                 + ("least confident input backed out; forecast unflagged" if backed
                    else "inputs flagged for the analyst; no formula touched"))
     return n
+
+
+def twin_leads(wb, pre_values_wb, spec, target_year, log=print):
+    """THE SECOND HOME, AS INFORMATION (owner 2026-09-17): a quantity typed in
+    two places — the actual column and the cells a forecast rolls from — is
+    FOUND here and said beside the row; whether they are the same quantity is
+    the brain's call. {(sheet, row): one line}"""
+    from .schedules import _Recorder
+    rec = _Recorder()
+    try:
+        twin_reanchor(wb, pre_values_wb, spec, target_year, rec, lambda *a, **k: None)
+    except Exception as e:  # noqa: BLE001
+        log(f"[run] the twin index could not be built: {e!r}")
+        return {}
+    out = {}
+    for sheet, coord, value, note in rec.proposed:
+        m = re.search(r"(\d+)$", str(coord))
+        if not m:
+            continue
+        v = f"{value:,.2f}" if isinstance(value, (int, float)) else str(value)[:40]
+        out[(sheet, int(m.group(1)))] = (f"another home of this quantity (same prior, still holding last "
+                                         f"period's figure): {v} — {note[:110]}")
+    return out
+
+
+def oneoff_watch(wb, spec, target_year, writer, log=print):
+    """THE ONE-OFF, SAID NOT EDITED (owner 2026-09-17): the forecast cells that
+    read an actual-year one-off are watch-listed with what the edit would be;
+    the review's brain decides. -> how many."""
+    from .schedules import _Recorder
+    rec = _Recorder()
+    try:
+        oneoff_no_propagate(wb, spec, target_year, rec, lambda *a, **k: None)
+    except Exception as e:  # noqa: BLE001
+        log(f"[run] the one-off index could not be built: {e!r}")
+        return 0
+    for sheet, coord, _v, note in rec.proposed:
+        writer.watch(sheet, coord,
+                     "this forecast links to an actual-year one-off and would carry it into every "
+                     "forecast year; code has not changed it. " + note[:120])
+    return len(rec.proposed)
+
+
+def probe_watch(wb, spec, target_year, fc_base, writer, log=print):
+    """The roll artifact the analyst's own pre-update forecast disowns — found,
+    said, never held by code. -> how many."""
+    from .schedules import _Recorder
+    rec = _Recorder()
+    try:
+        auto_probe_holds(wb, spec, target_year, fc_base, rec, lambda *a, **k: None)
+    except Exception as e:  # noqa: BLE001
+        log(f"[run] the probe index could not be built: {e!r}")
+        return 0
+    for sheet, coord, v, note in rec.proposed:
+        writer.watch(sheet, coord,
+                     f"the analyst's own baseline for this forecast cell was "
+                     f"{v if not isinstance(v, (int, float)) else f'{v:,.4f}'}; the update moved it. "
+                     + note[:110])
+    return len(rec.proposed)

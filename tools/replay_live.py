@@ -48,6 +48,26 @@ def reviews_from_log(path):
     return out
 
 
+def maps_from_log(path):
+    """The mapping's own turns, recorded verbatim by the loop ('[map] turn N
+    reply {json}') and replayed in order — a floor drives the mapping exactly
+    as the live run did. Empty until a live run has recorded some: a floor with
+    no mapping turns tests extraction and the ending only, and says so."""
+    out = []
+    if not path:
+        return out
+    import json
+    for ln in Path(path).read_text(errors="ignore").splitlines():
+        m = re.search(r"\[map\] turn \d+ reply (\{.*)$", ln)
+        if not m:
+            continue
+        try:
+            out.append(json.loads(m.group(1)))
+        except ValueError as e:
+            print(f"[replay] a recorded mapping turn is not readable JSON and is NOT replayed: {e}")
+    return out
+
+
 def picks_from_log(path):
     picks = {}
     if not path:
@@ -127,6 +147,12 @@ def main(argv):
     from pipeline.run import update
     answerer = make_answerer(picks_from_log(log_path))
     answerer.reviews = reviews_from_log(log_path) or None
+    answerer.maps = maps_from_log(log_path) or None
+    if answerer.maps:
+        print(f"[replay] {len(answerer.maps)} recorded mapping turn(s) will be replayed")
+    else:
+        print("[replay] no mapping turns are recorded in this log: the mapping runs with no brain, "
+              "every input row lands red 'not reached' — this floor tests extraction and the ending only")
     res = update(company, period, year, client=DeadBrain() if live_shape else None, stage4_mode="queue-only",
                  stage4_answerer=answerer,
                  pinned_ledger=str(art / "replay" / period / "ledger.json"),

@@ -372,8 +372,14 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
         hist = [h for h in (_held(pre_wb, ev0, sh, f"{c}{r}") for c in _hist_cols(loop, sh)) if h is not None]
         pcol = prior_column(spec, sh, ty)
         prior = _held(pre_wb, ev0, sh, f"{pcol}{r}") if pcol else None
+        # THE REASON THE MAPPING GAVE (owner 2026-09-17): the review disagrees
+        # with a stated reason in front of it, not with a bare number
+        _why = ""
+        _e_map = (loop.served or {}).get((sh, r))
+        if isinstance(_e_map, dict) and str(_e_map.get("note") or "").startswith("mapping:"):
+            _why = " | the mapping said: " + str(_e_map["note"])[9:129]
         row = (sh, co, _label(wb[sh], r), _num(old), new, hist, _fill(wb[sh][co]),
-               _evidence_line(loop, sh, co, new, prior))
+               _evidence_line(loop, sh, co, new, prior) + _why)
         if not hist:
             nohist.append(row)
             continue
@@ -773,6 +779,9 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
             return [f"restore {sh}!{co}: the run never wrote this cell — it still holds what you had "
                     f"({str(loop.wb[sh][co].value)[:60]}); nothing to put back"], None
         m0 = _metrics(loop, key_panel, panel_path)
+        _e_map = (loop.served or {}).get((sh, _row_of(co)))
+        _said = (f" (the mapping's reason: {str(_e_map.get('note'))[9:150]})"
+                 if isinstance(_e_map, dict) and str(_e_map.get("note") or "").startswith("mapping:") else "")
         back = pre_wb[sh].cell(_row_of(co), _ci(_col_of(co))).value
         why = str(call.get("why") or "")[:200]
         ok = loop.writer.write(sh, co, back, trusted=True, force_lock=True, flag="red", allow_empty=True,
@@ -784,7 +793,7 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         repair_round("review restore")
         res = gate_once()
         shown = str(back) if isinstance(back, str) else _fmt(_num(back))
-        return [f"restore {sh}!{co} → {shown} ({'written, red' if ok else 'the writer refused it'})"] \
+        return [f"restore {sh}!{co} → {shown} ({'written, red' if ok else 'the writer refused it'}){_said}"] \
             + _metric_diff(m0, _metrics(loop, key_panel, panel_path)), res
     if tool == "plug":
         sh, co, err = _parse_ref(loop, call.get("check", ""))
