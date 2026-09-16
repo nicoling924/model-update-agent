@@ -647,29 +647,59 @@ def _record_line(turn, call, out):
     asked, and what came back collapsed to one line and cut. The full answers of
     the last turn are section 6 above it, and the model itself is measured in
     front of the brain every turn."""
-    said = " ".join(" ".join(str(x) for x in (out or [])).split()) or "(nothing)"
+    buf, room = [], 400          # only as much of the answer as a record can hold is even read
+    for x in (out or []):
+        buf.append(str(x)[:room])
+        room -= len(buf[-1])
+        if room <= 0:
+            break
+    said = " ".join(" ".join(buf).split()) or "(nothing)"
     return f"turn {turn}: {_call_text(call)[:46]} → {said}"[:97]
+
+
+def _changed(rec):
+    """Did this call change the model? Its answer is the consequence, and there
+    is nowhere else for the brain to read it; a look-up can be made again."""
+    return str(rec).split(": ", 1)[-1].split(" ", 1)[0] in ("set", "try", "restore", "plug")
 
 
 def _record_text(history, budget=4000):
     """THE RECORD IS A BUDGET OF CHARACTERS, NOT A LINE PER CALL FOR EVER (owner
-    2026-09-16) — the same law section 3 already lives by. The newest calls are
-    carried whole; from the point the budget will not hold another whole one,
-    the older calls keep only WHAT WAS CALLED — enough for the brain to know it
-    has already been to that cell, which is what this section is for — and the
-    oldest are counted, not dropped in silence. So the review's own memory of
-    itself cannot grow until it crowds out the model in front of it."""
-    kept, room, whole = [], int(budget), True
-    for rec in reversed(history):        # newest first: the recent turns are the ones carried whole
-        if whole and len(rec) + 1 > room:
-            whole = False
-        line = rec if whole else str(rec).split(" → ")[0]
-        if len(line) + 1 > room:
-            break
-        room -= len(line) + 1
-        kept.append(line)
-    out = [f"  {ln}" for ln in reversed(kept)]
-    missing = len(history) - len(kept)
+    2026-09-16) — the same law section 3 already lives by. WHAT WAS CALLED comes
+    first and is what the budget buys most of: every call it can hold keeps at
+    least its own name, so the brain knows it has already been to that cell,
+    which is what this section is for. A call that CHANGED the model keeps its
+    answer with it — that answer is the consequence and has no other home —
+    and with whatever is left the newest look-ups get theirs back too. The
+    oldest beyond the budget are counted, not dropped in silence. (Reviewer
+    2026-09-16: a single pass that
+    spent the budget on whole records first left two call-only lines and threw
+    away five sixths of the memory it claimed to keep.)"""
+    full = [str(r) for r in history]
+    short = [f.split(" → ")[0] for f in full]
+    n, room, take = len(full), int(budget), {}
+    # newest first. Every call the budget can hold keeps at least its own name;
+    # a call that CHANGED the model keeps its answer with it as it goes, because
+    # that answer is the consequence and there is nowhere else to read it — a
+    # look-up can simply be made again.
+    for i in range(n - 1, -1, -1):
+        want = full[i] if _changed(short[i]) else short[i]
+        if len(want) + 3 > room:
+            want = short[i]
+            if len(want) + 3 > room:
+                break
+        room -= len(want) + 3
+        take[i] = want
+    idx = sorted(take)
+    for i in reversed(idx):                     # then the look-ups too, while the room lasts
+        extra = len(full[i]) - len(take[i])
+        if extra <= 0 or extra > room:
+            continue
+        room -= extra
+        take[i] = full[i]
+    lines, kept = [take[i] for i in idx], len(idx)
+    out = [f"  {ln}" for ln in lines]
+    missing = len(history) - kept
     if missing:
         out.insert(0, f"  ({missing} earlier call(s) before these are not carried — this section is a "
                       "budget of characters; `show` any cell again if you need it)")
@@ -969,6 +999,14 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                     result = res
             if finished:
                 break
+        else:
+            # NOTHING ENDS THE REVIEW IN SILENCE (reviewer 2026-09-16: the turn
+            # count ran out with no line in the log and none on the report, and
+            # it is now the likeliest end of all — the clock is the run's own
+            # remaining time, and 40 turns is reached first on a fast run)
+            lines.append(f"the review used all {max_turns} of its turns before its clock ran out; "
+                         "what remains is written up")
+            log(f"[review] all {max_turns} turns used before the clock — what remains is written up")
     return statement, result
 
 

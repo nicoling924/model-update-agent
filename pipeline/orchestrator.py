@@ -2043,6 +2043,11 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
     Deterministic; the loop had every chance to do better first.
     -> number of checks closed."""
     closed = 0
+    # ONE CLOCK FOR THE LADDER, NOT ONE PER CHECK (reviewer 2026-09-16: a budget
+    # restarted at every failing check is no budget at all — the ladder runs
+    # inside the run's finish margin, and three checks would have spent it three
+    # times over).
+    _ladder_t0 = time.monotonic()
     for sheet, row, resid in loop._failing_target_checks():
         diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})
         for g in list(re.finditer(r"GUILTY (.+?)!(\d+) ", diag))[:5]:
@@ -2136,6 +2141,24 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
             log(f"[run] terminal ladder: {sheet}!{row} closed by its evidence fixes, no plug")
             continue
         tcol = loop._tcol(sheet)
+        # A REFUSAL THAT IS ABOUT THE CHECK IS NOT ABOUT THE SITE (reviewer
+        # 2026-09-16): the plug refuses every site alike while an evidence fix
+        # still stands, so walking the ranking asks the same expensive question
+        # once per site and hears the same answer. It is asked ONCE, here, and
+        # the check is left open with the reason said out loud.
+        try:
+            _diag_left = str(loop.t_diagnose_balance({"check": f"{sheet}!{row}"}))
+        except Exception as _e_d:       # noqa: BLE001
+            _diag_left = ""
+            log(f"[run] terminal ladder: {sheet}!{row} could not be diagnosed before the walk ({_e_d!r})")
+        if "GUILTY" in _diag_left:
+            loop.writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
+                                 (f"Left OPEN: this check is off {resid:+,.1f} and an evidence-based fix it "
+                                  "names could not be applied or ruled out, so no plug may land anywhere. "
+                                  "Please look at the guilty rows in the report."))
+            log(f"[run] terminal ladder: {sheet}!{row} left OPEN — an evidence fix still stands, "
+                "so no site can take the plug")
+            continue
         # PLUG ONLY THE LEAST CONFIDENT INPUT (owner ruling 2026-09-08,
         # DFE run 239: the ladder plugged -15,826 into 'cash paid for
         # investments', a line read correctly from the statement, while
@@ -2232,10 +2255,10 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
         # next site's turn and the model is still delivered balanced. The walk
         # ends on a landing or on its own clock — never on a count, and it is
         # said in the log either way.
-        _landed, _walk_t0 = False, time.monotonic()
+        _landed = False
         for _c, _v, sh, coord in ordered:
-            if not _named and time.monotonic() - _walk_t0 > walk_budget_s:
-                log(f"[run] terminal ladder: the walk for {sheet}!{row} used its "
+            if not _named and time.monotonic() - _ladder_t0 > walk_budget_s:
+                log(f"[run] terminal ladder: the walk for {sheet}!{row} used the ladder's "
                     f"{walk_budget_s:.0f} s — the sites below are not tried")
                 break
             r = loop.t_plug_residual(
@@ -2251,11 +2274,17 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
                 closed += 1
                 _landed = True
                 break
-        if _named and not _landed:
+        if not _landed:
+            # A CHECK IS NEVER LEFT OPEN IN SILENCE (reviewer 2026-09-16: only
+            # the named-home path said so, and the walk that lands nowhere is
+            # the likelier one)
+            why = (f"the home for it, {_named}, is your own judgment — the plug could not be written "
+                   "there and no other cell was plugged instead. Please place it.") if _named else \
+                  ("no input of this check would take the plug — every site was refused or does not "
+                   "move it. Please place it.")
             loop.writer.flag_ref(f"{sheet}!{tcol}{row}", "red",
-                                 (f"Left OPEN: this check is off {resid:+,.1f} and the home for it, "
-                                  f"{_named}, is your own judgment — the plug could not be written there "
-                                  "and no other cell was plugged instead. Please place it."))
-            log(f"[run] terminal ladder: {sheet}!{row} left OPEN — {_named} would not take the plug "
-                "and no cell the brain refused was used instead")
+                                 f"Left OPEN: this check is off {resid:+,.1f} and {why}")
+            log(f"[run] terminal ladder: {sheet}!{row} left OPEN — "
+                + (f"{_named} would not take the plug and no cell the brain refused was used instead"
+                   if _named else "no site in the walk took the plug"))
     return closed

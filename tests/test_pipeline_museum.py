@@ -7287,7 +7287,8 @@ def test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16():
     sizes, seen = [], []
     turn_calls = ([{"tool": "show", "ref": "HK Sales!AI16"}, {"tool": "show", "ref": "Final!AI95"},
                    {"tool": "show", "ref": "Final!AI97"}, {"tool": "show", "ref": "Final!AI99"},
-                   {"tool": "find", "q": "Fuel Cost"}, {"tool": "find", "q": "46.3"},
+                   {"tool": "try", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}]},
+                   {"tool": "find", "q": "46.3"},
                    {"tool": "find", "q": "Balance at"}, {"tool": "find", "q": "62.0"}])
 
     def ask(_system, user):
@@ -7305,8 +7306,18 @@ def test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16():
     recs = [ln for ln in body.splitlines() if ln.strip().startswith("turn ")]
     assert recs and all(len(ln) <= 100 for ln in recs), max(recs, key=len)
     # the brain still knows it has been to those cells, and what the last turns said
-    assert "turn 19: show HK Sales!AI16 → show HK Sales!AI16" in body, body[-600:]
-    assert "turn 1: show HK Sales!AI16" in body or "earlier call(s)" in body, body[:300]
+    # the answer is kept where it is the CONSEQUENCE and nowhere else to read:
+    # the trials keep theirs, the look-ups keep only what was called
+    tries = [ln for ln in recs if "try " in ln]
+    assert sum(1 for ln in tries if " → " in ln) > len(tries) / 2, tries
+    assert "turn 19: try HK Sales!AI16=46.3 → try" in body, body[-600:]
+    # WHAT WAS CALLED is what the budget buys most of: the brain must still know
+    # it has been to those cells many turns back, not only in the last five
+    call_only = [ln for ln in recs if " → " not in ln]
+    assert len(call_only) > len(recs) / 2, f"{len(call_only)} call-only of {len(recs)} records"
+    assert len(recs) > 100, f"only {len(recs)} of 152 calls remembered"
+    assert "turn 6: find Balance at" in body, body[:600]
+    assert "earlier call(s) before these are not carried" in body, body[:300]
     assert "used by:" not in body, "the tool's own output is in the record"
     print(f"PASS test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16 ({growth:.0f} chars/turn)")
 
@@ -7335,7 +7346,11 @@ def test_the_ladder_walks_when_nobody_named_a_home_2026_09_16():
     too, so CLP run 35089032559 logged "plug Final!99 into Final!AI65 -> REFUSED:
     PROVEN … left OPEN" and shipped +3,150 out of balance. With no home named,
     code's own ranking is a ranking: the ladder walks it until a site TAKES the
-    plug. A home the brain named is still the only home tried."""
+    plug. A home the brain named is still the only home tried.
+
+    (a) and (b) PIN behaviour that must not regress — they hold on the old walk
+    too; (c) is the change itself and is verified to fail on the eight-deep
+    walk.)"""
     from pipeline.orchestrator import terminal_ladder
     from pipeline.evaluator import Evaluator
     # (a) nobody named a home — the first site refuses, the second takes it
@@ -7379,6 +7394,19 @@ def test_the_ladder_walks_when_nobody_named_a_home_2026_09_16():
     logs3 = []
     assert terminal_ladder(lp3, logs3.append) == 1, "\n".join(logs3)
     assert abs(wb3["S"]["U10"].value - 169.0) < 0.5, wb3["S"]["U10"].value
+    # (d) a walk that lands nowhere is SAID (reviewer 2026-09-16: only the
+    # named-home path was flagged, and the walk is the likelier one to end empty)
+    wb4, lp4 = _ladder_walk_model()
+    wb4["S"]["U3"].fill = PatternFill("solid", fgColor="FFFFC000")
+    wb4["S"]["U4"].fill = PatternFill("solid", fgColor="FFFFC000")
+    lp4.writer.log["written"] = ["S!U2", "S!U3", "S!U4"]
+    wb4["S"]["U3"], wb4["S"]["U4"] = "=30+30", "=171+0"
+    for r, v in ((2, 109.0), (3, 60.0), (4, 171.0)):
+        lp4.served[("S", r)] = {"value": v, "conf": 5, "doc": "T.PDF", "page": 1, "line": "printed"}
+    logs4 = []
+    assert terminal_ladder(lp4, logs4.append) == 0, "\n".join(logs4)
+    assert any("left OPEN" in x for x in logs4), logs4[-4:]
+    assert "S!U9" in lp4.writer.log.get("flags", []), lp4.writer.log.get("flags")
     print("PASS test_the_ladder_walks_when_nobody_named_a_home_2026_09_16")
 
 
@@ -7415,6 +7443,21 @@ def test_the_review_gets_what_the_run_has_left_2026_09_16():
     assert 1.0 < _t.monotonic() - t0 < 30.0, "the clock did not end the review"
     assert any("clock" in x for x in logs), logs[-3:]
     print("PASS test_the_review_gets_what_the_run_has_left_2026_09_16")
+
+
+def test_nothing_ends_the_review_in_silence_2026_09_16():
+    """Reviewer 2026-09-16: the turn count running out ended the review with no
+    line in the log and none on the report — and with the clock now the run's own
+    remaining time, the count is the likeliest end of all. Every way out says so."""
+    from pipeline.review import run_review
+    lp, pre, panel, logs = _review_harness()
+    run_review(lp, pre, logs.append, lambda _s, _u: {"calls": [{"tool": "find", "q": "46.3"}]},
+               lambda: (True, [], {}), lambda _t: None, {}, panel, None,
+               deadline_s=600.0, max_turns=3)
+    assert any("all 3 turns used before the clock" in x for x in logs), logs[-4:]
+    assert any("all 3 of its turns" in str(x) for x in lp.writer.log.get("ending", [])), \
+        lp.writer.log.get("ending")
+    print("PASS test_nothing_ends_the_review_in_silence_2026_09_16")
 
 
 def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():
