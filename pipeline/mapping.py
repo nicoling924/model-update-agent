@@ -92,6 +92,17 @@ never refused for want of evidence. `skip` lands red too — "not disclosed" is 
 
 # ── the index: what code FINDS ───────────────────────────────────────────
 
+def _val(ev, sheet, coord):
+    """THE MODEL MAY HOLD ARITHMETIC CODE CANNOT READ (CX cold run 2026-09-17:
+    a SUMIFS over a date range raised out of the evaluator and the whole
+    context died on turn 1). A cell the evaluator cannot work out reads as
+    nothing here; the loop goes on."""
+    try:
+        return _num(ev.cell(sheet, coord))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _items(loop):
     return getattr(loop.ledger, "items", []) or []
 
@@ -433,7 +444,7 @@ def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
     hist = [_held(pre_wb, ev0, sheet, f"{c}{r}") for c in _hist_cols(loop, sheet)]
     pcol = prior_column(loop.spec, sheet, int(loop.ty))
     prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
-    est = _num(ev0.cell(sheet, coord))
+    est = _val(ev0, sheet, coord)
     blk = [f"  {sheet}!{coord:<6} {_label(loop.wb[sheet], r):38} history "
            f"{', '.join(_fmt(h) for h in hist) or 'none in this model':30} | est {_fmt(est):>12} | "
            f"{st} | feeds {cls}"]

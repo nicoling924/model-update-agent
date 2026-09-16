@@ -70,6 +70,15 @@ def _fmt(x):
     return f"{x:,.2f}" if abs(x) < 10000 else f"{x:,.0f}"
 
 
+def _safe(ev, sheet, coord):
+    """A cell whose arithmetic the evaluator cannot read is nothing here, not
+    the end of the context (CX 2026-09-17: a SUMIFS raised and turn 1 died)."""
+    try:
+        return _num(ev.cell(sheet, coord))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _held(wb, ev, sheet, coord):
     """The number this cell HOLDS, or None. AN EMPTY CELL HOLDS NOTHING
     (reviewer 2026-09-16): an evaluator answers 0 for a blank reference, and
@@ -345,8 +354,8 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
         if not ac:
             continue
         hist = " | ".join(_fmt(_held(pre_wb, ev0, sh, f"{c}{r}")) for c in _hist_cols(loop, sh))
-        est, now = _fmt(_num(ev0.cell(sh, f"{ac}{r}"))), _fmt(_num(ev.cell(sh, f"{ac}{r}")))
-        nx = (f" | next {_fmt(_num(ev0.cell(sh, f'{fcs[0]}{r}')))} → {_fmt(_num(ev.cell(sh, f'{fcs[0]}{r}')))}") if fcs else ""
+        est, now = _fmt(_safe(ev0, sh, f"{ac}{r}")), _fmt(_safe(ev, sh, f"{ac}{r}"))
+        nx = (f" | next {_fmt(_safe(ev0, sh, f'{fcs[0]}{r}'))} → {_fmt(_safe(ev, sh, f'{fcs[0]}{r}'))}") if fcs else ""
         L.append(f"  {sh}!{ac}{r:<5} {role:26} {hist} | est {est} | now {now}{nx}")
     L.append("")
     L.append("## 3. EVERY CELL THE RUN WROTE IN THE ACTUAL COLUMN (largest move against the cell's own "
@@ -434,11 +443,11 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
                         trace.append("  (the trace used its budget — the lines below it are not walked)")
                         break
                     continue
-                f0, f1 = _num(ev0.cell(sh, f"{fcs[0]}{r}")), _num(ev.cell(sh, f"{fcs[0]}{r}"))
+                f0, f1 = _safe(ev0, sh, f"{fcs[0]}{r}"), _safe(ev, sh, f"{fcs[0]}{r}")
                 if f0 is None or f1 is None or abs(f0) < 1 or abs(f1 - f0) / abs(f0) < 0.10:
                     continue
                 leaves = swing_leaves(wb, pre_wb, sh, f"{fcs[0]}{r}", budget_s=left)[:6]
-                parts = [f"{s2}!{c2} '{_label(wb[s2], _row_of(c2))}' {_fmt(_num(ev0.cell(s2, c2)))} → {_fmt(_num(ev.cell(s2, c2)))}"
+                parts = [f"{s2}!{c2} '{_label(wb[s2], _row_of(c2))}' {_fmt(_safe(ev0, s2, c2))} → {_fmt(_safe(ev, s2, c2))}"
                          for (s2, c2), _share in leaves]
                 trace.append(f"  {sh}!{fcs[0]}{r} {role} {_fmt(f0)} → {_fmt(f1)}: " + "; ".join(parts))
         except Exception as e:  # noqa: BLE001
@@ -490,14 +499,14 @@ def t_show(loop, pre_wb, ref):
     ev, ev0 = Evaluator(wb), Evaluator(pre_wb)
     out = [f"show {sh}!{co} '{_label(wb[sh], r)}'"]
     out.append("    history " + ", ".join(f"{c}={_fmt(_held(pre_wb, ev0, sh, f'{c}{r}'))}" for c in _hist_cols(loop, sh))
-               + f" | analyst's estimate {_fmt(_num(ev0.cell(sh, co)))} | now {_fmt(_num(ev.cell(sh, co)))}")
+               + f" | analyst's estimate {_fmt(_safe(ev0, sh, co))} | now {_fmt(_safe(ev, sh, co))}")
     held = wb[sh][co].value
     out.append(f"    the cell holds: {str(held)[:120]}")
     try:
         from .investigate import _refs
         if isinstance(held, str) and held.startswith("="):
             ins = _refs(held, sh, wb)[:12]
-            out.append("    its inputs: " + "; ".join(f"{a}!{b} '{_label(wb[a], _row_of(b))}' = {_fmt(_num(ev.cell(a, b)))}"
+            out.append("    its inputs: " + "; ".join(f"{a}!{b} '{_label(wb[a], _row_of(b))}' = {_fmt(_safe(ev, a, b))}"
                                                       for a, b in ins))
     except Exception as e:  # noqa: BLE001
         out.append(f"    (its inputs could not be read: {e!r})")
@@ -519,7 +528,7 @@ def t_show(loop, pre_wb, ref):
                 break
     out.append("    used by: " + ("; ".join(users) if users else "nothing found in a 6 s walk"))
     cand = []
-    for v in ({_num(ev.cell(sh, co)), _num(ev0.cell(sh, co))} | {_num(ev0.cell(sh, f"{c}{r}")) for c in _hist_cols(loop, sh)}):
+    for v in ({_safe(ev, sh, co), _safe(ev0, sh, co)} | {_safe(ev0, sh, f"{c}{r}") for c in _hist_cols(loop, sh)}):
         if not isinstance(v, (int, float)) or v == 0:
             continue
         for it, _f in _value_index(loop).get(round(abs(v), 1), [])[:3]:
