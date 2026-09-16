@@ -249,6 +249,20 @@ def is_proven(entry):
     return int(entry.get("conf") or 0) >= 4
 
 
+def holder_is_proven(entry, ref, plugs=(), fill_rgb=""):
+    """Is the value the cell HOLDS proven? The serve's proof speaks only for
+    the figure it served: if the run has since painted the cell red, or
+    PLUGGED it (run 35043265913: Final!AJ108 held a forecast plug and twice
+    refused the brain's printed pick as "a PROVEN value"), the cell no
+    longer holds that proof. A plug is the run's own admission that nothing
+    proves the number — it can never lock a cell against evidence."""
+    if ref and ref in (plugs or ()):
+        return False
+    if str(fill_rgb or "").endswith("FFC7CE"):
+        return False
+    return is_proven(entry)
+
+
 def claim_holders(served):
     """|value| -> [(cell, entry)] for HOMED claims only."""
     out = {}

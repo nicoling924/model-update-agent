@@ -1404,13 +1404,14 @@ class ObjectiveLoop:
         pv_cell = (self.wb[sheet][f"{pcol}{row}"].value if pcol else None)
         evidence = find_evidence(self.ledger.items, value)     # the vintage stamp on each line decides; no local ban
         holders = claim_holders(self.served)
-        from .writegate import is_proven as _is_proven
+        from .writegate import holder_is_proven as _holder_proven
         verdict, law_reason, forced_flag = judge_write(
             value, pv_cell if isinstance(pv_cell, (int, float)) else None,
             (sheet, row) in self.served, evidence,
             claimed_keys(self.served), holders,
-            held_proven=(_is_proven((self.served or {}).get((sheet, row)))
-                         and _fill_rgb_o(self.wb[sheet][f"{col}{row}"]) != "FFC7CE"),     # a red cell is never held proven
+            held_proven=_holder_proven((self.served or {}).get((sheet, row)), f"{sheet}!{col}{row}",
+                                       self.writer.log.get("plugs", ()),
+                                       _fill_rgb_o(self.wb[sheet][f"{col}{row}"])),
             all_items=self.ledger.items)      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
         if verdict == "ALLOW" and "RESTATED" in law_reason:
             # the restatement is a fact for the report page, not a paint on the cell;

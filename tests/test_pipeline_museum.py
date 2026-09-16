@@ -6907,6 +6907,35 @@ def test_a_plug_lands_in_the_broken_period_2026_09_16():
     print("PASS test_a_plug_lands_in_the_broken_period_2026_09_16")
 
 
+def test_a_plug_is_never_a_proven_holder_2026_09_16():
+    """Run 35043265913: Final!AJ108 held a forecast PLUG — the run's own
+    admission that nothing proves the number — and twice refused the brain's
+    printed pick with "this cell already holds a PROVEN value", because
+    held_proven was read off the stale serve that the plug had overwritten.
+    A plug never locks a cell; neither does a red one."""
+    from pipeline.writegate import holder_is_proven
+    served = {"value": 5872.0, "conf": 4, "flag": None,
+              "note": "stage-2 join: prior ties", "line": "Other operating cash flows"}
+    assert holder_is_proven(served, "Final!AJ108", (), "") is True
+    assert holder_is_proven(served, "Final!AJ108", ["Final!AJ108"], "") is False, \
+        "a plugged cell still calls itself proven — the brain's pick is refused"
+    assert holder_is_proven(served, "Final!AJ108", ["Final!AK108"], "") is True
+    assert holder_is_proven(served, "Final!AJ108", (), "00FFC7CE") is False
+    assert holder_is_proven({"value": 1.0, "conf": 4, "flag": "red"}, "S!U2", (), "") is False
+    assert holder_is_proven(None, "S!U2", (), "") is False
+    # and the law it feeds: an untied write into a cell no longer proven is
+    # judged on its own evidence instead of being refused outright
+    from pipeline.writegate import judge_write
+    from pipeline.ledger import Item
+    ev = [(Item(doc="T.PDF", page=1, table_id=0, row_ord=1, label="Other operating cash flows",
+                nums=[284.0, 999.0], source_line="Other operating cash flows 284 999"), 1.0)]
+    refused = judge_write(284.0, 100.0, True, ev, set(), {}, held_proven=True)
+    assert refused[0] == "REFUSE", refused
+    yields = judge_write(284.0, 100.0, True, ev, set(), {}, held_proven=False)
+    assert yields[0] != "REFUSE", yields
+    print("PASS test_a_plug_is_never_a_proven_holder_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0
