@@ -19,3 +19,4 @@ companies/*/transcripts/
 # pipeline run artifacts (pinned snapshots are committed deliberately, not by default)
 pipeline_live_*.log
 companies/*/replay/
+.DS_Store
