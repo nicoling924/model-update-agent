@@ -238,7 +238,14 @@ def _broken(loop, keys_before, key_panel, panel_path):
     """The objectives that are OFF, from that same reading, largest first.
     -> [(kind, sheet, coord, off, text)]"""
     out = []
-    for ref, (what, v, kind, off) in _metrics(loop, key_panel, panel_path).items():
+    try:
+        reading = _metrics(loop, key_panel, panel_path)
+    except Exception as e:  # noqa: BLE001
+        # a measure that cannot be taken is SAID, and the exit falls back to the
+        # model's own failing-check list — it is never silently empty
+        _fault(loop, f"the objectives could not be measured: {e!r}")
+        reading = {}
+    for ref, (what, v, kind, off) in reading.items():
         if abs(off) > CHECK_TOL:
             sh, co = ref.split("!", 1)
             out.append((kind, sh, co, float(off), f"{what} at {ref} reads {_fmt(v)}"))
@@ -861,7 +868,21 @@ def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
     forecast plug of THEIR OWN period. Then every objective still off is red
     with the brain's reading, and the closing rows are written."""
     writer = loop.writer
-    checks = [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == "check"]
+
+    def _still(kind):
+        try:
+            return [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == kind]
+        except Exception as e:  # noqa: BLE001
+            _fault(loop, f"the open objectives could not be read at exit: {e!r}")
+            return []
+    # the model's OWN failing checks are the floor under the measure: whatever
+    # went wrong upstream, a check the model says is off reaches the ladder
+    try:
+        own = [(sh, f"{_act_col(loop, sh)}{r}") for sh, r, _v in loop._failing_target_checks()]
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"the model's own failing checks could not be read: {e!r}")
+        own = []
+    checks = sorted(set(_still("check")) | set(own))
     if checks:
         from .orchestrator import terminal_ladder
         log(f"[review] last resort: {len(checks)} actual-year check(s) still off — the model's own plug ladder, orange")
@@ -875,7 +896,7 @@ def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
             result = gate_once()
         except Exception as e:  # noqa: BLE001
             _fault(loop, f"the last resort failed: {e!r}")
-    fc = [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == "forecast-check"]
+    fc = _still("forecast-check")
     if fc:
         # a forecast year that does not balance ships unbalanced exactly like an
         # actual year does; it is plugged in its own period, never in another's
@@ -892,12 +913,22 @@ def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
             result = gate_once()
         except Exception as e:  # noqa: BLE001
             _fault(loop, f"the forecast last resort failed: {e!r}")
-    for o in _open(loop, keys_before, key_panel, panel_path, result):
+    try:
+        left = _open(loop, keys_before, key_panel, panel_path, result)
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"the closing read of the objectives failed: {e!r}")
+        left = []
+    for o in left:
         why = (statement or {}).get("balance" if o[0] in ("check", "forecast-check") else ("keys" if o[0] == "key" else "rollforward"))
         writer.flag_ref(f"{o[1]}!{o[2]}", "red", f"OPEN: {o[4]}" + (f" — the review's reading: {why}" if why else " — the review did not close it"))
         lines.append(f"OPEN {o[1]}!{o[2]}: {o[4]}")
         log(f"[review] {lines[-1]}")
-    left_n = len(_open(loop, keys_before, key_panel, panel_path, result))
+    left_n = len(left)
     lines.append(f"ended: {left_n} objective(s) still broken" if left_n else "ended: every objective holds")
     log(f"[review] {lines[-1]}")
-    return _finish(loop, pre_wb, log, result if result is not None else gate_once(), statement)
+    try:
+        return _finish(loop, pre_wb, log, result if result is not None else gate_once(), statement)
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"the closing rows were not written: {e!r}")
+        log(f"[review] the closing rows were not written ({e!r})")
+        return result if result is not None else gate_once()

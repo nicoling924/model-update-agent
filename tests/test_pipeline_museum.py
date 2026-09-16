@@ -7134,9 +7134,9 @@ def test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16():
                      lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=60.0, max_turns=3)
     finally:
         R._metrics = real
-    assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, Evaluator(lp.wb).cell("Final", "AI99")
-    assert any("LOOP FAILED" in x for x in logs), logs[-6:]
-    assert any("the review loop failed" in ln for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
+    assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, "the failing measure skipped the ladder"
+    assert any("FAULT" in x and "could not be measured" in x for x in logs), logs[-6:]
+    assert any("plug ladder" in ln for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
     # an interrupt is not swallowed — but the model is closed out before it lands
     lp2, pre2, panel2, logs2 = _review_harness()
 
