@@ -6996,6 +6996,36 @@ def test_the_analysts_own_break_is_reported_not_plugged_2026_09_16():
     print("PASS test_the_analysts_own_break_is_reported_not_plugged_2026_09_16")
 
 
+def test_a_malformed_turn_is_skipped_not_fatal_2026_09_16():
+    """Reviewer (023d56e..d15bd4e): ONE unreadable reply ended the whole review —
+    the brain's first fumble cost every turn after it. A bad turn is a turn: the
+    brain is told what was wrong and asked again; and Luna's habit of writing a
+    sentence before the JSON is read, not refused."""
+    import json as _json
+    from agent.llm import _strip_fences
+    from pipeline.review import run_review
+    assert _json.loads(_strip_fences('Sure — here it is:\n{"calls": [{"tool": "show", "ref": "Final!AI95"}]}\nlet me know.')) \
+        == {"calls": [{"tool": "show", "ref": "Final!AI95"}]}
+    assert _json.loads(_strip_fences('{"a": "a } brace inside a string", "b": 1}'))["b"] == 1
+    turns = []
+
+    def flaky(system, user):
+        turns.append(user)
+        if len(turns) == 1:
+            raise ValueError("Response was not valid JSON: line 1")
+        return {"thinking": "recovered", "calls": [
+            {"tool": "set", "sets": [{"ref": "Final!AI95", "value": 84367.0}, {"ref": "Final!AI97", "value": 9815.0}],
+             "because": "p211 'Balance at' 84,367; p237 'Other non-controlling interests' 9,815"},
+            {"tool": "done", "objectives": {"balance": "holds", "keys": "hold", "rollforward": "cash positive"}}]}
+    lp, pre, panel, logs = _review_harness()
+    run_review(lp, pre, logs.append, flaky, lambda: (True, [], {}), lambda _t: None,
+               {}, panel, None, deadline_s=60.0, max_turns=6)
+    assert len(turns) >= 2, "the review died on the first bad reply"
+    assert "could not be read" in turns[1], turns[1][-400:]
+    assert lp.wb["Final"]["AI95"].value == 84367.0, "the recovered turn never ran"
+    print("PASS test_a_malformed_turn_is_skipped_not_fatal_2026_09_16")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

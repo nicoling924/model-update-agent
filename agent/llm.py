@@ -151,6 +151,34 @@ class Client:
 
 
 def _strip_fences(s):
+    """The JSON the model meant, out of the reply it actually sent: a fenced
+    block, or — when it wrote a sentence first, as Luna habitually does — the
+    first BALANCED {...} object in the text. Prose around the answer is a
+    habit, not a refusal; it used to abort the whole exchange."""
     s = s.strip()
     m = re.match(r"^```(?:json)?\s*(.*?)\s*```$", s, re.S)
-    return m.group(1) if m else s
+    if m:
+        return m.group(1)
+    try:
+        json.loads(s)
+        return s
+    except ValueError:
+        pass
+    start = s.find("{")
+    while start != -1:
+        depth, in_str, esc = 0, False, False
+        for i in range(start, len(s)):
+            c = s[i]
+            if in_str:
+                in_str, esc = (in_str and not (c == '"' and not esc)), (c == "\\" and not esc)
+                continue
+            if c == '"':
+                in_str, esc = True, False
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return s[start:i + 1]
+        start = s.find("{", start + 1)
+    return s

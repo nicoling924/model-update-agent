@@ -714,7 +714,7 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
         hold_zero()
     repair_round("first")
     result = gate_once()
-    statement, state, answers = None, {}, []
+    statement, state, answers, dead = None, {}, [], 0
     if ask_json is None or not brain:
         lines.append("no brain in this run: the review was not held")
         log("[review] no brain: straight to the last resort")
@@ -738,9 +738,19 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
             try:
                 reply = ask_json(MANDATE, ctx)
             except Exception as e:  # noqa: BLE001
-                lines.append(f"the brain gave no answer at turn {turn + 1} ({type(e).__name__}) — what remains is written up")
-                log(f"[review] turn {turn + 1}: the brain answered nothing ({e!r})")
-                break
+                # A BAD TURN IS A TURN, NOT THE END (reviewer 2026-09-16: one
+                # malformed reply ended the whole review). The brain is told what
+                # was wrong and asked again; only the clock and `done` end the loop.
+                dead += 1
+                answers = [f"    your last reply could not be read ({type(e).__name__}: {str(e)[:120]}). "
+                           "Answer with JSON only: {\"thinking\": \"...\", \"calls\": [ ... ]}."]
+                log(f"[review] turn {turn + 1}: the reply could not be read ({e!r}) — asked again")
+                if dead >= 3:
+                    lines.append(f"the brain gave nothing readable three turns running ({type(e).__name__}) — what remains is written up")
+                    log("[review] three unreadable turns running — what remains is written up")
+                    break
+                continue
+            dead = 0
             # VERBATIM, WHOLE (reviewer 2026-09-16: a truncated turn is not JSON, and
             # the replay that reads these lines then runs a shorter review in silence)
             log("[review] turn %d reply %s" % (turn + 1, json.dumps(reply, ensure_ascii=False)))
