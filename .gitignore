@@ -20,3 +20,6 @@ companies/*/transcripts/
 pipeline_live_*.log
 companies/*/replay/
 .DS_Store
+!companies/CX/model/Cathay Pacific Model.xlsx
+!companies/CX/disclosures/
+!companies/CX/disclosures/**
