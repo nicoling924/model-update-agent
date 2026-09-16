@@ -84,4 +84,9 @@ def _plug_here(loop, sheet, coord, log):
     if plug_period(loop, sheet, coord, log):
         return
     from .orchestrator import terminal_ladder
-    terminal_ladder(loop, log)
+    # THE CHECK THE BRAIN NAMED, AND NO OTHER (owner 2026-09-16): `plug` ran the
+    # whole ladder, so answering it for one check reached into every failing
+    # check in the model — cells the brain had never looked at. The run's own
+    # last resort, at the exit, is what takes whatever is still open.
+    import re as _re
+    terminal_ladder(loop, log, only=(sheet, int(_re.sub(r"[A-Z$]", "", str(coord)))))

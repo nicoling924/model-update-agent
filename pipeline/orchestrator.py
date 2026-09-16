@@ -2033,7 +2033,7 @@ class ObjectiveLoop:
         return self.finished
 
 
-def terminal_ladder(loop, log, walk_budget_s=60.0):
+def terminal_ladder(loop, log, walk_budget_s=60.0, only=None):
     """The referee's last rung (owner ruling: 'if truly unsolvable —
     back out, mark, still deliver'; a balanced model with a flagged
     plug beats an unbalanced model). Runs AFTER the loop. For each
@@ -2041,6 +2041,11 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
     evidence diffs, then plug the exact residual into the largest
     eligible numeric site — orange (red if wild), noted, reported.
     Deterministic; the loop had every chance to do better first.
+
+    `only` is the (sheet, row) of ONE check — what the brain named when it
+    called `plug` (owner 2026-09-16, second ruling: the brain's plug closes
+    the check it named and no other; the run's own last resort, at the exit,
+    still takes every check that is left).
     -> number of checks closed."""
     closed = 0
     # ONE CLOCK FOR THE LADDER, NOT ONE PER CHECK (reviewer 2026-09-16: a budget
@@ -2049,6 +2054,8 @@ def terminal_ladder(loop, log, walk_budget_s=60.0):
     # times over).
     _ladder_t0 = time.monotonic()
     for sheet, row, resid in loop._failing_target_checks():
+        if only is not None and (str(only[0]), int(only[1])) != (str(sheet), int(row)):
+            continue          # the brain named ONE check; the others are not its call
         diag = loop.t_diagnose_balance({"check": f"{sheet}!{row}"})
         for g in list(re.finditer(r"GUILTY (.+?)!(\d+) ", diag))[:5]:
             r = loop.t_apply_diff({"row": f"{g.group(1)}!{g.group(2)}"})
