@@ -7261,11 +7261,9 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     so a run already past its budget still spent two minutes of the margin
     reserved for saving, reporting and the last resort. With nothing left the
     review runs no turns and goes straight to the ladder — what the margin is for."""
-    import re as _re
-    src = open("pipeline/run.py").read()
-    call = src[src.index("ok, failures, card = _run_review("):]
-    m = _re.search(r"deadline_s=max\(([\d.]+), min\(([\d.]+), _left_e\)\)", call)
-    assert m and float(m.group(1)) == 0.0, call[:400]
+    from pipeline.run import review_budget_s
+    assert review_budget_s(60 * 60, run_target_s=60 * 60, finish_margin_s=180) == 0.0
+    assert review_budget_s(60 * 60 + 500, run_target_s=60 * 60, finish_margin_s=180) == 0.0
     from pipeline.review import run_review
     lp, pre, panel, logs = _review_harness()
     asked = []
@@ -7275,6 +7273,41 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     from pipeline.evaluator import Evaluator
     assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, "the ladder did not run"
     print("PASS test_the_review_never_eats_the_finish_margin_2026_09_16")
+
+
+def test_the_review_gets_what_the_run_has_left_2026_09_16():
+    """Owner 2026-09-16: the review was handed min(720 s, what is left), so the
+    first live run — which reached the review after 12 minutes with 45 still on
+    the clock — was cut mid-turn at 12 minutes and delivered +3,150 out. The
+    budget is the run's own remaining time less the finish margin: a run that
+    finishes early lets the brain keep working, and the clock still ends it."""
+    from pipeline.run import review_budget_s
+    src = open("pipeline/run.py").read()
+    call = src[src.index("ok, failures, card = _run_review("):][:600]
+    assert "720" not in call, call[:400]
+    # a fake budget: an hour's run, a three-minute margin
+    assert review_budget_s(12 * 60, run_target_s=60 * 60, finish_margin_s=3 * 60) == 45 * 60, \
+        "the review was capped below what the run still had"
+    assert review_budget_s(50 * 60, run_target_s=60 * 60, finish_margin_s=3 * 60) == 7 * 60
+    assert review_budget_s(58 * 60, run_target_s=60 * 60, finish_margin_s=3 * 60) == 0.0, \
+        "the review must never eat the finish margin"
+    # and the loop spends every second of it: a brain that never says `done`
+    # is stopped by the clock, not by a cap
+    from pipeline.review import run_review
+    lp, pre, panel, logs = _review_harness()
+    turns = []
+    import time as _t
+    t0 = _t.monotonic()
+
+    def ask(_system, _user):
+        turns.append(1)
+        return {"calls": [{"tool": "find", "q": "Fuel Cost"}]}
+    run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _x: None,
+               {}, panel, None, deadline_s=1.5, max_turns=500)
+    assert turns, "the review ran no turns at all"
+    assert 1.0 < _t.monotonic() - t0 < 30.0, "the clock did not end the review"
+    assert any("clock" in x for x in logs), logs[-3:]
+    print("PASS test_the_review_gets_what_the_run_has_left_2026_09_16")
 
 
 def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():

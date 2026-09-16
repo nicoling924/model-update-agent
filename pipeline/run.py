@@ -134,6 +134,18 @@ RUN_TARGET_S = 60 * 60      # the owner's acceptance criterion: one run, one hou
 FINISH_MARGIN_S = 3 * 60    # gate loop + report + save, measured ~1 min on run 250
 
 
+def review_budget_s(elapsed_s, run_target_s=RUN_TARGET_S, finish_margin_s=FINISH_MARGIN_S):
+    """WHAT THE RUN HAS LEFT IS WHAT THE REVIEW GETS (owner 2026-09-16, after the
+    first live review: a run that reached the review in 12 minutes was handed 12
+    of the 45 minutes it still had, and the clock cut it mid-turn with the model
+    unbalanced). The review's budget is the run's own remaining time less the
+    margin reserved for the last resort, saving and the report — no second clock
+    of its own. It is never negative: with nothing left the review runs no turns
+    and goes straight to the ladder, which is exactly what the margin is for.
+    -> seconds the review may spend."""
+    return max(0.0, run_target_s - finish_margin_s - elapsed_s)
+
+
 import os as _os_mod
 _os_env = _os_mod.environ
 
@@ -1364,7 +1376,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # 120 s could run the review past the time reserved for saving, reporting and
     # the last resort). With nothing left it runs no turns and goes straight to
     # the ladder, which is exactly what the margin is for.
-    _left_e = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+    _left_e = review_budget_s(_time.monotonic() - _run_t0)
 
     def _ask_review(system, user):
         """One review turn. A replay's recorded turns stand in for the brain."""
@@ -1385,7 +1397,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         ok, failures, card = _run_review(
             loop, _pre_end, log, _ask_review, gate_once, repair_round,
             keys_before, _key_panel, _panel_path,
-            deadline_s=max(0.0, min(720.0, _left_e)), notes=_notes,
+            deadline_s=_left_e, notes=_notes,
             hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
             brain=(client is not None or getattr(stage4_answerer, "reviews", None) is not None))
     except Exception as _e_end:
