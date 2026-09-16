@@ -107,7 +107,7 @@ def build_context(art, period):
         elif hist:
             out = abs(new - hi) / max(abs(hi), 1)
         else:
-            out = 0.0
+            out = -1.0                 # no history to judge against — listed last, not first
         cell = ws[co]
         note = (cell.comment.text if cell.comment else (w.get("before") or ["", ""])[1] or "") or ""
         rows.append((out, sh, co, label_of(ws, r), old, new, hist, fill_of(cell), " ".join(str(note).split())[:160]))
@@ -115,6 +115,24 @@ def build_context(art, period):
     for out, sh, co, lab, old, new, hist, flag, note in rows[:260]:
         L.append(f"  {sh}!{co:<5} {lab:40} was {fmt(old):>11} -> now {fmt(new):>11} | history {', '.join(fmt(h) for h in hist):32} | {flag:6} | {note}")
     L.append(f"  ({len(rows)} written cells in total)")
+    L.append("")
+    L.append("## 4. TRACE — for each headline line whose 2026 forecast moved more than 10% vs the pre-update book, "
+             "the typed inputs that carry the move (share of the swing when that input's pre-update content is put back)")
+    from pipeline.investigate import swing_leaves
+    for r, name in HEADLINE:
+        f0, f1 = num(ev0.cell("Final", f"AJ{r}")), num(ev.cell("Final", f"AJ{r}"))
+        if f0 is None or f1 is None or abs(f0) < 1 or abs(f1 - f0) / abs(f0) < 0.10:
+            continue
+        try:
+            leaves = swing_leaves(wb, wb0, "Final", f"AJ{r}", budget_s=60)[:6]
+        except Exception as e:
+            L.append(f"  Final!AJ{r} {name}: trace failed ({e!r})")
+            continue
+        parts = []
+        for (sh, co), share in leaves:
+            parts.append(f"{sh}!{co} '{label_of(wb[sh], int(''.join(ch for ch in co if ch.isdigit())))}' "
+                         f"{fmt(num(ev0.cell(sh, co)))} -> {fmt(num(ev.cell(sh, co)))} ({share:+.0%})")
+        L.append(f"  Final!AJ{r} {name} {fmt(f0)} -> {fmt(f1)}: " + "; ".join(parts))
     return "\n".join(L)
 
 
