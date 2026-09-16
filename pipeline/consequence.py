@@ -244,6 +244,19 @@ def describe(m0, m1):
     return " | ".join(bits)
 
 
+def _plug_here(loop, sheet, coord, log):
+    """The last resort, in the period that is broken: the terminal ladder
+    for an actual-period check, the forecast residual row of THAT year for
+    a forecast one (the ladder reads only the actual period's checks, so a
+    forecast break answered 'plug' was left to whichever forecast year the
+    repair suite plugged next)."""
+    from .forecast_balance import plug_period
+    if plug_period(loop, sheet, coord, log):
+        return
+    from .orchestrator import terminal_ladder
+    terminal_ladder(loop, log)
+
+
 def apply_pick(loop, pre_wb, pick, movers, amount, text):
     """Apply one consequence-card pick through the writer. -> True/False (written)."""
     wb, spec, ty, writer = loop.wb, loop.spec, int(loop.ty), loop.writer
@@ -501,8 +514,7 @@ def resolve_objectives(loop, pre_wb, log, ask, gate_once, repair_round, check_ma
             asked.add((sheet, coord))
             continue
         if pick == "plug":
-            from .orchestrator import terminal_ladder
-            terminal_ladder(loop, log)
+            _plug_here(loop, sheet, coord, log)
         else:
             i = int(pick.split(":")[1]) - 1
             (sh, c), _share = movers[i]
@@ -779,8 +791,7 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                     continue
                 elif pick == "plug":
                     log(f"[queue] CONSEQUENCE {sheet}!{coord} -> plug")
-                    from .orchestrator import terminal_ladder
-                    terminal_ladder(loop, log)
+                    _plug_here(loop, sheet, coord, log)
                 else:
                     log(f"[queue] CONSEQUENCE {sheet}!{coord} -> {pick}")
                     applied = apply_pick(loop, pre_wb, pick, movers, amount, obj[4])

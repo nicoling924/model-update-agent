@@ -6864,6 +6864,49 @@ def test_cash_counts_in_the_objective_measure_2026_09_16():
     print("PASS test_cash_counts_in_the_objective_measure_2026_09_16")
 
 
+def test_a_plug_lands_in_the_broken_period_2026_09_16():
+    """Run 35043265913: a forecast-year break answered 'plug' called the
+    terminal ladder, which only ever reads the ACTUAL period's checks — so
+    nothing was plugged for that year, and the repair suite then plugged the
+    first broken forecast year instead (AJ108, ten rounds running). A break
+    in period t is plugged in period t's own residual row."""
+    from pipeline.forecast_balance import last_resort_plug, plug_period
+    from pipeline.evaluator import Evaluator
+    def _model():
+        wb = _wb({})
+        ws = wb["S"]
+        ws["A95"] = "Cash flow statement"
+        ws["A100"] = "Total assets"
+        ws["A108"] = "Others"
+        for col, gap in (("AI", 0.0), ("AJ", 5872.0), ("AK", 0.0), ("AL", 86.0)):
+            ws[f"{col}100"] = 50000.0
+            ws[f"{col}108"] = 0.0
+            ws[f"{col}99"] = f"={col}100-50000-{gap}-{col}108"
+        return wb
+    spec = {"year_axis": {"S": {"columns": {"2025": "AI", "2026": "AJ", "2027": "AK", "2028": "AL"}}},
+            "check_rows": [{"sheet": "S", "row": 99, "expect": 0}], "key_rows": []}
+    # the break the brain was asked about is AL99; AJ99 is broken too
+    wb = _model()
+    lp = _loop(wb, spec)
+    lp.writer.plugs_allowed = True
+    wb["S"]["AI99"] = "=0"          # the actual year ties: plugs are allowed
+    plugged = plug_period(lp, "S", "AL99", lambda s: None)
+    assert [(c, r) for c, r, *_ in plugged] == [("AL", 108)], plugged
+    assert wb["S"]["AL108"].value == -86.0, wb["S"]["AL108"].value
+    assert wb["S"]["AJ108"].value == 0.0, "the pick on 2028 plugged 2026"
+    # the repair suite, asked for no period in particular, still plugs every
+    # broken year — one per year, in its own column
+    wb2 = _model()
+    wb2["S"]["AI99"] = "=0"
+    lp2 = _loop(wb2, spec)
+    lp2.writer.plugs_allowed = True
+    all_p = last_resort_plug(wb2, lp2.writer,
+                             (lambda: (lambda s_, c_, e=Evaluator(wb2): e.cell(s_, c_))),
+                             "S", 99, ["AJ", "AK", "AL"], 100, lambda s: None)
+    assert [(c, r) for c, r, *_ in all_p] == [("AJ", 108), ("AL", 108)], all_p
+    print("PASS test_a_plug_lands_in_the_broken_period_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0

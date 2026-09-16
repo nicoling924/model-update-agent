@@ -146,38 +146,44 @@ def place_flow(wb, writer, sheet, bs_row, cf_row, target_col, prior_col):
 
 
 def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
-                     assets_row, log):
+                     assets_row, log, only=None):
     """The residue only. One literal per year (a formula would be
     circular through cash), orange + honest note, red when large.
     `make_eval()` returns a FRESH evaluator — each year's plug flows
     through the cash chain into the next year's opening balance, so the
-    gap must be re-measured after every write."""
+    gap must be re-measured after every write.
+
+    `only`: the periods to plug (a break in period t is plugged in period
+    t — see plug_period). The whole series is still walked, so a plug
+    stays measured against the years before it."""
     ws = wb[sheet]
     plugged = []
     targets = None
     from .checks import scorecard  # noqa: F401  (cycle probe below)
+    if year_cols:
+        # plugging a forecast on a broken ACTUAL base masks the real
+        # error — the actual year must tie first
+        try:
+            base_col = get_column_letter(
+                column_index_from_string(year_cols[0]) - 1)
+            base_gap = make_eval()(sheet, f"{base_col}{check_row}")
+            if isinstance(base_gap, (int, float)) and abs(base_gap) > 1:
+                log(f"[run] forecast plugs WITHHELD: the actual year "
+                    f"({base_col}) check is off {base_gap:+,.1f} — "
+                    "tie the actuals first")
+                return plugged
+        except Exception:
+            pass
     for col in year_cols:
         evaluate = make_eval()
-        if year_cols and col == year_cols[0]:
-            # plugging a forecast on a broken ACTUAL base masks the real
-            # error — the actual year must tie first
-            try:
-                base_col = get_column_letter(
-                    column_index_from_string(col) - 1)
-                base_gap = evaluate(sheet, f"{base_col}{check_row}")
-                if isinstance(base_gap, (int, float)) and abs(base_gap) > 1:
-                    log(f"[run] forecast plugs WITHHELD: the actual year "
-                        f"({base_col}) check is off {base_gap:+,.1f} — "
-                        "tie the actuals first")
-                    return plugged
-            except Exception:
-                pass
         try:
             gap = evaluate(sheet, f"{col}{check_row}")
         except Exception:
             continue
         if not isinstance(gap, (int, float)) or abs(gap) <= 1:
             continue
+        if only is not None and col not in only:
+            continue                 # this break belongs to another period
         # THE CASCADE BREAKER (run-205: plugs doubled year over year,
         # -2,327 -> -42,512 — each plug flows through cash into the next
         # year's gap and the series feeds itself). An ESCALATING plug
@@ -274,3 +280,32 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
             log(f"[run] forecast plug {sheet}!{col}{row}: {-gap:+,.1f}"
                 + ("  (RED — large)" if big else ""))
     return plugged
+
+
+def plug_period(loop, sheet, coord, log):
+    """A BREAK IN PERIOD t IS PLUGGED IN PERIOD t (run 35043265913: a
+    forecast-year break was answered with "plug", the terminal ladder was
+    called — it only ever looks at the ACTUAL period's checks — and the
+    forecast repair then plugged the FIRST broken forecast year instead,
+    so the break stayed open and the pick was judged on another year's
+    plug). -> the plugs written."""
+    import re as _re
+    from .checks import forecast_columns, year_columns
+    from .evaluator import Evaluator
+    m = _re.match(r"([A-Z]{1,3})(\d+)$", str(coord))
+    if not m or sheet not in loop.wb.sheetnames:
+        return []
+    col, row = m.group(1), int(m.group(2))
+    cols = forecast_columns(loop.spec, sheet, int(loop.ty)) or []
+    if col not in cols:
+        return []
+    assets_row = None
+    tcol = year_columns(loop.spec, sheet).get(str(int(loop.ty)))
+    f = loop.wb[sheet][f"{tcol}{row}"].value if tcol else None
+    if isinstance(f, str):
+        m2 = _re.search(r"[A-Z]{1,3}(\d+)", f)
+        if m2:
+            assets_row = int(m2.group(1))
+    return last_resort_plug(loop.wb, loop.writer,
+                            (lambda: (lambda s_, c_, e=Evaluator(loop.wb): e.cell(s_, c_))),
+                            sheet, row, cols, assets_row, log, only=[col])
