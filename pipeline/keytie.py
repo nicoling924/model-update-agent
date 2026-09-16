@@ -728,7 +728,21 @@ def key_state(wb, spec, target_year, panel_path, panel=None):
     panel = _panel_or(panel, panel_path)
     ev = Evaluator(wb)
     out = []
+    # ONE ROW PER KEY NAME (owner 2026-09-17, DFE live: "key rows 22, panel 11"
+    # — the anatomy turn and the pattern pass named the same keys twice and the
+    # count doubled). The line the MODEL computes wins over a copy of the
+    # statement; otherwise the first stands.
+    _by_name = {}
     for kk in (spec.get("key_rows") or []):
+        nm_d, sh_d = kk.get("name"), kk.get("sheet")
+        r_d = int(kk.get("row") or 0)
+        tc_d = year_columns(spec, sh_d).get(str(target_year)) if sh_d in wb.sheetnames else None
+        computed = bool(tc_d) and isinstance(wb[sh_d][f"{tc_d}{r_d}"].value, str) \
+            and str(wb[sh_d][f"{tc_d}{r_d}"].value).startswith("=")
+        cur = _by_name.get(nm_d)
+        if cur is None or (computed and not cur[1]):
+            _by_name[nm_d] = (kk, computed)
+    for kk, _computed in _by_name.values():
         nm, sh, r = kk.get("name"), kk.get("sheet"), int(kk.get("row"))
         want = (panel.get(nm) or {}).get("print")
         tc = year_columns(spec, sh).get(str(target_year)) if sh in wb.sheetnames else None

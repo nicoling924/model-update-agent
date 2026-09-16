@@ -13,6 +13,19 @@ from agent.llm import Client, LLMError  # noqa: F401  (transport only)
 
 
 _REASONING_INSTALLED = False
+_EFFORT = None            # the stage's own effort, set by the run; None = the env's
+
+
+def set_reasoning(effort, log=None):
+    """THE STAGE CHOOSES HOW HARD TO THINK (owner 2026-09-17: a mapping turn
+    that reads a printed face and writes what it says is not the same work as
+    the review's reasoning about a break — and at two minutes a turn the
+    mapping never finished the model). Takes effect on the next call."""
+    global _EFFORT
+    _EFFORT = (str(effort).strip().lower() or None) if effort else None
+    if log:
+        log(f"[llm] reasoning effort for this stage: {_EFFORT or 'the environment default'}")
+    return _EFFORT
 
 
 def _install_reasoning_effort():
@@ -35,7 +48,7 @@ def _install_reasoning_effort():
     def post(url, *a, **kw):
         body = kw.get("json")
         if isinstance(body, dict) and "messages" in body and "reasoning" not in body:
-            body = dict(body, reasoning={"effort": effort})
+            body = dict(body, reasoning={"effort": _EFFORT or effort})
             kw["json"] = body
         return _post(url, *a, **kw)
     _transport.requests.post = post

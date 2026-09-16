@@ -781,6 +781,15 @@ class ObjectiveLoop:
         # a proven site MAY take the plug, but only if the EXPERIMENT
         # below shows the forecast years do not get worse — and it
         # lands RED with the provenance in the note, never quietly.)
+        # A PAGE-TIED CELL IS NEVER A PLUG SITE (owner 2026-09-17, DFE live:
+        # "PLUGGED Raw financials!U124 OVER A PROVEN VALUE" many times over —
+        # the last resort was writing over figures read off the print). Sites
+        # are unproven cells; when there is none, the check stays open and red
+        # with the reason, which is the honest outcome.
+        if proven and pe.get("doc") and pe.get("page"):
+            return (f"REFUSED: {i_sheet}!{i_col}{i_row} holds {pe.get('value')} read from "
+                    f"{pe.get('doc')} p{pe.get('page')} — the print is not a plug site. "
+                    "If no unproven input of this check will take it, the check stays open, red.")
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")

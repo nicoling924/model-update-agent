@@ -56,9 +56,12 @@ bridge, never against a bare label. Every model is different: reason in this mod
 NEVER TYPE OVER THE MODEL'S OWN ARITHMETIC. A formula cell is the model thinking; it is refused —
 if the number belongs there, its input site is named for you and you set that instead.
 
-WORK FACE BY FACE. A printed face is shown beside the model rows that belong to it: read it once,
-then answer with ONE `sets` batch marking every row of that face you can map. Looking at rows one
-at a time spends the clock; the batch is measured as one change.
+WORK FACE BY FACE, IN ONE BATCH. A printed face is shown beside the model rows its lines point at:
+read it once, and on that first sight answer with ONE `sets` batch marking every row of that face
+you can map. A turn costs about two minutes of your budget, so a face you inspect row by row is a
+face you do not finish. Use `show` only when a ROW'S MEANING is unclear — never to inspect the
+model's arithmetic: a key or a subtotal is computed, and the context already names the input rows
+that feed it. Set those.
 
 You answer in JSON only: {"thinking": "...", "calls": [ ... ]}. Any number of calls per turn,
 executed in the order you write them; their answers come back in the next turn. The calls:
@@ -196,7 +199,7 @@ def _hits_printed(loop, value, page_text=None):
     return False
 
 
-def leads_for(loop, prior, k=4):
+def leads_for(loop, prior, k=3):
     """The printed lines whose comparative ties this row's prior — information,
     not a ranking: no ticks, no shares, no 'preferred'. -> [(item, current)]"""
     from .writegate import ties_prior
@@ -489,7 +492,36 @@ def _definitions(loop, cap=2500):
     return out + hints[:20]
 
 
-def _key_table(loop):
+def _feeding_inputs(loop, sheet, coord, rows, limit=5):
+    """The INPUT rows this key is computed from — the model's own formula tree,
+    walked down to cells the brain can actually set (owner 2026-09-17: the keys
+    read OFF THE PRINT and the brain spent eleven turns `show`ing the arithmetic
+    to find out what fed them)."""
+    from .investigate import _refs
+    want = {(sh, co) for sh, co, _r in rows}
+    seen, frontier, out = set(), [(sheet, coord)], []
+    for _hop in range(5):
+        nxt = []
+        for sh, co in frontier:
+            if (sh, co) in seen or len(out) >= limit:
+                continue
+            seen.add((sh, co))
+            if (sh, co) in want and (sh, co) != (sheet, coord):
+                out.append((sh, co))
+                continue
+            v = loop.wb[sh][co].value if sh in loop.wb.sheetnames else None
+            if isinstance(v, str) and v.startswith("="):
+                try:
+                    nxt += _refs(v, sh, loop.wb)[:12]
+                except Exception:  # noqa: BLE001
+                    continue
+        if len(out) >= limit or not nxt:
+            break
+        frontier = nxt
+    return out[:limit]
+
+
+def _key_table(loop, rows=(), written=None, skipped=None):
     """The model's keys against the print, every turn — the objective, measured."""
     try:
         from .keytie import key_state
@@ -501,6 +533,15 @@ def _key_table(loop):
                                        if want is None else "OFF THE PRINT"))
             out.append(f"  {nm:<24} {ref:<18} model {_fmt(_num(got)):>14} | print "
                        f"{_fmt(_num(want)):>14} | {said}")
+            if not ok and rows:
+                sh_k, co_k = ref.split("!", 1)
+                fed = _feeding_inputs(loop, sh_k, co_k, rows)
+                if fed:
+                    out.append("      it is computed from these INPUT rows — act on them, not on the key: "
+                               + "; ".join(
+                                   f"{a}!{b} '{_label(loop.wb[a], _row_of(b))[:26]}' "
+                                   f"({status_of(loop, a, b, written or {}, skipped or {})})"
+                                   for a, b in fed))
         return out or ["  (no key rows resolved in this model)"]
     except Exception as e:  # noqa: BLE001
         return [f"  (the keys could not be measured: {type(e).__name__}: {str(e)[:70]})"]
@@ -617,7 +658,7 @@ def _anatomy_section(loop, cap=6000):
 
 
 def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=(),
-                  size_cap=26000, faces_cap=10000):
+                  size_cap=16000, faces_cap=9000):
     """One reading of the MODEL and the print: the keys against the print, the
     coverage, the printed faces each beside the model rows that belong to it,
     the model's own definitions, and the brain's own turns."""
@@ -630,8 +671,9 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     if anatomy_wanted(loop):
         L += _anatomy_section(loop)
         L.append("")
-    L.append(f"## 1. THE KEYS against the print ({ty})")
-    L += _key_table(loop)
+    L.append(f"## 1. THE KEYS against the print ({ty}) — a key is the model's own arithmetic: you never "
+             "type into one, you set the inputs underneath it")
+    L += _key_table(loop, rows, written, skipped)
     L.append("")
     L.append(f"## 2. COVERAGE of the actual column ({ty})")
     for sheet in sorted(by_sheet):
@@ -683,7 +725,7 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
         if txt:
             # each face is capped to its own statement lines: the face is the
             # unit of work, not the whole document
-            body = [ln for ln in str(txt).splitlines() if ln.strip()][:60]
+            body = [ln for ln in str(txt).splitlines() if ln.strip()][:45]
             cost = sum(len(x) for x in body)
             if room - cost < 0:
                 L.append(f"    (this face's text is not shown here — `page {pg}`)")
@@ -1281,7 +1323,11 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                             answers.append(f"      {_sh_c}: unfilled {_c.get('unfilled', 0)} | filled "
                                            f"{_c.get('filled', 0)} | red {_c.get('red', 0)} | skipped "
                                            f"{_c.get('skipped', 0)}")
-                        answers += [f"      {sh}!{co}" for sh, co in still[:40]]
+                        _cls_d = _classes(loop, rows)
+                        for sh, co in sorted(still, key=lambda x: (_cls_d.get(x, "zzz") == "nothing measured",
+                                                                   x[0], _row_of(x[1])))[:40]:
+                            answers.append(f"      {sh}!{co} '{_label(loop.wb[sh], _row_of(co))[:30]}' "
+                                           f"— feeds {_cls_d.get((sh, co), '')}")
                         log(f"[map] done refused: {len(still)} input row(s) still open")
                         continue
                     log("[map] done: every input row is filled or skipped with a reason")

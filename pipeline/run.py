@@ -711,9 +711,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # of what the hour has left; the review takes the rest, and the finish
     # margin is never touched.
     _left_map = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
-    _map_budget = max(60.0, _left_map * 0.6)
-    log(f"[run] budget: {_left_map/60:.1f} min left — {_map_budget/60:.1f} to the mapping, "
-        f"{(_left_map - _map_budget)/60:.1f} to the review")
+    _map_budget = max(60.0, _left_map * 0.75)
+    log(f"[run] budget: {(_time.monotonic() - _run_t0)/60:.1f} min already spent; {_left_map/60:.1f} min "
+        f"left — {_map_budget/60:.1f} to the mapping, {(_left_map - _map_budget)/60:.1f} to the review")
+    try:
+        from .llm import set_reasoning as _set_reasoning
+        _set_reasoning("low", log)        # the mapping reads and writes; the review reasons
+    except Exception as _e_r:
+        log(f"[llm] the stage's reasoning effort could not be set: {_e_r!r}")
     loop_summary = _run_mapping(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
                                 deadline_s=_map_budget, brain=loop.brain)
     undo_mark2 = len(writer.log.get("writes_all", []))   # end of the mapping's writes
@@ -871,6 +876,11 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # the last resort). With nothing left it runs no turns and goes straight to
     # the ladder, which is exactly what the margin is for.
     _left_e = review_budget_s(_time.monotonic() - _run_t0)
+    try:
+        from .llm import set_reasoning as _set_reasoning2
+        _set_reasoning2("medium", log)
+    except Exception as _e_r2:
+        log(f"[llm] the review's reasoning effort could not be set: {_e_r2!r}")
 
     def _ask_review(system, user):
         """One review turn. A replay's recorded turns stand in for the brain."""

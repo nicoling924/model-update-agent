@@ -6486,6 +6486,82 @@ def test_a_read_it_has_already_made_is_not_progress_2026_09_17():
     print("PASS test_a_read_it_has_already_made_is_not_progress_2026_09_17")
 
 
+
+def test_a_key_names_the_inputs_that_feed_it_2026_09_17():
+    """CLP live run 35150243636: turns 2-12 were `show` on Final!AI15/27/35/75/
+    96/98/129 — the brain saw its keys OFF THE PRINT and went looking for what
+    fed them, eleven turns at two minutes each. The key line names its input
+    rows, and the mandate says a key is never typed into."""
+    from pipeline.mapping import MANDATE, _feeding_inputs, _key_table, input_rows
+    loop, pages, census = _map_model()
+    loop.spec["key_rows"] = [{"name": "operating profit", "sheet": "Final", "row": 10}]
+    loop.key_panel = {"operating profit": {"print": 14272.0}}
+    rows = input_rows(loop, census)
+    fed = _feeding_inputs(loop, "Final", "C10", rows)
+    assert ("Final", "C2") in fed and len(fed) <= 5, fed
+    table = "\n".join(_key_table(loop, rows, {}, {}))
+    assert "OFF THE PRINT" in table and "it is computed from these INPUT rows" in table, table
+    assert "Final!C2 'Revenue'" in table, table
+    assert "never to inspect the" in " ".join(MANDATE.split()), "the mandate still invites a show on arithmetic"
+    assert not any(c == "C10" for _s, c, _r in rows), "a key row is offered as work"
+    print("PASS test_a_key_names_the_inputs_that_feed_it_2026_09_17")
+
+
+def test_the_last_resort_never_plugs_the_print_2026_09_17():
+    """DFE live run 35150246510: "PLUGGED Raw financials!U124 OVER A PROVEN
+    VALUE (RED)", many times over — the last resort writing over figures read
+    off the print. A page-tied cell is not a plug site; if no unproven input
+    will take it, the check stays open and red."""
+    import inspect
+    from pipeline.orchestrator import ObjectiveLoop
+    src = inspect.getsource(ObjectiveLoop.t_plug_residual)
+    i = src.index("if proven and pe.get(\"doc\")")
+    assert "REFUSED" in src[i:i + 400] and "the print is not a plug site" in src[i:i + 400], src[i:i + 200]
+    assert src.index("if proven and pe.get(\"doc\")") < src.index("residual = ev.cell"), \
+        "the refusal must come before anything is written"
+    print("PASS test_the_last_resort_never_plugs_the_print_2026_09_17")
+
+
+def test_one_row_per_key_name_2026_09_17():
+    """DFE live: "key rows 22, panel 11" — the anatomy turn and the pattern pass
+    named the same keys twice and the count doubled. One row per name, and the
+    line the MODEL computes wins over a copy of the statement."""
+    import openpyxl
+    from pipeline.keytie import key_state
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "M"
+    ws["A1"], ws["B1"], ws["C1"] = "Year", 2024, 2025
+    ws["A7"], ws["B7"], ws["C7"] = "Net profit (raw copy)", 100.0, 120.0
+    ws["A9"], ws["B9"], ws["C9"] = "Net profit", "=B7", "=C7"
+    spec = {"year_axis": {"M": {"columns": {"2024": "B", "2025": "C"}}},
+            "key_rows": [{"name": "net profit", "sheet": "M", "row": 7},
+                         {"name": "net profit", "sheet": "M", "row": 9}]}
+    got = key_state(wb, spec, 2025, None, panel={"net profit": {"print": 120.0}})
+    assert len(got) == 1 and got[0][1] == "M!C9", got
+    print("PASS test_one_row_per_key_name_2026_09_17")
+
+
+def test_the_stage_sets_its_own_reasoning_effort_2026_09_17():
+    """Two minutes a turn on CLP: a mapping turn reads a printed face and writes
+    what it says; the review reasons about a break. The stage says how hard to
+    think, and the setting rides on the next call."""
+    from pipeline import llm as _llm
+    try:
+        assert _llm.set_reasoning("low") == "low"
+        assert _llm._EFFORT == "low"
+        assert _llm.set_reasoning("medium") == "medium"
+        assert _llm.set_reasoning(None) is None, "the environment's own default must come back"
+    finally:
+        _llm.set_reasoning(None)
+    import inspect
+    from pipeline import run as _run
+    src = inspect.getsource(_run.update)
+    assert 'set_reasoning("low"' in src and 'set_reasoning2("medium"' in src, "the stages do not set it"
+    assert "_left_map * 0.75" in src, "the mapping does not get the larger share of the clock"
+    print("PASS test_the_stage_sets_its_own_reasoning_effort_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
