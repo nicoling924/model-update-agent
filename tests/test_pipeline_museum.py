@@ -6793,6 +6793,16 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     v_pos = verify([dict(ans[0], printed=74206.0)], rows, led, {(DOC, 23): 1.0}, lambda s: None,
                    priors=[-76061.0], page_text=pt)
     assert abs(v_pos["Final!14"]["value"] + 74206.0) < 1e-6, v_pos
+    # the page path reads a line the way the extractor does — the printed nil
+    # included (reviewer 2026-09-16: line_numbers dropped the '-' of 'Other
+    # gain 5 460 -', so a nil comparative could never tie a model zero)
+    nil_rows = [{"row": "Final!16", "sheet": "Final", "r": 16, "label": "Other gain", "prior": 0.0}]
+    nil_ans = [{"row": "Final!16", "printed": 460.0, "page": 23, "line": "Other gain", "check": None}]
+    vn = verify(nil_ans, nil_rows, _ledger([_item(23, 1, "Revenue", [88018.0, 90964.0])],
+                                           face_pages=((23, "pl"),)),
+                {(DOC, 23): 1.0}, lambda s: None, priors=[0.0], page_text=pt)
+    assert vn["Final!16"]["conf"] == 4 and vn["Final!16"]["flag"] is None, vn
+    assert abs(vn["Final!16"]["value"] - 460.0) < 1e-6, vn
     # a figure the page does not print is still refused
     ghost = [dict(ans[0], printed=-74207.0, line="(74,207) (76,061)")]
     assert not verify(ghost, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)

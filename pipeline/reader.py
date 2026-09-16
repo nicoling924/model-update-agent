@@ -235,11 +235,10 @@ def _page_line(page_text, page, printed, line, sources):
     the answer quotes from that line. -> {"doc", "text", "figure", "prior"}
     (prior = the number printed next on the same line, the comparative) or
     None when no line of the page prints it."""
-    from .numerics import line_numbers
+    from .numerics import label_of, line_cells
     if not isinstance(printed, (int, float)) or not page_text:
         return None
-    from .numerics import label_of
-    quoted = line_numbers(str(line or ""))
+    quoted = line_cells(str(line or ""))
     lab_q = label_of(str(line or "")).strip()
     hits = []
     for doc in sorted(sources):
@@ -247,7 +246,7 @@ def _page_line(page_text, page, printed, line, sources):
         if not txt:
             continue
         for raw in str(txt).splitlines():
-            nums = line_numbers(raw)
+            nums = line_cells(raw)          # the printed nils too: they hold the columns
             if not nums:
                 continue
             idx = next((i for i, n in enumerate(nums) if _same_figure(n, printed)), None)
@@ -287,9 +286,12 @@ def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
     f_page = page_scales.get((hit["doc"], page)) or dom.get(hit["doc"])
     comp = hit.get("prior")
     f_tie = None
-    if isinstance(comp, (int, float)) and isinstance(pv, (int, float)) and abs(pv) >= 0.5:
-        f_tie = next((f for f in ([f_page] if f_page else []) + list(_SCALES)
-                      if _ties_full_precision(comp / f, pv)), None)
+    if isinstance(comp, (int, float)) and isinstance(pv, (int, float)):
+        if comp == 0 and pv == 0:
+            f_tie = f_page          # the print's own nil beside the model's zero: the tie
+        elif abs(pv) >= 0.5:
+            f_tie = next((f for f in ([f_page] if f_page else []) + list(_SCALES)
+                          if _ties_full_precision(comp / f, pv)), None)
     f_use = f_tie or f_page
     if not f_use:
         if log:
