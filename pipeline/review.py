@@ -732,13 +732,39 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
     `done` is accepted only with a statement per objective. At the clock the
     terminal ladder plugs any actual-year check still off — the only decision
     code makes. -> (ok, failures, card) from the last gate."""
-    writer, lines = loop.writer, loop.writer.log.setdefault("ending", [])
+    lines = loop.writer.log.setdefault("ending", [])
     t0 = time.monotonic()
     if hold_zero:
         hold_zero()
     repair_round("first")
     result = gate_once()
     statement, state, answers, dead = None, {}, [], 0
+    # THE EXIT IS A FINALLY (reviewer 2026-09-16: a raise in _metrics, in the
+    # flag loop or in _finish walked out of run_review, and run.py's handler
+    # re-gates but never calls the ladder — the model shipped unbalanced).
+    # Whatever happens in the conversation, the checks still close. An ordinary
+    # fault is said and swallowed; an interrupt still stops the run, but only
+    # after the model has been closed out.
+    done = []
+    try:
+        statement, result = _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
+                                   keys_before, key_panel, panel_path, deadline_s, max_turns, notes,
+                                   brain, result, t0, lines, state, answers, dead)
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"the review loop failed: {e!r}")
+        lines.append(f"the review loop failed ({type(e).__name__}: {str(e)[:120]}) — what remains is written up")
+        log(f"[review] LOOP FAILED {e!r} — going straight to the last resort")
+    finally:
+        done.append(_exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
+                          keys_before, key_panel, panel_path, result, statement, lines))
+    return done[0]
+
+
+def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
+           keys_before, key_panel, panel_path, deadline_s, max_turns, notes,
+           brain, result, t0, lines, state, answers, dead):
+    """The conversation itself. -> (statement, result)"""
+    statement = None
     if ask_json is None or not brain:
         lines.append("no brain in this run: the review was not held")
         log("[review] no brain: straight to the last resort")
@@ -794,14 +820,21 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                     continue
                 if str(call.get("tool") or "").lower() == "done":
                     st = call.get("objectives") if isinstance(call.get("objectives"), dict) else {}
-                    said = {k for k in ("balance", "keys", "rollforward") if str(st.get(k) or "").strip()}
-                    if len(said) < 3 and _open(loop, keys_before, key_panel, panel_path, result):
-                        answers.append("    done needs a reading of each objective — balance, keys, rollforward: "
-                                       "'holds', or 'cannot be closed because ...'. What is still open:")
+                    # THE STATE ENDS THE REVIEW, NOT THE WORDS (reviewer 2026-09-16:
+                    # any three strings ended it). A reason for an objective that
+                    # cannot be closed is KEPT — it becomes that cell's red note at
+                    # exit — but the loop goes on while the objective is still open.
+                    if st:
+                        statement = {str(k): str(v)[:300] for k, v in st.items()}
+                    still = _open(loop, keys_before, key_panel, panel_path, result)
+                    if still:
+                        answers.append(f"    not done: {len(still)} objective(s) are still off. Your reading is kept and "
+                                       "will reach the analyst as the note on each open cell. Keep working, or say `done` "
+                                       "again when the table below is clear:")
                         answers += _metrics_text(_metrics(loop, key_panel, panel_path))
+                        log(f"[review] done refused: {len(still)} objective(s) still open")
                         continue
-                    statement = {str(k): str(v)[:300] for k, v in st.items()}
-                    log(f"[review] done: {json.dumps(statement, ensure_ascii=False)[:600]}")
+                    log(f"[review] done: {json.dumps(statement or {}, ensure_ascii=False)[:600]}")
                     finished = True
                     break
                 try:
@@ -816,16 +849,25 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
                     result = res
             if finished:
                 break
+    return statement, result
+
+
+def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
+          keys_before, key_panel, panel_path, result, statement, lines):
+    """THE EXIT, WHICH ALWAYS RUNS (reviewer 2026-09-16: a raise anywhere in the
+    loop walked past the last resort and the model shipped unbalanced). Code's
+    one decision, in two halves that mirror the model's own structure: the
+    actual-year checks to the terminal ladder, the forecast-year checks to the
+    forecast plug of THEIR OWN period. Then every objective still off is red
+    with the brain's reading, and the closing rows are written."""
+    writer = loop.writer
     checks = [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == "check"]
     if checks:
-        # THE ONLY DECISION CODE MAKES (owner 2026-09-15: "a balanced model with a
-        # flagged plug beats an unbalanced model"): whatever was said, an actual-year
-        # check still off at the end goes to the ladder, orange, reported.
         from .orchestrator import terminal_ladder
         log(f"[review] last resort: {len(checks)} actual-year check(s) still off — the model's own plug ladder, orange")
         lines.append(f"LAST RESORT: {len(checks)} actual-year check(s) went to the plug ladder")
         try:
-            loop.writer.plugs_allowed = True
+            writer.plugs_allowed = True
             terminal_ladder(loop, log)
             if hold_zero:
                 hold_zero()
@@ -833,6 +875,23 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
             result = gate_once()
         except Exception as e:  # noqa: BLE001
             _fault(loop, f"the last resort failed: {e!r}")
+    fc = [(o[1], o[2]) for o in _open(loop, keys_before, key_panel, panel_path, result) if o[0] == "forecast-check"]
+    if fc:
+        # a forecast year that does not balance ships unbalanced exactly like an
+        # actual year does; it is plugged in its own period, never in another's
+        from .forecast_balance import plug_period
+        log(f"[review] last resort: {len(fc)} forecast-year check(s) still off — plugged in their own period, orange")
+        lines.append(f"LAST RESORT: {len(fc)} forecast-year check(s) went to the forecast plug of their own period")
+        try:
+            writer.plugs_allowed = True
+            for sh_f, co_f in fc:
+                plug_period(loop, sh_f, co_f, log)
+            if hold_zero:
+                hold_zero()
+            repair_round("review forecast last resort")
+            result = gate_once()
+        except Exception as e:  # noqa: BLE001
+            _fault(loop, f"the forecast last resort failed: {e!r}")
     for o in _open(loop, keys_before, key_panel, panel_path, result):
         why = (statement or {}).get("balance" if o[0] in ("check", "forecast-check") else ("keys" if o[0] == "key" else "rollforward"))
         writer.flag_ref(f"{o[1]}!{o[2]}", "red", f"OPEN: {o[4]}" + (f" — the review's reading: {why}" if why else " — the review did not close it"))

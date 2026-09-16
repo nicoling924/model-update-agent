@@ -6753,11 +6753,15 @@ def _review_model():
     fin["AK57"] = "=('HK Sales'!AI16-46.3)*458.1214+600"
     fin["A95"] = "Retained earnings"; fin["AH95"] = 80000.0; fin["AI95"] = 88242.0
     fin["A97"] = "Minority interests"; fin["AH97"] = 6000.0; fin["AI97"] = 6163.0
+    fin["A110"] = "Cash flow statement"
+    fin["A112"] = "Others"
+    for col in ("AH", "AI", "AJ", "AK"):
+        fin[f"{col}112"] = 0.0
     fin["A99"] = "Balance check"
     for col in ("AE", "AF", "AG", "AH"):
         fin[f"{col}99"] = 0.0
     for col in ("AI", "AJ", "AK"):
-        fin[f"{col}99"] = f"={col}95+{col}97-94182"
+        fin[f"{col}99"] = f"={col}95+{col}97+{col}112-94182"
     fin["AJ95"] = 84367.0; fin["AJ97"] = 9815.0
     fin["AK95"] = 84367.0; fin["AK97"] = 9815.0
     spec = {"year_axis": {"HK Sales": {"columns": {"2021": "AE", "2022": "AF", "2023": "AG", "2024": "AH", "2025": "AI"}},
@@ -6868,28 +6872,31 @@ def test_a_set_with_no_evidence_lands_red_never_refused_2026_09_16():
 
 
 def test_done_before_the_objectives_hold_is_refused_with_the_table_2026_09_16():
-    """`done` is a statement, not an exit: with objectives open and no reading
-    of each, the brain is handed the measured table and asked again."""
+    """`done` is a statement, not an exit: the STATE ends the review, not the
+    words (reviewer 2026-09-16: any three strings ended it). While an objective
+    is still off the brain is handed the measured table and keeps working; the
+    reading it gave is kept and reaches the analyst as the note on the open cell."""
     from pipeline.review import run_review
     seen = []
 
     def ask(system, user):
         seen.append(user)
         if len(seen) == 1:
-            return {"thinking": "looks fine", "calls": [{"tool": "done", "objectives": {"balance": "holds"}}]}
-        return {"thinking": "ok", "calls": [{"tool": "done", "objectives": {
-            "balance": "cannot be closed because the RE/MI pair is not printed",
-            "keys": "two keys off the print", "rollforward": "2027 cash negative"}}]}
+            return {"thinking": "looks fine", "calls": [{"tool": "done", "objectives": {
+                "balance": "cannot be closed because the RE/MI pair is not printed",
+                "keys": "two keys off the print", "rollforward": "2027 cash negative"}}]}
+        return {"thinking": "now I fix it", "calls": [
+            {"tool": "set", "sets": [{"ref": "Final!AI95", "value": 84367.0}, {"ref": "Final!AI97", "value": 9815.0}],
+             "because": "p211 'Balance at' 84,367; p237 'Other non-controlling interests' 9,815"},
+            {"tool": "done", "objectives": {"balance": "holds", "keys": "hold", "rollforward": "cash positive"}}]}
     lp, pre, panel, logs = _review_harness()
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
                {}, panel, None, deadline_s=60.0, max_turns=4)
-    assert len(seen) >= 2, seen
-    assert "done needs a reading of each objective" in seen[1], seen[1][-1500:]
-    assert "Final!AI99" in seen[1], seen[1][-1500:]
-    ending = lp.writer.log["ending"]
-    assert any(ln.startswith("balance: cannot be closed") for ln in ending), ending
+    assert len(seen) >= 2, "a full-sounding statement ended the review with objectives open"
+    assert "not done:" in seen[1] and "Final!AI99" in seen[1], seen[1][-1200:]
+    assert lp.wb["Final"]["AI95"].value == 84367.0, "the loop did not continue after the refused done"
+    assert any(ln.startswith("balance: holds") for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
     print("PASS test_done_before_the_objectives_hold_is_refused_with_the_table_2026_09_16")
-
 
 def test_a_dead_brain_times_out_into_the_ladder_and_delivers_balanced_2026_09_16():
     """The live-shape floor (OpenRouter 402 four minutes in): the brain answers
@@ -7080,6 +7087,70 @@ def test_a_trial_never_changes_what_the_run_believes_about_its_keys_2026_09_16()
                           panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     assert lp.wb["HK Sales"]["AI16"].value == 1.00 and "the trial was unwound" in "\n".join(out), out
     print("PASS test_a_trial_never_changes_what_the_run_believes_about_its_keys_2026_09_16")
+
+
+def test_a_forecast_year_that_does_not_balance_never_ships_2026_09_16():
+    """Reviewer (023d56e..d15bd4e), reproduced: only kind == "check" reached the
+    ladder, so a forecast year off by 500 with a dead brain was delivered != 0.
+    A forecast year that does not balance ships unbalanced exactly like an actual
+    year does — it goes to the forecast plug of ITS OWN period, after the
+    actual-year ladder (a forecast plugged on a broken actual masks the cause)."""
+    from pipeline.evaluator import Evaluator
+    from pipeline.review import run_review
+
+    def dead(system, user):
+        raise RuntimeError("live-shape floor: the brain answers nothing")
+    lp, pre, panel, logs = _review_harness()
+    lp.wb["Final"]["AJ95"] = 84867.0                     # 2026 opens a 500 break
+    assert abs(Evaluator(lp.wb).cell("Final", "AJ99") - 500.0) < 0.5, Evaluator(lp.wb).cell("Final", "AJ99")
+    run_review(lp, pre, logs.append, dead, lambda: (True, [], {}), lambda _t: None,
+               {}, panel, None, deadline_s=60.0, max_turns=3)
+    ev = Evaluator(lp.wb)
+    assert abs(ev.cell("Final", "AI99")) < 0.5, ev.cell("Final", "AI99")
+    assert abs(ev.cell("Final", "AJ99")) < 0.5, "a forecast year shipped off by %s" % ev.cell("Final", "AJ99")
+    assert any("forecast-year check" in ln for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
+    print("PASS test_a_forecast_year_that_does_not_balance_never_ships_2026_09_16")
+
+
+def test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16():
+    """Reviewer (023d56e..d15bd4e), reproduced: an unguarded raise in _metrics or
+    in the flag loop walked out of run_review, and run.py's handler re-gates but
+    never calls the ladder — the model shipped unbalanced. The exit is a finally:
+    an ordinary fault is said and the checks still close; an interrupt still
+    stops the run, but only after the model has been closed out."""
+    import pipeline.review as R
+    from pipeline.evaluator import Evaluator
+    real, calls = R._metrics, []
+
+    def blows_up(*a, **k):
+        calls.append(1)
+        if len(calls) > 2:
+            raise ValueError("the year axis moved under the measure")
+        return real(*a, **k)
+    lp, pre, panel, logs = _review_harness()
+    R._metrics = blows_up
+    try:
+        R.run_review(lp, pre, logs.append, lambda s, u: {"calls": [{"tool": "show", "ref": "Final!AI95"}]},
+                     lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=60.0, max_turns=3)
+    finally:
+        R._metrics = real
+    assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, Evaluator(lp.wb).cell("Final", "AI99")
+    assert any("LOOP FAILED" in x for x in logs), logs[-6:]
+    assert any("the review loop failed" in ln for ln in lp.writer.log["ending"]), lp.writer.log["ending"]
+    # an interrupt is not swallowed — but the model is closed out before it lands
+    lp2, pre2, panel2, logs2 = _review_harness()
+
+    def interrupted(system, user):
+        raise KeyboardInterrupt("stop")
+    hit = False
+    try:
+        R.run_review(lp2, pre2, logs2.append, interrupted, lambda: (True, [], {}), lambda _t: None,
+                     {}, panel2, None, deadline_s=60.0, max_turns=3)
+    except KeyboardInterrupt:
+        hit = True
+    assert hit, "an interrupt was swallowed"
+    assert abs(Evaluator(lp2.wb).cell("Final", "AI99")) < 0.5, "the interrupt left the model unbalanced"
+    print("PASS test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16")
 
 
 if __name__ == "__main__":
