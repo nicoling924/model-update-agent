@@ -85,10 +85,12 @@ def build_context(art, period):
     L.append("")
     L.append("## 3. EVERY CELL THE RUN WROTE IN THE ACTUAL COLUMN (sorted by the move against the cell's own history, largest first)")
     rows = []
+    first = {}                      # one entry per cell: the FIRST 'old' (the analyst's) and the final value
     for w in writes:
         sh, co = w.get("sheet"), w.get("coord", "")
-        if not co.startswith(ACT) or sh not in wb.sheetnames:
-            continue
+        if co.startswith(ACT) and sh in wb.sheetnames and (sh, co) not in first:
+            first[(sh, co)] = w
+    for (sh, co), w in first.items():
         r = int(co[len(ACT):])
         if r <= 3:
             continue
