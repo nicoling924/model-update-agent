@@ -6830,6 +6830,40 @@ def test_the_extractor_keeps_the_unlabelled_row_2026_09_16():
     print("PASS test_the_extractor_keeps_the_unlabelled_row_2026_09_16")
 
 
+def test_cash_counts_in_the_objective_measure_2026_09_16():
+    """Run 35043265913: the ending plugged a 2028 balance break and 2026 cash
+    went to -966. The measure a pick is judged by counted the balance checks
+    and the keys and nothing else, so the sanity objective could be broken
+    for free and the pick stood. Cash and total assets under water are part
+    of the mass — a pick that opens or deepens one made the objectives worse
+    and is taken back like any other worsening."""
+    from pipeline.consequence import sanity_mass, sanity_breaks
+    # the run's shape: four forecast years, cash a formula off the plug row
+    wb = _wb({"A1": "cash", "T20": 1000.0, "U20": "=U30+500", "V20": "=V30+500",
+              "W20": "=W30+500", "X20": "=X30+500",
+              "T30": 0.0, "U30": 0.0, "V30": 0.0, "W30": 0.0, "X30": 0.0})
+    spec = {"year_axis": {"S": {"columns": {"2024": "T", "2025": "U", "2026": "V",
+                                            "2027": "W", "2028": "X"}}},
+            "check_rows": [{"sheet": "S", "row": 9, "expect": 0}],
+            "key_rows": [{"name": "cash", "sheet": "S", "row": 20}]}
+    lp = _loop(wb, spec)
+    assert sanity_mass(lp) == 0.0, sanity_breaks(lp)
+    mass0 = sanity_mass(lp)
+    # the plug: a 2028 balance break absorbed on the residual row, which the
+    # 2026 cash formula also reads — 2026 cash goes to -966
+    wb["S"]["V30"] = -1466.0
+    mass1 = sanity_mass(lp)
+    breaks = sanity_breaks(lp)
+    assert any("2026" in b[4] and "cash" in b[4] for b in breaks), breaks
+    assert abs(mass1 - 966.0) < 0.5, (mass1, breaks)
+    assert mass1 > mass0 + 1.0, "the objective measure still ignores the cash break — the pick stands"
+    # beyond the next two periods it is the analyst's call, not the run's
+    wb["S"]["V30"] = 0.0
+    wb["S"]["X30"] = -1466.0
+    assert sanity_mass(lp) == 0.0, sanity_breaks(lp)
+    print("PASS test_cash_counts_in_the_objective_measure_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0

@@ -175,6 +175,20 @@ def sanity_breaks(loop, horizon=2):
     return out
 
 
+def sanity_mass(loop, horizon=2):
+    """The sanity objective's size, in the same money as the balance mass:
+    how deep cash or total assets is under water in the actual period and
+    the next two (run 35043265913: a 2028 balance plug drove 2026 cash to
+    -966 and the objective measure never saw it, so the pick stood). An
+    objective the measure ignores is an objective a pick may break for
+    free."""
+    try:
+        return sum(abs(o[3]) for o in sanity_breaks(loop, horizon))
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"sanity mass unavailable: {e!r}")
+        return 0.0
+
+
 def sanity_watch(loop, horizon=2):
     """Negatives beyond the horizon: for the analyst, never fixed. -> [text]"""
     out, seen = [], {}
@@ -791,9 +805,6 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
             san1 = {(o[1], o[2]) for o in objs1 if o[0] == "sanity"}
             new_fails = {f for f in (_fails(result) - fails0) if f not in san1}
             new_san = [o for o in objs1 if o[0] == "sanity" and (o[1], o[2]) not in fails0]
-            if new_san:
-                log(f"[ending] after {pick} on {sheet}!{coord}: {new_san[0][4]} — kept; that is the next objective")
-                lines.append(f"after {pick} on {sheet}!{coord}: {new_san[0][4]} — investigated next")
             gaps1 = _gaps()
             from .sensecheck import SENSE_GAP
             # the objectives in the owner's order: balance first, keys second, the
@@ -816,6 +827,12 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
                     _sense_row(writer, d, "red", f"the pick {verdict} was taken back ({reason}) — your ruling", leaf, "ending")
             else:
                 log(f"[ending] {sheet}!{coord}: {pick} -> objectives mass {mass0:,.0f} -> {mass1:,.0f}")
+                if new_san:
+                    # the pick did not make the objectives worse overall and it
+                    # stands; the negative it leaves is the next objective, not
+                    # a veto (owner 2026-09-15)
+                    log(f"[ending] after {pick} on {sheet}!{coord}: {new_san[0][4]} — kept; that is the next objective")
+                    lines.append(f"after {pick} on {sheet}!{coord}: {new_san[0][4]} — investigated next")
                 if sense_note is not None:
                     d, verdict, text, leaf = sense_note
                     _sense_row(writer, d, verdict, text, leaf, "ending")

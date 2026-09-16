@@ -1374,6 +1374,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                     continue
                 if isinstance(v, (int, float)):
                     m += abs(v)
+        # cash and total assets under water are an objective like any other:
+        # a pick that opens or deepens one made the objectives worse
+        from .consequence import sanity_mass as _sanity_mass
+        m += _sanity_mass(loop)
         return m
 
     # THE ENDING (owner 2026-09-15): one loop — measure the objectives, the
