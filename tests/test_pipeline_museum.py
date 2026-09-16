@@ -6783,6 +6783,16 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     assert vr["Final!15"]["flag"] == "red" and vr["Final!15"]["conf"] == 3, vr["Final!15"]
     assert abs(vr["Final!15"]["value"] + 74206.0) < 1e-6, vr["Final!15"]
     assert "no prior tie" in (vr["Final!15"]["note"] or ""), vr["Final!15"]["note"]
+    # the print owns the sign: the answer may quote 74,206 or -74,206 for a
+    # line printed '(74,206)' (reviewer 2026-09-16 — a sign-exact match lost
+    # the line to its own parentheses)
+    from pipeline.reader import _page_line
+    for q in (74206.0, -74206.0):
+        h = _page_line(pt, 23, q, "(74,206) (76,061)", {DOC})
+        assert h and h["figure"] == -74206.0 and h["prior"] == -76061.0, (q, h)
+    v_pos = verify([dict(ans[0], printed=74206.0)], rows, led, {(DOC, 23): 1.0}, lambda s: None,
+                   priors=[-76061.0], page_text=pt)
+    assert abs(v_pos["Final!14"]["value"] + 74206.0) < 1e-6, v_pos
     # a figure the page does not print is still refused
     ghost = [dict(ans[0], printed=-74207.0, line="(74,207) (76,061)")]
     assert not verify(ghost, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)

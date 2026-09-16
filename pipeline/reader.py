@@ -195,17 +195,6 @@ def _printed_match(items, page, printed, line, sources):
     return hits[0][2] if len(hits) == 1 else None
 
 
-def _exact(x, y):
-    """The same printed number, SIGN INCLUDED, at the model's own precision.
-    (A printed '(28,950)' is -28,950: a term whose sign contradicts the print
-    is not that line, and an abs() match let an arbitrary residual close any
-    check — reviewer 2026-09-16.)"""
-    from .writegate import _ties_full_precision
-    if not (isinstance(x, (int, float)) and isinstance(y, (int, float))):
-        return False
-    return (x < 0) == (y < 0) and _ties_full_precision(x, y)
-
-
 def _closes_on(text):
     """The figure the answer's own check names as the subtotal it closes on.
     The closer is the SINGLE-figure side of the '=' — whichever side it is
@@ -221,6 +210,18 @@ def _closes_on(text):
     sides = [line_numbers(part, skip_years=False) for part in s.split("=")]
     singles = [ns[0] for ns in sides if len(ns) == 1]
     return singles[0] if singles else None
+
+
+def _same_figure(a, b):
+    """The same printed figure at the model's precision, SIGN-BLIND: the
+    page prints '(74,206)' where an answer may quote 74,206 and the model
+    may store either — the print owns the sign, so the match is on the
+    magnitude and the sign is read off the page afterwards (reviewer
+    2026-09-16: a sign-exact match lost the line to its own parentheses)."""
+    from .writegate import _ties_full_precision
+    if not (isinstance(a, (int, float)) and isinstance(b, (int, float))):
+        return False
+    return _ties_full_precision(abs(a), abs(b))
 
 
 def _page_line(page_text, page, printed, line, sources):
@@ -248,10 +249,10 @@ def _page_line(page_text, page, printed, line, sources):
             nums = line_numbers(raw)
             if not nums:
                 continue
-            idx = next((i for i, n in enumerate(nums) if _exact(n, printed)), None)
+            idx = next((i for i, n in enumerate(nums) if _same_figure(n, printed)), None)
             if idx is None:
                 continue
-            if any(not any(_exact(q, n) for n in nums) for q in quoted):
+            if any(not any(_same_figure(q, n) for n in nums) for q in quoted):
                 continue          # the answer quotes a number this line does not print
             hits.append({"doc": doc, "text": raw.strip()[:160], "figure": nums[idx],
                          "prior": (nums[idx + 1] if idx + 1 < len(nums) else None),
@@ -358,9 +359,9 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None, page_text=
                 continue
             hit = _page_line(page_text, page, printed, line, sources)
             if hit is not None:
-                v = _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid)
+                v = _quoted_verdict(hit, hit["figure"], pv, page, page_scales, dom, log, rid)
                 closer = _closes_on(a.get("check"))
-                if v is not None and v["conf"] < 4 and closer is not None and _exact(closer, printed):
+                if v is not None and v["conf"] < 4 and closer is not None and _same_figure(closer, printed):
                     # THE ROW'S OWN FIGURE (the prompt's law): the answer's own
                     # account says this figure is the subtotal its terms close
                     # on. Where the print's comparative ties the row's prior the
