@@ -1,0 +1,236 @@
+run 35043265913 · head bd29571 · 2026-09-16T01:14Z–02:11Z (57 min) · calls 352, tokens 2.03M in / 0.20M out
+balance Final!99: 0 every year 2018–2030E · cash 2026E–2030E NEGATIVE (−3,217 → −10,175; analyst +5,355 → +12,110) · 5 objectives still broken (1 inherited)
+keys: 8/10 = analyst (same as run 34993405014); operating profit 11,957 vs 13,812, net profit 8,153 vs 10,468 (EPS 3.23 vs 4.14) — same −2,315 (opex −76,061 red, other income 0 red); MI 5,943 vs 9,815 unflagged; one-offs −2,756 orange vs −441
+item 1 did NOT fire: reader check for Final!14 was '28,950 + 5,987 + 29,551 + 9,718 = 74,206' — the closer IS the answered figure (not a printed row) so the rule refused; Final!16: reader put printed=14,272 (the closer) with the check '… + 460 = 14,272' — card option A showed 14,272 'Operating profit', brain: not_disclosed
+ending: 14 rounds; PLUG cards refuse_flag ×2; Final!AI99 −5,046 → question; AI98 plug taken back → question; AI31 derive:1; AI27/AI15 question; AI75 derive:via; AL99 plug; 74 refusals (21 one-row-one-claim, 8 proven)
+
+===== NEW SCORER =====
+reference: CLP Model FY25 (Updated).xlsx
+1. filled input cells judged: 297; correct: 181 (61%)
+2. wrong: 116 — red 73, orange 28
+3. wrong and NOT highlighted: 15
+per sheet (judged, correct): {'Final': [80, 53], 'Driver': [22, 15], 'SOC': [18, 16], 'HK Sales': [10, 7], 'SOC Accounts': [13, 4], 'ROAFNA': [21, 15], 'CN': [52, 28], 'Aus': [38, 18], 'India': [22, 13], 'SEA': [21, 12]}
+   none   Aus!AI14   - Amortisatin                agent=           386 ref=          -476
+   none   Aus!AI17   Customer (Retail)            agent=       -294.13 ref=       -462.13
+   none   Driver!AI119  Dividends                    agent=            67 ref=           629
+   none   Final!AI125  Investment in JCEs           agent=           -11 ref=          -123
+   none   Final!AI97   Minority Interests           agent=          5943 ref=          9815
+   none   HK Sales!AI13   Basic Tariff                 agent=          95.3 ref=            98
+   none   India!AI15   Net financial costs          agent=            -8 ref=             3
+   none   India!AI24   One-off items                agent=          -345 ref=             0
+   none   India!AI7    EBITDAF                      agent=           642 ref=           232
+   none   ROAFNA!AI54   CAPEX - CLP Power HK         agent=          6759 ref=          7971
+   none   SEA!AI11   Thermal (Taiwan, Ho-Ping)    agent=           181 ref=           231
+   none   SEA!AI17   Taxation                     agent=           134 ref=            -2
+   none   SEA!AI19   Thermal (Taiwan, Ho-Ping)    agent=           181 ref=           231
+   none   SEA!AI52   Renewables (Thailand, NED so agent=             2 ref=            21
+   none   SEA!AI6    OPEX                         agent=        -14.62 ref=           -66
+   red    Aus!AI19   Energy (Wholesale)           agent=       2832.87 ref=       2849.87
+   red    Aus!AI21   Enterprise (Corporate)       agent=      -1559.74 ref=      -1707.74
+   orange Aus!AI25   Finance costs                agent=       -391.32 ref=          -404
+   red    Aus!AI26   Finance income               agent=            14 ref=            24
+   orange Aus!AI30   One-off impairment           agent=           0.0 ref=          -345
+   orange Aus!AI31   Other non-recurring items    agent=           0.0 ref=           390
+   red    Aus!AI38   Mass market                  agent=          8900 ref=          8500
+   red    Aus!AI40   Commercial and industrial    agent=          4900 ref=          4400
+   red    Aus!AI42   Revenue                      agent=      19969.65 ref=      19450.06
+   orange Aus!AI46   Mass market                  agent=      27673.75 ref=         27500
+   orange Aus!AI48   Commercial and industrial    agent=       1548.18 ref=           600
+   red    Aus!AI50   Revenue                      agent=       5612.65 ref=       5700.45
+   red    Aus!AI62   Ecogen (gas)                 agent=           940 ref=           945
+   red    Aus!AI63   Wind projects                agent=           430 ref=           323
+   orange Aus!AI71   Tallawarra (gas) - NSW       agent=       1665.26 ref=          1721
+   orange Aus!AI72   Hallett (gas) - SA           agent=         85.15 ref=            88
+   orange Aus!AI73   =A62                         agent=        765.38 ref=           791
+   orange Aus!AI74   Cathedral Rocks (wind) - NSW agent=          71.6 ref=            74
+   red    CN!AI10   - Amortisation               agent=          -282 ref=          -284
+   red    CN!AI109  Jiangbian (h)                agent=           330 ref=             0
+   red    CN!AI112  Suizhong II (c)              agent=           564 ref=             0
+   red    CN!AI113  Dali Yang'er (h)             agent=            50 ref=             0
+   red    CN!AI115  Solar projects (s)           agent=           362 ref=             0
+   red    CN!AI117  Yangjiang  (n)               agent=          1108 ref=             0
+   red    CN!AI125  =A93                         agent=          1577 ref=          1642
+   red    CN!AI13   Fair value adjustment        agent=           224 ref=             0
+   red    CN!AI132  =A100                        agent=        1076.5 ref=          1209
+   red    CN!AI135  =A103                        agent=         429.3 ref=           638
+   orange CN!AI136  =A104                        agent=        6516.0 ref=          1108
+   red    CN!AI14   Net financial costs          agent=          -166 ref=          -159
+   red    CN!AI19   One-off items                agent=             0 ref=           608
+   red    CN!AI33   Shandong (29.4%)             agent=             6 ref=             0
+   red    CN!AI36   OPEX                         agent=          -316 ref=          -350
+   red    CN!AI49   Solar                        agent=           587 ref=             0
+   red    CN!AI5    Cash costs                   agent=          -438 ref=          -397
+   red    CN!AI55   Guohua                       agent=            -2 ref=             0
+   red    CN!AI62   Total NP                     agent=           990 ref=             0
+   red    CN!AI7    Share of result - Associates agent=          1810 ref=          1607
+   red    CN!AI93   Daya Bay (n)                 agent=          2052 ref=             0
+   red    CN!AI94   Pumped Storage (h)           agent=           600 ref=             0
+   red    CN!AI97   Guohua & Shenmu (c)          agent=           254 ref=             0
+   red    CN!AI99   Hydro projects (h)           agent=           509 ref=             0
+   red    Driver!AI112  Others                       agent=        306.32 ref=            44
+   red    Driver!AI127  Dividends                    agent=         -1674 ref=         -1762
+   red    Driver!AI22   Australia                    agent=           386 ref=          -476
+   red    Driver!AI37   Total earnings from JCEs     agent=       2207.31 ref=          1595
+   orange Driver!AI70   Gross Fixed Assets           agent=        724547 ref=        319659
+   orange Driver!AI71   Accumulated Depreciation     agent=       -548419 ref=       -143531
+   orange Final!AI103  Net interest expense (income agent=          1651 ref=          1666
+   orange Final!AI106  Loss (gain) on asset disposa agent=           393 ref=           899
+   orange Final!AI108  Other operating cash flows   agent=          -5.0 ref=        -382.0
+   red    Final!AI114     - Special provision accou agent=           -20 ref=             0
+   orange Final!AI118  Working capital changes      agent=           782 ref=           787
+   orange Final!AI124  Capital expenditures         agent=        -16498 ref=        -16766
+   red    Final!AI126  Dividends received           agent=          2444 ref=          2391
+   orange Final!AI127  Other investing cash flows   agent=         -3399 ref=           170
+   orange Final!AI128  Net (increase)/decrease inve agent=          3136 ref=             0
+   red    Final!AI134  Repayment of lease obligatio agent=            30 ref=             0
+   orange Final!AI135  Increase/decrease in minorit agent=         -1238 ref=         -1299
+   orange Final!AI136  Change in debt               agent=          -607 ref=          -546
+   red    Final!AI14   Total operating expenses     agent=        -76061 ref=        -74206
+   red    Final!AI15   Net operating income         agent=         11957 ref=         13812
+   red    Final!AI157  add back non-recurring items agent=          -441 ref=             0
+   red    Final!AI16   Other Income, net            agent=             0 ref=           460
+   red    Final!AI164  1H PSDC+HKBL+Sales to GD+Oth agent=           232 ref=             0
+   red    Final!AI168  1H Australia                 agent=            85 ref=             0
+   red    Final!AI170  1H India                     agent=           221 ref=             0
+   red    Final!AI172  1H SEA and TW                agent=           179 ref=             0
+   red    Final!AI174  Other, net                   agent=          -942 ref=             0
+   red    Final!AI27   Net profits (reported)       agent=          8153 ref=         10468
+   orange Final!AI30   Other one-offs               agent=       -2756.0 ref=          -441
+   red    Final!AI47   Special dividend             agent=          1.31 ref=             0
+   red    Final!AI80   Dividends payable            agent=        3872.0 ref=             0
+   red    HK Sales!AI18   Rent & Rates Special Rebate  agent=             3 ref=             0
+   red    HK Sales!AI22   Total value of special rebat agent=           -20 ref=             0
+   red    India!AI13   Transmission                 agent=           -52 ref=             0
+   red    India!AI18   Minority interest            agent=            14 ref=             0
+   red    India!AI21   Gas (Paguthan)               agent=            57 ref=            19
+   red    India!AI23   Grid                         agent=            77 ref=           -50
+   red    India!AI47   Attributable capacity        agent=          1974 ref=             0
+   orange India!AI8    D&A                          agent=          -232 ref=             0
+   red    ROAFNA!AI19   Other assets                 agent=          4259 ref=          5281
+   red    ROAFNA!AI31   None                         agent=        -968.0 ref=           0.0
+   orange ROAFNA!AI36   Net finance costs - CLP HK s agent=         -1421 ref=         -1174
+   red    ROAFNA!AI53   Total SoC capex              agent=         15539 ref=         10559
+   orange ROAFNA!AI56   CAPEX - CAPCO                agent=       2717.06 ref=          2588
+   red    SEA!AI12   Renewables (Thailand, NED)   agent=            10 ref=             7
+   red    SEA!AI14   Development expenditure      agent=           -10 ref=           -57
+   red    SEA!AI43   Renewables (Thailand, NED so agent=            21 ref=             0
+   red    SEA!AI58   Renewables (Thailand, NED so agent=            21 ref=             0
+   orange SOC!AI14   Taxation                     agent=         -2120 ref=         -2086
+   orange SOC!AI22   Charge for asset decommissio agent=           716 ref=             0
+   red    SOC Accounts!AI38   Recovery of rents and rates  agent=        7123.2 ref=           0.0
+   orange SOC Accounts!AI40   Closing balance payable (rec agent=          8196 ref=             0
+   red    SOC Accounts!AI56   GNPS/GPSPS/Others            agent=         11651 ref=         13043
+   red    SOC Accounts!AI58         Black Point (Gas fired agent=      15065.26 ref=      14534.43
+   red    SOC Accounts!AI76   Total cost of coal           agent=         -2608 ref=         -1788
+   red    SOC Accounts!AI77   Coal cost (US$/t)            agent=        176.18 ref=        120.78
+   red    SOC Accounts!AI80   Coal consumption, output bas agent=        213.71 ref=        201.65
+   red    SOC Accounts!AI83   Gas cost (US$/mmbtu)         agent=         13.95 ref=         15.33
+   red    SOC Accounts!AI91   Gas consumption (TJ)         agent=        146100 ref=        140126
+
+===== OLD SCORER (107db91) =====
+reference: CLP Model FY25 (Updated).xlsx
+1. filled input cells judged: 254; correct: 153 (60%)
+2. wrong: 101 — red 67, orange 19
+3. wrong and NOT highlighted: 15
+per sheet (judged, correct): {'Final': [73, 48], 'Driver': [15, 10], 'SOC': [18, 16], 'HK Sales': [10, 7], 'SOC Accounts': [12, 4], 'ROAFNA': [16, 12], 'CN': [47, 23], 'Aus': [30, 18], 'India': [18, 9], 'SEA': [15, 6]}
+   none   Aus!AI14   - Amortisatin                agent=           386 ref=          -476
+   none   Aus!AI17   Customer (Retail)            agent=       -294.13 ref=       -462.13
+   none   Driver!AI119  Dividends                    agent=            67 ref=           629
+   none   Final!AI125  Investment in JCEs           agent=           -11 ref=          -123
+   none   Final!AI97   Minority Interests           agent=          5943 ref=          9815
+   none   HK Sales!AI13   Basic Tariff                 agent=          95.3 ref=            98
+   none   India!AI15   Net financial costs          agent=            -8 ref=             3
+   none   India!AI24   One-off items                agent=          -345 ref=             0
+   none   India!AI7    EBITDAF                      agent=           642 ref=           232
+   none   ROAFNA!AI54   CAPEX - CLP Power HK         agent=          6759 ref=          7971
+   none   SEA!AI11   Thermal (Taiwan, Ho-Ping)    agent=           181 ref=           231
+   none   SEA!AI17   Taxation                     agent=           134 ref=            -2
+   none   SEA!AI19   Thermal (Taiwan, Ho-Ping)    agent=           181 ref=           231
+   none   SEA!AI52   Renewables (Thailand, NED so agent=             2 ref=            21
+   none   SEA!AI6    OPEX                         agent=        -14.62 ref=           -66
+   red    Aus!AI19   Energy (Wholesale)           agent=       2832.87 ref=       2849.87
+   red    Aus!AI21   Enterprise (Corporate)       agent=      -1559.74 ref=      -1707.74
+   orange Aus!AI25   Finance costs                agent=       -391.32 ref=          -404
+   red    Aus!AI26   Finance income               agent=            14 ref=            24
+   red    Aus!AI38   Mass market                  agent=          8900 ref=          8500
+   red    Aus!AI40   Commercial and industrial    agent=          4900 ref=          4400
+   red    Aus!AI42   Revenue                      agent=      19969.65 ref=      19450.06
+   red    Aus!AI50   Revenue                      agent=       5612.65 ref=       5700.45
+   red    Aus!AI62   Ecogen (gas)                 agent=           940 ref=           945
+   red    Aus!AI63   Wind projects                agent=           430 ref=           323
+   red    CN!AI10   - Amortisation               agent=          -282 ref=          -284
+   red    CN!AI109  Jiangbian (h)                agent=           330 ref=             0
+   red    CN!AI112  Suizhong II (c)              agent=           564 ref=             0
+   red    CN!AI113  Dali Yang'er (h)             agent=            50 ref=             0
+   red    CN!AI115  Solar projects (s)           agent=           362 ref=             0
+   red    CN!AI117  Yangjiang  (n)               agent=          1108 ref=             0
+   red    CN!AI125  =A93                         agent=          1577 ref=          1642
+   red    CN!AI13   Fair value adjustment        agent=           224 ref=             0
+   red    CN!AI132  =A100                        agent=        1076.5 ref=          1209
+   red    CN!AI135  =A103                        agent=         429.3 ref=           638
+   orange CN!AI136  =A104                        agent=        6516.0 ref=          1108
+   red    CN!AI14   Net financial costs          agent=          -166 ref=          -159
+   red    CN!AI19   One-off items                agent=             0 ref=           608
+   red    CN!AI33   Shandong (29.4%)             agent=             6 ref=             0
+   red    CN!AI36   OPEX                         agent=          -316 ref=          -350
+   red    CN!AI49   Solar                        agent=           587 ref=             0
+   red    CN!AI5    Cash costs                   agent=          -438 ref=          -397
+   red    CN!AI55   Guohua                       agent=            -2 ref=             0
+   red    CN!AI62   Total NP                     agent=           990 ref=             0
+   red    CN!AI7    Share of result - Associates agent=          1810 ref=          1607
+   red    CN!AI93   Daya Bay (n)                 agent=          2052 ref=             0
+   red    CN!AI94   Pumped Storage (h)           agent=           600 ref=             0
+   red    CN!AI97   Guohua & Shenmu (c)          agent=           254 ref=             0
+   red    CN!AI99   Hydro projects (h)           agent=           509 ref=             0
+   red    Driver!AI127  Dividends                    agent=         -1674 ref=         -1762
+   red    Driver!AI37   Total earnings from JCEs     agent=       2207.31 ref=          1595
+   orange Driver!AI70   Gross Fixed Assets           agent=        724547 ref=        319659
+   orange Driver!AI71   Accumulated Depreciation     agent=       -548419 ref=       -143531
+   orange Final!AI103  Net interest expense (income agent=          1651 ref=          1666
+   orange Final!AI106  Loss (gain) on asset disposa agent=           393 ref=           899
+   orange Final!AI108  Other operating cash flows   agent=          -5.0 ref=        -382.0
+   red    Final!AI114     - Special provision accou agent=           -20 ref=             0
+   orange Final!AI118  Working capital changes      agent=           782 ref=           787
+   orange Final!AI124  Capital expenditures         agent=        -16498 ref=        -16766
+   red    Final!AI126  Dividends received           agent=          2444 ref=          2391
+   orange Final!AI127  Other investing cash flows   agent=         -3399 ref=           170
+   orange Final!AI128  Net (increase)/decrease inve agent=          3136 ref=             0
+   red    Final!AI134  Repayment of lease obligatio agent=            30 ref=             0
+   orange Final!AI135  Increase/decrease in minorit agent=         -1238 ref=         -1299
+   orange Final!AI136  Change in debt               agent=          -607 ref=          -546
+   red    Final!AI14   Total operating expenses     agent=        -76061 ref=        -74206
+   red    Final!AI157  add back non-recurring items agent=          -441 ref=             0
+   red    Final!AI16   Other Income, net            agent=             0 ref=           460
+   red    Final!AI164  1H PSDC+HKBL+Sales to GD+Oth agent=           232 ref=             0
+   red    Final!AI168  1H Australia                 agent=            85 ref=             0
+   red    Final!AI170  1H India                     agent=           221 ref=             0
+   red    Final!AI172  1H SEA and TW                agent=           179 ref=             0
+   red    Final!AI174  Other, net                   agent=          -942 ref=             0
+   orange Final!AI30   Other one-offs               agent=       -2756.0 ref=          -441
+   red    Final!AI47   Special dividend             agent=          1.31 ref=             0
+   red    Final!AI80   Dividends payable            agent=        3872.0 ref=             0
+   red    HK Sales!AI18   Rent & Rates Special Rebate  agent=             3 ref=             0
+   red    HK Sales!AI22   Total value of special rebat agent=           -20 ref=             0
+   red    India!AI13   Transmission                 agent=           -52 ref=             0
+   red    India!AI18   Minority interest            agent=            14 ref=             0
+   red    India!AI21   Gas (Paguthan)               agent=            57 ref=            19
+   red    India!AI23   Grid                         agent=            77 ref=           -50
+   red    India!AI47   Attributable capacity        agent=          1974 ref=             0
+   orange India!AI8    D&A                          agent=          -232 ref=             0
+   red    ROAFNA!AI19   Other assets                 agent=          4259 ref=          5281
+   orange ROAFNA!AI36   Net finance costs - CLP HK s agent=         -1421 ref=         -1174
+   red    ROAFNA!AI53   Total SoC capex              agent=         15539 ref=         10559
+   red    SEA!AI12   Renewables (Thailand, NED)   agent=            10 ref=             7
+   red    SEA!AI14   Development expenditure      agent=           -10 ref=           -57
+   red    SEA!AI43   Renewables (Thailand, NED so agent=            21 ref=             0
+   red    SEA!AI58   Renewables (Thailand, NED so agent=            21 ref=             0
+   orange SOC!AI14   Taxation                     agent=         -2120 ref=         -2086
+   orange SOC!AI22   Charge for asset decommissio agent=           716 ref=             0
+   orange SOC Accounts!AI40   Closing balance payable (rec agent=          8196 ref=             0
+   red    SOC Accounts!AI56   GNPS/GPSPS/Others            agent=         11651 ref=         13043
+   red    SOC Accounts!AI58         Black Point (Gas fired agent=      15065.26 ref=      14534.43
+   red    SOC Accounts!AI76   Total cost of coal           agent=         -2608 ref=         -1788
+   red    SOC Accounts!AI77   Coal cost (US$/t)            agent=        176.18 ref=        120.78
+   red    SOC Accounts!AI80   Coal consumption, output bas agent=        213.71 ref=        201.65
+   red    SOC Accounts!AI83   Gas cost (US$/mmbtu)         agent=         13.95 ref=         15.33
+   red    SOC Accounts!AI91   Gas consumption (TJ)         agent=        146100 ref=        140126
