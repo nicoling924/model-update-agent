@@ -7026,6 +7026,33 @@ def test_a_malformed_turn_is_skipped_not_fatal_2026_09_16():
     print("PASS test_a_malformed_turn_is_skipped_not_fatal_2026_09_16")
 
 
+def test_the_tools_address_the_model_the_way_the_model_spells_it_2026_09_16():
+    """Reviewer (023d56e..d15bd4e), three reproduced faults in how a call is
+    addressed: Excel's own 'HK Sales'!AI16 was refused as an unknown sheet;
+    `plug` accepted ANY ref and ran the ladder into the key row Final!AI95,
+    blowing two proven keys; and `restore` of a cell the run never wrote put
+    None -> 0.0 into the analyst's model."""
+    from pipeline.review import _one_call, _parse_ref
+    lp, pre, panel, logs = _review_harness()
+    args = (panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
+    # B: the workbook's own spelling
+    assert _parse_ref(lp, "'HK Sales'!AI16") == ("HK Sales", "AI16", None), _parse_ref(lp, "'HK Sales'!AI16")
+    out, _r = _one_call(lp, pre, {"tool": "show", "ref": "'HK Sales'!AI16"}, *args)
+    assert "Fuel Clause" in "\n".join(out), out
+    # C: plug names the CHECK to close, and nothing else
+    out, res = _one_call(lp, pre, {"tool": "plug", "check": "Final!AI95", "why": "close it"}, *args)
+    assert lp.wb["Final"]["AI95"].value == 88242.0, "the ladder was run into a key row"
+    assert res is None and "not a balance check row" in "\n".join(out), out
+    out, _r = _one_call(lp, pre, {"tool": "plug", "check": "Final!AI99", "why": "nothing explains it"}, *args)
+    assert "not a balance check row" not in "\n".join(out), out
+    # E: a cell the run never wrote is said, never written
+    before = lp.wb["Final"]["AI57"].value
+    out, res = _one_call(lp, pre, {"tool": "restore", "ref": "Final!AI57", "why": "looks wrong"}, *args)
+    assert lp.wb["Final"]["AI57"].value == before, (before, lp.wb["Final"]["AI57"].value)
+    assert res is None and "never wrote this cell" in "\n".join(out), out
+    print("PASS test_the_tools_address_the_model_the_way_the_model_spells_it_2026_09_16")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

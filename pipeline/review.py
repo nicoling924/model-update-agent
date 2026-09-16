@@ -385,6 +385,9 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
 
 def _parse_ref(loop, ref):
     sh, _, co = str(ref).partition("!")
+    sh = sh.strip()
+    if len(sh) >= 2 and sh[0] == sh[-1] == "'":
+        sh = sh[1:-1].replace("''", "'")     # Excel's own spelling: 'HK Sales'!AI16
     if sh not in loop.wb.sheetnames:
         return None, None, f"no sheet '{sh}' in this workbook"
     co = co.replace("$", "").upper()
@@ -611,10 +614,15 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         if _col_of(co) != _act_col(loop, sh):
             return [f"restore {sh}!{co}: not in the actual column — the review changes the actual period only"], None
         from openpyxl.utils import column_index_from_string as _ci
+        if not any(w[0] == sh and w[1] == co for w in (loop.writer.log.get("writes_all", []) or [])):
+            # nothing to put back: the run never touched this cell (reviewer: a
+            # restore of an untouched cell wrote None -> 0.0 into the analyst's model)
+            return [f"restore {sh}!{co}: the run never wrote this cell — it still holds what you had "
+                    f"({str(loop.wb[sh][co].value)[:60]}); nothing to put back"], None
         m0 = _metrics(loop, key_panel, panel_path)
         back = pre_wb[sh].cell(_row_of(co), _ci(_col_of(co))).value
         why = str(call.get("why") or "")[:200]
-        ok = loop.writer.write(sh, co, back if back is not None else 0.0, trusted=True, force_lock=True, flag="red",
+        ok = loop.writer.write(sh, co, back, trusted=True, force_lock=True, flag="red", allow_empty=True,
                                note=f"Reverted by the brain: {why}. This input was moved by the run and is put back to what you had.")
         if ok:
             loop.served.pop((sh, _row_of(co)), None)
@@ -622,13 +630,24 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
             hold_zero()
         repair_round("review restore")
         res = gate_once()
-        return [f"restore {sh}!{co} → {_fmt(_num(back))} ({'written, red' if ok else 'the writer refused it'})"] \
+        shown = str(back) if isinstance(back, str) else _fmt(_num(back))
+        return [f"restore {sh}!{co} → {shown} ({'written, red' if ok else 'the writer refused it'})"] \
             + _metric_diff(m0, _metrics(loop, key_panel, panel_path)), res
     if tool == "plug":
         sh, co, err = _parse_ref(loop, call.get("check", ""))
         if err:
             return [f"plug: {err}"], None
-        m0 = _metrics(loop, key_panel, panel_path)
+        m = _metrics(loop, key_panel, panel_path)
+        kind = (m.get(f"{sh}!{co}") or (None, None, None, None))[2]
+        if kind not in ("check", "forecast-check"):
+            # A PLUG CLOSES A CHECK (reviewer: `plug` took any ref and ran the
+            # ladder into the key row Final!AI95, blowing two proven keys). The
+            # model's own residual site is chosen by the ladder; the brain names
+            # WHICH CHECK is being closed, and nothing else can be named.
+            return [f"plug {sh}!{co}: that is not a balance check row of this model — "
+                    "plug names the check to close; the model's own residual site takes the gap. "
+                    "The check rows are the 'balance check' lines in the objectives above."], None
+        m0 = m
         loop.writer.plugs_allowed = True
         _plug_here(loop, sh, co, log)
         if hold_zero:
