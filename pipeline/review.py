@@ -453,7 +453,7 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
         # clock re-learning what it had just been told)
         L.append("")
         L.append("## 7. EVERY TURN BEFORE THAT (what you called, and what came back)")
-        L += [f"  {h}" for h in history]
+        L += _record_text(history)
     return "\n".join(L)
 
 
@@ -637,6 +637,43 @@ def _call_text(call):
     if call.get("sets"):
         return tool + " " + ", ".join(f"{c.get('ref')}={c.get('value')}" for c in call["sets"] if isinstance(c, dict))
     return tool + " " + str(call.get("ref") or call.get("check") or call.get("q") or "")[:60]
+
+
+def _record_line(turn, call, out):
+    """ONE LINE PER CALL, NEVER THE TOOL'S OUTPUT (owner 2026-09-16: the context
+    stood at ~50k characters on turn 1 and ~79k by turn 35, growing some 800 a
+    turn by re-telling the brain, in full, what it had already read — clock spent
+    re-reading instead of working). The record of a call is a sentence: what was
+    asked, and what came back collapsed to one line and cut. The full answers of
+    the last turn are section 6 above it, and the model itself is measured in
+    front of the brain every turn."""
+    said = " ".join(" ".join(str(x) for x in (out or [])).split()) or "(nothing)"
+    return f"turn {turn}: {_call_text(call)[:46]} → {said}"[:97]
+
+
+def _record_text(history, budget=4000):
+    """THE RECORD IS A BUDGET OF CHARACTERS, NOT A LINE PER CALL FOR EVER (owner
+    2026-09-16) — the same law section 3 already lives by. The newest calls are
+    carried whole; from the point the budget will not hold another whole one,
+    the older calls keep only WHAT WAS CALLED — enough for the brain to know it
+    has already been to that cell, which is what this section is for — and the
+    oldest are counted, not dropped in silence. So the review's own memory of
+    itself cannot grow until it crowds out the model in front of it."""
+    kept, room, whole = [], int(budget), True
+    for rec in reversed(history):        # newest first: the recent turns are the ones carried whole
+        if whole and len(rec) + 1 > room:
+            whole = False
+        line = rec if whole else str(rec).split(" → ")[0]
+        if len(line) + 1 > room:
+            break
+        room -= len(line) + 1
+        kept.append(line)
+    out = [f"  {ln}" for ln in reversed(kept)]
+    missing = len(history) - len(kept)
+    if missing:
+        out.insert(0, f"  ({missing} earlier call(s) before these are not carried — this section is a "
+                      "budget of characters; `show` any cell again if you need it)")
+    return out
 
 
 def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, hold_zero, state):
@@ -925,8 +962,7 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                     _fault(loop, f"the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
                     out, res = [f"    that call failed: {type(e).__name__}: {str(e)[:120]}"], None
                 answers += out
-                state.setdefault("history", []).append(
-                    f"turn {turn + 1}: {_call_text(call)} → {' '.join(str(out[0]).split())[:150] if out else '(nothing)'}")
+                state.setdefault("history", []).append(_record_line(turn + 1, call, out))
                 for ln in out:
                     log(f"[review]   {ln.strip()[:300]}")
                 if res is not None:

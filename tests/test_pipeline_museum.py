@@ -7275,6 +7275,42 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     print("PASS test_the_review_never_eats_the_finish_margin_2026_09_16")
 
 
+def test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16():
+    """Owner 2026-09-16: section 7 carried the tool OUTPUT of every prior call and
+    grew a line per call for ever, so the context stood at ~50k characters on turn
+    1 and ~79k by turn 35 (DFE) — some 800 a turn of clock spent re-reading what
+    the brain had already read. One line per call, the answer in a hundred
+    characters, and the section itself a budget: over twenty turns of eight calls
+    — the live run's own shape — the context may grow at most 300 a turn."""
+    from pipeline.review import run_review
+    lp, pre, panel, logs = _review_harness()
+    sizes, seen = [], []
+    turn_calls = ([{"tool": "show", "ref": "HK Sales!AI16"}, {"tool": "show", "ref": "Final!AI95"},
+                   {"tool": "show", "ref": "Final!AI97"}, {"tool": "show", "ref": "Final!AI99"},
+                   {"tool": "find", "q": "Fuel Cost"}, {"tool": "find", "q": "46.3"},
+                   {"tool": "find", "q": "Balance at"}, {"tool": "find", "q": "62.0"}])
+
+    def ask(_system, user):
+        sizes.append(len(user))
+        seen.append(user)
+        if len(sizes) >= 20:
+            return {"calls": [{"tool": "done", "objectives": {"balance": "x", "keys": "x", "rollforward": "x"}}]}
+        return {"calls": list(turn_calls)}
+    run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
+               {}, panel, None, deadline_s=600.0, max_turns=20)
+    assert len(sizes) >= 20, sizes
+    growth = (sizes[19] - sizes[1]) / 18.0
+    assert growth <= 300.0, f"the context grows {growth:,.0f} chars a turn: {sizes}"
+    body = seen[-1][seen[-1].index("## 7."):]
+    recs = [ln for ln in body.splitlines() if ln.strip().startswith("turn ")]
+    assert recs and all(len(ln) <= 100 for ln in recs), max(recs, key=len)
+    # the brain still knows it has been to those cells, and what the last turns said
+    assert "turn 19: show HK Sales!AI16 → show HK Sales!AI16" in body, body[-600:]
+    assert "turn 1: show HK Sales!AI16" in body or "earlier call(s)" in body, body[:300]
+    assert "used by:" not in body, "the tool's own output is in the record"
+    print(f"PASS test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16 ({growth:.0f} chars/turn)")
+
+
 def _ladder_walk_model():
     """A check whose FIRST site by code's own ranking cannot take a plug (this
     run's own orange back-out over a served, proven figure — CLP's Final!AI65)
