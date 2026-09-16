@@ -6891,7 +6891,7 @@ def test_done_before_the_objectives_hold_is_refused_with_the_table_2026_09_16():
             {"tool": "done", "objectives": {"balance": "holds", "keys": "hold", "rollforward": "cash positive"}}]}
     lp, pre, panel, logs = _review_harness()
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=60.0, max_turns=4)
+               {}, panel, None, deadline_s=20.0)
     assert len(seen) >= 2, "a full-sounding statement ended the review with objectives open"
     assert "not done:" in seen[1] and "Final!AI99" in seen[1], seen[1][-1200:]
     assert lp.wb["Final"]["AI95"].value == 84367.0, "the loop did not continue after the refused done"
@@ -6910,7 +6910,7 @@ def test_a_dead_brain_times_out_into_the_ladder_and_delivers_balanced_2026_09_16
         raise RuntimeError("live-shape floor: the brain answers nothing")
     lp, pre, panel, logs = _review_harness()
     run_review(lp, pre, logs.append, dead, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=60.0, max_turns=4)
+               {}, panel, None, deadline_s=60.0)
     assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, Evaluator(lp.wb).cell("Final", "AI99")
     assert lp._failing_target_checks() == [], lp._failing_target_checks()
     assert any("last resort" in ln for ln in logs), logs
@@ -6940,7 +6940,7 @@ def test_a_recorded_review_replays_to_the_same_writes_2026_09_16():
         lp, pre, panel, logs = _review_harness()
         it = list(script)
         run_review(lp, pre, logs.append, lambda s, u: it.pop(0), lambda: (True, [], {}), lambda _t: None,
-                   {}, panel, None, deadline_s=60.0, max_turns=6)
+                   {}, panel, None, deadline_s=60.0)
         return logs, [(a, b, d) for a, b, _c, d in lp.writer.log["writes_all"]]
     logs, writes = run(turns)
     replayed = reviews_from_log.__wrapped__ if hasattr(reviews_from_log, "__wrapped__") else reviews_from_log
@@ -7026,7 +7026,7 @@ def test_a_malformed_turn_is_skipped_not_fatal_2026_09_16():
             {"tool": "done", "objectives": {"balance": "holds", "keys": "hold", "rollforward": "cash positive"}}]}
     lp, pre, panel, logs = _review_harness()
     run_review(lp, pre, logs.append, flaky, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=60.0, max_turns=6)
+               {}, panel, None, deadline_s=20.0)
     assert len(turns) >= 2, "the review died on the first bad reply"
     assert "could not be read" in turns[1], turns[1][-400:]
     assert lp.wb["Final"]["AI95"].value == 84367.0, "the recovered turn never ran"
@@ -7104,7 +7104,7 @@ def test_a_forecast_year_that_does_not_balance_never_ships_2026_09_16():
     lp.wb["Final"]["AJ95"] = 84867.0                     # 2026 opens a 500 break
     assert abs(Evaluator(lp.wb).cell("Final", "AJ99") - 500.0) < 0.5, Evaluator(lp.wb).cell("Final", "AJ99")
     run_review(lp, pre, logs.append, dead, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=60.0, max_turns=3)
+               {}, panel, None, deadline_s=60.0)
     ev = Evaluator(lp.wb)
     assert abs(ev.cell("Final", "AI99")) < 0.5, ev.cell("Final", "AI99")
     assert abs(ev.cell("Final", "AJ99")) < 0.5, "a forecast year shipped off by %s" % ev.cell("Final", "AJ99")
@@ -7131,7 +7131,7 @@ def test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16():
     R._metrics = blows_up
     try:
         R.run_review(lp, pre, logs.append, lambda s, u: {"calls": [{"tool": "show", "ref": "Final!AI95"}]},
-                     lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=60.0, max_turns=3)
+                     lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=2.0)
     finally:
         R._metrics = real
     assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, "the failing measure skipped the ladder"
@@ -7145,7 +7145,7 @@ def test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16():
     hit = False
     try:
         R.run_review(lp2, pre2, logs2.append, interrupted, lambda: (True, [], {}), lambda _t: None,
-                     {}, panel2, None, deadline_s=60.0, max_turns=3)
+                     {}, panel2, None, deadline_s=60.0)
     except KeyboardInterrupt:
         hit = True
     assert hit, "an interrupt was swallowed"
@@ -7247,7 +7247,7 @@ def test_the_brain_is_shown_every_turn_it_has_already_taken_2026_09_16():
         return {"calls": [{"tool": "done", "objectives": {"balance": "x", "keys": "x", "rollforward": "x"}}]}
     lp, pre, panel, logs = _review_harness()
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=60.0, max_turns=4)
+               {}, panel, None, deadline_s=20.0)
     assert len(seen) >= 3, seen
     third = seen[2]
     assert "## 7. EVERY TURN BEFORE THAT" in third, third[-800:]
@@ -7268,7 +7268,7 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     lp, pre, panel, logs = _review_harness()
     asked = []
     run_review(lp, pre, logs.append, lambda s, u: asked.append(1) or {"calls": []},
-               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=0.0, max_turns=4)
+               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=0.0)
     assert not asked, "the review spent turns it did not have"
     from pipeline.evaluator import Evaluator
     assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, "the ladder did not run"
@@ -7292,14 +7292,14 @@ def test_the_record_of_a_turn_is_a_sentence_not_a_transcript_2026_09_16():
                    {"tool": "find", "q": "Balance at"}, {"tool": "find", "q": "62.0"}])
 
     def ask(_system, user):
+        if len(sizes) >= 20:
+            raise RuntimeError("this exhibit's brain has nothing further to say")
         sizes.append(len(user))
         seen.append(user)
-        if len(sizes) >= 20:
-            return {"calls": [{"tool": "done", "objectives": {"balance": "x", "keys": "x", "rollforward": "x"}}]}
         return {"calls": list(turn_calls)}
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
-               {}, panel, None, deadline_s=600.0, max_turns=20)
-    assert len(sizes) >= 20, sizes
+               {}, panel, None, deadline_s=600.0)
+    assert len(sizes) == 20, sizes
     growth = (sizes[19] - sizes[1]) / 18.0
     assert growth <= 300.0, f"the context grows {growth:,.0f} chars a turn: {sizes}"
     body = seen[-1][seen[-1].index("## 7."):]
@@ -7438,26 +7438,62 @@ def test_the_review_gets_what_the_run_has_left_2026_09_16():
         turns.append(1)
         return {"calls": [{"tool": "find", "q": "Fuel Cost"}]}
     run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _x: None,
-               {}, panel, None, deadline_s=1.5, max_turns=500)
+               {}, panel, None, deadline_s=1.5)
     assert turns, "the review ran no turns at all"
     assert 1.0 < _t.monotonic() - t0 < 30.0, "the clock did not end the review"
     assert any("clock" in x for x in logs), logs[-3:]
     print("PASS test_the_review_gets_what_the_run_has_left_2026_09_16")
 
 
-def test_nothing_ends_the_review_in_silence_2026_09_16():
-    """Reviewer 2026-09-16: the turn count running out ended the review with no
-    line in the log and none on the report — and with the clock now the run's own
-    remaining time, the count is the likeliest end of all. Every way out says so."""
+def test_the_brains_plug_closes_the_check_it_named_2026_09_16():
+    """Owner 2026-09-16, second ruling: `plug` ran the whole terminal ladder, so
+    answering it for ONE check reached into every failing check in the model —
+    cells the brain had never looked at. The brain's plug closes the check it
+    named and no other; whatever is still open is the run's own last resort at
+    the exit."""
+    from openpyxl.styles import PatternFill
+    from pipeline.consequence import _plug_here
+    from pipeline.evaluator import Evaluator
+    cells = {"T2": 100.0, "T3": 50.0, "T4": 150.0, "U2": 109.0, "U3": 60.0, "U4": 171.0,
+             "T9": "=T2+T3-T4", "U9": "=U2+U3-U4",
+             "T12": 40.0, "T13": 40.0, "U12": 47.0, "U13": 40.0,
+             "T19": "=T12-T13", "U19": "=U12-U13"}
+    wb = _wb(cells)
+    spec = _spec_tiny()
+    spec["check_rows"] = [{"sheet": "S", "row": 9, "expect": 0}, {"sheet": "S", "row": 19, "expect": 0}]
+    lp = _loop(wb, spec)
+    lp.writer.plugs_allowed = True
+    assert len(lp._failing_target_checks()) == 2, lp._failing_target_checks()
+    logs = []
+    _plug_here(lp, "S", "U9", logs.append)          # the brain names S!9 and nothing else
+    assert abs(Evaluator(wb).cell("S", "U9")) < 0.5, "the named check was not closed"
+    assert abs(Evaluator(wb).cell("S", "U19") - 7.0) < 0.5, \
+        "a check the brain never named was plugged behind its back"
+    assert wb["S"]["U12"].value == 47.0 and wb["S"]["U13"].value == 40.0, "the other check's inputs were moved"
+    assert not any("S!19" in x for x in logs), logs
+    print("PASS test_the_brains_plug_closes_the_check_it_named_2026_09_16")
+
+
+def test_the_clock_is_the_only_end_of_the_review_2026_09_16():
+    """Owner 2026-09-16, second ruling: a turn count of 40 stopped the review at
+    about half the time the run now gives it — a count deciding when the brain
+    stops thinking. The clock is the only end; the turn number is kept for the
+    log and decides nothing. A brain that never says `done` runs past 40 turns
+    and is stopped by the clock, which says so in the log and on the report."""
     from pipeline.review import run_review
     lp, pre, panel, logs = _review_harness()
-    run_review(lp, pre, logs.append, lambda _s, _u: {"calls": [{"tool": "find", "q": "46.3"}]},
-               lambda: (True, [], {}), lambda _t: None, {}, panel, None,
-               deadline_s=600.0, max_turns=3)
-    assert any("all 3 turns used before the clock" in x for x in logs), logs[-4:]
-    assert any("all 3 of its turns" in str(x) for x in lp.writer.log.get("ending", [])), \
+    turns = []
+    run_review(lp, pre, logs.append,
+               lambda _s, _u: turns.append(1) or {"calls": [{"tool": "find", "q": "46.3"}]},
+               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=3.0)
+    assert len(turns) > 40, f"the review stopped after {len(turns)} turns, before its clock"
+    assert any("[review] clock" in x for x in logs), logs[-3:]
+    assert any("the clock ended the review" in str(x) for x in lp.writer.log.get("ending", [])), \
         lp.writer.log.get("ending")
-    print("PASS test_nothing_ends_the_review_in_silence_2026_09_16")
+    import inspect
+    from pipeline import review as _R
+    assert "max_turns" not in inspect.signature(_R.run_review).parameters, "a count is still a terminator"
+    print(f"PASS test_the_clock_is_the_only_end_of_the_review_2026_09_16 ({len(turns)} turns)")
 
 
 def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():

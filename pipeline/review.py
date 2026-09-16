@@ -874,7 +874,7 @@ def _open(loop, keys_before, key_panel, panel_path, res):
 
 
 def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before, key_panel, panel_path,
-               deadline_s=720.0, max_turns=40, notes=(), brain=True, hold_zero=None):
+               deadline_s=720.0, notes=(), brain=True, hold_zero=None):
     """THE REVIEW LOOP. Every turn: code measures and lays out the model, the
     brain calls tools, code applies and measures and logs the turn verbatim.
     `done` is accepted only with a statement per objective. At the clock the
@@ -896,7 +896,7 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
     done = []
     try:
         statement, result = _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
-                                   keys_before, key_panel, panel_path, deadline_s, max_turns, notes,
+                                   keys_before, key_panel, panel_path, deadline_s, notes,
                                    brain, result, t0, lines, state, answers, dead)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"the review loop failed: {e!r}")
@@ -909,7 +909,7 @@ def run_review(loop, pre_wb, log, ask_json, gate_once, repair_round, keys_before
 
 
 def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
-           keys_before, key_panel, panel_path, deadline_s, max_turns, notes,
+           keys_before, key_panel, panel_path, deadline_s, notes,
            brain, result, t0, lines, state, answers, dead):
     """The conversation itself. -> (statement, result)"""
     statement = None
@@ -917,7 +917,13 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
         lines.append("no brain in this run: the review was not held")
         log("[review] no brain: straight to the last resort")
     else:
-        for turn in range(max_turns):
+        # THE CLOCK IS THE ONLY END OF THE REVIEW (owner 2026-09-16, both rulings:
+        # no counts, the brain decides). A turn count used to stop it at 40 —
+        # about half the time a run now gives it. The number is kept for the log,
+        # where it says which turn this is; it decides nothing.
+        turn = 0
+        while True:
+            turn += 1
             left = deadline_s - (time.monotonic() - t0)
             if left <= 0:
                 lines.append("the clock ended the review; what remains is written up")
@@ -929,11 +935,11 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
             except Exception as e:  # noqa: BLE001
                 # THE LAST RESORT IS NEVER SKIPPED (reviewer 2026-09-16: a raise in
                 # the context walked out of the loop and the model shipped unbalanced)
-                _fault(loop, f"the review context could not be built at turn {turn + 1}: {e!r}")
+                _fault(loop, f"the review context could not be built at turn {turn}: {e!r}")
                 lines.append(f"the review context could not be built ({type(e).__name__}) — what remains is written up")
-                log(f"[review] turn {turn + 1}: the context could not be built ({e!r})")
+                log(f"[review] turn {turn}: the context could not be built ({e!r})")
                 break
-            log(f"[review] turn {turn + 1}: context {len(ctx):,} chars, {left / 60:.1f} min left")
+            log(f"[review] turn {turn}: context {len(ctx):,} chars, {left / 60:.1f} min left")
             try:
                 reply = ask_json(MANDATE, ctx)
             except Exception as e:  # noqa: BLE001
@@ -943,7 +949,7 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                 dead += 1
                 answers = [f"    your last reply could not be read ({type(e).__name__}: {str(e)[:120]}). "
                            "Answer with JSON only: {\"thinking\": \"...\", \"calls\": [ ... ]}."]
-                log(f"[review] turn {turn + 1}: the reply could not be read ({e!r}) — asked again")
+                log(f"[review] turn {turn}: the reply could not be read ({e!r}) — asked again")
                 if dead >= 3:
                     lines.append(f"the brain gave nothing readable three turns running ({type(e).__name__}) — what remains is written up")
                     log("[review] three unreadable turns running — what remains is written up")
@@ -952,7 +958,7 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
             dead = 0
             # VERBATIM, WHOLE (reviewer 2026-09-16: a truncated turn is not JSON, and
             # the replay that reads these lines then runs a shorter review in silence)
-            log("[review] turn %d reply %s" % (turn + 1, json.dumps(reply, ensure_ascii=False)))
+            log("[review] turn %d reply %s" % (turn, json.dumps(reply, ensure_ascii=False)))
             calls = reply.get("calls") if isinstance(reply, dict) else None
             if not isinstance(calls, list) or not calls:
                 answers = ["    your last reply carried no calls — answer with a JSON list of calls, or `done` with a statement per objective"]
@@ -961,6 +967,9 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
             for call in calls:
                 if time.monotonic() - t0 > deadline_s:
                     answers.append("    the clock ended the review inside this turn; the rest of your calls were not run")
+                    # the clock is now the ONLY end, so it is said on the report too,
+                    # not only in the log (owner 2026-09-16)
+                    lines.append(f"the clock ended the review inside turn {turn}; what remains is written up")
                     log("[review] clock: the rest of the turn's calls were not run")
                     finished = True
                     break
@@ -992,21 +1001,13 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                     _fault(loop, f"the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
                     out, res = [f"    that call failed: {type(e).__name__}: {str(e)[:120]}"], None
                 answers += out
-                state.setdefault("history", []).append(_record_line(turn + 1, call, out))
+                state.setdefault("history", []).append(_record_line(turn, call, out))
                 for ln in out:
                     log(f"[review]   {ln.strip()[:300]}")
                 if res is not None:
                     result = res
             if finished:
                 break
-        else:
-            # NOTHING ENDS THE REVIEW IN SILENCE (reviewer 2026-09-16: the turn
-            # count ran out with no line in the log and none on the report, and
-            # it is now the likeliest end of all — the clock is the run's own
-            # remaining time, and 40 turns is reached first on a fast run)
-            lines.append(f"the review used all {max_turns} of its turns before its clock ran out; "
-                         "what remains is written up")
-            log(f"[review] all {max_turns} turns used before the clock — what remains is written up")
     return statement, result
 
 
