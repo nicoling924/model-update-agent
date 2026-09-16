@@ -7038,6 +7038,15 @@ def test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16():
     # the brain's pick names the row — then the tie decides, as for any line
     v3, why3, _f3 = judge_write(20.0, 5.0, False, ev, set(), row_named=True)
     assert v3 == "ALLOW" and "proven" in why3, (v3, why3)
+    # EVERY card that offers a printed row names it: the SERVE card and the
+    # COMPONENT card both (coordinator 2026-09-16 — the component card omitted
+    # it, so the same pick off that card landed red)
+    import inspect
+    from pipeline import workqueue as _wq
+    src = inspect.getsource(_wq.card_text) if hasattr(_wq, "card_text") else inspect.getsource(_wq)
+    for opt in ('options[f"serve:{cid}"] = ("set_input", {', 'options[f"fix:{j}"] = ("set_input", {'):
+        i = src.index(opt)
+        assert '"named": True' in src[i:i + 400], f"a card offers a printed row without naming it: {opt}"
     print("PASS test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16")
 
 

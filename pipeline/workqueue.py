@@ -1162,6 +1162,7 @@ def render_card(loop, item):
             lines.append(f"          [{row_context_short(loop, sh, _tcol(loop, sh), r2)}]")
             options[f"fix:{j}"] = ("set_input", {
                 "cell": f"{sh}!{coord}", "value": c["value"],
+                "named": True,          # the brain picked THIS printed row off the card
                 "card": "component", "check": f"{sheet}!{row}",
                 "why": f"p{c['page']}: '{c['line'][:40]}' "
                        f"({c['doc'][:26]}) — component card: check "
