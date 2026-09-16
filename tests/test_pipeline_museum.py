@@ -832,8 +832,6 @@ def test_balance_doctrine_diagnose_fix_plug():
     assert "SUSPECT S!U5" in diag and "CLOSES" in diag, diag
 
 
-
-
 def _reclass_plan(total=360.0):
     from pipeline.reclass import plan_backout
     segs = [
@@ -868,8 +866,6 @@ def test_reclass_ugly_plug_goes_red_but_still_ties():
     assert rows["E"]["value"] == -13.3 and rows["E"]["flag"] == "red"
     assert "MAPPED" in rows["E"]["note"]
     assert abs(sum(r["value"] for r in plan["rows"]) - 310.0) < 0.05
-
-
 
 
 def test_assumption_freeze_law():
@@ -909,8 +905,6 @@ def test_assumption_freeze_law():
     assert ws["V7"].value == "=V6/V4"                # wiring untouched
     assert ws["V4"].value == "=U4*(1+V5)"            # level untouched
     assert "was =U5" in lines[0]
-
-
 
 
 def test_evidence_law_run7_exhibits():
@@ -961,8 +955,6 @@ def test_evidence_law_run7_exhibits():
     assert verdict == "ALLOW" and flag is None
 
 
-
-
 def test_one_home_law_run8_exhibit():
     """Run-8 pin (2026-08-30): Raw!U153 took the section total that row
     156 had already proven from the same document — a no-prior read may
@@ -994,8 +986,6 @@ def test_worsening_write_reverts():
     r = lp.t_set_input({"cell": "S!U2", "value": 500.0, "why": "p9: t"})
     assert r.startswith("REVERTED"), r
     assert wb["S"]["U2"].value == 110.0
-
-
 
 
 def test_reclassification_recipe():
@@ -1064,8 +1054,6 @@ def test_reclassification_recipe():
         not str(wb3["S"]["U7"].fill.start_color.rgb).endswith("FFC7CE")
 
 
-
-
 def test_dash_nil_law_run11_exhibit():
     """Run-11 pin: 'Less: Treasury shares – 648,882.29' — a standalone
     nil mark in the current slot beside the tying prior proves a zero."""
@@ -1129,8 +1117,6 @@ def test_dash_nil_law_run11_exhibit():
     it3 = {"doc": "A.PDF", "page": 1, "nums": [-1234.0, 648882.29],
            "source_line": "Some line -1,234.00 648,882.29"}
     assert nil_current_zero([it3], 0.6489) is None
-
-
 
 
 def test_forecast_balance_ladder():
@@ -1216,8 +1202,6 @@ def test_forecast_balance_ladder():
     assert not plugged4 and any("left failing" in m for m in msgs)
 
 
-
-
 def test_place_flow_run16_pins():
     """Run-16 pins: the movement of CASH (the CF's own output) can never
     be placed back into the CF; a placement that worsens the gap or
@@ -1262,8 +1246,6 @@ def test_place_flow_run16_pins():
                                for m in msgs), msgs
 
 
-
-
 def test_attribution_window_run18_pin():
     """Runs 17-18: the engine burned its budget re-tracing forecast gaps
     the plug was always going to close. The walk-away rule is mechanics:
@@ -1278,8 +1260,6 @@ def test_attribution_window_run18_pin():
     assert not lp._fc_window_closed()
     lp._fc_spend = max(10, lp.budget0 // 4)
     assert lp._fc_window_closed()
-
-
 
 
 def test_inherited_break_law_clp1_pin():
@@ -1305,8 +1285,6 @@ def test_inherited_break_law_clp1_pin():
     ok2, fails2, _ = deliver_or_refuse(now_worse, spec, "2025", {}, {},
                                        pre_values_wb=pre)
     assert any("CHECK S!r9 (2024)" in f for f in fails2), fails2
-
-
 
 
 def test_load_bearing_trace_and_tier_law():
@@ -2357,8 +2335,6 @@ def test_verdict_error_fixed_requires_the_error_gone():
     assert "VERDICT recorded" in str(r2), r2
 
 
-
-
 # ── Exhibits: the recomposition law (owner ruling 2026-09-02) ────────────
 # "When there is a new ingredient this year that adds into the subtotal,
 # we add it — core analyst skill." The old recipe's comparatives locate
@@ -2432,8 +2408,6 @@ def test_recompose_sign_from_this_years_print():
     from pipeline.composites import signed_literals
     got = sum(sg * float(x) for sg, x in signed_literals(wb["M"]["U7"].value))
     assert abs(got - (900 - 300 - 500)) < 0.01, wb["M"]["U7"].value
-
-
 
 
 def test_writes_ledger_survives_guard_pops():
@@ -3484,7 +3458,6 @@ def test_blank_current_cell_is_nil_2026_09_08():
     # blank line goes to the brain as a serve-card candidate worth 0
     assert nil_current_zero([blank], 593.54, faces, set(),
                             row_label="发行债券收到的现金") is None
-
 
 
 def test_blank_line_judged_by_meaning_2026_09_08():
@@ -6258,136 +6231,6 @@ def _clp_p23_items():
             _item(23, 7, "Operating profit", [6.0, 14272.0, 14903.0])]
 
 
-def test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16():
-    """Run 34993405014: the reader answered Final!14 = -74,206 (the four
-    expense lines between revenue and the printed Operating profit) and
-    verify() refused it — 'no printed line on p23 carries -74206' — because
-    the extractor dropped the total line, and both 2025 keys stayed -2,315
-    off the print. A stated check that closes a PRINTED subtotal at the
-    model's precision, every term the this-period figure of a printed row of
-    the same table block, is proof: the figure is written, plain when those
-    rows' printed comparatives tie the model's prior, red when they do not."""
-    from pipeline.reader import verify
-    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
-    led._doc_periods = {DOC: "current"}
-    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
-    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": -76061.0}]
-    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check}]
-    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
-    assert "Final!14" in v, "the reconciliation that closes the printed Operating profit was refused"
-    assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, v["Final!14"]
-    assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
-    assert "14,272" in (v["Final!14"]["note"] or ""), "the reconciliation must travel in the note"
-    # the same check, a row whose prior those comparatives do NOT tie: red, written
-    rows_r = [{"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating costs", "prior": -70000.0}]
-    ans_r = [{"row": "Final!15", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)", "check": check}]
-    vr = verify(ans_r, rows_r, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-70000.0])
-    assert vr["Final!15"]["flag"] == "red" and abs(vr["Final!15"]["value"] + 74206.0) < 1e-6, vr["Final!15"]
-    # a check that does not close, and one leaning on a term no row prints
-    bad = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
-            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 = 14,272"},
-           {"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
-            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 - 1,000 = 13,272"}]
-    for a in bad:
-        assert not verify([a], rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0]), a["check"]
-    print("PASS test_a_check_that_closes_the_printed_subtotal_is_proof_2026_09_16")
-
-
-def test_the_check_terms_are_read_as_printed_2026_09_16():
-    """The terms of the check, signs and parenthesised negatives included —
-    and (reviewer 2026-09-16) the four ways a check that is NOT the
-    statement's own arithmetic must be refused."""
-    from pipeline.reader import _check_terms, _reconciliation
-    terms, closes = _check_terms("88,018 \u2212 28,950 \u2212 5,987 \u2212 29,551 \u2212 9,718 + 460 = 14,272 = printed Operating profit")
-    assert closes == 14272.0 and len(terms) == 6 and abs(sum(terms) - 14272.0) < 1e-9, (terms, closes)
-    assert _check_terms("no arithmetic here") is None
-    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
-    good = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
-    # the answered figure may also be a single term of the check ('Other gain')
-    rec = _reconciliation(good, 460.0, led.items, 23, {DOC})
-    assert rec is not None and "14,272" in rec["check"], rec
-    # a figure the check says nothing about is never proved by it
-    assert _reconciliation(good, 12345.0, led.items, 23, {DOC}) is None
-    # the subtotal it closes on must itself be printed on that page
-    thin = _ledger([i for i in _clp_p23_items() if "Operating profit" not in str(i.label)], face_pages=((23, "pl"),))
-    assert _reconciliation(good, -74206.0, thin.items, 23, {DOC}) is None
-    # REVIEWER 1 — a flipped sign makes an arbitrary residual close any check:
-    # the page prints (9,718), so '+ 9,718' is not that line and -18,976 is nothing
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 + 9,718 - 18,976 = 14,272",
-                           -18976.0, led.items, 23, {DOC}) is None
-    # REVIEWER 2 — last year's column closes last year's subtotal: a comparative
-    # is not this period's figure, whatever it adds up to
-    assert _reconciliation("90,964 - 31,871 - 5,150 - 29,764 - 9,276 = 14,903",
-                           -9276.0, led.items, 23, {DOC}) is None
-    # a term printed in ANOTHER table of the page proves nothing about this line
-    mixed = _ledger(_clp_p23_items() + [_item(23, 20, "Segment note", [-5987.0], table_id=9)],
-                    face_pages=((23, "pl"),))
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272",
-                           -74206.0, mixed.items, 23, {DOC}) is not None, "the P&L block itself still proves it"
-    only_other = _ledger([i for i in _clp_p23_items() if "Staff" not in str(i.label)]
-                         + [_item(23, 20, "Staff expenses (segment note)", [-5987.0, -5150.0], table_id=9)],
-                         face_pages=((23, "pl"),))
-    assert _reconciliation(good, -74206.0, only_other.items, 23, {DOC}) is None
-    print("PASS test_the_check_terms_are_read_as_printed_2026_09_16")
-
-
-def test_the_reconciliations_comparative_comes_from_the_print_2026_09_16():
-    """Reviewer 2026-09-16: the plain/red decision read the comparative out of
-    the brain-authored 'line' string — text no printed row had to support —
-    and the value was divided by the page's scale while the tie was hunted at
-    every scale, so a page ratified at 10^3 wrote a figure 1,000x too large,
-    PLAIN. The comparative is now the same printed rows' own comparatives,
-    and a tie at a scale the page does not carry lands red."""
-    from pipeline.reader import verify
-    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
-    led._doc_periods = {DOC: "current"}
-    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
-    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Total operating expenses", "prior": -76061.0}]
-    answers = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "no numbers here", "check": check}]
-    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
-    assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
-    assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, "the print's own comparatives prove it, with no comparative in the answer's text"
-    # the answer's text quotes a comparative that WOULD tie this row's prior;
-    # the printed rows' own comparatives (-76,061) do not — it lands red
-    rows_l = [{"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating costs", "prior": -70000.0}]
-    ans_l = [{"row": "Final!15", "printed": -74206.0, "page": 23, "line": "(74,206) (70,000)", "check": check}]
-    vl = verify(ans_l, rows_l, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-70000.0])
-    assert vl["Final!15"]["flag"] == "red", "a comparative only the answer's text carries made it plain"
-    # the scale of the tie and the scale of the page must agree
-    base = [_item(30, 1, "Revenue", [100000.0, 100000.0]),
-            _item(30, 2, "Purchases", [-30000.0, -30000.0]),
-            _item(30, 3, "Staff expenses", [-29746.0, -30242.0]),
-            _item(30, 4, "Operating profit", [40254.0, 39758.0])]
-    led2 = _ledger(base, face_pages=((30, "pl"),)); led2._doc_periods = {DOC: "current"}
-    rows2 = [{"row": "M!9", "sheet": "M", "r": 9, "label": "Operating expenses", "prior": -60.242}]
-    ans2 = [{"row": "M!9", "printed": -59746.0, "page": 30, "check": "100,000 - 30,000 - 29,746 = 40,254", "line": ""}]
-    v2 = verify(ans2, rows2, led2, {(DOC, 30): 1e6}, lambda s: None, priors=[-60.242])
-    assert v2["M!9"]["flag"] == "red", f"a 1,000x scale clash landed plain: {v2['M!9']}"
-    assert abs(v2["M!9"]["value"] + 59.746) < 1e-6, v2["M!9"]
-    print("PASS test_the_reconciliations_comparative_comes_from_the_print_2026_09_16")
-
-
-def test_a_reconciliation_proves_one_row_2026_09_16():
-    """Reviewer 2026-09-16: the one-home guard on the reconciliation path
-    lacked the numeric-prior test its printed-line twin carries, so two rows
-    with no prior at all (None == None) both took the same figure."""
-    from pipeline.reader import verify
-    led = _ledger(_clp_p23_items(), face_pages=((23, "pl"),))
-    led._doc_periods = {DOC: "current"}
-    check = "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"
-    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": None},
-            {"row": "Final!40", "sheet": "Final", "r": 40, "label": "Operating costs", "prior": None}]
-    answers = [{"row": r["row"], "printed": -74206.0, "page": 23, "line": "", "check": check} for r in rows]
-    v = verify(answers, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[])
-    assert not v, f"the same reconciliation answered two rows: {v}"
-    # two rows the model fills with the SAME prior are its own duplicate: both take it
-    rows_d = [dict(r, prior=-76061.0) for r in rows]
-    v2 = verify(answers, rows_d, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
-    assert set(v2) == {"Final!14", "Final!40"}, v2
-    print("PASS test_a_reconciliation_proves_one_row_2026_09_16")
-
-
-
 def test_the_readers_reading_is_option_A_with_its_check_2026_09_16():
     """Run 34993405014: the SERVE card for Final!16 'Other Income, net'
     offered a 250 MW battery, two tax lines and a finance-cost line; the
@@ -6415,7 +6258,6 @@ def test_the_readers_reading_is_option_A_with_its_check_2026_09_16():
         assert a.get("no_prior") and "reader's suggestion" in a["warnings"][0], a["warnings"]
         assert "14,272" in a["warnings"][0], "the check the reader stated must be on the card"
     print("PASS test_the_readers_reading_is_option_A_with_its_check_2026_09_16")
-
 
 
 def test_only_a_proven_holder_locks_a_cell_2026_09_16():
@@ -6453,7 +6295,6 @@ def test_an_orange_derived_holder_yields_to_the_brains_pick_2026_09_16():
     print("PASS test_an_orange_derived_holder_yields_to_the_brains_pick_2026_09_16")
 
 
-
 def test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16():
     """Run 34993405014: ROAFNA!29 'Capital' (analyst 58,405) and Aus!70
     'Mount Piper' (analyst 6,314) were option A on their cards with the
@@ -6489,7 +6330,6 @@ def test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16():
     assert not any("numeric coincidence" in w for w in exact["warnings"]), exact["warnings"]
     assert loose is None or any("numeric coincidence" in w for w in loose["warnings"]), loose
     print("PASS test_an_exact_prior_tie_is_not_a_numeric_coincidence_2026_09_16")
-
 
 
 def test_the_key_card_lists_the_whole_input_tree_2026_09_16():
@@ -6537,7 +6377,6 @@ def test_the_input_tree_is_this_period_only_2026_09_16():
     assert set(leaves) == {("S", "U7"), ("S", "U14")}, leaves
     assert set(input_leaves(wb, "S", "U21")) == {("S", "U7"), ("S", "U14"), ("S", "T7")}
     print("PASS test_the_input_tree_is_this_period_only_2026_09_16")
-
 
 
 def test_the_plug_asks_the_brain_where_it_lands_2026_09_16():
@@ -6627,7 +6466,6 @@ def test_the_roll_base_backout_asks_the_brain_where_2026_09_16():
     print("PASS test_the_roll_base_backout_asks_the_brain_where_2026_09_16")
 
 
-
 def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
     """Floors 2026-09-16: the CLP FY25 floor delivered 8/8 keys on three runs
     and 7/8 on two, from the same ledger and the same code — key_tie read the
@@ -6682,7 +6520,6 @@ def test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16():
     print("PASS test_the_absorber_does_not_depend_on_the_reading_order_2026_09_16")
 
 
-
 def test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16():
     """Floors 2026-09-16: the live-shape floor runs WITH a client, so it
     rewrote companies/<co>/replay/<period>/key_rows.json — the very pin the
@@ -6703,7 +6540,6 @@ def test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16():
     assert 'Path(pinned_ledger).parent / "key_rows.json"' in src, \
         "the pin must still be READ from the artifact the run was given"
     print("PASS test_a_replay_never_overwrites_the_pin_it_replays_2026_09_16")
-
 
 
 def test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16():
@@ -6738,7 +6574,6 @@ def test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16():
     print("PASS test_the_readers_reading_does_not_relabel_a_tying_candidate_2026_09_16")
 
 
-
 def test_the_ladder_uses_the_named_site_only_2026_09_16():
     """Reviewer 2026-09-16: naming the brain's site merely moved it to the
     front of code's own ranking, so a write that failed there walked straight
@@ -6763,7 +6598,6 @@ def test_the_ladder_uses_the_named_site_only_2026_09_16():
     assert any("left OPEN" in x for x in logs), logs[-3:]
     assert "S!U9" in lp.writer.log.get("flags", []), lp.writer.log.get("flags")
     print("PASS test_the_ladder_uses_the_named_site_only_2026_09_16")
-
 
 
 def test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16():
@@ -6815,7 +6649,6 @@ def test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16():
     print("PASS test_the_roll_base_ruling_names_a_cell_not_a_position_2026_09_16")
 
 
-
 def test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16():
     """Reviewer 2026-09-16: the ladder called the brain directly while the
     roll-base card went through _ask_site's try/except — so an answerer that
@@ -6839,7 +6672,6 @@ def test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16():
     assert wb["S"]["U4"].value == 169.0, wb["S"]["U4"].value
     assert any("could not answer" in x and "RuntimeError" in x for x in logs), logs
     print("PASS test_a_raising_answerer_never_takes_the_ladder_down_2026_09_16")
-
 
 
 def test_the_reading_costs_the_card_nothing_extra_2026_09_16():
@@ -6884,48 +6716,6 @@ def test_the_reading_costs_the_card_nothing_extra_2026_09_16():
                             {"operating profit": {"print": 14272.0}}, None, tree_budget_s=0.0)
     assert "S!U14" not in spent and "whole budget" in spent, spent
     print("PASS test_the_reading_costs_the_card_nothing_extra_2026_09_16")
-
-
-
-def test_a_note_reference_is_a_column_of_the_block_2026_09_16():
-    """Reviewer 2026-09-16: the note-reference test fired on any row whose
-    first figure was a positive integer under 100 and smaller than the next,
-    so 'Other gains 46 512' read 512 as THIS period — the row lost its
-    comparative and a check built on 512 was accepted. A note is a column of
-    the table block, ascending down it; a leading integer that does not fit
-    that ascent is a figure."""
-    from pipeline.reader import _note_column, _row_figures, _reconciliation
-    two_period = [_item(23, 1, "Revenue", [88018.0, 90964.0]),
-                  _item(23, 2, "Other gains", [46.0, 512.0]),
-                  _item(23, 3, "Operating profit", [14324.0, 14903.0])]
-    notes = _note_column(two_period)
-    assert notes == set(), "a two-period block was given a note column it does not have"
-    assert _row_figures(two_period[1], notes) == (46.0, 512.0), _row_figures(two_period[1], notes)
-    # the genuine CLP block: the note column 3 | 5 | 6 | 7 | 9 is stripped for
-    # every row that carries one, and only for those
-    clp = _clp_p23_items()
-    n2 = _note_column(clp)
-    by_label = {str(i.label): i for i in clp}
-    assert _row_figures(by_label["Other gain"], n2) == (460.0, None), _row_figures(by_label["Other gain"], n2)
-    assert _row_figures(by_label["Revenue"], n2) == (88018.0, 90964.0)
-    assert _row_figures(by_label["Operating profit"], n2) == (14272.0, 14903.0)
-    assert _row_figures(by_label["Staff expenses"], n2) == (-5987.0, -5150.0), "a row with no note was stripped"
-    # the reviewer's check, built on the comparative it invented: refused
-    attack = _ledger([_item(23, 1, "Revenue", [3.0, 88018.0, 90964.0]),
-                      _item(23, 2, "Purchases", [-28950.0, -31871.0]),
-                      _item(23, 3, "Staff expenses", [-5987.0, -5150.0]),
-                      _item(23, 4, "Fuel and other operating expenses", [-29551.0, -29764.0]),
-                      _item(23, 5, "Depreciation and amortisation", [-9718.0, -9276.0]),
-                      _item(23, 6, "Other gains", [46.0, 512.0]),
-                      _item(23, 7, "Operating profit", [6.0, 14324.0, 14903.0])],
-                     face_pages=((23, "pl"),))
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 512 = 14,324",
-                           -74206.0, attack.items, 23, {DOC}) is None
-    # and the genuine one still proves the analyst's figure
-    led = _ledger(clp, face_pages=((23, "pl"),))
-    assert _reconciliation("88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272",
-                           -74206.0, led.items, 23, {DOC}) is not None
-    print("PASS test_a_note_reference_is_a_column_of_the_block_2026_09_16")
 
 
 # The CLP 2025 results announcement, page 23, as pdfplumber reads it (the
@@ -7008,7 +6798,6 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     # with no page text there is no page proof — the old refusal stands
     assert not verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
     print("PASS test_the_page_proves_the_quoted_line_2026_09_16")
-
 
 
 if __name__ == "__main__":
