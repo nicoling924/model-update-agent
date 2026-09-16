@@ -1,4 +1,4 @@
-run 35107991176 · head 108929e · 58 min · BEST DFE: balanced every year, every printed key ties (8/8; gross profit, op profit, DPS = Fable 5 exactly), cash positive rising, 89% vs Fable 5, 0 wrong unflagged; 13 forecast sense lines left open red as judgment; review 91 turns / 21.5 min
+run 35107991176 · head 108929e · NOT deliverable: Model!U28 reported net profit 2,755 vs print 3,831 — Raw financials!U16 other business cost written 1,102.4 from a 合计 TOTAL line the name judge had already refused (r430), re-offered on a SERVE card with a "prior tie EXACT" tick (r591-593); the "net profit" key was pinned to Raw financials!U40 (the statement copy) so the key check passed while the model P&L was wrong. Balance holds; 89% vs the Fable 5 file is meaningless for this row.
 reference: Dongfang Electric Claude Fable 5.xlsx
 1. filled input cells judged: 227; correct: 201 (89%)
 2. wrong: 26 — red 8, orange 18
