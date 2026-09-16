@@ -6928,6 +6928,88 @@ def test_a_note_reference_is_a_column_of_the_block_2026_09_16():
     print("PASS test_a_note_reference_is_a_column_of_the_block_2026_09_16")
 
 
+# The CLP 2025 results announcement, page 23, as pdfplumber reads it (the
+# statement the run 34993405014 reader quoted; the unlabelled
+# '(74,206) (76,061)' row is the operating-expense total the model keeps).
+_CLP_P23_TEXT = (
+    "Page 23 of 42\n"
+    "FINANCIAL INFORMATION\n"
+    "The financial information has been reviewed by the Audit & Risk Committee, approved by the Board\n"
+    "and agreed by the Group’s external auditor, PricewaterhouseCoopers, to the amounts set out in the\n"
+    "audited financial statements.\n"
+    "Consolidated Statement of Profit or Loss\n"
+    "for the year ended 31 December 2025\n"
+    "2025 2024\n"
+    "Note HK$M HK$M\n"
+    "Revenue 3 88,018 90,964\n"
+    "Expenses\n"
+    "Purchases and distributions of electricity and gas (28,950) (31,871)\n"
+    "Staff expenses (5,987) (5,150)\n"
+    "Fuel and other operating expenses (29,551) (29,764)\n"
+    "Depreciation and amortisation (9,718) (9,276)\n"
+    "(74,206) (76,061)\n"
+    "Other gain 5 460 -\n"
+    "Operating profit 6 14,272 14,903\n"
+    "Finance costs (1,860) (2,254)\n"
+    "Finance income 194 235\n"
+    "Share of results, net of income tax\n"
+    "Joint ventures (12) 845\n"
+    "Associates 1,607 1,810\n"
+    "Profit before income tax 14,201 15,539\n"
+    "Income tax expense 7 (2,655) (2,821)\n"
+    "Profit for the year 11,546 12,718\n"
+    "Earnings attributable to:\n"
+    "Shareholders 10,468 11,742\n"
+    "Perpetual capital securities holders 199 136\n"
+    "Other non-controlling interests 879 840\n"
+    "11,546 12,718\n"
+    "Earnings per share, basic and diluted 9 HK$4.14 HK$4.65\n")
+
+
+def test_the_page_proves_the_quoted_line_2026_09_16():
+    """Run 34993405014: the reader answered Final!14 = -74,206 quoting the
+    printed line '(74,206) (76,061)' and verify() refused it — 'no printed
+    line on p23 carries -74206' — because it could only look at the table
+    extractor's items, and the extractor drops a row that prints no label.
+    Both 2025 keys stayed -2,315 off the print. The PAGE is the proof: a line
+    of that page printing the answered figure (and every other number the
+    answer quotes from it) is a printed line, plain when its printed
+    comparative ties the model's prior."""
+    from pipeline.reader import verify
+    led = _ledger([_item(23, 1, "Revenue", [3.0, 88018.0, 90964.0])], face_pages=((23, "pl"),))
+    led._doc_periods = {DOC: "current"}
+    pt = {(DOC, 23): _CLP_P23_TEXT}
+    rows = [{"row": "Final!14", "sheet": "Final", "r": 14, "label": "Operating expenses", "prior": -76061.0}]
+    ans = [{"row": "Final!14", "printed": -74206.0, "page": 23, "line": "(74,206) (76,061)",
+            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"}]
+    v = verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)
+    assert "Final!14" in v, "the page's own printed line was refused"
+    assert abs(v["Final!14"]["value"] + 74206.0) < 1e-6, v["Final!14"]
+    assert v["Final!14"]["conf"] == 4 and v["Final!14"]["flag"] is None, v["Final!14"]
+    # the same quoted line against a row whose prior it does not carry: written RED
+    rows_r = [{"row": "Final!15", "sheet": "Final", "r": 15, "label": "Operating costs", "prior": -70000.0}]
+    ans_r = [dict(ans[0], row="Final!15")]
+    vr = verify(ans_r, rows_r, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-70000.0], page_text=pt)
+    assert vr["Final!15"]["flag"] == "red" and vr["Final!15"]["conf"] == 3, vr["Final!15"]
+    assert abs(vr["Final!15"]["value"] + 74206.0) < 1e-6, vr["Final!15"]
+    assert "no prior tie" in (vr["Final!15"]["note"] or ""), vr["Final!15"]["note"]
+    # a figure the page does not print is still refused
+    ghost = [dict(ans[0], printed=-74207.0, line="(74,207) (76,061)")]
+    assert not verify(ghost, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)
+    # a number the answer quotes that the line does not print is not that line
+    wrong_quote = [dict(ans[0], line="(74,206) (70,000)")]
+    assert not verify(wrong_quote, rows, led, {(DOC, 23): 1.0}, lambda s: None,
+                      priors=[-76061.0], page_text=pt)
+    # THE ROW'S OWN FIGURE, never the subtotal it feeds: an answer of 14,272
+    # for the expense row is the closer of its own check — refused
+    sub = [{"row": "Final!14", "printed": 14272.0, "page": 23, "line": "Operating profit 6 14,272 14,903",
+            "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"}]
+    assert not verify(sub, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)
+    # with no page text there is no page proof — the old refusal stands
+    assert not verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
+    print("PASS test_the_page_proves_the_quoted_line_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0

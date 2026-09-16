@@ -46,7 +46,10 @@ _SYSTEM = (
     "- 5,987 - 29,551 - 9,718 + 460 = 14,272' for the operating-profit block. Quote the printed line "
     "EXACTLY as it appears (label and the printed digits, in the document's own units) — the number "
     "you quote is checked against the page; a figure you cannot quote from a printed line and cannot "
-    "prove with such a check is null with the reason 'not found'. Never guess. Answer ONLY with "
+    "prove with such a check is null with the reason 'not found'. The figure you put in "
+    "\"printed\" is THIS row's OWN figure — never the subtotal the row feeds: in a check "
+    "'a - b - c = d', d is the subtotal and a row that is one of the terms is not answered "
+    "with d. Never guess. Answer ONLY with "
     "JSON: {\"rows\": [{\"row\": \"<id>\", "
     "\"printed\": <the printed number for THIS period, in the document's units, or null>, "
     "\"page\": <int or null>, \"line\": \"<printed line label>\", \"check\": \"<the closing "
@@ -386,6 +389,94 @@ def _reconciled_verdict(rec, printed, pv, page, page_scales, dom, log, rid):
             "why": f"read: the stated check closes the printed subtotal — {rec['check']}; {why}"}
 
 
+def _closes_on(text):
+    """The figure the answer's own check names as the subtotal it closes on:
+    'a - b - c = 14,272 = Operating profit' -> 14,272. None when the answer
+    states no closing arithmetic."""
+    from .numerics import parse_number
+    s = str(text or "")
+    if "=" not in s:
+        return None
+    import re as _re
+    m = _re.search(r"\(?-?\d[\d,]*(?:\.\d+)?\)?", s.split("=", 1)[1])
+    return parse_number(m.group(0)) if m else None
+
+
+def _page_line(page_text, page, printed, line, sources):
+    """THE PAGE IS THE PROOF (run 34993405014: the CLP P&L prints its
+    operating-expense total as '(74,206) (76,061)' with no label, the table
+    extractor kept no item for it, and the reader's correct -74,206 was
+    refused because verify() could only look at the extractor's table).
+
+    The evidence is the page's own text: a printed line of that page carrying
+    the answered figure exactly as printed, together with every other number
+    the answer quotes from that line. -> {"doc", "text", "figure", "prior"}
+    (prior = the number printed next on the same line, the comparative) or
+    None when no line of the page prints it."""
+    from .numerics import line_numbers
+    if not isinstance(printed, (int, float)) or not page_text:
+        return None
+    quoted = line_numbers(str(line or ""))
+    best = None
+    for doc in sorted(sources):
+        txt = (page_text or {}).get((doc, page))
+        if not txt:
+            continue
+        for raw in str(txt).splitlines():
+            nums = line_numbers(raw)
+            if not nums:
+                continue
+            idx = next((i for i, n in enumerate(nums) if _exact(n, printed)), None)
+            if idx is None:
+                continue
+            if any(not any(_exact(q, n) for n in nums) for q in quoted):
+                continue          # the answer quotes a number this line does not print
+            hit = {"doc": doc, "text": raw.strip()[:160], "figure": nums[idx],
+                   "prior": (nums[idx + 1] if idx + 1 < len(nums) else None)}
+            if hit["prior"] is not None:
+                return hit        # a line printing the comparative too can settle plain/red
+            best = best or hit
+    return best
+
+
+def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
+    """The verdict on a figure proved by the PAGE: the value at the scale its
+    own printed comparative proves, the model's sign, PLAIN when that
+    comparative ties the model's prior at the model's precision (the same law
+    the ledger path applies, applied to the page's text) and RED when it does
+    not — or when the page's ratified scale and the scale of that tie
+    disagree."""
+    from .writegate import _SCALES, _ties_full_precision
+    f_page = page_scales.get((hit["doc"], page)) or dom.get(hit["doc"])
+    comp = hit.get("prior")
+    f_tie = None
+    if isinstance(comp, (int, float)) and isinstance(pv, (int, float)) and abs(pv) >= 0.5:
+        f_tie = next((f for f in ([f_page] if f_page else []) + list(_SCALES)
+                      if _ties_full_precision(comp / f, pv)), None)
+    f_use = f_tie or f_page
+    if not f_use:
+        if log:
+            log(f"[read]   unverified {rid}: quoted from p{page} but the page has no ratified scale — not written")
+        return None
+    scale_clash = bool(f_tie and f_page and f_tie != f_page)
+    value = float(printed) / float(f_use)
+    if f_tie and isinstance(pv, (int, float)) and pv != 0 and comp != 0 and (comp < 0) != (pv < 0):
+        value = -value                       # the line negates the model's convention
+    elif not f_tie and isinstance(pv, (int, float)) and pv != 0 and value != 0 and (pv < 0) != (value < 0):
+        value = -value                       # no tie: the model owns the sign convention
+    plain = bool(f_tie) and not scale_clash
+    note = None if plain else (
+        f"Quoted from p{page} ('{hit['text'][:60]}'); "
+        + ("the comparative ties at a scale the page does not carry" if scale_clash
+           else "no prior tie — the printed line does not carry last year's figure")
+        + ". Please confirm.")
+    return {"value": value, "conf": 4 if plain else 3, "flag": None if plain else "red",
+            "note": note, "doc": hit["doc"], "page": page, "line": hit["text"][:60],
+            "why": (f"read: quoted from p{page} '{hit['text'][:40]}'"
+                    + (", the printed comparative ties the prior" if plain
+                       else f", no prior tie"))}
+
+
 def _nil_line(items, page, pv, sources):
     """A line on `page` printing ONE number equal to the model's prior:
     last year's figure beside a blank — this year is 0."""
@@ -401,13 +492,15 @@ def _nil_line(items, page, pv, sources):
     return None
 
 
-def verify(answers, rows, ledger, page_scales, log=None, priors=None):
+def verify(answers, rows, ledger, page_scales, log=None, priors=None, page_text=None):
     """-> {row_id: verdict}; verdict = {"value", "conf", "flag", "note",
     "doc", "page", "line", "why"}. Nothing here trusts the brain's number:
     the value is recomputed from the printed digits at the page's ratified
     scale; the tie is checked on the printed line; the model's sign wins.
     `priors`: every model prior (all target rows), so a lone printed number
-    equal to any of them is known for what it is — last year's."""
+    equal to any of them is known for what it is — last year's.
+    `page_text`: {(doc, page): the page's raw text} — the PAGE itself, so a
+    line the table extractor kept no item for can still prove a reading."""
     from .writegate import _SCALES, _ties_full_precision
     by_row = {r["row"]: r for r in rows}
     all_priors = [abs(float(p)) for p in (priors if priors is not None else [r["prior"] for r in rows])
@@ -438,6 +531,30 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None):
                             "page": page, "line": str(nil.label)[:60],
                             "why": "read: last year's figure printed beside a blank — 0"}
                 continue
+            hit = _page_line(page_text, page, printed, line, sources)
+            closer = _closes_on(a.get("check"))
+            if hit is not None and closer is not None and _exact(closer, printed):
+                # the answer's OWN account of the figure: it is the subtotal
+                # the terms close on, not this row's line (the prompt says
+                # "printed" is the row's own figure) — nothing is written
+                hit = None
+                if log:
+                    log(f"[read]   unverified {rid}: {printed!r} is the subtotal the answer's own check "
+                        "closes on, not the row's own figure — not written")
+            if hit is not None:
+                v = _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid)
+                if v is not None:
+                    key = (hit["doc"], page, hit["text"], round(abs(v["value"]), 2))
+                    other = homes.get(key)
+                    if other is not None and other != rid and not (
+                            isinstance(pv, (int, float)) and by_row[other]["prior"] == pv):
+                        out.pop(other, None)          # ONE HOME: one printed line answers one row
+                        if log:
+                            log(f"[read]   {rid} and {other} both claim the same printed line — neither written")
+                        continue
+                    homes[key] = rid
+                    out[rid] = v
+                    continue
             rec = _reconciliation(a.get("check") or a.get("reason"), printed, ledger.items, page, sources)
             if rec is not None:
                 v = _reconciled_verdict(rec, printed, pv, page, page_scales, dom, log, rid)
@@ -620,6 +737,18 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
     if not docs:
         return 0
     text, image_pages = _doc_text(docs)
+    # the PAGES themselves (disk-cached by stage 1 — free on a re-read): the
+    # evidence a quoted line is checked against, whatever the table extractor
+    # made of it
+    from .stage1_read import page_texts as _page_texts
+    page_text = {}
+    for _p in docs:
+        try:
+            for _pn, _t, _cls in _page_texts(str(_p)):
+                if _t:
+                    page_text[(_p.name, _pn)] = _t
+        except Exception as _e:
+            log(f"[read] page text unavailable for {_p.name}: {_e!r} — quoted lines fall back to the ledger")
     imgs = _images(image_pages)
     from .stage2_join import ratify_page_scales
     priors = [t.prior_value for t in targets.values()
@@ -647,7 +776,7 @@ def brain_read(client, company_dir, period, target_year, wb, spec, targets, ledg
         answers += [a for a in (obj.get("rows") or []) if isinstance(a, dict)]
     log(f"[read] the brain read {len(docs)} document(s) for {len(rows)} rows: {len(answers)} answers "
         f"({_time.monotonic() - _t0:,.0f}s)")
-    verdicts = verify(answers, rows, ledger, page_scales, log, priors=priors)
+    verdicts = verify(answers, rows, ledger, page_scales, log, priors=priors, page_text=page_text)
     # the reading is evidence for the replay and the morning grade
     try:
         import json as _json
