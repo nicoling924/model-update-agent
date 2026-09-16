@@ -7277,6 +7277,27 @@ def test_the_review_never_eats_the_finish_margin_2026_09_16():
     print("PASS test_the_review_never_eats_the_finish_margin_2026_09_16")
 
 
+def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():
+    """Owner 2026-09-16, after the first live review (run 35089032559): the mandate
+    said WHAT must hold and never showed what closing a break looks like, so 22 of
+    22 turns went to `show` and the model shipped +3,150 out. The mandate now carries
+    a worked example in the owner's own words — and says in the same breath that it
+    is one way of reasoning, not a path to follow."""
+    from pipeline.review import MANDATE
+    m = " ".join(MANDATE.split())
+    for phrase in ("total liabilities and equity should equal X",
+                   "my liabilities tie the print, so the gap is on the equity side",
+                   "which cells on that side did I fill with low confidence? back one out",
+                   "re-check balance, keys and rollover; then the next number"):
+        assert phrase in m, phrase
+    assert "ONE way of reasoning, not steps to follow" in m, m[:400]
+    assert "Every model is structured differently — reason your own way" in m
+    assert "this is how an analyst thinks, not a checklist" in m
+    for banned in ("prefer", "ranking", "share of the break"):
+        assert banned not in m.lower(), banned
+    print("PASS test_the_mandate_shows_how_a_break_is_closed_2026_09_16")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
