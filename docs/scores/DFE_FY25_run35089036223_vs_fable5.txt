@@ -1,0 +1,50 @@
+run 35089036223 · head c068a7f (review loop, first live) · 54 min · balanced every year (Model!95/135, Driver!109/139 all 0) · keys 8/11 (was 6/11) · cash positive rising · 37 red / 40 orange / 1 plug · review 37 turns / 12 min
+reference: Dongfang Electric Claude Fable 5.xlsx
+1. filled input cells judged: 229; correct: 185 (81%)
+2. wrong: 44 — red 11, orange 32
+3. wrong and NOT highlighted: 1
+per sheet (judged, correct): {'Model': [6, 5], 'Raw financials': [170, 158], 'Driver': [51, 20], 'Cons': [2, 2]}
+   none   Driver!J107   Impairment                   agent=        -93.71 ref=        -88.69
+   red    Driver!J10    Wind                         agent=      13269.35 ref=      18224.19
+   orange Driver!J11    Hydro                        agent=       3333.62 ref=       3902.82
+   orange Driver!J12    Modern manufacturing service agent=       8532.56 ref=       6813.56
+   orange Driver!J136   Exchange gain/(losses)       agent=         -5.93 ref=        -25.21
+   red    Driver!J137   Service charge and others    agent=       -199.88 ref=       -139.11
+   red    Driver!J155   =A6                          agent=             0 ref=       78945.1
+   red    Driver!J159   New Energy (Mostly Wind & Hy agent=      29879.37 ref=             0
+   red    Driver!J160   =A12                         agent=       9891.34 ref=       25971.1
+   orange Driver!J162                                agent=     114086.96 ref=        117251
+   orange Driver!J172   Production                   agent=       4287.48 ref=        8056.6
+   orange Driver!J173   Sales                        agent=        6504.2 ref=          4230
+   orange Driver!J174   Inventory                    agent=       1528.42 ref=        5181.6
+   orange Driver!J177   Sales                        agent=       45179.3 ref=         51089
+   orange Driver!J178   Inventory                    agent=      25556.82 ref=         29420
+   orange Driver!J181   Sales                        agent=      10125.61 ref=       12656.6
+   orange Driver!J182   Inventory                    agent=       2214.47 ref=        3332.7
+   orange Driver!J185   Sales                        agent=       27349.2 ref=         49069
+   orange Driver!J186   Inventory                    agent=      14507.05 ref=         14202
+   orange Driver!J189   Sales                        agent=      28274.15 ref=         28930
+   orange Driver!J39    =+A6                         agent=     -26149.63 ref=     -28670.84
+   orange Driver!J40    =A7                          agent=      -7436.44 ref=      -4951.68
+   orange Driver!J41    =A8                          agent=      -4178.53 ref=      -4295.16
+   red    Driver!J43    =+A10                        agent=     -13320.17 ref=     -17707.91
+   orange Driver!J44    =+A11                        agent=      -2657.53 ref=      -3429.35
+   orange Driver!J45    =+A12                        agent=      -4322.52 ref=      -3646.27
+   orange Driver!J6     High-efficient clean energy  agent=      31987.71 ref=      35779.11
+   orange Driver!J7         Gas Turbine              agent=       8186.94 ref=       5627.57
+   orange Driver!J8         Nuclear power equipment  agent=       5500.87 ref=       5659.96
+   orange Driver!J83    Domestic                     agent=      13164.42 ref=      73476.07
+   orange Driver!J84    Overseas                     agent=        3060.8 ref=       5139.21
+   red    Model!U38    Dividend 现金分红                agent=       1366.32 ref=       1832.93
+   orange Raw financials!U15                        减：利息收入   agent=         149.7 ref=        108.21
+   orange Raw financials!U156       非流动负债合计                  agent=      11228.07 ref=      12182.47
+   orange Raw financials!U159       负债合计                     agent=     111520.83 ref=     114505.94
+   orange Raw financials!U16            其他业务成本(金融类)          agent=          29.5 ref=         25.91
+   orange Raw financials!U185       销售商品、提供劳务收到的现金           agent=      82747.53 ref=      86122.14
+   orange Raw financials!U188           经营活动现金流入(金融类)        agent=       1691.33 ref=        393.22
+   orange Raw financials!U196           经营活动现金流出(金融类)        agent=      -1438.21 ref=      -4033.02
+   red    Raw financials!U207       收到其他与投资活动有关的现金           agent=        153.51 ref=         19.08
+   red    Raw financials!U266               间接法-经营活动现金流量净额差额 agent=        152.71 ref=             0
+   red    Raw financials!U281   转换汇率                         agent=             0 ref=             1
+   red    Raw financials!U283   税率                           agent=             0 ref=            15
+   orange Raw financials!U95                        固定资产清理   agent=          6.97 ref=         11.99
