@@ -45,6 +45,11 @@ it lands red for the analyst — it is never refused for want of evidence."""
 # ── reading the model ────────────────────────────────────────────────────
 
 def _num(x):
+    """A number, or None. A BLANK IS NOT A ZERO (reviewer 2026-09-16: empty
+    history cells read as 0.00 and the brain was shown a history the model does
+    not have — and ranked on it)."""
+    if x is None or (isinstance(x, str) and not x.strip()) or isinstance(x, bool):
+        return None
     try:
         return round(float(x), 2)
     except (TypeError, ValueError):
@@ -52,9 +57,27 @@ def _num(x):
 
 
 def _fmt(x):
+    """Enough precision for the brain to quote the value back at code: two
+    decimals up to the point where a statement stops printing them."""
     if x is None:
         return ""
-    return f"{x:,.2f}" if abs(x) < 100 else f"{x:,.0f}"
+    return f"{x:,.2f}" if abs(x) < 10000 else f"{x:,.0f}"
+
+
+def _held(wb, ev, sheet, coord):
+    """The number this cell HOLDS, or None. AN EMPTY CELL HOLDS NOTHING
+    (reviewer 2026-09-16): an evaluator answers 0 for a blank reference, and
+    those zeros were printed to the brain as history and ranked on."""
+    try:
+        raw = wb[sheet][coord].value
+    except Exception:  # noqa: BLE001
+        return None
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    try:
+        return _num(ev.cell(sheet, coord))
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _label(ws, r):
@@ -103,7 +126,10 @@ def _value_index(loop):
         if not _sourceable(it):
             continue
         for n in _nums(it):
-            if not isinstance(n, (int, float)) or n == 0:
+            if not isinstance(n, (int, float)):
+                continue
+            if n == 0:
+                idx.setdefault(0.0, []).append((it, 1.0))    # a printed zero is a figure, not an absence
                 continue
             for f in _SCALES:
                 v = abs(n) / f
@@ -138,7 +164,7 @@ def _evidence_line(loop, sheet, coord, value, prior):
     over the first row that merely carries the number."""
     from .writegate import ties_prior
     first = None
-    for it, scale in _hits(loop, value)[:12]:
+    for it, scale in _hits(loop, value):
         tie = ties_prior(it, scale, prior, value) if isinstance(prior, (int, float)) else False
         if tie:
             return f"p{getattr(it, 'page', '?')} '{_quote(it)[:90]}' — comparative ties the model's prior {_fmt(prior)}"
@@ -295,7 +321,8 @@ def _headline_rows(loop):
         return []
 
 
-def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap=260, trace_budget_s=40.0):
+def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), history=(),
+                  size_cap=40000, trace_budget_s=40.0):
     """One reading of the model for the brain: the objectives measured, the
     headline lines against the analyst's own book, every written actual-column
     cell with its move against its history and its printed evidence, and the
@@ -311,18 +338,18 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
         ac, fcs = _act_col(loop, sh), forecast_columns(spec, sh, ty) or []
         if not ac:
             continue
-        hist = " | ".join(_fmt(_num(ev0.cell(sh, f"{c}{r}"))) for c in _hist_cols(loop, sh))
+        hist = " | ".join(_fmt(_held(pre_wb, ev0, sh, f"{c}{r}")) for c in _hist_cols(loop, sh))
         est, now = _fmt(_num(ev0.cell(sh, f"{ac}{r}"))), _fmt(_num(ev.cell(sh, f"{ac}{r}")))
         nx = (f" | next {_fmt(_num(ev0.cell(sh, f'{fcs[0]}{r}')))} → {_fmt(_num(ev.cell(sh, f'{fcs[0]}{r}')))}") if fcs else ""
         L.append(f"  {sh}!{ac}{r:<5} {role:26} {hist} | est {est} | now {now}{nx}")
     L.append("")
-    L.append("## 3. EVERY CELL THE RUN WROTE IN THE ACTUAL COLUMN (largest move against the cell's own history first; "
-             "a cell with no history to judge against is listed last)")
+    L.append("## 3. EVERY CELL THE RUN WROTE IN THE ACTUAL COLUMN (largest move against the cell's own "
+             "history first; the cells with NO history in this model come after them, under their own heading)")
     first = {}
     for sh_w, co_w, old_w, _new in (loop.writer.log.get("writes_all", []) or []):
         if sh_w in wb.sheetnames and _col_of(co_w) == _act_col(loop, sh_w) and (sh_w, co_w) not in first:
             first[(sh_w, co_w)] = old_w
-    rows = []
+    rows, nohist = [], []
     for (sh, co), old in first.items():
         r = _row_of(co)
         try:
@@ -333,23 +360,47 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
         if new is None:
             L.append(f"  {sh}!{co} '{_label(wb[sh], r)}' — written by the run, reads as {wb[sh][co].value!r} (not a number)")
             continue
-        hist = [h for h in (_num(ev0.cell(sh, f"{c}{r}")) for c in _hist_cols(loop, sh)) if h is not None]
-        lo, hi = (min(hist), max(hist)) if hist else (None, None)
-        if hist and hi - lo > 0:
-            out = max(lo - new, new - hi, 0) / max(abs(hi), abs(lo), 1)
-        elif hist:
-            out = abs(new - hi) / max(abs(hi), 1)
-        else:
-            out = -1.0
+        # A BLANK IS NOT A ZERO (reviewer 2026-09-16): a cell the model simply
+        # does not carry in the earlier years has NO history, and is neither
+        # ranked on a history it does not have nor called "within its history"
+        hist = [h for h in (_held(pre_wb, ev0, sh, f"{c}{r}") for c in _hist_cols(loop, sh)) if h is not None]
         pcol = prior_column(spec, sh, ty)
-        prior = _num(ev0.cell(sh, f"{pcol}{r}")) if pcol else None
-        rows.append((out, sh, co, _label(wb[sh], r), _num(old), new, hist, _fill(wb[sh][co]),
-                     _evidence_line(loop, sh, co, new, prior)))
+        prior = _held(pre_wb, ev0, sh, f"{pcol}{r}") if pcol else None
+        row = (sh, co, _label(wb[sh], r), _num(old), new, hist, _fill(wb[sh][co]),
+               _evidence_line(loop, sh, co, new, prior))
+        if not hist:
+            nohist.append(row)
+            continue
+        lo, hi = min(hist), max(hist)
+        out = (max(lo - new, new - hi, 0) / max(abs(hi), abs(lo), 1)) if hi - lo > 0 else (abs(new - hi) / max(abs(hi), 1))
+        rows.append((out, row))
     rows.sort(key=lambda t: -t[0])
-    for _o, sh, co, lab, old, new, hist, flag, evid in rows[:cap]:
-        L.append(f"  {sh}!{co:<6} {lab:40} was {_fmt(old):>11} → now {_fmt(new):>11} | "
-                 f"history {', '.join(_fmt(h) for h in hist):32} | {flag:6} | {evid}")
-    L.append(f"  ({len(rows)} written cells in total{'; the rest are within their history' if len(rows) > cap else ''})")
+
+    def _line(row):
+        sh_, co_, lab, old_, new_, hist_, flag, evid = row
+        return (f"  {sh_}!{co_:<6} {lab:40} was {_fmt(old_):>12} → now {_fmt(new_):>12} | "
+                f"history {(', '.join(_fmt(h) for h in hist_) or 'none in this model'):34} | {flag:6} | {evid}")
+    # the section is capped by SIZE, not by a row count: what the brain can read
+    # in one turn is a budget of characters, and the rest is named as unshown
+    room, shown = size_cap, 0
+    for _o, row in rows:
+        ln = _line(row)
+        if room - len(ln) < 0:
+            break
+        room -= len(ln)
+        shown += 1
+        L.append(ln)
+    L.append(f"  — the cells with no history in this model ({len(nohist)}):" if nohist else "")
+    for row in nohist:
+        ln = _line(row)
+        if room - len(ln) < 0:
+            break
+        room -= len(ln)
+        shown += 1
+        L.append(ln)
+    left_over = len(rows) + len(nohist) - shown
+    L.append(f"  ({len(rows) + len(nohist)} written cells in total"
+             + (f"; {left_over} more not shown here — `show` any cell you want to see" if left_over else "") + ")")
     L.append("")
     L.append("## 4. TRACE — the headline lines whose next-year forecast moved more than 10% against the analyst's book, "
              "and the typed inputs that carry the move")
@@ -390,6 +441,13 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), cap
         L.append("")
         L.append("## 6. YOUR LAST TURN")
         L += list(answers)
+    if history:
+        # WHAT YOU HAVE ALREADY DONE (reviewer 2026-09-16: the brain saw only the
+        # last turn, so it re-tried the same cell turn after turn and burned the
+        # clock re-learning what it had just been told)
+        L.append("")
+        L.append("## 7. EVERY TURN BEFORE THAT (what you called, and what came back)")
+        L += [f"  {h}" for h in history]
     return "\n".join(L)
 
 
@@ -419,7 +477,7 @@ def t_show(loop, pre_wb, ref):
     r, wb = _row_of(co), loop.wb
     ev, ev0 = Evaluator(wb), Evaluator(pre_wb)
     out = [f"show {sh}!{co} '{_label(wb[sh], r)}'"]
-    out.append("    history " + ", ".join(f"{c}={_fmt(_num(ev0.cell(sh, f'{c}{r}')))}" for c in _hist_cols(loop, sh))
+    out.append("    history " + ", ".join(f"{c}={_fmt(_held(pre_wb, ev0, sh, f'{c}{r}'))}" for c in _hist_cols(loop, sh))
                + f" | analyst's estimate {_fmt(_num(ev0.cell(sh, co)))} | now {_fmt(_num(ev.cell(sh, co)))}")
     held = wb[sh][co].value
     out.append(f"    the cell holds: {str(held)[:120]}")
@@ -501,12 +559,14 @@ def _evidence_verdict(loop, sets, because):
         if not isinstance(v, (int, float)):
             return False, False, "the value is not a number code can tie"
         pcol = prior_column(loop.spec, sh, int(loop.ty))
-        prior = _num(Evaluator(loop.wb).cell(sh, f"{pcol}{_row_of(co)}")) if pcol else None
+        prior = _held(loop.wb, Evaluator(loop.wb), sh, f"{pcol}{_row_of(co)}") if pcol else None
         words = re.findall(r"[A-Za-z一-鿿]{4,}", because)
         quoted = False
-        for it, scale in _hits(loop, v)[:20]:
+        for it, scale in _hits(loop, v):
             line = _quote(it)
-            named = any(w.lower() in line.lower() for w in words) or str(getattr(it, "page", "")) in because
+            pg = str(getattr(it, "page", ""))
+            on_page = bool(pg) and re.search(rf"(?:^|\b)(?:p\.?|pp\.?|page)\s*{re.escape(pg)}(?!\d)", because, re.I)
+            named = any(w.lower() in line.lower() for w in words) or bool(on_page)
             if named and ties_prior(it, scale, prior, v):
                 quoted = True
                 break
@@ -564,6 +624,14 @@ def _apply_sets(loop, sets, plain, proven, note, log):
 
 
 # ── the loop ─────────────────────────────────────────────────────────────
+
+def _call_text(call):
+    """One line for the record: what was asked, in the brain's own terms."""
+    tool = str(call.get("tool") or "?")
+    if call.get("sets"):
+        return tool + " " + ", ".join(f"{c.get('ref')}={c.get('value')}" for c in call["sets"] if isinstance(c, dict))
+    return tool + " " + str(call.get("ref") or call.get("check") or call.get("q") or "")[:60]
+
 
 def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate_once, hold_zero, state):
     """Answer one tool call. -> (lines, result) where result is None, or the
@@ -783,7 +851,8 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                 log("[review] clock: what remains is written up")
                 break
             try:
-                ctx = build_context(loop, pre_wb, key_panel, panel_path, notes=notes, answers=answers)
+                ctx = build_context(loop, pre_wb, key_panel, panel_path, notes=notes,
+                                    answers=answers, history=state.get("history", []))
             except Exception as e:  # noqa: BLE001
                 # THE LAST RESORT IS NEVER SKIPPED (reviewer 2026-09-16: a raise in
                 # the context walked out of the loop and the model shipped unbalanced)
@@ -850,6 +919,8 @@ def _turns(loop, pre_wb, log, ask_json, gate_once, repair_round, hold_zero,
                     _fault(loop, f"the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
                     out, res = [f"    that call failed: {type(e).__name__}: {str(e)[:120]}"], None
                 answers += out
+                state.setdefault("history", []).append(
+                    f"turn {turn + 1}: {_call_text(call)} → {' '.join(str(out[0]).split())[:150] if out else '(nothing)'}")
                 for ln in out:
                     log(f"[review]   {ln.strip()[:300]}")
                 if res is not None:

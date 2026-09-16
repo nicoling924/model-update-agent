@@ -6813,7 +6813,7 @@ def test_the_review_shows_the_written_cell_with_its_history_and_the_printed_line
     lp, pre, panel, _logs = _review_harness()
     ctx = build_context(lp, pre, panel, None)
     line = next(ln for ln in ctx.splitlines() if "HK Sales!AI16" in ln)
-    assert "was       44.30 → now        1.00" in line, line
+    assert "was        44.30 → now         1.00" in line, line
     assert "30.20, 46.10, 38.00, 44.30" in line, line
     assert "Fuel Cost Adjustment 1 46.3 46.3 62.0 38.6 28.1" in line, line
     assert "no row carrying this value has a comparative that ties the model's prior 44.30" in line, line
@@ -6830,7 +6830,7 @@ def test_a_try_measures_the_objective_and_restores_2026_09_16():
     out, res = _one_call(lp, pre, {"tool": "try", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}]},
                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     body = "\n".join(out)
-    assert "Final!AK57 cash 2027" in body and "-20,153 → 600" in body, body
+    assert "Final!AK57 cash 2027" in body and "-20,153 → 600.00" in body, body
     assert res is None and lp.wb["HK Sales"]["AI16"].value == 1.00, (res, lp.wb["HK Sales"]["AI16"].value)
     assert "the trial was unwound" in body, body
     print("PASS test_a_try_measures_the_objective_and_restores_2026_09_16")
@@ -6848,7 +6848,7 @@ def test_a_compensating_pair_is_one_change_and_closes_the_check_2026_09_16():
                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
     body = "\n".join(out)
     assert abs(_metrics(lp, panel, None)["Final!AI99"][1]) < 0.5, body
-    assert "Final!AI99" in body and "223 → 0" in body, body
+    assert "Final!AI99" in body and "223.00 → 0.00" in body, body
     assert res is not None, "a set is gated and measured"
     print("PASS test_a_compensating_pair_is_one_change_and_closes_the_check_2026_09_16")
 
@@ -7193,6 +7193,88 @@ def test_the_plug_card_can_be_declined_2026_09_16():
     assert "for the review and its last resort" in text, text
     print("PASS test_the_plug_card_can_be_declined_2026_09_16")
 
+
+
+def test_the_context_says_only_what_the_model_actually_holds_2026_09_16():
+    """Reviewer (023d56e..d15bd4e), reproduced: empty history cells read as 0.00,
+    so the brain was shown — and the list was RANKED on — a history the model does
+    not have; the tail of a capped list was called "within their history" when it
+    had never been measured; _fmt printed 88,242 for a value the brain then could
+    not quote back; a printed ZERO was absent from the value index; and the page
+    in a reason was matched as a bare substring."""
+    from pipeline.review import _fmt, _hits, _num, build_context
+    lp, pre, panel, logs = _review_harness()
+    assert _num(None) is None and _num("") is None, "a blank read as a number"
+    assert _fmt(9815.0) == "9,815.00" and _fmt(88242.0) == "88,242", (_fmt(9815.0), _fmt(88242.0))
+    # a printed zero is a figure a page can carry
+    lp.ledger.add(Item(doc="AR.PDF", page=31, table_id=0, row_ord=2, label="Impairment",
+                       nums=[0.0, 12.0], source_line="Impairment - 12"))
+    lp.__dict__.pop("_review_vindex", None)
+    assert _hits(lp, 0.0), "a printed zero is not in the index"
+    ctx = build_context(lp, pre, panel, None)
+    # the model has no 2021-2023 rows for the cells the run wrote: say so, do not invent zeros
+    line = next(ln for ln in ctx.splitlines() if "Final!AI95" in ln and "Retained earnings" in ln)
+    assert "0.00, 0.00, 0.00" not in line and "history 80,000" in line, line
+    assert "within their history" not in ctx, "the unshown tail was called measured"
+    # a cell the model carries in no earlier year has NO history, and is said so
+    lp.wb["HK Sales"]["A20"] = "New line this year"      # a row the model starts THIS year
+    lp.wb["HK Sales"]["AJ20"] = 15.0                      # it is tracked forward, so the writer's law allows it
+    assert lp.writer.write("HK Sales", "AI20", 12.0, trusted=True, force_lock=True, allow_empty=True), \
+        lp.writer.log.get("never_filled_refused")
+    ctx2 = build_context(lp, pre, panel, None)
+    assert "cells with no history in this model" in ctx2, ctx2[ctx2.index("## 3"):][:900]
+    tail = ctx2[ctx2.index("cells with no history in this model"):]
+    assert "HK Sales!AI20" in tail and "none in this model" in tail, tail[:400]
+    # capped by size, and what is not shown is named as not shown
+    small = build_context(lp, pre, panel, None, size_cap=1)
+    assert "not shown here — `show` any cell" in small, small[small.index("## 3"):][:600]
+    print("PASS test_the_context_says_only_what_the_model_actually_holds_2026_09_16")
+
+
+def test_the_brain_is_shown_every_turn_it_has_already_taken_2026_09_16():
+    """Reviewer (023d56e..d15bd4e): the context carried only the LAST turn, so the
+    brain re-tried the same cell turn after turn and burned the clock re-learning
+    what it had just been told. Every prior call is carried, one line each."""
+    from pipeline.review import run_review
+    seen = []
+
+    def ask(system, user):
+        seen.append(user)
+        if len(seen) == 1:
+            return {"calls": [{"tool": "try", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}]}]}
+        if len(seen) == 2:
+            return {"calls": [{"tool": "find", "q": "Fuel Cost"}]}
+        return {"calls": [{"tool": "done", "objectives": {"balance": "x", "keys": "x", "rollforward": "x"}}]}
+    lp, pre, panel, logs = _review_harness()
+    run_review(lp, pre, logs.append, ask, lambda: (True, [], {}), lambda _t: None,
+               {}, panel, None, deadline_s=60.0, max_turns=4)
+    assert len(seen) >= 3, seen
+    third = seen[2]
+    assert "## 7. EVERY TURN BEFORE THAT" in third, third[-800:]
+    assert "turn 1: try HK Sales!AI16=46.3" in third, third[third.index("## 7"):][:400]
+    assert "turn 2: find Fuel Cost" in third, third[third.index("## 7"):][:400]
+    print("PASS test_the_brain_is_shown_every_turn_it_has_already_taken_2026_09_16")
+
+
+def test_the_review_never_eats_the_finish_margin_2026_09_16():
+    """Reviewer (023d56e..d15bd4e): run.py floored the review's deadline at 120 s,
+    so a run already past its budget still spent two minutes of the margin
+    reserved for saving, reporting and the last resort. With nothing left the
+    review runs no turns and goes straight to the ladder — what the margin is for."""
+    import re as _re
+    src = open("pipeline/run.py").read()
+    call = src[src.index("ok, failures, card = _run_review("):]
+    m = _re.search(r"deadline_s=max\(([\d.]+), min\(([\d.]+), _left_e\)\)", call)
+    assert m and float(m.group(1)) == 0.0, call[:400]
+    from pipeline.review import run_review
+    lp, pre, panel, logs = _review_harness()
+    asked = []
+    run_review(lp, pre, logs.append, lambda s, u: asked.append(1) or {"calls": []},
+               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=0.0, max_turns=4)
+    assert not asked, "the review spent turns it did not have"
+    from pipeline.evaluator import Evaluator
+    assert abs(Evaluator(lp.wb).cell("Final", "AI99")) < 0.5, "the ladder did not run"
+    print("PASS test_the_review_never_eats_the_finish_margin_2026_09_16")
 
 
 if __name__ == "__main__":

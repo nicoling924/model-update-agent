@@ -1360,6 +1360,10 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     _pre_end = locals().get("_pre_wb_sense")
     if _pre_end is None:
         _pre_end = load(str(archive))
+    # THE REVIEW NEVER EATS THE FINISH MARGIN (reviewer 2026-09-16: a floor of
+    # 120 s could run the review past the time reserved for saving, reporting and
+    # the last resort). With nothing left it runs no turns and goes straight to
+    # the ladder, which is exactly what the margin is for.
     _left_e = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
 
     def _ask_review(system, user):
@@ -1381,7 +1385,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         ok, failures, card = _run_review(
             loop, _pre_end, log, _ask_review, gate_once, repair_round,
             keys_before, _key_panel, _panel_path,
-            deadline_s=max(120.0, min(720.0, _left_e)), notes=_notes,
+            deadline_s=max(0.0, min(720.0, _left_e)), notes=_notes,
             hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
             brain=(client is not None or getattr(stage4_answerer, "reviews", None) is not None))
     except Exception as _e_end:
