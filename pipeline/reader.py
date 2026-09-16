@@ -207,16 +207,20 @@ def _exact(x, y):
 
 
 def _closes_on(text):
-    """The figure the answer's own check names as the subtotal it closes on:
-    'a - b - c = 14,272 = Operating profit' -> 14,272. None when the answer
-    states no closing arithmetic."""
-    from .numerics import parse_number
-    import re as _re
-    s = str(text or "").strip().lstrip("=").strip()   # '= a - b = c' closes on c, not on a
+    """The figure the answer's own check names as the subtotal it closes on.
+    The closer is the SINGLE-figure side of the '=' — whichever side it is
+    written on ('a - b - c = 14,272' and '14,272 = a - b - c' both close on
+    14,272; reviewer 2026-09-16: splitting on the first '=' read 88,018 as
+    the closer of '14,272 = 88,018 - 28,950 - 44,796' and the veto then
+    discarded a correct revenue read). None when the answer states no
+    closing arithmetic, or when no side stands alone."""
+    from .numerics import line_numbers
+    s = str(text or "").strip().lstrip("=").strip()
     if "=" not in s:
         return None
-    m = _re.search(r"\(?-?\d[\d,]*(?:\.\d+)?\)?", s.split("=", 1)[1])
-    return parse_number(m.group(0)) if m else None
+    sides = [line_numbers(part, skip_years=False) for part in s.split("=")]
+    singles = [ns[0] for ns in sides if len(ns) == 1]
+    return singles[0] if singles else None
 
 
 def _page_line(page_text, page, printed, line, sources):

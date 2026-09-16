@@ -6803,9 +6803,18 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     v_op = verify([dict(sub[0], row="Final!16")], op, led, {(DOC, 23): 1.0}, lambda s: None,
                   priors=[14903.0], page_text=pt)
     assert v_op["Final!16"]["conf"] == 4 and abs(v_op["Final!16"]["value"] - 14272.0) < 1e-6, v_op
-    # a check written with a leading '=' still closes on its last figure
+    # the closer is the SINGLE-figure side of the '=', whichever side it is
+    # written on (reviewer 2026-09-16: '14,272 = 88,018 - 28,950 - 44,796'
+    # read 88,018 as the closer and the veto discarded a correct revenue read)
     from pipeline.reader import _closes_on
     assert _closes_on("= 88,018 - 74,206 = 14,272") == 14272.0
+    assert _closes_on("14,272 = 88,018 - 28,950 - 44,796") == 14272.0
+    assert _closes_on("88,018 - 28,950 - 44,796 = 14,272") == 14272.0
+    rev = [{"row": "Final!7", "printed": 88018.0, "page": 23, "line": "Revenue 3 88,018 90,964",
+            "check": "14,272 = 88,018 - 28,950 - 44,796"}]
+    rrow = [{"row": "Final!7", "sheet": "Final", "r": 7, "label": "Revenue", "prior": 90964.0}]
+    vrev = verify(rev, rrow, led, {(DOC, 23): 1.0}, lambda s: None, priors=[90964.0], page_text=pt)
+    assert vrev["Final!7"]["conf"] == 4, f"the veto discarded a correct revenue read: {vrev}"
     # the line the answer NAMES wins when two lines of the page print the figure
     from pipeline.reader import _page_line
     two = {(DOC, 23): "Finance income 194 235\nOther income 194 300"}
