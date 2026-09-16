@@ -6843,6 +6843,13 @@ def test_the_extractor_keeps_the_unlabelled_row_2026_09_16():
     # a two-period block has no note column: a leading integer there is a figure
     two = segment_page("ra.pdf", 9, "Revenue 88,018 90,964\nOther gains 46 512\nOperating profit 14,324 14,903")
     assert [i.nums for i in two] == [[88018.0, 90964.0], [46.0, 512.0], [14324.0, 14903.0]], [i.nums for i in two]
+    # reviewer 2026-09-16 (second pass): when EVERY row carries a note there
+    # is no un-noted row to measure against — the note is still the extra
+    # column, because stripping it leaves each row its period pair
+    noted = segment_page("ra.pdf", 7, "Revenue 5 88,018 79,000\nCost of sales 6 (20,000) (18,000)\n"
+                                      "Other income 7 100 200\nProfit 9 68,118 61,200")
+    assert [i.nums for i in noted] == [[88018.0, 79000.0], [-20000.0, -18000.0],
+                                       [100.0, 200.0], [68118.0, 61200.0]], [i.nums for i in noted]
     # reviewer 2026-09-16: a block whose own width is 2 has no note column,
     # however neatly its first figures ascend — these are figures
     asc = segment_page("ra.pdf", 10, "Bank charges 3 5\nOther operating income 9 12\nTotal 12 17")

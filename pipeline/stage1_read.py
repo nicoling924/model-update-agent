@@ -158,13 +158,23 @@ def _strip_note_column(items):
         return (len(it.nums) >= 2 and float(it.nums[0]).is_integer()
                 and 0 < it.nums[0] < 100)
     for block in blocks.values():
-        widths = [len(it.nums) for it in block if it.nums and not _small(it)] \
-            or [len(it.nums) for it in block if it.nums]
-        if not widths:
-            continue
-        width = max(set(widths), key=widths.count)      # the block's own number of columns
-        seq = [(it, float(it.nums[0])) for it in block
-               if _small(it) and len(it.nums) > width]
+        plain = [len(it.nums) for it in block if it.nums and not _small(it)]
+        if plain:
+            # the block's own number of period columns, read off the rows that
+            # cannot be carrying a note; a noted row is one column wider
+            width = max(set(plain), key=plain.count)
+            seq = [(it, float(it.nums[0])) for it in block
+                   if _small(it) and len(it.nums) > width]
+        else:
+            # EVERY ROW CARRIES ONE (reviewer 2026-09-16: a four-row noted P&L
+            # has no un-noted row to measure against, and Revenue kept its note).
+            # Then the leading column is the note column only if stripping it
+            # still leaves each row a period pair — a note is an EXTRA column,
+            # never the row's only figure beside one more.
+            seq = [(it, float(it.nums[0])) for it in block
+                   if _small(it) and len(it.nums) >= 3]
+            if len(seq) != len([it for it in block if it.nums]):
+                seq = []             # some row of the block does not carry it: not a column
         if len(seq) < 2:
             continue
         chains = []
