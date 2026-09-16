@@ -361,6 +361,31 @@ def _parent_of(wb, spec, sheet, row, target_year):
     return None, []
 
 
+def rank_printed_candidates(cands, label, allow_positional=True):
+    """The printed candidates for a row, best first — ONE ranking, used wherever
+    a card or a repair offers printed lines (it was written twice and the two
+    copies drifted). A candidate whose comparative ties the model's prior comes
+    first; a line NAMED like the row outranks one that merely shares a word of
+    it; a twin-table slot next. A candidate with NO NUMBER TIE is a state, not a
+    missing key (owner ruling 2026-09-16): it stays in the ranking, always below
+    every tied candidate, and is never promoted by a flattering default."""
+    from .numerics import norm_label as _nl
+    ranked = []
+    for c in cands:
+        positional = allow_positional and str(c.get("basis", "")).startswith("positional")
+        line = str(c.get("line", ""))
+        untied = bool(c.get("no_number_tie"))
+        tie_off = c.get("tie_off")
+        tie_off = float(tie_off) if isinstance(tie_off, (int, float)) else 1e9    # 0.0 is a tie, not 'missing'
+        if c.get("no_prior") or c.get("nil") or (not positional and not untied and tie_off > 0.6) \
+                or not kinship(line, label):
+            continue
+        exact = 0 if _nl(line).replace(" ", "") == _nl(label).replace(" ", "") else 1
+        ranked.append((1 if untied else 0, exact, 0 if positional else 1, tie_off if tie_off < 1e9 else 0.0, c))
+    ranked.sort(key=lambda x: x[:4])
+    return [t[4] for t in ranked]
+
+
 def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
     """The swing factor's three cases. -> ("fixed"|"genuine"|"unusual"|"red", text)"""
     from .writegate import is_proven
@@ -424,23 +449,8 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
             cands = candidates_for(loop, sh, r) or []
         except Exception:
             cands = []
-        from .numerics import norm_label as _nl
-        ranked = []
-        for c in cands:
-            positional = str(c.get("basis", "")).startswith("positional")   # the prior at the same slot of the twin table IS the tie
-            line = str(c.get("line", ""))
-            tie_off = c.get("tie_off")
-            tie_off = float(tie_off) if isinstance(tie_off, (int, float)) else 1e9    # 0.0 is a tie, not 'missing'
-            if c.get("no_prior") or c.get("nil") or (not positional and tie_off > 0.6) \
-                    or not kinship(line, label):
-                continue
-            # a line NAMED like the row outranks one that merely mentions a word of it
-            # ('Revenue adjustment for SoC not subject to tax' shares 'tax' with
-            # 'Income tax expense'); then the tighter tie; a twin-table slot last
-            exact = 0 if _nl(line).replace(" ", "") == _nl(label).replace(" ", "") else 1
-            ranked.append((exact, 1 if positional else 0, tie_off if tie_off < 1e9 else 0.0, c))
-        ranked.sort(key=lambda x: (x[0], x[1], x[2]))
-        for _e, _p, _t, c in ranked[:1]:
+        ranked = rank_printed_candidates(cands, label)
+        for c in ranked[:1]:
             attempts.append(("printed line " + str(c.get("line", ""))[:30] + f" p{c.get('page')}", float(c["value"]), None))
         # (b) the residual of a printed total it belongs to — the parent is the
         # node the trail came through (it references the leaf directly); the
@@ -527,18 +537,8 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         cands = candidates_for(loop, sh, r) or []
     except Exception:
         cands = []
-    from .numerics import norm_label as _nl
-    ranked = []
-    for c in cands:
-        line = str(c.get("line", ""))
-        tie_off = c.get("tie_off")
-        tie_off = float(tie_off) if isinstance(tie_off, (int, float)) else 1e9
-        if c.get("no_prior") or c.get("nil") or tie_off > 0.6 or not kinship(line, label):
-            continue
-        exact = 0 if _nl(line).replace(" ", "") == _nl(label).replace(" ", "") else 1
-        ranked.append((exact, tie_off, c))
-    ranked.sort(key=lambda x: (x[0], x[1]))
-    for i, (_e, _t, c) in enumerate(ranked[:2]):
+    ranked = rank_printed_candidates(cands, label, allow_positional=False)
+    for i, c in enumerate(ranked[:2]):
         key = f"printed:{'AB'[i]}"
         ways.append((key, "printed", float(c["value"]), None,
                      f"printed line '{str(c.get('line', ''))[:40]}' {str(c.get('doc', ''))[:24]} p{c.get('page')} — its comparative ties the prior"))
@@ -672,7 +672,7 @@ def judge_and_fix(loop, pre_wb, d, leaf, trail, log, gap_of, rerun=None):
         return ("genuine" if not unusual else "unusual"), (f"'{d['name']}': swing traced to {path} ({ref}) — the brain judged the figure belongs here"
                                                              + (f" (unusual per history: {this_move * 100:+.0f}%)" if unusual else ""))
     if kind == "printed":
-        c = ranked[{"printed:A": 0, "printed:B": 1}[key]][2]
+        c = ranked[{"printed:A": 0, "printed:B": 1}[key]]
         res = str(loop.t_set_input({"cell": f"{sh}!{coord}", "value": value, "card": "sense",
                                     "why": f"p{c.get('page')}: {str(c.get('line', ''))[:60]} — sense-check rung 1"}))
         if res.startswith(("REFUSED", "REVERTED", "MISS")):

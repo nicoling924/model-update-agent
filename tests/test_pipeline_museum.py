@@ -7153,6 +7153,48 @@ def test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16():
     print("PASS test_a_raise_in_the_loop_still_reaches_the_last_resort_2026_09_16")
 
 
+def test_a_candidate_with_no_number_tie_says_so_2026_09_16():
+    """Owner ruling 2026-09-16, after run 35066977462: option B on the fuel-clause
+    card carried a hard-coded tie_off of 0.5 and the renderer printed "prior tie
+    EXACT" for it — a LABEL match in last year's report rendered as a number tie,
+    and the brain took it over the row that actually tied. Deleting the
+    placeholder was worse: a missing tie_off mapped to 1e9 and the candidate
+    vanished from investigate's rankers. It is an explicit STATE now: it is shown
+    as having no number tie, it stays in the ranking, and it never outranks a
+    candidate whose comparative ties."""
+    from pipeline.investigate import rank_printed_candidates as rank
+    tied = {"value": 42.7, "line": "Fuel Clause Charge", "page": 243, "doc": "AR", "tie_off": 0.0, "warnings": []}
+    untied = {"value": 1.00, "line": "Fuel Clause Charge", "page": 243, "doc": "AR",
+              "noun_proven": True, "no_number_tie": True, "warnings": []}
+    ranked = rank([untied, tied], "Fuel Clause Charge/(Rebate)")
+    assert [c["value"] for c in ranked] == [42.7, 1.00], [c["value"] for c in ranked]
+    assert rank([untied], "Fuel Clause Charge/(Rebate)"), "an untied candidate was dropped from the ranking"
+    print("PASS test_a_candidate_with_no_number_tie_says_so_2026_09_16")
+
+
+def test_the_plug_card_can_be_declined_2026_09_16():
+    """Owner ruling 2026-09-16: the PLUG card's default became plug:0, so every
+    defaulting run — every replay, every floor, every unanswered card — plugged
+    into site 0 before the review ever saw the break. The decline is back, and it
+    is the default: leave_it leaves the check failing, loudly, for the review and
+    its last resort."""
+    from pipeline.workqueue import WorkItem, render_card
+    wb = _wb({"T2": 100.0, "T3": 50.0, "T4": 150.0,
+              "U2": 109.0, "U3": 60.0, "U4": 171.0,
+              "T9": "=T2+T3-T4", "U9": "=U2+U3-U4"})
+    lp = _loop(wb, _spec_tiny())
+    lp.writer.served = lp.served
+    rendered = render_card(lp, WorkItem("PLUG", "S", 9))
+    assert rendered is not None, "the plug card did not render"
+    text, options, default = rendered
+    assert default == "leave_it", default
+    assert "leave_it" in options and options["leave_it"] == (None, None), options
+    assert any(k.startswith("plug:") for k in options), options
+    assert "for the review and its last resort" in text, text
+    print("PASS test_the_plug_card_can_be_declined_2026_09_16")
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

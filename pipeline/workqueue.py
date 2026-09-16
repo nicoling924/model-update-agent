@@ -280,9 +280,9 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             face = loop.ledger.face(it.doc, it.page)
             out.append({"value": val, "doc": it.doc, "page": it.page,
                         "line": str(it.label)[:60], "face": face or "no-face",
-                        "noun_proven": True,
-                        "warnings": ["✔ LAST YEAR'S report prints the model's prior under this "
-                                     "label — the item's own name; this year's line under it"]})
+                        "noun_proven": True, "no_number_tie": True,
+                        "warnings": ["⚠ NO NUMBER TIE — last year's report prints the model's prior under this "
+                                     "LABEL; this year's line under the same label is a name match, not a tie"]})
     # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
     # candidate even without a prior tie — the brain judges the item and
     # the unit from the sentence printed on the card; code's guard is the
@@ -353,7 +353,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
     # 'Operating costs' twins — the group P&L line on a face page
     # outsorted the SoC schedule line whose prior tied EXACTLY; 18/30
     # wrong picks were ordering, not absence)
-    for c in sorted(out, key=lambda c: (round(c.get("tie_off", 0.05), 1),
+    for c in sorted(out, key=lambda c: (1 if c.get("no_number_tie") else 0, round(c.get("tie_off", 0.05), 1),
                                         len(c["warnings"]),
                                         c["face"] == "no-face",
                                         c["doc"], c["page"])):
@@ -933,11 +933,13 @@ def render_card(loop, item):
             # EXACTLY and Luna passed it over three times — the card
             # never stated the tie, only the absence of warnings)
             to = c.get("tie_off")
-            tie = ("  ✔ prior tie EXACT (this line's comparative = the "
-                   "model's prior)" if isinstance(to, (int, float))
-                   and to <= 0.6 else
-                   (f"  ~ prior tie loose (off {to:,.1f})"
-                    if isinstance(to, (int, float)) else ""))
+            tie = ("  ✗ no number tie — this line is a LABEL match only, nothing on it equals the model's prior"
+                   if c.get("no_number_tie") else
+                   ("  ✔ prior tie EXACT (this line's comparative = the "
+                    "model's prior)" if isinstance(to, (int, float))
+                    and to <= 0.6 else
+                    (f"  ~ prior tie loose (off {to:,.1f})"
+                     if isinstance(to, (int, float)) else "")))
             pr = probe.get(round(c["value"], 1))
             arb = ""
             if pr:
@@ -1196,10 +1198,10 @@ def render_card(loop, item):
                 "check": f"{sheet}!{row}", "into": f"{sh}!{_tcol(loop, sh)}{r}",
                 "why": f"card-adjudicated last resort into '{lab[:30]}'"})
             lines.append(f"    plug:{j} -> {sh}!{r} '{lab[:30]}'  [{row_context_short(loop, sh, _tcol(loop, sh), r)}]")
-        if not options:
-            return None            # no eligible site: the check goes to the review's last resort
+        options["leave_it"] = (None, None)
+        lines.append("  leave_it = leave this check failing, loudly, for the review and its last resort")
         lines.append("  answers: " + ", ".join(options))
-        return "\n".join(lines), options, "plug:0"
+        return "\n".join(lines), options, "leave_it"
     return None
 
 
