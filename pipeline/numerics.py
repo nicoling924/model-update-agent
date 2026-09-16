@@ -109,6 +109,37 @@ def line_numbers(line, skip_years=True):
     return out
 
 
+_DASH_NIL = re.compile(r"(?<![0-9A-Za-z)])[-\u2013\u2014](?![0-9A-Za-z(])")
+
+
+def line_cells(line, skip_years=True):
+    """The printed numbers of a line WITH the nils that keep the columns
+    aligned: a standalone dash (or en/em dash) to the RIGHT of the line's
+    first printed figure is that column's nil, and reads 0 — 'Other gain 5
+    460 -' prints 460 this year and nothing last year, and dropping the dash
+    shifted every later column left. A dash before the first figure is
+    punctuation in the label ('Hong Kong - electricity'), never a nil."""
+    s = _ENUM.sub("", str(line).translate(_FULLWIDTH), count=1)
+    toks = [(m.start(), m.group(0), True) for m in _NUMTOK.finditer(s)]
+    toks += [(m.start(), m.group(0), False) for m in _DASH_NIL.finditer(s)]
+    out, seen = [], False
+    for _pos, tok, is_num in sorted(toks):
+        if not is_num:
+            if seen:
+                out.append(0.0)
+            continue
+        raw = tok.strip("()")
+        if skip_years and "," not in raw and "." not in raw:
+            bare = raw.lstrip("-")
+            if bare.isdigit() and 1990 <= int(bare) <= 2100:
+                continue
+        v = parse_number(tok)
+        if v is not None:
+            out.append(v)
+            seen = True
+    return out
+
+
 def label_of(line):
     """The text before the first number token — the printed line label."""
     ln = _ENUM.sub("", str(line).translate(_FULLWIDTH), count=1)

@@ -6799,6 +6799,37 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     assert not verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
     print("PASS test_the_page_proves_the_quoted_line_2026_09_16")
 
+def test_the_extractor_keeps_the_unlabelled_row_2026_09_16():
+    """Run 34993405014: the CLP P&L prints its operating-expense total as a
+    bare '(74,206) (76,061)' under the four expense lines, and the text
+    extractor dropped every row it could read no label from — ~11% of the
+    statements' rows, all of them the unlabelled subtotals the model keeps
+    on their own line. It also read 'Other gain 5 460 -' as 5 and 460: the
+    statement's note number taken for this year's figure, the printed nil
+    ignored. Driven on the real page 23 text of the CLP 2025 results
+    announcement."""
+    from pipeline.stage1_read import segment_page
+    items = segment_page("ra.pdf", 23, _CLP_P23_TEXT)
+    by = {}
+    for it in items:
+        by.setdefault(str(it.label), []).append(it)
+    blank = by.get("", [])
+    tot = next((i for i in blank if i.nums == [-74206.0, -76061.0]), None)
+    assert tot is not None, f"the unlabelled operating-expense total was dropped: {[i.nums for i in blank]}"
+    assert not tot.joinable(), "an unlabelled row must never join on its own — the meaning is the brain's"
+    other = by["Other gain"][0]
+    assert other.nums == [460.0, 0.0], f"the note number and the printed nil: {other.nums}"
+    # the note column is stripped only where the block prints one
+    assert by["Revenue"][0].nums == [88018.0, 90964.0], by["Revenue"][0].nums
+    assert by["Operating profit"][0].nums == [14272.0, 14903.0], by["Operating profit"][0].nums
+    assert by["Staff expenses"][0].nums == [-5987.0, -5150.0], "a row carrying no note was stripped"
+    assert by["Earnings per share, basic and diluted"][0].nums == [4.14, 4.65]
+    # a two-period block has no note column: a leading integer there is a figure
+    two = segment_page("ra.pdf", 9, "Revenue 88,018 90,964\nOther gains 46 512\nOperating profit 14,324 14,903")
+    assert [i.nums for i in two] == [[88018.0, 90964.0], [46.0, 512.0], [14324.0, 14903.0]], [i.nums for i in two]
+    print("PASS test_the_extractor_keeps_the_unlabelled_row_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0

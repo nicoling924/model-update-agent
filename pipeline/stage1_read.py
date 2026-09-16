@@ -43,7 +43,7 @@ from pathlib import Path
 
 from .ledger import (Item, Ledger, face_from_row_labels, parse_scale_hint,
                      tag_faces, unit_dim_of)
-from .numerics import SCALES, label_of, line_numbers, parse_number
+from .numerics import SCALES, label_of, line_cells, line_numbers, parse_number
 
 PROMPT_VERSION = "p1-v1"
 VOTES = 2                    # transcription passes per scanned page
@@ -110,7 +110,7 @@ def segment_page(doc, page_no, text):
         if hint is not None:
             current_hint = hint
         stripped = _ENUM.sub("", ln)
-        nums = line_numbers(stripped)
+        nums = line_cells(stripped)
         if not nums:
             gap += 1
             if gap >= 2:
@@ -120,15 +120,49 @@ def segment_page(doc, page_no, text):
         if not in_table:
             table_id += 1
             in_table = True
+        # A ROW THE PAGE PRINTS WITHOUT A LABEL IS STILL A ROW (run
+        # 34993405014: the CLP P&L prints its operating-expense total as
+        # '(74,206) (76,061)' under the four expense lines — the model keeps
+        # that total on a row, and dropping the line lost the headline
+        # figure and 11% of the statements' rows, all of them subtotals).
+        # What the line MEANS is the brain's call; the item carries no
+        # label, so stage 2 (which requires label kinship) can never join it
+        # on its own.
         lab = label_of(stripped)
-        if not lab:
-            continue        # bare number soup carries no identity
         items.append(Item(
             doc=doc, page=page_no, table_id=table_id, row_ord=ord_,
             label=lab, nums=nums, unit_dim=unit_dim_of(lab),
             scale_hint=current_hint, channel="text", consensus=1,
             source_line=ln[:200]))
+    _strip_note_column(items)
     return items
+
+
+def _strip_note_column(items):
+    """THE NOTE REFERENCE IS A COLUMN OF THE BLOCK, NEVER A VALUE (run
+    34993405014: 'Other gain 5 460 -' was read as 5 and 460 — the statement's
+    note number taken for this year's figure and the year's own figure for
+    last year's). A note column is the print's own numbering: small positive
+    integers that ASCEND down one table block, blank on the rows carrying
+    none. A leading integer that does not fit the block's ascent is a figure.
+    Strips the note in place, per block."""
+    blocks = {}
+    for it in items:
+        blocks.setdefault(it.table_id, []).append(it)
+    for block in blocks.values():
+        seq = [(it, float(it.nums[0])) for it in block
+               if len(it.nums) >= 2 and float(it.nums[0]).is_integer() and 0 < it.nums[0] < 100]
+        if len(seq) < 2:
+            continue
+        chains = []
+        for it, v in seq:
+            best = max([c for c in chains if c[-1][1] < v], key=len, default=[])
+            chains.append(best + [(it, v)])
+        run = max(chains, key=len, default=[])
+        if len(run) < 2:
+            continue
+        for it, _v in run:
+            it.nums = it.nums[1:]
 
 
 # ---------------------------------------------------------------------------
