@@ -6449,6 +6449,43 @@ def test_the_shelf_is_reached_for_not_swept_2026_09_17():
     print("PASS test_the_shelf_is_reached_for_not_swept_2026_09_17")
 
 
+
+def test_a_tie_at_a_scale_the_page_does_not_carry_is_red_2026_09_17():
+    """Owner 2026-09-17, second time: the page prints 'Revenue 88,018,000
+    76,061,000' and the model's prior is 76,061 — the comparative ties
+    perfectly at x1000 and the figure would land a thousand times wrong. The
+    page's own scale decides; the tie must happen at it."""
+    loop, pages, census = _map_model()
+    pages[("ar.pdf", 40)] = "CONSOLIDATED INCOME STATEMENT\nRevenue 88,018,000 76,061,000\n"
+    loop.__dict__["_map_scales"] = {("ar.pdf", 40): 1.0, ("ar.pdf", 23): 1.0}
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C2", "printed": 88018000, "page": 40,
+                         "line": "Revenue 88,018,000 76,061,000", "because": "my revenue row"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert "Final!C2" in loop.writer.log["flags"], "a x1000 tie landed plain"
+    assert "scale mismatch" in " ".join(said), said[-1][-400:]
+    assert loop.wb["Final"]["C2"].value != 88018.0, loop.wb["Final"]["C2"].value
+    print("PASS test_a_tie_at_a_scale_the_page_does_not_carry_is_red_2026_09_17")
+
+
+def test_a_read_it_has_already_made_is_not_progress_2026_09_17():
+    """Reviewer 2026-09-17: the stuck measure was disarmed by ANY read, so
+    `show X` + `done` repeated turned 7,260 times in twenty seconds — live,
+    7,260 calls. Progress is a change to the model, or a read the brain has not
+    made before; the same reply twice running is no progress at all."""
+    from pipeline.mapping import run_mapping
+    loop, pages, census = _map_model()
+    n, logs = [0], []
+
+    def ask(_s, _u):
+        n[0] += 1
+        return {"thinking": "again", "calls": [{"tool": "show", "ref": "Final!C2"}, {"tool": "done"}]}
+    run_mapping(loop, loop.wb, census, pages, logs.append, ask, deadline_s=30.0)
+    assert n[0] <= 4, f"the loop turned {n[0]} times on a brain repeating itself"
+    assert any("changed nothing" in x or "read nothing" in x for x in logs), logs[-3:]
+    print("PASS test_a_read_it_has_already_made_is_not_progress_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

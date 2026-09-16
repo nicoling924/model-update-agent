@@ -292,12 +292,22 @@ def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
         elif abs(pv) >= 0.5:
             f_tie = next((f for f in ([f_page] if f_page else []) + list(_SCALES)
                           if _ties_full_precision(comp / f, pv)), None)
-    f_use = f_tie or f_page
+    # on a clash the PAGE's own scale is what lands (red): the figure the page
+    # actually prints, for the analyst to judge — never the scale that only the
+    # tie wanted
+    # THE SCALE MUST BE THE PAGE'S OWN (owner 2026-09-17, twice): a comparative
+    # that ties only at some OTHER scale is not a tie — a page printing
+    # 88,018,000 / 76,061,000 ties a model prior of 76,061 perfectly at x1000
+    # and the figure lands a thousand times wrong. The page's own ratified scale
+    # decides; where the page has none, the document's own dominant scale does.
+    # Where neither is known, nothing contradicts the tie and it stands.
+    f_known = f_page or dom.get(hit["doc"])
+    scale_clash = bool(f_tie) and bool(f_known) and f_tie != f_known
+    f_use = (f_known if (f_tie and f_known and f_tie != f_known) else (f_tie or f_page))
     if not f_use:
         if log:
             log(f"[read]   unverified {rid}: quoted from p{page} but the page has no ratified scale — not written")
         return None
-    scale_clash = bool(f_tie and f_page and f_tie != f_page)
     value = float(printed) / float(f_use)
     if f_tie and isinstance(pv, (int, float)) and pv != 0 and comp != 0 and (comp < 0) != (pv < 0):
         value = -value                       # the line negates the model's convention
@@ -306,14 +316,16 @@ def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
     plain = bool(f_tie) and not scale_clash
     note = None if plain else (
         f"Quoted from p{page} ('{hit['text'][:60]}'); "
-        + ("the comparative ties at a scale the page does not carry" if scale_clash
+        + ("scale mismatch: the comparative ties at x{0:,.0f} but this page carries x{1:,.0f}".format(
+            f_tie or 0, f_known or 0) if scale_clash
            else "no prior tie — the printed line does not carry last year's figure")
         + ". Please confirm.")
     return {"value": value, "conf": 4 if plain else 3, "flag": None if plain else "red",
             "note": note, "doc": hit["doc"], "page": page, "line": hit["text"][:60],
             "why": (f"read: quoted from p{page} '{hit['text'][:40]}'"
                     + (", the printed comparative ties the prior" if plain
-                       else f", no prior tie"))}
+                       else (", the tie is at a scale this page does not carry" if scale_clash
+                             else ", no prior tie")))}
 
 
 def _nil_line(items, page, pv, sources):

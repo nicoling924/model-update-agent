@@ -661,7 +661,18 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
             lead_pages.setdefault((str(getattr(it, "doc", "")), int(getattr(it, "page", 0) or 0)), []).append(
                 (sheet, coord, r))
     placed, room = set(), size_cap
-    faces = sorted(_faces(loop), key=lambda t: -len(lead_pages.get((t[1], t[2]), [])))
+    # THE EARLIER PERIOD'S FACES ARE ON THE SHELF, NOT IN THE CONTEXT (reviewer
+    # 2026-09-17: last year's report filled the section with stubs). `page` and
+    # `find` still reach every one of them.
+    here = set()
+    try:
+        here = {str(d) for d in (page_text.docs() if hasattr(page_text, "docs")
+                                 else {d for d, _p in (page_text or {})})}
+        old_docs = set(loop.ledger.noncurrent_docs() or ())   # evidence: the run's own verdict on which document proves THIS period; the shelf still answers `page`/`find`
+    except Exception:  # noqa: BLE001
+        old_docs = set()
+    faces = [f for f in _faces(loop) if f[1] in here and f[1] not in old_docs]
+    faces = sorted(faces, key=lambda t: -len(lead_pages.get((t[1], t[2]), [])))
     for face, doc, pg in faces:
         mine = [x for x in lead_pages.get((doc, pg), []) if x not in placed]
         txt = (page_text or {}).get((doc, pg))
@@ -1293,14 +1304,26 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             # ate the whole budget and shipped every row red — and live, every
             # one of those turns is a call). Not a turn count: a measure of
             # whether the model moved.
-            # READING IS WORK (owner 2026-09-17 / reviewer's F9 and F14 read
-            # together): a turn that looked at a page, searched for a figure or
-            # read a row is progress even though no cell moved. A turn that
-            # neither read nor changed anything — a bare `done`, an unreadable
-            # reply — is the one that counts towards the end.
-            _read = any(isinstance(c, dict) and str(c.get("tool") or "").lower()
-                        in ("page", "find", "show", "anatomy") for c in calls)
-            if len(_written(loop)) + len(skipped) == _before and not _read:
+            # READING IS WORK — ONCE (reviewer 2026-09-17: any read disarmed the
+            # measure, so `show X` + `done` repeated turned 7,260 times in twenty
+            # seconds; live that is 7,260 calls). Progress is a change to the
+            # model, or a read the brain has NOT made before. The same reply
+            # twice running is no progress whatever it contains.
+            _seen = state.setdefault("seen_calls", set())
+            _new_read = False
+            for c in calls:
+                if not isinstance(c, dict) or str(c.get("tool") or "").lower() not in (
+                        "page", "find", "show", "anatomy"):
+                    continue
+                sig = json.dumps({k: v for k, v in sorted(c.items())}, ensure_ascii=False, sort_keys=True)[:300]
+                if sig not in _seen:
+                    _seen.add(sig)
+                    _new_read = True
+            _same = json.dumps(reply, ensure_ascii=False, sort_keys=True)[:2000]
+            if _same == state.get("last_reply"):
+                _new_read = False
+            state["last_reply"] = _same
+            if len(_written(loop)) + len(skipped) == _before and not _new_read:
                 stuck += 1
                 answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
                                "your reason — another turn that changes nothing ends the mapping and the "
