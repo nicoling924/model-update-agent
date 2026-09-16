@@ -109,16 +109,23 @@ def line_numbers(line, skip_years=True):
     return out
 
 
-_DASH_NIL = re.compile(r"(?<![0-9A-Za-z)])[-\u2013\u2014](?![0-9A-Za-z(])")
+# A nil mark: a standalone dash with nothing after it but more nil marks.
+# (A dash BETWEEN two printed numbers is ambiguous — 'Interest 1,234 - 200'
+# is a nil column in a table and a subtraction in a sentence, and the text
+# layer carries no column geometry to tell them apart — so only the
+# unambiguous trailing nils are read. Reviewer 2026-09-16: reading every
+# dash cost '88,018 — up 11% from 79,000' a phantom zero.)
+_DASH_NIL = re.compile(r"(?<![0-9A-Za-z)])[-\u2013\u2014](?=(?:\s+[-\u2013\u2014])*\s*$)")
 
 
 def line_cells(line, skip_years=True):
     """The printed numbers of a line WITH the nils that keep the columns
-    aligned: a standalone dash (or en/em dash) to the RIGHT of the line's
-    first printed figure is that column's nil, and reads 0 — 'Other gain 5
-    460 -' prints 460 this year and nothing last year, and dropping the dash
-    shifted every later column left. A dash before the first figure is
-    punctuation in the label ('Hong Kong - electricity'), never a nil."""
+    aligned: a standalone dash (or en/em dash) printed after the line's
+    figures, with nothing but further dashes behind it, is that column's
+    nil and reads 0 — 'Other gain 5 460 -' prints 460 this year and nothing
+    last year, and dropping the dash shifted every later column left. A dash
+    before the first figure is punctuation in the label ('Hong Kong -
+    electricity'), never a nil."""
     s = _ENUM.sub("", str(line).translate(_FULLWIDTH), count=1)
     toks = [(m.start(), m.group(0), True) for m in _NUMTOK.finditer(s)]
     toks += [(m.start(), m.group(0), False) for m in _DASH_NIL.finditer(s)]

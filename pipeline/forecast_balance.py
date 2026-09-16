@@ -172,8 +172,9 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
                     f"({base_col}) check is off {base_gap:+,.1f} — "
                     "tie the actuals first")
                 return plugged
-        except Exception:
-            pass
+        except Exception as e:      # noqa: BLE001 — said, never swallowed
+            log(f"[run] forecast plugs: the actual-year check could not be read ({e!r}) "
+                "— plugging on an unverified base")
     for col in year_cols:
         evaluate = make_eval()
         try:

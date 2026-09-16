@@ -6791,10 +6791,26 @@ def test_the_page_proves_the_quoted_line_2026_09_16():
     assert not verify(wrong_quote, rows, led, {(DOC, 23): 1.0}, lambda s: None,
                       priors=[-76061.0], page_text=pt)
     # THE ROW'S OWN FIGURE, never the subtotal it feeds: an answer of 14,272
-    # for the expense row is the closer of its own check — refused
+    # for the expense row is the closer of its own check, and no printed
+    # comparative ties that row's prior — refused
     sub = [{"row": "Final!14", "printed": 14272.0, "page": 23, "line": "Operating profit 6 14,272 14,903",
             "check": "88,018 - 28,950 - 5,987 - 29,551 - 9,718 + 460 = 14,272"}]
     assert not verify(sub, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0], page_text=pt)
+    # but the row that IS that subtotal keeps its answer: the print's own
+    # comparative ties its prior, and the print outranks the answer's account
+    # (reviewer 2026-09-16: the refusal threw away the prompt's own example)
+    op = [{"row": "Final!16", "sheet": "Final", "r": 16, "label": "Operating profit", "prior": 14903.0}]
+    v_op = verify([dict(sub[0], row="Final!16")], op, led, {(DOC, 23): 1.0}, lambda s: None,
+                  priors=[14903.0], page_text=pt)
+    assert v_op["Final!16"]["conf"] == 4 and abs(v_op["Final!16"]["value"] - 14272.0) < 1e-6, v_op
+    # a check written with a leading '=' still closes on its last figure
+    from pipeline.reader import _closes_on
+    assert _closes_on("= 88,018 - 74,206 = 14,272") == 14272.0
+    # the line the answer NAMES wins when two lines of the page print the figure
+    from pipeline.reader import _page_line
+    two = {(DOC, 23): "Finance income 194 235\nOther income 194 300"}
+    assert _page_line(two, 23, 194.0, "Other income 194 300", {DOC})["prior"] == 300.0
+    assert _page_line(two, 23, 194.0, "Finance income", {DOC})["prior"] == 235.0
     # with no page text there is no page proof — the old refusal stands
     assert not verify(ans, rows, led, {(DOC, 23): 1.0}, lambda s: None, priors=[-76061.0])
     print("PASS test_the_page_proves_the_quoted_line_2026_09_16")
@@ -6827,6 +6843,15 @@ def test_the_extractor_keeps_the_unlabelled_row_2026_09_16():
     # a two-period block has no note column: a leading integer there is a figure
     two = segment_page("ra.pdf", 9, "Revenue 88,018 90,964\nOther gains 46 512\nOperating profit 14,324 14,903")
     assert [i.nums for i in two] == [[88018.0, 90964.0], [46.0, 512.0], [14324.0, 14903.0]], [i.nums for i in two]
+    # reviewer 2026-09-16: a block whose own width is 2 has no note column,
+    # however neatly its first figures ascend — these are figures
+    asc = segment_page("ra.pdf", 10, "Bank charges 3 5\nOther operating income 9 12\nTotal 12 17")
+    assert [i.nums for i in asc] == [[3.0, 5.0], [9.0, 12.0], [12.0, 17.0]], [i.nums for i in asc]
+    # and a dash inside a sentence is not a nil: only the trailing ones are
+    from pipeline.numerics import line_cells
+    assert line_cells("Revenue rose to 88,018 \u2014 up 11% from 79,000") == [88018.0, 11.0, 79000.0]
+    assert line_cells("Interest 1,234 - 200") == [1234.0, 200.0]
+    assert line_cells("Other gain 5 460 -") == [5.0, 460.0, 0.0]
     print("PASS test_the_extractor_keeps_the_unlabelled_row_2026_09_16")
 
 

@@ -211,10 +211,10 @@ def _closes_on(text):
     'a - b - c = 14,272 = Operating profit' -> 14,272. None when the answer
     states no closing arithmetic."""
     from .numerics import parse_number
-    s = str(text or "")
+    import re as _re
+    s = str(text or "").strip().lstrip("=").strip()   # '= a - b = c' closes on c, not on a
     if "=" not in s:
         return None
-    import re as _re
     m = _re.search(r"\(?-?\d[\d,]*(?:\.\d+)?\)?", s.split("=", 1)[1])
     return parse_number(m.group(0)) if m else None
 
@@ -233,8 +233,9 @@ def _page_line(page_text, page, printed, line, sources):
     from .numerics import line_numbers
     if not isinstance(printed, (int, float)) or not page_text:
         return None
+    from .numerics import label_of
     quoted = line_numbers(str(line or ""))
-    best = None
+    hits = []
     for doc in sorted(sources):
         txt = (page_text or {}).get((doc, page))
         if not txt:
@@ -248,12 +249,15 @@ def _page_line(page_text, page, printed, line, sources):
                 continue
             if any(not any(_exact(q, n) for n in nums) for q in quoted):
                 continue          # the answer quotes a number this line does not print
-            hit = {"doc": doc, "text": raw.strip()[:160], "figure": nums[idx],
-                   "prior": (nums[idx + 1] if idx + 1 < len(nums) else None)}
-            if hit["prior"] is not None:
-                return hit        # a line printing the comparative too can settle plain/red
-            best = best or hit
-    return best
+            hits.append({"doc": doc, "text": raw.strip()[:160], "figure": nums[idx],
+                         "prior": (nums[idx + 1] if idx + 1 < len(nums) else None),
+                         "kin": bool(line and kinship(label_of(raw), str(line))),
+                         "comp": nums[idx + 1] is not None if idx + 1 < len(nums) else False})
+    if not hits:
+        return None
+    # the line the answer NAMES comes first (several lines of a page can print
+    # the same figure), then one that prints a comparative to judge it by
+    return max(hits, key=lambda h: (h["kin"], h["prior"] is not None))
 
 
 def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
@@ -349,17 +353,20 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None, page_text=
                             "why": "read: last year's figure printed beside a blank — 0"}
                 continue
             hit = _page_line(page_text, page, printed, line, sources)
-            closer = _closes_on(a.get("check"))
-            if hit is not None and closer is not None and _exact(closer, printed):
-                # the answer's OWN account of the figure: it is the subtotal
-                # the terms close on, not this row's line (the prompt says
-                # "printed" is the row's own figure) — nothing is written
-                hit = None
-                if log:
-                    log(f"[read]   unverified {rid}: {printed!r} is the subtotal the answer's own check "
-                        "closes on, not the row's own figure — not written")
             if hit is not None:
                 v = _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid)
+                closer = _closes_on(a.get("check"))
+                if v is not None and v["conf"] < 4 and closer is not None and _exact(closer, printed):
+                    # THE ROW'S OWN FIGURE (the prompt's law): the answer's own
+                    # account says this figure is the subtotal its terms close
+                    # on. Where the print's comparative ties the row's prior the
+                    # print settles it — the row IS that line. Where nothing
+                    # ties, the answer's own account is all there is, and it
+                    # says the figure belongs to another row: not written.
+                    v = None
+                    if log:
+                        log(f"[read]   unverified {rid}: {printed!r} is the subtotal the answer's own "
+                            "check closes on, and no printed comparative ties this row — not written")
                 if v is not None:
                     key = (hit["doc"], page, hit["text"], round(abs(v["value"]), 2))
                     other = homes.get(key)
@@ -372,7 +379,7 @@ def verify(answers, rows, ledger, page_scales, log=None, priors=None, page_text=
                     homes[key] = rid
                     out[rid] = v
                     continue
-            if log:
+            if log and hit is None:
                 log(f"[read]   unverified {rid}: no line of p{page} prints {printed!r} — not written")
             continue
         nums = [n for n in (item.nums or []) if isinstance(n, (int, float))]

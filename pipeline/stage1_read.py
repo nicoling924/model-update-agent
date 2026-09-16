@@ -142,16 +142,29 @@ def _strip_note_column(items):
     """THE NOTE REFERENCE IS A COLUMN OF THE BLOCK, NEVER A VALUE (run
     34993405014: 'Other gain 5 460 -' was read as 5 and 460 — the statement's
     note number taken for this year's figure and the year's own figure for
-    last year's). A note column is the print's own numbering: small positive
-    integers that ASCEND down one table block, blank on the rows carrying
-    none. A leading integer that does not fit the block's ascent is a figure.
-    Strips the note in place, per block."""
+    last year's). A note column is the print's own numbering, and the evidence
+    for it is that it is an EXTRA column: the row carries one more figure
+    than the block's own width, its leading number is a small positive
+    integer, and those integers ASCEND down the block. A leading integer on
+    a row of the block's normal width is a figure, not a note (reviewer
+    2026-09-16: 'Bank charges 3 5 / Other income 9 12' lost this year's
+    figure to an ascent that was never a note column). Strips the note in
+    place, per block."""
     blocks = {}
     for it in items:
         blocks.setdefault(it.table_id, []).append(it)
+
+    def _small(it):
+        return (len(it.nums) >= 2 and float(it.nums[0]).is_integer()
+                and 0 < it.nums[0] < 100)
     for block in blocks.values():
+        widths = [len(it.nums) for it in block if it.nums and not _small(it)] \
+            or [len(it.nums) for it in block if it.nums]
+        if not widths:
+            continue
+        width = max(set(widths), key=widths.count)      # the block's own number of columns
         seq = [(it, float(it.nums[0])) for it in block
-               if len(it.nums) >= 2 and float(it.nums[0]).is_integer() and 0 < it.nums[0] < 100]
+               if _small(it) and len(it.nums) > width]
         if len(seq) < 2:
             continue
         chains = []

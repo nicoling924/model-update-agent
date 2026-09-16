@@ -808,11 +808,12 @@ def run_ending(loop, pre_wb, log, ask, gate_once, repair_round, check_mass, keys
             result = gate_once()
             mass1 = check_mass()
             objs1 = broken_objectives(loop, keys_before, key_panel, panel_path)
-            # a pick is taken back only when the ARITHMETIC says so (a check opened,
-            # the balance worse); cash or assets going negative after it is the next
-            # objective, not a veto (owner 2026-09-15: a correct input can turn cash
-            # negative because another input elsewhere is wrong — the loop must go
-            # find that one, not undo the correct one)
+            # A pick is judged on the WHOLE objective mass (owner 2026-09-16: cash
+            # counts), so a pick that closes more than the cash it opens stands and
+            # the negative it leaves becomes the next objective (owner 2026-09-15:
+            # a correct input can turn cash negative because another input is
+            # wrong — the loop goes and finds that one). A cash break is not
+            # counted TWICE: it moves the mass, never the opened-checks list.
             san1 = {(o[1], o[2]) for o in objs1 if o[0] == "sanity"}
             new_fails = {f for f in (_fails(result) - fails0) if f not in san1}
             new_san = [o for o in objs1 if o[0] == "sanity" and (o[1], o[2]) not in fails0]
