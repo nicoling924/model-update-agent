@@ -719,8 +719,19 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         _set_reasoning("low", log)        # the mapping reads and writes; the review reasons
     except Exception as _e_r:
         log(f"[llm] the stage's reasoning effort could not be set: {_e_r!r}")
+    # THE FACES FIRST, ALL AT ONCE (owner 2026-09-17): one call per printed
+    # face, concurrent — then a short sequential pass for what crosses faces.
+    from .mapping import map_faces as _map_faces
+    _face_budget = _map_budget * 0.7
+    if loop.brain:
+        try:
+            _map_faces(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
+                       deadline_s=_face_budget, workers=8)
+        except Exception as _e_mf:
+            log(f"[map] the face round STAGE LOST: {_e_mf!r}")
+            run_log.append(f"[map] the face round STAGE LOST: {_e_mf!r}")
     loop_summary = _run_mapping(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
-                                deadline_s=_map_budget, brain=loop.brain)
+                                deadline_s=max(60.0, _map_budget - _face_budget), brain=loop.brain)
     undo_mark2 = len(writer.log.get("writes_all", []))   # end of the mapping's writes
     err_guard("mapping")
     collapse_guard("mapping")

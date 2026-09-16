@@ -6562,6 +6562,67 @@ def test_the_stage_sets_its_own_reasoning_effort_2026_09_17():
     print("PASS test_the_stage_sets_its_own_reasoning_effort_2026_09_17")
 
 
+
+def test_a_quote_in_the_models_units_is_plain_2026_09_17():
+    """DFE live run 35157124224: every write landed red — "no line of p12 prints
+    78,615.27743983 as you quoted it" — because the page prints
+    78,615,277,439.83 yuan and the model holds thousands. The brain quotes the
+    figure for the MODEL; code checks it against the line at the PAGE's scale."""
+    loop, pages, census = _map_model()
+    ws = loop.wb["Final"]
+    ws["A2"], ws["B2"], ws["C2"] = "Revenue", 71997.44, 71997.44        # the model, in thousands
+    pages[("ar.pdf", 12)] = ("合并利润表\n"
+                             "一、营业总收入 78,615,277,439.83 71,997,440,000.00\n")
+    loop.__dict__["_map_scales"] = {("ar.pdf", 12): 1e6, ("ar.pdf", 23): 1.0}
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C2", "printed": 78615.27743983, "page": 12,
+                         "line": "一、营业总收入 78,615,277,439.83 71,997,440,000.00",
+                         "because": "my revenue row, in the model's thousands"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert abs(loop.wb["Final"]["C2"].value - 78615.27743983) < 0.01, loop.wb["Final"]["C2"].value
+    assert "Final!C2" not in loop.writer.log["flags"], f"a correctly scaled quote landed red: {said[-1][-300:]}"
+    assert "the comparative ties your prior" in " ".join(said), said[-1][-300:]
+    print("PASS test_a_quote_in_the_models_units_is_plain_2026_09_17")
+
+
+def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
+    """Luna takes about two minutes a turn whatever the reasoning, so a
+    sequential loop cannot reach 337 rows in half an hour (CLP live: 19 turns,
+    34 minutes, 19 plain). The faces are mapped CONCURRENTLY, one call each, and
+    code applies the batches in order: a later batch never overwrites an earlier
+    plain write — two readings of one row land red carrying both."""
+    import time
+    from pipeline.ledger import Item
+    from pipeline.mapping import map_faces
+    loop, pages, census = _map_model()
+    loop.ledger.add(Item(doc="ar.pdf", page=24, table_id=0, row_ord=0, label="Non-controlling interests",
+                         nums=[1000.0, 900.0], source_line="Non-controlling interests 1,000 900",
+                         stmt_face="bs"))
+    loop.ledger.faces[("ar.pdf", 24)] = "bs"
+    pages[("ar.pdf", 24)] = "CONSOLIDATED BALANCE SHEET\nNon-controlling interests 1,000 900\n"
+    seen, t0 = [], time.monotonic()
+
+    def ask(_system, user):
+        seen.append(user)
+        time.sleep(0.4)                       # every call would be minutes; they must overlap
+        if "p23" in user:
+            return {"calls": [{"tool": "sets", "sets": [
+                {"ref": "Final!C2", "printed": 88018, "page": 23, "line": "Revenue 88,018 76,061",
+                 "because": "revenue"},
+                {"ref": "Final!C3", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
+                 "because": "other gain"}]}]}
+        return {"calls": [{"tool": "sets", "sets": [
+            {"ref": "Final!C2", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
+             "because": "I read the same row as something else"}]}]}
+    n = map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=8)
+    spent = time.monotonic() - t0
+    assert n >= 1 and len(seen) >= 2, (n, len(seen))
+    assert spent < 0.4 * len(seen), f"the faces were called one after another ({spent:.1f}s for {len(seen)})"
+    assert loop.wb["Final"]["C2"].value == 88018.0, loop.wb["Final"]["C2"].value
+    assert "Final!C2" in loop.writer.log["flags"], "a second reading overwrote the first in silence"
+    print("PASS test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

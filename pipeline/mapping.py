@@ -851,66 +851,11 @@ def verdict(loop, entry, page_text, sources, log):
     because = str(entry.get("because") or "")
     printed, page, line = entry.get("printed"), entry.get("page"), entry.get("line")
     if isinstance(printed, (int, float)) and page is not None:
-        from .reader import _page_line, _quoted_verdict
-        scales = _page_scales(loop)
         try:
             pg = int(page)
         except (TypeError, ValueError):
             return float(printed), False, f"'{page}' is not a page number — the figure lands red", {}
-        hit = _page_line(page_text, pg, float(printed), line or "", sources)
-        if hit is None:
-            # THE EXTRACTED LINE IS ALSO THE PRINT — BUT IT MUST BE THE LINE THE
-            # BRAIN READ (reviewer 2026-09-17: a fallback that matched any item
-            # on the page by figure-and-prior landed 'Gross billings of the
-            # travel agency' as the provenance of a revenue the brain quoted from
-            # another line — plain, on evidence nobody had read). A scanned page
-            # has no text to quote, so the ledger's line stands in for the page's
-            # — only when it IS the brain's line.
-            from .writegate import _SCALES, _nums, ties_prior
-            from .numerics import line_cells
-            want = [x for x in line_cells(str(line or "")) if isinstance(x, (int, float))]
-            for it in _items(loop):
-                if str(getattr(it, "page", "")) != str(pg):
-                    continue
-                ns = [n for n in _nums(it) if isinstance(n, (int, float))]
-                if not want or any(not any(abs(abs(q) - abs(n)) <= max(0.05, abs(q) * 1e-3) for n in ns)
-                                   for q in want):
-                    continue          # the brain quoted figures this line does not print: not its line
-                f_page = _page_scales(loop).get((getattr(it, "doc", None), pg))
-                for f in _SCALES:
-                    if not any(abs(abs(n) - abs(float(printed))) <= max(0.05, abs(float(printed)) * 1e-3)
-                               for n in ns):
-                        continue
-                    v_m = float(printed) / f
-                    if not ties_prior(it, f, prior, v_m):
-                        continue
-                    if f_page and f != f_page:
-                        # A TIE AT A SCALE THE PAGE DOES NOT CARRY IS NOT PROOF
-                        # (owner 2026-09-17): thousands reading as millions ties
-                        # a prior 1000x away just as neatly.
-                        return (v_m, False, f"p{pg} '{_quote(it)[:50]}' ties your prior only at a scale this "
-                                f"page does not carry ({f:,.0f} against the page's {f_page:,.0f}) — "
-                                "scale mismatch, red", {"doc": getattr(it, "doc", None), "page": pg,
-                                                        "line": _quote(it)[:60]})
-                    if isinstance(prior, (int, float)) and prior < 0 < v_m:
-                        v_m = -v_m                 # the model owns the sign convention
-                    return v_m, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line you quoted) — the "
-                                       "comparative ties your prior"), {"doc": getattr(it, "doc", None),
-                                                                        "page": pg, "line": _quote(it)[:60]}
-            return (float(printed), False,
-                    f"no line of p{pg} on file prints {printed:,} as you quoted it — it lands red with your reason",
-                    {"page": pg, "line": str(line or "")[:60]})
-        # THE PRINT OWNS THE SIGN (reviewer 2026-09-17: the brain typed 21000 for
-        # a line the page prints as '(21,000)' and the cost landed positive). The
-        # brain names the line; the figure — and its sign — is read off the page.
-        v = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg, scales,
-                            _dominant(scales), log, f"{sheet}!{coord}")
-        ev = {"doc": hit.get("doc"), "page": pg, "line": hit["text"][:60]}
-        if v is None:
-            return float(printed), False, f"p{pg} carries no proven scale — the printed figure lands red", ev
-        return float(v["value"]), bool(v.get("flag") is None), (
-            f"p{pg} '{hit['text'][:60]}'" + (" — the comparative ties your prior" if v.get("flag") is None
-                                             else f" — {str(v.get('note') or 'no prior tie')[:70]}")), ev
+        return _quote_verdict(loop, page_text, sources, pg, float(printed), line, prior)
     f_ = entry.get("formula")
     if isinstance(f_, str) and f_.strip().startswith("="):
         # A BACK-OUT IS A FORMULA, NOT A HARDCODE (house law): the analyst must
@@ -928,6 +873,90 @@ def verdict(loop, entry, page_text, sources, log):
     if any(_arith_ties(m, v) for m in _ARITH.finditer(because)):
         return v, True, f"your stated arithmetic re-computes: {because[:80]}", {"line": because[:60]}
     return v, False, "no quoted printed line and no arithmetic code can re-compute — it lands red with your reason", {}
+
+
+def _quote_verdict(loop, page_text, sources, pg, printed, line, prior):
+    """THE BRAIN QUOTES IN THE MODEL'S UNITS (DFE live 2026-09-17: every write
+    landed red — "no line of p12 prints 78,615.27743983 as you quoted it" —
+    because the page prints 78,615,277,439.83 yuan and the model holds
+    thousands). The figure the brain gives is the figure for the MODEL; code
+    finds the line it quoted and checks the printed number against it AT THE
+    PAGE'S OWN SCALE. The scale stays the page's (a tie at another scale is
+    still red); only the units of the quote have changed.
+    -> (value, plain, why, evidence)"""
+    from .reader import _page_line
+    from .writegate import _SCALES, _ties_full_precision
+    scales = _page_scales(loop)
+    dom = _dominant(scales)
+    best = None
+    for doc in sorted(sources):
+        txt = (page_text or {}).get((doc, pg))
+        if not txt:
+            continue
+        f_page = scales.get((doc, pg)) or dom.get(doc)
+        for fs in ([f_page] if f_page else list(_SCALES)):
+            hit = _page_line({(doc, pg): txt}, pg, abs(printed) * fs, line or "", {doc})
+            if hit is None:
+                continue
+            comp = hit.get("prior")
+            tie = (isinstance(comp, (int, float)) and isinstance(prior, (int, float))
+                   and abs(prior) >= 0.5 and _ties_full_precision(abs(comp) / fs, abs(prior)))
+            # the print owns the sign; the magnitude is the brain's figure
+            value = abs(printed) * (-1.0 if float(hit.get("figure") or 0) < 0 else 1.0)
+            if isinstance(prior, (int, float)) and prior != 0 and tie and (comp < 0) != (prior < 0):
+                value = -value
+            ev = {"doc": doc, "page": pg, "line": hit["text"][:60]}
+            if tie:
+                return value, True, (f"p{pg} '{hit['text'][:60]}' — the comparative ties your prior"
+                                     + (f" (the page prints in x{fs:,.0f})" if fs != 1 else "")), ev
+            other = None
+            if isinstance(comp, (int, float)) and isinstance(prior, (int, float)) and abs(prior) >= 0.5:
+                other = next((g for g in _SCALES if _ties_full_precision(abs(comp) / g, abs(prior))), None)
+            why = (f"p{pg} '{hit['text'][:50]}' — scale mismatch: its comparative ties your prior only at "
+                   f"x{other:,.0f} and this page carries x{fs:,.0f}" if other and other != fs else
+                   f"p{pg} '{hit['text'][:50]}' — the line carries no comparative that ties your prior")
+            best = best or (value, False, why, ev)
+    # A SCANNED PAGE HAS NO TEXT TO QUOTE FROM: the extractor's own line stands
+    # in for the page's — and it must still be the line the brain read, at this
+    # page's scale (the F2 and F10 laws, applied to the ledger).
+    from .numerics import line_cells
+    from .writegate import _nums, comparative_index, _sourceable
+    want = [x for x in line_cells(str(line or "")) if isinstance(x, (int, float))]
+    for it in _items(loop):
+        if str(getattr(it, "page", "")) != str(pg) or not _sourceable(it):
+            continue
+        ns = [n for n in _nums(it) if isinstance(n, (int, float))]
+        if not ns:
+            continue
+        f_page = scales.get((getattr(it, "doc", None), pg)) or dom.get(getattr(it, "doc", None))
+        for fs in ([f_page] if f_page else list(_SCALES)):
+            i_hit = next((i for i, n in enumerate(ns)
+                          if _ties_full_precision(abs(n), abs(printed) * fs)), None)
+            if i_hit is None:
+                continue
+            if want and any(not any(_ties_full_precision(abs(q), abs(n)) for n in ns) for q in want):
+                continue                     # the brain quoted figures this line does not print
+            ci = comparative_index(ns, getattr(it, "columns", None), i_hit)
+            comp = ns[ci] if ci is not None else None
+            ev = {"doc": getattr(it, "doc", None), "page": pg, "line": _quote(it)[:60]}
+            value = abs(printed) * (-1.0 if ns[i_hit] < 0 else 1.0)
+            if isinstance(comp, (int, float)) and isinstance(prior, (int, float)) and abs(prior) >= 0.5 \
+                    and _ties_full_precision(abs(comp) / fs, abs(prior)):
+                if prior < 0 and value > 0:
+                    value = -value
+                return value, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line you quoted) — the "
+                                     "comparative ties your prior"), ev
+            other = next((g for g in _SCALES if isinstance(comp, (int, float)) and isinstance(prior, (int, float))
+                          and abs(prior) >= 0.5 and _ties_full_precision(abs(comp) / g, abs(prior))), None)
+            best = best or (value, False,
+                            (f"p{pg} '{_quote(it)[:50]}' — scale mismatch: its comparative ties your prior "
+                             f"only at x{other:,.0f} and this page carries x{fs:,.0f}" if other and other != fs
+                             else f"p{pg} '{_quote(it)[:50]}' — no comparative on that line ties your prior"), ev)
+    if best:
+        return best
+    return (float(printed), False,
+            f"no line of p{pg} on file prints {printed:,.2f} as you quoted it, at this page's own scale "
+            "— it lands red with your reason", {"page": pg, "line": str(line or "")[:60]})
 
 
 def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
@@ -948,6 +977,26 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
             loop.__dict__.setdefault("_map_refused", []).append(f"{sheet}!{coord}: {why[:120]}")
             continue
         colour = None if plain is True else ("orange" if plain == "orange" else "red")
+        # A LATER BATCH NEVER OVERWRITES AN EARLIER PLAIN WRITE (owner
+        # 2026-09-17, the parallel faces): two faces that both claim a row are a
+        # disagreement, and a disagreement is the analyst's, not code's — the
+        # cell keeps the first reading and goes red carrying both.
+        _st_now = _written(loop).get(f"{sheet}!{coord}")
+        if _st_now == "filled":
+            _prev = (loop.served.get((sheet, _row_of(coord))) or {}).get("value")
+            _same = isinstance(_prev, (int, float)) and not isinstance(v, str) \
+                and abs(float(_prev) - float(v)) <= max(0.05, abs(float(v)) * 1e-4)
+            if not _same:
+                loop.writer.flag_ref(f"{sheet}!{coord}", "red",
+                                     f"TWO READINGS: this row was mapped {_fmt(_num(_prev))} and then "
+                                     f"{_fmt(_num(v)) if not isinstance(v, str) else str(v)[:20]} from another "
+                                     f"face ({str(e.get('because') or '')[:100]}). The first stands; "
+                                     "your call which is right.")
+                _written(loop)[f"{sheet}!{coord}"] = "red"
+                out.append(f"  {sheet}!{coord}: two readings ({_fmt(_num(_prev))} then "
+                           f"{_fmt(_num(v)) if not isinstance(v, str) else str(v)[:20]}) — the first stands, red")
+                continue
+            continue
         pcol = prior_column(loop.spec, sheet, ty)
         because = str(e.get("because") or "no reason given")[:200]
         note = (f"Mapped by the brain because: {because} [{why[:90]}]" if colour is None else
@@ -1246,6 +1295,111 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
 
 # ── the loop ─────────────────────────────────────────────────────────────
 
+def _face_rows(loop, pre_wb, rows, skipped):
+    """{(doc, page): [rows whose leads point at that face]} — the unit of work."""
+    ev0 = Evaluator(pre_wb)
+    written, out = _written(loop), {}
+    for sheet, coord, r in rows:
+        if status_of(loop, sheet, coord, written, skipped) != "unfilled":
+            continue
+        pcol = prior_column(loop.spec, sheet, int(loop.ty))
+        prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
+        for it, _cur in leads_for(loop, prior, k=2):
+            out.setdefault((str(getattr(it, "doc", "")), int(getattr(it, "page", 0) or 0)), []).append(
+                (sheet, coord, r))
+    return out
+
+
+def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, skipped):
+    """ONE FACE, ON ITS OWN: its printed text, the model rows its lines point at,
+    and the keys — small enough to answer in one batch, and nothing else."""
+    ev0 = Evaluator(pre_wb)
+    written = _written(loop)
+    L = [f"## THIS TURN IS ONE FACE: {str(face).upper()} — {doc} p{pg}",
+         "Answer with ONE `sets` batch for the rows below. Nothing else is asked of you now; the rows of "
+         "other faces are another call's work.", ""]
+    L.append(f"## THE KEYS against the print ({int(loop.ty)}) — a key is the model's own arithmetic: "
+             "you never type into one, you set the inputs underneath it")
+    L += _key_table(loop, rows_all, written, skipped)
+    L.append("")
+    L.append(f"## THE PAGE — {doc} p{pg}")
+    txt = (page_text or {}).get((doc, pg))
+    if txt:
+        L += ["   " + ln for ln in str(txt).splitlines() if ln.strip()][:60]
+    else:
+        L.append("   (no text on file for this page — the extracted lines are in the leads below)")
+    L.append("")
+    L.append("## THE MODEL ROWS THIS FACE'S LINES POINT AT")
+    cls = _classes(loop, rows_all)
+    for sheet, coord, r in rows_here:
+        L += _row_block(loop, pre_wb, ev0, sheet, coord, r,
+                        status_of(loop, sheet, coord, written, skipped), cls.get((sheet, coord), ""))
+    return "\n".join(L)
+
+
+def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, workers=8):
+    """THE FACES ARE MAPPED AT ONCE (owner 2026-09-17: Luna takes about two
+    minutes a turn whatever the reasoning, so a sequential loop cannot reach a
+    model of 337 rows in half an hour — CLP live: 19 turns, 34 minutes, 19
+    cells). One call per printed face, all in flight together; code applies the
+    batches in the order the faces come, under every gate rule, and a later
+    batch never overwrites an earlier plain write. -> faces answered"""
+    import concurrent.futures as _cf
+    rows = input_rows(loop, census)
+    loop.__dict__["_map_pages"] = page_text
+    sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
+    skipped = loop.__dict__.setdefault("_map_skipped", {})
+    by_face = _face_rows(loop, pre_wb, rows, skipped)
+    faces = {(d, p): f for f, d, p in _faces(loop)}
+    work = sorted(by_face.items(), key=lambda kv: -len(kv[1]))
+    if not work:
+        log("[map] no face's lines point at an unfilled row — nothing to map in parallel")
+        return 0
+    log(f"[map] {len(work)} face(s) to map, {workers} at a time; "
+        f"{sum(len(v) for _k, v in work)} rows between them")
+    t0, answered = time.monotonic(), 0
+
+    def _one(key_rows):
+        (doc, pg), rows_here = key_rows
+        ctx = _face_context(loop, pre_wb, faces.get((doc, pg), "table"), doc, pg, rows_here,
+                            page_text, rows, skipped)
+        t1 = time.monotonic()
+        try:
+            reply = ask_json(MANDATE, ctx)
+        except Exception as e:  # noqa: BLE001
+            return (doc, pg, None, time.monotonic() - t1, repr(e)[:120])
+        return (doc, pg, reply, time.monotonic() - t1, None)
+    with _cf.ThreadPoolExecutor(max_workers=max(1, int(workers))) as pool:
+        futures = [pool.submit(_one, w) for w in work
+                   if time.monotonic() - t0 < deadline_s]
+        for fut in futures:
+            left = deadline_s - (time.monotonic() - t0)
+            try:
+                doc, pg, reply, took, err = fut.result(timeout=max(1.0, left))
+            except Exception as e:  # noqa: BLE001
+                log(f"[map] a face's call did not come back: {e!r}")
+                continue
+            if err or not isinstance(reply, dict):
+                log(f"[map] face {doc} p{pg}: no answer ({err}) — its rows stay open ({took:.0f}s)")
+                continue
+            log("[map] face %s p%s reply %s" % (doc, pg, json.dumps(reply, ensure_ascii=False)))
+            answered += 1
+            for call in (reply.get("calls") or []):
+                if not isinstance(call, dict):
+                    continue
+                out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log,
+                                deadline=t0 + deadline_s)
+                for ln in out:
+                    log(f"[map]   {ln.strip()[:300]}")
+            log(f"[map] face {doc} p{pg}: answered in {took:.0f}s")
+    by_sheet, still = coverage(loop, rows, skipped)
+    log(f"[map] the face round: {answered}/{len(work)} face(s) answered in "
+        f"{(time.monotonic() - t0) / 60:.1f} min — "
+        f"{sum(c.get('filled', 0) for c in by_sheet.values())} plain, "
+        f"{sum(c.get('red', 0) for c in by_sheet.values())} red, {len(still)} rows still open")
+    return answered
+
+
 def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, brain=True):
     """THE MAPPING LOOP. Every turn: code lays out the printed faces beside the
     model's input rows with their leads, the brain calls tools, code verifies,
@@ -1255,7 +1409,8 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
     rows = input_rows(loop, census)
     loop.__dict__["_map_pages"] = page_text
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
-    skipped, state, answers, dead, turn, stuck = {}, {"history": []}, [], 0, 0, 0
+    skipped = loop.__dict__.setdefault("_map_skipped", {})
+    state, answers, dead, turn, stuck = {"history": []}, [], 0, 0, 0
     t0 = time.monotonic()
     log(f"[map] {len(rows)} input rows in the actual column; {deadline_s / 60:.1f} min for the mapping")
     if ask_json is None or not brain:
