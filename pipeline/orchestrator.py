@@ -1412,7 +1412,8 @@ class ObjectiveLoop:
             held_proven=_holder_proven((self.served or {}).get((sheet, row)), f"{sheet}!{col}{row}",
                                        self.writer.log.get("plugs", ()),
                                        _fill_rgb_o(self.wb[sheet][f"{col}{row}"])),
-            all_items=self.ledger.items)      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
+            all_items=self.ledger.items,      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
+            row_named=bool(args.get("named")))   # a card pick names the printed row it was chosen from
         if verdict == "ALLOW" and "RESTATED" in law_reason:
             # the restatement is a fact for the report page, not a paint on the cell;
             # the page prints the RESTATED prior, so "prior not corroborated" does not apply

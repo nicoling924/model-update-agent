@@ -115,7 +115,16 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             and (it.doc, it.page, it.table_id) not in pv_tabs]
     priors = [tt.prior_value for tt in loop.targets.values()
               if isinstance(tt.prior_value, (int, float))]
-    scales = ratify_page_scales(pool, priors, [])
+    scales = ratify_page_scales(pool, priors, [])       # the scale is ratified on named rows only
+    # THE UNLABELLED ROW REACHES THE BRAIN (the page prints subtotals with no
+    # label of their own — the CLP P&L's operating-expense total among them).
+    # Code may not say what such a row IS, so it never joins and never proves
+    # a write by itself; it is offered on the card with its tie, and the
+    # brain's pick is what names it.
+    pool += [it for it in loop.ledger.items
+             if not str(it.label or "").strip() and len(it.nums or []) >= 2
+             and not it.disputed and _sourceable(it)
+             and (it.doc, it.page, it.table_id) not in pv_tabs]
     pool = [it for it in pool if (it.doc, it.page) in scales]
     tol = _world_tol(pv)
     exact_home = any(
@@ -944,6 +953,7 @@ def render_card(loop, item):
                          f"{b}{tie}{arb}{w}")
             options[f"serve:{cid}"] = ("set_input", {
                 "cell": f"{sheet}!{col}{row}", "value": c["value"],
+                "named": True,          # the brain picked THIS printed row off the card
                 "nil": bool(c.get("nil")),
                 "flag": "red" if c.get("no_prior") else None,
                 "no_prior": bool(c.get("no_prior")),

@@ -288,7 +288,21 @@ def claimed_keys(served):
     return out
 
 
-def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False, all_items=None):
+def _has_label(item):
+    """A printed row the BRAIN can be said to have named. A row the page
+    prints without a label carries no meaning code may assert (reviewer
+    2026-09-16: 'Heading / 20 5' made any value 20 "proven — the evidence
+    row ties the prior", and could evict a homed claim). Such a row is
+    evidence the brain must name: it reaches the card with its tie, and the
+    pick — not code's scan of the ledger — is what gives it meaning. A row
+    that carries no label FIELD at all says nothing either way (a fixture, a
+    foreign record): unknown is not unlabelled."""
+    lab = _meta(item, "label", None)
+    return lab is None or bool(str(lab).strip())
+
+
+def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False,
+                all_items=None, row_named=False):
     """Returns (verdict, reason, forced_flag).
     verdict: ALLOW | ALLOW_FLAGGED | REFUSE | EVICT.
 
@@ -303,6 +317,10 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
                 "row first; if it is not printed, flag_cell an estimate "
                 "instead of writing one", None)
     tied = [(it, s) for it, s in evidence if ties_prior(it, s, prior, value)]
+    if not row_named:
+        # the write did not name a printed row: an unlabelled line's tie is a
+        # number coincidence until the brain says what the line IS
+        tied = [(it, s) for it, s in tied if _has_label(it)]
     material = abs(value) >= 50
     tied_free = [(it, s) for it, s in tied
                  if not material or _claim_key(it, value) not in claimed]

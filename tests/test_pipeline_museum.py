@@ -6961,6 +6961,34 @@ def test_a_plug_is_never_a_proven_holder_2026_09_16():
     print("PASS test_a_plug_is_never_a_proven_holder_2026_09_16")
 
 
+def test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16():
+    """Reviewer 2026-09-16: once the extractor kept unlabelled rows, code's
+    own scan of the ledger could prove any number with number soup —
+    segment_page("results.pdf", 7, "Heading\n 20 5\n") gives Item(label='',
+    nums=[20, 5]) and judge_write(20.0, prior=5.0) answered "proven — the
+    evidence row ties the prior", plain, and could evict a homed claim. A row
+    the page prints without a label has no meaning for code to assert: it
+    reaches the brain on the card with its tie, and the PICK names it."""
+    from pipeline.stage1_read import segment_page
+    from pipeline.writegate import judge_write, find_evidence
+    items = segment_page("results.pdf", 7, "Heading\n 20 5\n")
+    soup = [i for i in items if not str(i.label).strip()]
+    assert soup and soup[0].nums == [20.0, 5.0], [(i.label, i.nums) for i in items]
+    ev = find_evidence(items, 20.0)
+    assert ev, "the row is still evidence the number is printed"
+    v, why, flag = judge_write(20.0, 5.0, False, ev, set())
+    assert v != "ALLOW" or "proven" not in why, f"number soup proved a write: {v} {why}"
+    # nor does it evict a homed claim
+    served = {("S", 2): {"value": 20.0, "conf": 3, "flag": "red", "note": "no prior tie"}}
+    from pipeline.writegate import claim_holders
+    v2, why2, _f = judge_write(20.0, 5.0, False, ev, {20.0}, claim_holders(served))
+    assert v2 != "EVICT", f"an unlabelled row evicted a homed claim: {why2}"
+    # the brain's pick names the row — then the tie decides, as for any line
+    v3, why3, _f3 = judge_write(20.0, 5.0, False, ev, set(), row_named=True)
+    assert v3 == "ALLOW" and "proven" in why3, (v3, why3)
+    print("PASS test_an_unlabelled_row_is_never_proof_on_its_own_2026_09_16")
+
+
 
 if __name__ == "__main__":
     fails = 0
