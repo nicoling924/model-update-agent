@@ -280,7 +280,7 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
             face = loop.ledger.face(it.doc, it.page)
             out.append({"value": val, "doc": it.doc, "page": it.page,
                         "line": str(it.label)[:60], "face": face or "no-face",
-                        "tie_off": 0.5, "noun_proven": True,
+                        "noun_proven": True,
                         "warnings": ["✔ LAST YEAR'S report prints the model's prior under this "
                                      "label — the item's own name; this year's line under it"]})
     # PROSE FIGURES (owner 2026-09-08): a sentence naming this item is a
@@ -1189,17 +1189,17 @@ def render_card(loop, item):
         lines = ["CARD PLUG " + diag.splitlines()[0],
                  "  no component has unclaimed evidence. " + hyp,
                  "  A plug trades truth for balance and is orange-flagged "
-                 "for the analyst. The refusing answer leaves the check "
-                 "failing, loudly, for the terminal ladder and report."]
+                 "for the analyst; the review at the end re-reads every one."]
         options = {}
         for j, (sh, r, lab, _cur) in enumerate(sites):
             options[f"plug:{j}"] = ("plug_residual", {
                 "check": f"{sheet}!{row}", "into": f"{sh}!{_tcol(loop, sh)}{r}",
                 "why": f"card-adjudicated last resort into '{lab[:30]}'"})
             lines.append(f"    plug:{j} -> {sh}!{r} '{lab[:30]}'  [{row_context_short(loop, sh, _tcol(loop, sh), r)}]")
-        options["refuse_flag"] = (None, None)
+        if not options:
+            return None            # no eligible site: the check goes to the review's last resort
         lines.append("  answers: " + ", ".join(options))
-        return "\n".join(lines), options, "refuse_flag"
+        return "\n".join(lines), options, "plug:0"
     return None
 
 

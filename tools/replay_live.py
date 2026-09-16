@@ -29,6 +29,25 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+def reviews_from_log(path):
+    """The review's own turns, recorded verbatim by the loop ('[review] turn N
+    reply {json}') and replayed in order — a floor must be able to drive the
+    review exactly as the live run did."""
+    out = []
+    if not path:
+        return out
+    import json
+    for ln in Path(path).read_text(errors="ignore").splitlines():
+        m = re.search(r"\[review\] turn \d+ reply (\{.*)$", ln)
+        if not m:
+            continue
+        try:
+            out.append(json.loads(m.group(1)))
+        except ValueError:
+            pass                                  # a truncated turn is not an answer
+    return out
+
+
 def picks_from_log(path):
     picks = {}
     if not path:
@@ -106,8 +125,10 @@ def main(argv):
     company, period, year, art = argv[0], argv[1], int(argv[2]), Path(argv[3])
     log_path = argv[4] if len(argv) > 4 else None
     from pipeline.run import update
+    answerer = make_answerer(picks_from_log(log_path))
+    answerer.reviews = reviews_from_log(log_path) or None
     res = update(company, period, year, client=DeadBrain() if live_shape else None, stage4_mode="queue-only",
-                 stage4_answerer=make_answerer(picks_from_log(log_path)),
+                 stage4_answerer=answerer,
                  pinned_ledger=str(art / "replay" / period / "ledger.json"),
                  pinned_served=str(art / "replay" / period / "provenance.json"),
                  log=print)

@@ -1352,51 +1352,41 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             ok_g = False
         return ok_g, fails_g, card_g
 
-    def check_mass():
-        ev_m = _Ev(wb)
-        m = 0.0
-        for _nm, _ref, then, now in _key_violations(wb, spec_d, target_year,
-                                                    ledger, _panel_path, keys_before, panel=_key_panel):
-            m += abs((now if isinstance(now, (int, float)) else 0.0) - then)
-        from .keytie import key_state as _ks          # bound here: a later local import of the same name made this a free variable
-        _judged = set(writer.log.get("key_verdicts", {}) or {})
-        for _nm, _ref, _got, _want, _ok in _ks(wb, spec_d, target_year, _panel_path, panel=_key_panel):
-            if not _ok and isinstance(_got, (int, float)) and _nm not in _judged and _nm not in (keys_before or {}):
-                m += abs(_got - _want)
-        for c in (spec_d.get("check_rows") or []):
-            sh = c.get("sheet")
-            if sh not in wb.sheetnames:
-                continue
-            for _y, col in year_columns(spec_d, sh).items():
-                try:
-                    v = ev_m.cell(sh, f"{col}{int(c['row'])}")
-                except Exception:
-                    continue
-                if isinstance(v, (int, float)):
-                    m += abs(v)
-        # cash and total assets under water are an objective like any other:
-        # a pick that opens or deepens one made the objectives worse
-        from .consequence import sanity_mass as _sanity_mass
-        m += _sanity_mass(loop)
-        return m
-
-    # THE ENDING (owner 2026-09-15): one loop — measure the objectives, the
-    # brain decides how to fix the biggest break, code verifies, measure
-    # again; it stops itself. Nothing stacked after it.
-    from .consequence import run_ending as _run_ending
+    # THE REVIEW (owner 2026-09-16): the brain reads the MODEL — the
+    # objectives measured, the headline lines, every cell the run wrote with
+    # its move against its own history and its printed evidence — calls the
+    # tools it wants, and code applies, measures and verifies. No cards.
+    from .review import run_review as _run_review
     _pre_end = locals().get("_pre_wb_sense")
     if _pre_end is None:
         _pre_end = load(str(archive))
     _left_e = RUN_TARGET_S - FINISH_MARGIN_S - (_time.monotonic() - _run_t0)
+
+    def _ask_review(system, user):
+        """One review turn. A replay's recorded turns stand in for the brain."""
+        _scripted = getattr(stage4_answerer, "reviews", None)
+        if _scripted is not None:
+            if not _scripted:
+                raise RuntimeError("the replay has no further review turns recorded")
+            return _scripted.pop(0)
+        if client is None:
+            raise RuntimeError("no brain in this run")
+        return client.json(system, user,
+                           lambda o: [] if isinstance(o, dict) and isinstance(o.get("calls"), list)
+                           else ["reply must be {\"thinking\": ..., \"calls\": [...]}"],
+                           repair_retries=1)
+
+    _notes = [str(x) for x in (writer.log.get("sense_check") or [])]
     try:
-        ok, failures, card = _run_ending(
-            loop, _pre_end, log, getattr(loop, "ask", None), gate_once, repair_round, check_mass,
-            keys_before, _key_panel, _panel_path, deadline_s=max(120.0, _left_e),
-            hold_zero=lambda: _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log),
-            brain=(client is not None))     # a replay's script is not a brain: an unscripted card takes the floor's own executor
+        _hold_zero(writer, (lambda sh_, co_: Evaluator(wb).cell(sh_, co_)), log)
+        ok, failures, card = _run_review(
+            loop, _pre_end, log, _ask_review, gate_once, repair_round,
+            keys_before, _key_panel, _panel_path,
+            deadline_s=max(120.0, min(720.0, _left_e)), notes=_notes,
+            brain=(client is not None or getattr(stage4_answerer, "reviews", None) is not None))
     except Exception as _e_end:
-        log(f"[ending] STAGE LOST: {_e_end!r}")
-        run_log.append(f"[ending] STAGE LOST: {_e_end!r}")
+        log(f"[review] STAGE LOST: {_e_end!r}")
+        run_log.append(f"[review] STAGE LOST: {_e_end!r}")
         repair_round("first")
         ok, failures, card = gate_once()
     for line in card.get("inherited_breaks", []):
