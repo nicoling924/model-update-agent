@@ -1,0 +1,32 @@
+name: Dry test — the brain reviews the model
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Actions run id whose artifact to review"
+        default: "35066977462"
+jobs:
+  drytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      PYTHONUNBUFFERED: "1"
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.6-luna' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: gh run download "${{ inputs.run_id }}" -D artifact
+      - run: python tools/drytest_review.py "$(ls -d artifact/*-update | head -1)" | tee drytest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drytest
+          path: drytest.txt
