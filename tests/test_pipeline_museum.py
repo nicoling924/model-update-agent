@@ -7053,6 +7053,35 @@ def test_the_tools_address_the_model_the_way_the_model_spells_it_2026_09_16():
     print("PASS test_the_tools_address_the_model_the_way_the_model_spells_it_2026_09_16")
 
 
+def test_a_trial_never_changes_what_the_run_believes_about_its_keys_2026_09_16():
+    """Reviewer (023d56e..d15bd4e), reproduced: `try` ran a repair round, the
+    repair round's key tie wrote key_verdicts and flags that snapshot() did not
+    cover, and _metrics then read off = 0 for any key named there — code closing
+    a key objective on a verdict the run wrote about itself, triggered by a mere
+    PREVIEW. A key is measured against the print, full stop; and a trial puts
+    back the verdicts and the flags with everything else."""
+    from pipeline.consequence import restore, snapshot
+    from pipeline.review import _broken, _metrics, _one_call
+    lp, pre, panel, logs = _review_harness()
+    off0 = _metrics(lp, panel, None)["Final!AI95"][3]
+    assert abs(off0 - 3875.0) < 0.5, off0
+    # the verdict the repair round used to write no longer zeroes the gap
+    lp.writer.log.setdefault("key_verdicts", {})["retained earnings"] = "a definition question"
+    assert abs(_metrics(lp, panel, None)["Final!AI95"][3] - 3875.0) < 0.5, "a verdict closed a key objective"
+    assert any(o[1:3] == ("Final", "AI95") for o in _broken(lp, {}, panel, None)), _broken(lp, {}, panel, None)
+    # and a trial leaves the verdicts and the flags exactly as it found them
+    snap = snapshot(lp)
+    lp.writer.log["key_verdicts"]["minority interests"] = "written during a trial"
+    lp.writer.flag_ref("Final!AI97", "red", "flagged during a trial")
+    restore(lp, snap)
+    assert "minority interests" not in lp.writer.log["key_verdicts"], lp.writer.log["key_verdicts"]
+    assert "Final!AI97" not in lp.writer.log.get("flags", []), lp.writer.log.get("flags")
+    out, _res = _one_call(lp, pre, {"tool": "try", "sets": [{"ref": "HK Sales!AI16", "value": 46.3}]},
+                          panel, None, logs.append, lambda _t: None, lambda: (True, [], {}), None, {})
+    assert lp.wb["HK Sales"]["AI16"].value == 1.00 and "the trial was unwound" in "\n".join(out), out
+    print("PASS test_a_trial_never_changes_what_the_run_believes_about_its_keys_2026_09_16")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

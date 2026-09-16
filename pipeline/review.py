@@ -181,12 +181,17 @@ def _metrics(loop, key_panel, panel_path):
                 out[f"{sheet}!{col}{row}"] = (f"balance check {year} (must be {expect:,.0f})", float(v),
                                               "check" if col == act else "forecast-check", float(v) - expect)
     try:
+        # A KEY IS MEASURED AGAINST THE PRINT, FULL STOP (reviewer 2026-09-16:
+        # a key named in key_verdicts read off = 0 — code closing a key objective
+        # by a verdict the run wrote about itself, and a `try`'s repair round
+        # could write that verdict). The model's number against the printed
+        # number is the whole measure; a definition question for the analyst is
+        # a thing the BRAIN says in its statement, not a thing that zeroes a gap.
         from .keytie import key_state
-        judged = set(loop.writer.log.get("key_verdicts", {}) or {})
         for nm, ref, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel):
             if not isinstance(got, (int, float)):
                 continue
-            off = (float(got) - want) if isinstance(want, (int, float)) and not ok and nm not in judged else 0.0
+            off = (float(got) - want) if isinstance(want, (int, float)) and not ok else 0.0
             out[ref] = (f"key '{nm}' vs print {_fmt(_num(want))}" + ("" if ok else "  ← OFF THE PRINT"), float(got), "key", off)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"key objectives unavailable: {e!r}")

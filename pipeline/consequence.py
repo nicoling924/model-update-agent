@@ -10,19 +10,23 @@ and the plug site of the period that is broken.
 
 def snapshot(loop):
     """What a trial may disturb: the write journal mark, the provenance
-    (served), the locks, the sense rulings. Previews and take-backs restore
-    all four (audit 2026-09-15: a preview un-served and unlocked proven
-    movers; a taken-back pick left its ruling in the memory)."""
+    (served), the locks, the sense rulings, the key verdicts and the flags.
+    A trial restores all of them (audit 2026-09-15: a preview un-served and
+    unlocked proven movers, and left a taken-back ruling in the memory;
+    reviewer 2026-09-16: a trial's repair round also wrote key_verdicts and
+    flag_ref entries that survived the restore, so a preview changed what the
+    RUN believed about its keys)."""
     w = loop.writer
     return (len(w.log.get("writes_all", [])), dict(loop.served or {}), set(getattr(w, "locked", ())),
-            dict(w.log.get("rulings", {}) or {}), list(w.log.get("plugs", []) or []))
+            dict(w.log.get("rulings", {}) or {}), list(w.log.get("plugs", []) or []),
+            dict(w.log.get("key_verdicts", {}) or {}), list(w.log.get("flags", []) or []))
 
 
 def restore(loop, snap):
     """Unwind every write since the snapshot through the writer (value AND
     look), then put back what the run believed: served, locks, rulings."""
     w = loop.writer
-    mark, served0, locked0, rulings0, plugs0 = snap
+    mark, served0, locked0, rulings0, plugs0, verdicts0, flags0 = snap
     journal = w.log.get("style_journal", [])[mark:]
     for sh_w, co_w, old_w, _new in reversed(list(w.log.get("writes_all", []))[mark:]):
         style = next((j for j in journal if (j[0], j[1]) == (sh_w, co_w)), (sh_w, co_w, "", None, False))
@@ -35,6 +39,10 @@ def restore(loop, snap):
         w.log["rulings"].clear(); w.log["rulings"].update(rulings0)
     if "plugs" in w.log:
         w.log["plugs"][:] = plugs0
+    if "key_verdicts" in w.log:
+        w.log["key_verdicts"].clear(); w.log["key_verdicts"].update(verdicts0)
+    if "flags" in w.log:
+        w.log["flags"][:] = flags0
 
 
 def _fault(loop, text):
