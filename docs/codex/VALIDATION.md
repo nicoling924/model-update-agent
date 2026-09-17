@@ -46,3 +46,7 @@ A frozen source snapshot ran all three original pinned replays plus both full-pi
 The original failures remain in the baseline evidence. After the approved corrections, fresh full replays pass every discovered balance check: CLP FY25 24/24, DFE FY25 118/118, DFE 1H25 84/84. See [validation/approved/summary.json](validation/approved/summary.json). The same frozen pipeline code passed the full bench and both readiness cases; SHA-256 comparison confirmed source identity before commit.
 
 Only the code/dispatch gate is cleared. These replays still lack LLM mapping turns; native Excel calculation and independent semantic review have not been certified. This is ready for a controlled live pilot, not yet an accepted MVP. The GitHub dry-test step now uses explicit bash so a failing test cannot be hidden by the following `tee` command.
+
+## Mixed-unit candidate verification
+
+The unit conflict fix passed the full bench, 15 focused contracts, all three balanced pinned replays (24/24, 118/118, 84/84), and three full-pipeline readiness cases. EPS 1.15, inventory 26171.15303444 and finance costs -1860 survive the complete runs. Each quoted line has one label-qualified source candidate. These values remain red for semantic review. Evidence and test-harness limitations are in `validation/units/summary.json`. Live pilots remain cancelled; no new end-to-end accuracy claim is made.

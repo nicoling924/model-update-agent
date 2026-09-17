@@ -289,21 +289,22 @@ def _quoted_verdict(hit, printed, pv, page, page_scales, dom, log, rid):
     if isinstance(comp, (int, float)) and isinstance(pv, (int, float)):
         if comp == 0 and pv == 0:
             f_tie = f_page          # the print's own nil beside the model's zero: the tie
-        elif abs(pv) >= 0.5:
+        elif pv != 0:
             f_tie = next((f for f in ([f_page] if f_page else []) + list(_SCALES)
                           if _ties_full_precision(comp / f, pv)), None)
-    # on a clash the PAGE's own scale is what lands (red): the figure the page
-    # actually prints, for the analyst to judge — never the scale that only the
-    # tie wanted
-    # THE SCALE MUST BE THE PAGE'S OWN (owner 2026-09-17, twice): a comparative
-    # that ties only at some OTHER scale is not a tie — a page printing
-    # 88,018,000 / 76,061,000 ties a model prior of 76,061 perfectly at x1000
-    # and the figure lands a thousand times wrong. The page's own ratified scale
-    # decides; where the page has none, the document's own dominant scale does.
-    # Where neither is known, nothing contradicts the tie and it stands.
+    # A page can mix monetary amounts, per-share figures and ratios. Neither
+    # a page-wide scale nor a contradictory comparative proves this row's
+    # conversion. Keep the cell unchanged until the caller resolves the units.
     f_known = f_page or dom.get(hit["doc"])
     scale_clash = bool(f_tie) and bool(f_known) and f_tie != f_known
-    f_use = (f_known if (f_tie and f_known and f_tie != f_known) else (f_tie or f_page))
+    if scale_clash:
+        hit["unit_error"] = (f"scale mismatch: the comparative ties at x{f_tie:,.0f} "
+                             f"but the page carries x{f_known:,.0f}; state the intended "
+                             "model-unit value explicitly instead of applying a conflicting conversion")
+        if log:
+            log(f"[read] unverified {rid}: {hit['unit_error']}")
+        return None
+    f_use = f_tie or f_page
     if not f_use:
         if log:
             log(f"[read]   unverified {rid}: quoted from p{page} but the page has no ratified scale — not written")

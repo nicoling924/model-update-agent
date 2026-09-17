@@ -14,6 +14,34 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_readiness_candidate_counts_keep_punctuated_chinese_labels(self):
+        from types import SimpleNamespace
+        from tools.readiness import source_candidates
+        basic = "（一）基本每股收益（元/股） 1.15 0.94"
+        diluted = "（二）稀释每股收益（元/股） 1.15 0.94"
+        items = [SimpleNamespace(doc="report.pdf", page=99, source_line=line, label=line)
+                 for line in (basic, diluted)]
+        self.assertEqual(source_candidates(items, {"doc":"report.pdf", "page":99, "line":basic}), items[:1])
+
+    def test_mixed_unit_pages_do_not_force_a_currency_scale_on_small_metrics(self):
+        for prior, printed in ((0.94, 1.15), (0.1, 0.12), (-0.1, -0.12)):
+            loop, pages, _ = museum._map_model()
+            ws = loop.wb["Final"]
+            ws["B2"] = ws["C2"] = prior
+            line = f"Revenue {printed} {prior}"
+            pages[("ar.pdf", 23)] = line
+            loop._map_scales = {("ar.pdf", 23): 1e6}
+            entry = {"sheet": "Final", "coord": "C2", "doc": "ar.pdf", "page": 23,
+                     "printed": printed, "line": line}
+            result = _apply(loop, [entry], pages, {"ar.pdf"}, lambda *a: None)
+            self.assertEqual(ws["C2"].value, prior)
+            self.assertIn("scale mismatch", str(result))
+            entry.pop("printed")
+            entry.update(value=printed, because="Explicit model-unit interpretation of this metric")
+            _apply(loop, [entry], pages, {"ar.pdf"}, lambda *a: None)
+            self.assertEqual(ws["C2"].value, printed)
+            self.assertIn("Final!C2", loop.writer.log["flags"])
+
     def test_replay_keeps_face_answers_with_their_document_and_sequential_turns(self):
         import json
         import tempfile

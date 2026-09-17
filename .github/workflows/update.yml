@@ -127,3 +127,11 @@ jobs:
             companies/${{ inputs.company }}/updates/
             companies/${{ inputs.company }}/replay/
           if-no-files-found: warn
+      - name: Preserve raw extraction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.company }}-${{ inputs.period }}-extraction
+          path: .cache/pipeline-vision/*.json
+          include-hidden-files: true
+          if-no-files-found: ignore

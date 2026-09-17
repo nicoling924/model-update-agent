@@ -1068,6 +1068,7 @@ def verdict(loop, entry, page_text, sources, log):
         from .reader import _page_line, _quoted_verdict
         scales = _page_scales(loop)
         hits = []
+        unit_errors = []
         for doc in sorted(docs):
             text = (page_text or {}).get((doc, pg))
             if not text:
@@ -1077,6 +1078,8 @@ def verdict(loop, entry, page_text, sources, log):
             if hit:
                 answer = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg,
                                          scales, _dominant(scales), log, f"{sheet}!{coord}")
+                if hit.get("unit_error"):
+                    unit_errors.append(hit["unit_error"])
                 if answer:
                     kin, why_k = _name_is_kin(loop, sheet, coord, hit["text"])
                     plain = answer.get("conf") == 4 and kin
@@ -1085,6 +1088,8 @@ def verdict(loop, entry, page_text, sources, log):
             return hits[0]
         if hits:
             return None, False, "the quote resolves to multiple documents; specify doc", {}
+        if unit_errors:
+            return None, False, "; ".join(sorted(set(unit_errors))), {}
         return None, False, "the document-unit quote has no verified conversion; specify doc and printed line", {}
     f_ = entry.get("formula")
     if isinstance(f_, str) and f_.strip().startswith("="):

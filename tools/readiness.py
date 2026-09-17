@@ -22,6 +22,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+def source_candidates(items, proposal):
+    """Count label-bearing source candidates across scripts and punctuation."""
+    words = re.findall(r"[^\W\d_]+", str(proposal.get("line", "")).casefold())
+    return [it for it in items
+            if (not proposal.get("doc") or it.doc == proposal["doc"])
+            and (not proposal.get("page") or it.page == proposal["page"])
+            and all(word in str(it.source_line or it.label).casefold() for word in words)]
+
+
 def main(argv):
     import json
     proposal_path = None
@@ -73,11 +82,7 @@ def main(argv):
         evidence = Ledger.load(ledger)
         pending = [dict(p) for p in proposals]
         for p in proposals:
-            candidates = [it for it in evidence.items
-                          if (not p.get("doc") or it.doc == p["doc"])
-                          and (not p.get("page") or it.page == p["page"])
-                          and all(word.lower() in str(it.source_line or it.label).lower()
-                                  for word in str(p.get("line", "")).split() if word.isalpha())]
+            candidates = source_candidates(evidence.items, p)
             print(f"[readiness] {p['ref']}: {len(candidates)} source-line candidates for the supplied quote")
             seen[p["ref"]] = ("MAPPING PROPOSAL", str(p.get("line", "")))
         def maps(system, user):

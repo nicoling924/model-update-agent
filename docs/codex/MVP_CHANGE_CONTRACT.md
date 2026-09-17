@@ -31,3 +31,13 @@ Historical tests whose contracts changed are updated explicitly: model-unit quot
 Frozen ledgers and their SHA-256 manifest are under /private/tmp/codex-mvp-pins. Baseline workbooks are separate copies under /private/tmp/codex-mvp-baseline. Replays without recorded mapping turns test deterministic machinery, not live reasoning quality. New acceptance.json separates all three outcomes from delivery.
 
 The present integration is a candidate, not a generality claim. Multi-panel anatomy, evaluator limitations and independent source/rollover review remain acceptance risks. No live dispatch until museum, all three replay balance checks, and affected-cell readiness are recorded.
+
+## Mixed-unit evidence (17 September, next candidate)
+
+Root cause: automatic conversion treats a page's monetary scale as authoritative for every row, including metrics whose comparative establishes a conflicting scale.
+
+Generic rule: conflicting comparative and page units do not establish a conversion. Keep the input unchanged, return the conflicting evidence to the caller, and permit an explicit model-unit proposal through the shared write path. A nonzero comparative can establish evidence even below one model unit. This does not let a coincidental numeric tie override the document's unit evidence.
+
+Museum pin: `test_mixed_unit_pages_do_not_force_a_currency_scale_on_small_metrics` covers positive EPS, small ratios, negative values, refusal without mutation, and an explicit model-unit resolution. Existing conflicting-scale museum exhibits remain unchanged. Full bench and 15 contract tests passed. All three frozen replays delivered and passed their discovered balance checks; all three affected-cell readiness values survived. Evidence is in validation/units/summary.json. This clears this change’s code gate, not overall MVP acceptance.
+
+The GitHub workflow also retains raw vision transcriptions in a separate artifact on cancellation/failure. This preserves paid extraction for diagnosis without introducing cross-run cache reuse or changing production input selection.
