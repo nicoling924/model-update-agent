@@ -1,0 +1,39 @@
+run 35193527927 · head 150628d (v25) · 07:14–08:14Z (60 min) · cold — anatomy turn named 27 key rows (0 dropped) incl. the four BS halves
+balance Model!95: −5.0 in 2025–2030E (PPE Model!U59 6,460.4 vs 6,465.4 — Raw financials!U93 off by 5); Driver!109/139 all 0; Model!135 nonzeros (AG, AJ, AN…) are inherited from the pre-update model, not the agent's
+cash Model!U47 = 0 (!): code's '0 means 0' wrote Raw financials!U243 = 0 because the prior 22,502.86 tied the BEGINNING-cash line (期初) whose current slot is blank — a coincidence write over the key panel's own reading 'cash: print 18,980.96 p215'; forecasts V47 1,180 / W47 3,093 are built on 0
+keys Model!U = ref 13/18: revenue, GP, OP, EPS, DPS, 4 BS halves, total assets, total equity, L+E, operating CF OK; PBT 4,895.6 vs 4,785.1 and NP 3,941.7 vs 3,831.3 (+110: finance cost U17 −3.7 vs −117.7; other income U21 882.6 vs 886.2); cash 0 vs 18,981; investing CF −30,162 vs −10,587 (U116 −25,725 vs −6,169); financing CF 5,695 vs 5,102
+REVIEW LOOP GOT 0 TURNS: queue started 08:04 with 6.8 min (115 items, 70 defaulted) to 08:12; '[review] clock: what remains is written up' at 08:12; 12 objectives still broken
+verdict: WORSE than run 35089036223 (balanced, NP 3,828, cash positive) — delivery stays 35089036223
+
+===== keys / checks / cash =====
+CHECKS (0 = balanced) Model!95, Model!135, Driver!109, Driver!139 across columns:
+  Model!95: NONZERO U=-5.0, V=-5.0, W=-5.0, X=-5.0, Y=-5.0, Z=-5.0, BT=-5.0
+  Model!135: NONZERO AG=-8290.0, AJ=3784.4, AN=474.1, AT=-0.8, AV=-1.0, BP=7.9, CV=2.8, CZ=-170.2, DD=-1.0, ER=1.1, EV=8.5
+  Driver!109: ALL 0
+  Driver!139: ALL 0
+
+CASH Model!47 U/V/W (agent vs fable5 ref):
+  U47 agent=0 ref=18980.959403
+  V47 agent=1180.1251971384722 ref=21325.327753863472
+  W47 agent=3092.5677820604683 ref=23844.317496400377
+
+KEYS Model!U (agent vs fable5 ref; NP printed 3,831.3):
+  OK  revenue                  r4    agent=78615.27743983 ref=   78615.27744 fill=FFC7CE raw=='Raw financials'!U4
+  OK  gross profit             r7    agent=13400.020600929995 ref=13400.020601000004 fill= raw==U4+U6
+  OK  operating profit         r15   agent=5046.308953929994 ref=5046.308954000005 fill= raw==U7+U10+U11+U9
+  X   profit before tax        r22   agent=4895.5502794427775 ref=4785.135321000005 fill=FFC7CE raw==U15+U17+U18+U20+U21
+  X   net profit               r28   agent=3941.7161813327775 ref=3831.301223000005 fill=FFC7CE raw==U25+U26
+  OK  EPS                      r35   agent=          1.15 ref=          1.15 fill= raw=='Raw financials'!U50
+  OK  DPS                      r39   agent=0.6015492941965777 ref=0.5300000000636139 fill= raw==U38/U42
+  X   cash                     r47   agent=             0 ref=  18980.959403 fill=FFC7CE raw=='Raw financials'!U243
+  OK  current assets           r54   agent=101683.68263442 ref= 101683.682635 fill= raw==SUM(U47:U53)
+  OK  non-current assets       r65   agent=60985.51258291001 ref=  60990.512584 fill= raw==SUM(U56:U64)
+  OK  total assets             r67   agent=162669.19521733 ref= 162674.195219 fill= raw==U54+U65
+  OK  current liabilities      r75   agent=102323.47342705999 ref= 102323.473429 fill= raw==SUM(U69:U74)
+  OK  non-current liabilities  r82   agent=12182.466456550002 ref=  12182.466455 fill= raw==SUM(U77:U81)
+  OK  total equity             r91   agent=48168.25533372 ref=48168.25533400001 fill= raw==U89+U90
+  OK  L+E                      r93   agent=162674.19521732998 ref= 162674.195218 fill= raw==U75+U82+U91
+  OK  operating CF             r114  agent= 2014.32091285 ref=   2014.320913 fill= raw=='Raw financials'!U201
+  X   investing CF             r120  agent=-30161.691894259846 ref=-10587.324053999999 fill=FFC7CE raw==SUM(U116:U119)
+  X   financing CF             r127  agent=5695.228322570001 ref=   5101.688322 fill=FFC7CE raw==SUM(U122:U126)
+keys = ref: 13/18
