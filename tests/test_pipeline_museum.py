@@ -6724,6 +6724,29 @@ def test_every_open_row_is_put_in_front_of_a_face_2026_09_17():
     print("PASS test_every_open_row_is_put_in_front_of_a_face_2026_09_17")
 
 
+def test_stated_arithmetic_stands_on_printed_figures_2026_09_17():
+    """Reviewer 2026-09-17: a `set` carrying a value and a stated sum landed
+    PLAIN with nothing printed behind it — the sum only had to re-compute to the
+    value, so '440 + 20' could be invented. Every term of size must be a figure
+    some page on file prints, exactly as a back-out formula's terms must."""
+    loop, pages, census = _map_model()
+    _s, said = _drive(loop, pages, census,
+                      [{"calls": [{"tool": "set", "ref": "Final!C3", "value": 460,
+                                   "because": "440 + 20, my own split"}]},
+                       {"calls": [{"tool": "done"}]}])
+    assert "Final!C3" in loop.writer.log["flags"], "an invented sum landed plain"
+    assert "not a figure printed on any page" in " ".join(said), said[-1][-300:]
+    # and the same sum over figures the page DOES print stands
+    loop2, pages2, census2 = _map_model()
+    _s2, _said2 = _drive(loop2, pages2, census2,
+                         [{"calls": [{"tool": "set", "ref": "Final!C7", "value": -37206,
+                                      "because": "-31000 + -6206, fuel and other opex as the page prints them"}]},
+                          {"calls": [{"tool": "done"}]}])
+    assert loop2.wb["Final"]["C7"].value == -37206, loop2.wb["Final"]["C7"].value
+    assert "Final!C7" not in loop2.writer.log["flags"], "arithmetic over printed figures landed red"
+    print("PASS test_stated_arithmetic_stands_on_printed_figures_2026_09_17")
+
+
 def test_the_four_halves_of_the_balance_sheet_are_keys_2026_09_17():
     """OWNER'S RULING 2026-09-17: perpetual capital securities plugged into a
     non-current liability row leave that half OFF THE PRINT while total

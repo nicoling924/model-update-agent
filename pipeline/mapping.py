@@ -977,8 +977,21 @@ def verdict(loop, entry, page_text, sources, log):
     v = _num(entry.get("value"))
     if v is None:
         return None, False, f"{sheet}!{coord}: no `value`, `printed` figure or `formula` — a model cell takes a figure", {}
-    if any(_arith_ties(m, v) for m in _ARITH.finditer(because)):
-        return v, True, f"your stated arithmetic re-computes: {because[:80]}", {"line": because[:60]}
+    for m in _ARITH.finditer(because):
+        if not _arith_ties(m, v):
+            continue
+        # THE ARITHMETIC STANDS ON PRINTED FIGURES (reviewer 2026-09-17: a
+        # stated sum that re-computes to the value landed PLAIN with nothing
+        # printed behind it — '440 + 20' can be invented). The same evidence the
+        # back-out formula answers to: every term of size is a figure some page
+        # on file prints.
+        terms = [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*\.?\d*", m.group(0))]
+        missing = [t for t in terms if abs(t) >= 0.5 and not _hits_printed(loop, t, page_text)]
+        if missing:
+            return v, False, (f"your arithmetic re-computes, but {', '.join(f'{x:,.2f}' for x in missing[:3])} "
+                              "is not a figure printed on any page on file — it lands red with your reason"), {}
+        return v, True, f"your stated arithmetic re-computes from printed figures: {because[:80]}", {
+            "line": because[:60]}
     return v, False, "no quoted printed line and no arithmetic code can re-compute — it lands red with your reason", {}
 
 
