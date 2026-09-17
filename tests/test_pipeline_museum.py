@@ -6832,6 +6832,26 @@ def test_the_faces_are_mapped_while_the_writes_land_2026_09_17():
     print("PASS test_the_faces_are_mapped_while_the_writes_land_2026_09_17")
 
 
+def test_a_key_says_how_many_of_its_inputs_were_never_mapped_2026_09_17():
+    """DFE live U15/U22/U28: the keys were computed from `Raw financials!U8` and
+    its neighbours, rows the mapping never reached — they still held last year's
+    figure under a red flag, and the keys above them carried no flag at all. A
+    key is the model's arithmetic over the rows underneath it, and how many of
+    those are still open is measured and said on the key itself."""
+    from pipeline.mapping import keys_on_open_inputs, input_rows, _written
+    loop, pages, census = _map_model()
+    loop.spec["key_rows"] = [{"name": "operating profit", "sheet": "Final", "row": 10}]
+    rows = input_rows(loop, census)
+    open_by_key = {nm: opens for nm, _ref, opens in keys_on_open_inputs(loop, rows, loop.spec, 2025)}
+    assert "Final!C4" in open_by_key["operating profit"], open_by_key
+    for co in ("C2", "C3", "C4", "C5", "C6", "C7"):
+        _written(loop)[f"Final!{co}"] = "filled"
+    assert not keys_on_open_inputs(loop, rows, loop.spec, 2025), "a key of mapped inputs still says it is open"
+    _written(loop)["Final!C5"] = "red"
+    assert keys_on_open_inputs(loop, rows, loop.spec, 2025)[0][2] == ["Final!C5"], "a red input under a key is not said"
+    print("PASS test_a_key_says_how_many_of_its_inputs_were_never_mapped_2026_09_17")
+
+
 def test_the_sequential_pass_gets_what_is_left_of_the_clock_2026_09_17():
     """CLP live 35162933611: the face round answered in 2.3 minutes of the 23.2
     it was given and the sequential pass was handed the SPLIT's remainder — 9.9

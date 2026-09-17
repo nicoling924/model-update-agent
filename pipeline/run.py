@@ -763,6 +763,29 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # THE KEYS ARE MEASURED, NEVER CLOSED BY CODE (owner 2026-09-17: the key
     # tie's automatic back-out is gone). What is off the print is said here
     # and reaches the review, which can set it with evidence.
+    # A KEY COMPUTED FROM UNMAPPED INPUTS SAYS SO (owner 2026-09-17): the number
+    # in a key row is only as good as the rows underneath it, and the analyst
+    # must see how many of those were never mapped.
+    try:
+        from .mapping import keys_on_open_inputs as _keys_open, input_rows as _in_rows
+        for _nm_k, _ref_k, _open_k in _keys_open(loop, _in_rows(loop, hardcode_census),
+                                                 spec_d, target_year):
+            # A NOTE ALREADY ON THE CELL IS KEPT (reviewer 2026-09-17: painting a
+            # flag replaces the comment wholesale, so this would erase whatever
+            # the mapping or the key tie had already said about the same row)
+            _sh_k, _, _co_k = _ref_k.partition("!")
+            _had = wb[_sh_k][_co_k].comment.text if (_sh_k in wb.sheetnames
+                                                     and wb[_sh_k][_co_k].comment is not None) else ""
+            writer.flag_ref(_ref_k, "red",
+                f"COMPUTED FROM {len(_open_k)} UNMAPPED INPUT(S): this key is the model's own "
+                f"arithmetic over rows that were never mapped or are red — {', '.join(_open_k[:6])}. "
+                "Its number is only as good as those."
+                + (f" | {str(_had)[:300]}" if _had else ""))
+            log(f"[run] key '{_nm_k}' at {_ref_k} is computed from {len(_open_k)} unmapped input(s): "
+                + ", ".join(_open_k[:6]))
+    except Exception as _e_ku:
+        log(f"[run] the keys' input coverage could not be measured: {_e_ku!r}")
+        run_log.append(f"[run] the keys' input coverage could not be measured: {_e_ku!r}")
     try:
         from .keytie import key_state as _key_state
         for _nm, _ref, _got, _want, _ok in _key_state(wb, spec_d, target_year, _panel_path, panel=_key_panel):

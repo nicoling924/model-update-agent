@@ -537,6 +537,7 @@ def _feeding_inputs(loop, sheet, coord, rows, limit=5):
     from .investigate import _refs
     want = {(sh, co) for sh, co, _r in rows}
     seen, frontier, out = set(), [(sheet, coord)], []
+    limit = float("inf") if limit is None else limit   # evidence: the whole tree, when the answer is "how many of my inputs are open"
     for _hop in range(5):
         nxt = []
         for sh, co in frontier:
@@ -555,7 +556,35 @@ def _feeding_inputs(loop, sheet, coord, rows, limit=5):
         if len(out) >= limit or not nxt:
             break
         frontier = nxt
-    return out[:limit]
+    return out if limit == float("inf") else out[:limit]
+
+
+def keys_on_open_inputs(loop, rows, spec, target_year, skipped=None):
+    """A KEY IS ONLY AS GOOD AS THE ROWS UNDERNEATH IT (owner 2026-09-17, DFE
+    live: U15/U22/U28 computed from `Raw financials!U8` and its neighbours,
+    which were never reached and still held last year's figure under a red flag
+    — the keys themselves carried no flag at all). -> [(name, key ref, [the
+    input refs under it that are unfilled, red or not reached])]."""
+    from .checks import year_columns
+    written, skipped = _written(loop), (skipped if skipped is not None else
+                                        loop.__dict__.get("_map_skipped") or {})
+    out = []
+    for kk in (spec.get("key_rows") or []):
+        sh = kk.get("sheet")
+        if sh not in loop.wb.sheetnames:
+            continue
+        tc = year_columns(spec, sh).get(str(target_year))
+        if not tc:
+            continue
+        ref = f"{tc}{int(kk.get('row'))}"
+        # the WHOLE tree under the key, and a row the brain closed with a reason
+        # is closed (reviewer 2026-09-17: a walk that stopped at twelve could
+        # miss every open input, and a skipped row is a judgment, not a gap)
+        open_ins = [f"{a}!{b}" for a, b in _feeding_inputs(loop, sh, ref, rows, limit=None)
+                    if status_of(loop, a, b, written, skipped) in ("unfilled", "red")]
+        if open_ins:
+            out.append((str(kk.get("name") or "key"), f"{sh}!{ref}", open_ins))
+    return out
 
 
 def _key_table(loop, rows=(), written=None, skipped=None):
