@@ -851,6 +851,19 @@ def verdict(loop, entry, page_text, sources, log):
     because = str(entry.get("because") or "")
     loop.__dict__["_map_ref"] = (sheet, coord)
     printed, page, line = entry.get("printed"), entry.get("page"), entry.get("line")
+    # A ZERO IS A FIGURE ONLY WHERE A NIL IS PRINTED (CLP live: 34 rows answered
+    # `printed: 0` with no line printing a nil, and 34 cells were zeroed). A row
+    # that CARRIED a figure last year and carries none now is a real change, and
+    # a real change is printed: the dash, the blank beside the comparative, or
+    # the brain's own arithmetic. Nothing is written; the brain's reason is
+    # recorded and the row stays open. A row whose prior is itself nil has no
+    # magnitude to find, and the zero stands as the reading it is.
+    _z = next((x for x in (printed, entry.get("value"))
+               if isinstance(x, (int, float)) and not isinstance(x, bool)), None)
+    if _z == 0 and isinstance(prior, (int, float)) and abs(prior) >= 0.5 and not nil_leads(loop, prior):
+        return None, False, (f"{sheet}!{coord}: you answered zero and no line on file prints a nil beside "
+                             f"this row's prior ({_fmt(prior)}) — say which line shows it, state the "
+                             "arithmetic, or skip the row with your reason"), {}
     if isinstance(printed, (int, float)) and page is not None:
         try:
             pg = int(page)

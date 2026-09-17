@@ -6658,6 +6658,39 @@ def test_the_name_must_be_kin_to_the_row_2026_09_17():
     print("PASS test_the_name_must_be_kin_to_the_row_2026_09_17")
 
 
+def test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17():
+    """CLP live: 34 rows answered `printed: 0` with no line printing a nil. A
+    zero is a figure only where a nil is printed; the brain's reason is recorded
+    and the row STAYS open — it is not swallowed."""
+    from pipeline.mapping import coverage, input_rows
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C3", "printed": 0, "page": 23,
+                         "line": "Other gains, net 460 420", "because": "nothing this year"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert loop.wb["Final"]["C3"].value == 420.0, "a zero was written with no nil printed"
+    assert "no line on file prints a nil" in " ".join(said), said[-1][-300:]
+    _by, still = coverage(loop, input_rows(loop, census), {})
+    assert ("Final", "C3") in still, "the row was swallowed instead of staying open"
+    # A ROW THAT WAS NIL LAST YEAR HAS NO MAGNITUDE TO FIND (reviewer
+    # 2026-09-17: a dash printed again this year could never be written)
+    loop2, pages2, census2 = _map_model()
+    loop2.wb["Final"]["B3"] = 0.0
+    _s2, said2 = _drive(loop2, pages2, census2,
+                        [{"calls": [{"tool": "set", "ref": "Final!C3", "value": 0,
+                                     "because": "nil last year and nil again"}]},
+                         {"calls": [{"tool": "done"}]}])
+    assert loop2.wb["Final"]["C3"].value == 0, f"a nil row could not be written nil: {said2[-1][-300:]}"
+    # and the rule reads a FIGURE, never a boolean
+    loop3, pages3, census3 = _map_model()
+    _s3, said3 = _drive(loop3, pages3, census3,
+                        [{"calls": [{"tool": "set", "ref": "Final!C3", "printed": False,
+                                     "because": "not a number at all"}]},
+                         {"calls": [{"tool": "done"}]}])
+    assert "prints a nil" not in " ".join(said3), "a boolean was read as the figure zero"
+    print("PASS test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
