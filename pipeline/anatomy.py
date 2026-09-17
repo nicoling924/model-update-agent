@@ -94,10 +94,12 @@ def _parse(ref, wb):
 
 
 def _row_cells(wb, sheet, row):
-    """The cells this row actually holds, left to right."""
+    """The cells this row actually holds, left to right — the SHEET's own extent
+    decides how far that is (reviewer 2026-09-17: a cap of 80 columns hid the
+    check on any wider book, which is the failure this module exists to fix)."""
     ws = wb[sheet]
     out = []
-    for c in range(1, min(ws.max_column, 80) + 1):
+    for c in range(1, ws.max_column + 1):
         cell = ws.cell(row, c)
         if isinstance(cell.value, (int, float)) or \
                 (isinstance(cell.value, str) and cell.value.startswith("=")):
@@ -105,21 +107,34 @@ def _row_cells(wb, sheet, row):
     return out
 
 
-def _reads_zero(wb, ev, spec, sheet, row, target_year):
+def _reads_zero(wb, ev, spec, sheet, row, target_year, unread=None):
     """A CHECK IS A ROW THAT READS ZERO WHERE THE MODEL ALREADY CLOSED IT: the
     periods it already holds. -> (True, how_many) or (False, why). The target
     year and anything right of it are excluded — the run is about to change
     them, and a check that is currently broken is still a check."""
+    if unread is None:
+        unread = []
     cols = year_columns(spec, sheet) or {}
     past = {c for y, c in cols.items() if str(y).isdigit() and int(y) < int(target_year)}
+    cells = _row_cells(wb, sheet, row)
+    if not cols and cells:
+        # THE SHEET DECLARES NO YEARS (CX's Fleet, where the check actually is):
+        # a left-to-right sheet's newest period is its rightmost figure, and that
+        # is the one the run may be about to change — so it is not held to zero,
+        # exactly as the target year is not on a sheet that does name its years.
+        # evidence: the model's own column order is the only period order such a sheet gives.
+        cells = cells[:-1]
     seen = bad = 0
-    for coord in _row_cells(wb, sheet, row):
+    for coord in cells:
         col = "".join(ch for ch in coord if ch.isalpha())
         if cols and col not in past:
             continue                 # the target year, a forecast, or off the axis
         try:
             v = ev.cell(sheet, coord)
-        except Exception:            # noqa: BLE001 — an unevaluable cell proves nothing either way
+        except Exception as e:       # noqa: BLE001
+            # NOT SWALLOWED (the change law): an unevaluable cell proves nothing
+            # either way, and the run says which one and why
+            unread.append(f"{sheet}!{coord} ({type(e).__name__})")
             continue
         if not isinstance(v, (int, float)):
             continue
@@ -127,7 +142,8 @@ def _reads_zero(wb, ev, spec, sheet, row, target_year):
         if abs(v) > CHECK_TOL:
             bad += 1
     if seen < 2:
-        return False, "the model closes this row in fewer than two periods — nothing to verify a check against"
+        return False, ("the model closes this row in fewer than two periods — nothing to verify a check "
+                       "against" + (f" ({len(unread)} cell(s) would not evaluate: {', '.join(unread[:3])})" if unread else ""))
     if bad:
         return False, f"it reads non-zero in {bad} of the {seen} periods the model already closed — not a check"
     return True, seen
@@ -154,7 +170,7 @@ def sheet_reading(wb, spec, target_year, cap=24000):
         L.append(f"--- {sh}: {len(cols)} year column(s)"
                  + (f"; {target_year} is column {tcol}" if tcol else "; no year columns found") + " ---")
         ws = wb[sh]
-        for r in range(1, min(ws.max_row, 400) + 1):
+        for r in range(1, ws.max_row + 1):        # the sheet's own extent, not a cap: a check row below an arbitrary line is exactly what this turn must see
             lab = ""
             for c in range(1, 6):
                 v = ws.cell(r, c).value
@@ -201,7 +217,12 @@ def read(wb, spec, client, target_year, log, period="FY"):
         sh, r = site
         if (sh, r) in have_c:
             continue
-        ok, detail = _reads_zero(wb, ev, spec, sh, r, target_year)
+        unread = []
+        ok, detail = _reads_zero(wb, ev, spec, sh, r, target_year, unread)
+        if unread:
+            # said, never swallowed: the analyst sees which cells the model could not work out
+            log(f"[anatomy] {sh}!{r}: {len(unread)} cell(s) would not evaluate — {', '.join(unread[:4])}")
+            dropped.append(f"check {sh}!{r}: {len(unread)} cell(s) would not evaluate ({', '.join(unread[:3])})")
         if not ok:
             dropped.append(f"check {sh}!{r}: {detail}")
             continue
@@ -224,14 +245,19 @@ def read(wb, spec, client, target_year, log, period="FY"):
         v = None
         # an EMPTY cell evaluates to zero and is not a computed row: the model
         # must actually hold something there
-        if tcol and wb[sh][f"{tcol}{r}"].value not in (None, ""):
+        why_k = "the model works out no number there — a key is a row the model computes"
+        if not tcol:
+            why_k = f"sheet '{sh}' has no column for {target_year} in this model's year axis"
+        elif wb[sh][f"{tcol}{r}"].value in (None, ""):
+            why_k = f"{tcol}{r} is empty — the model holds nothing on that row this year"
+        else:
             try:
                 v = ev.cell(sh, f"{tcol}{r}")
-            except Exception:    # noqa: BLE001
+            except Exception as e_k:    # noqa: BLE001 — said, not swallowed
+                why_k = f"{tcol}{r} will not evaluate ({type(e_k).__name__}: {str(e_k)[:60]})"
                 v = None
         if not isinstance(v, (int, float)):
-            dropped.append(f"key {sh}!{r} as '{k.get('name')}': the model works out no "
-                           "number there — a key is a row the model computes")
+            dropped.append(f"key {sh}!{r} as '{k.get('name')}': {why_k}")
             continue
         if (sh, r) in have_k:
             continue

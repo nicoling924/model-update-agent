@@ -1509,8 +1509,12 @@ class ObjectiveLoop:
                                note=f"objective loop: {why[:300]}",
                                flag=flag, allow_empty=bool(args.get("no_prior")))
         if not ok:
-            reason = (self.writer.log["formula_refused"][-1]
-                      if self.writer.log.get("formula_refused") else
+            _fr = (self.writer.log.get("formula_refused") or [None])[-1]
+            # the log is cumulative: a refusal speaks only for the cell it names
+            # (reviewer 2026-09-17: every later band/lock failure in the run was
+            # reported as some other cell's "the model works this row out of …")
+            reason = (_fr
+                      if _fr and str(_fr).startswith(f"{ref}:") else
                       self.writer.log["band_refused"][-1]
                       if self.writer.log["band_refused"] else
                       self.writer.log["lock_refused"][-1]

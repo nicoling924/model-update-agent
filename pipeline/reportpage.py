@@ -97,14 +97,16 @@ ROLES = [
      ["total equity"]),
     ("cur_assets", "Current assets", "Balance sheet", "value",
      ["current assets", "total current assets", "流动资产合计", "流动资产总计"],
-     _RATIO + ("non", "net", "other", "liabilit", "per share"), ["current assets"]),
+     _RATIO + ("non", "noncurrent", "non current", "非流动", "net", "other", "liabilit", "per share"),
+     ["current assets"]),
     ("noncur_assets", "Non-current assets", "Balance sheet", "value",
      ["non current assets", "total non current assets", "noncurrent assets", "fixed and other assets",
       "非流动资产合计", "非流动资产总计"],
      _RATIO + ("other", "liabilit", "per share"), ["non-current assets"]),
     ("cur_liabs", "Current liabilities", "Balance sheet", "value",
      ["current liabilities", "total current liabilities", "流动负债合计", "流动负债总计"],
-     _RATIO + ("non", "net", "other", "asset", "per share"), ["current liabilities"]),
+     _RATIO + ("non", "noncurrent", "non current", "非流动", "net", "other", "asset", "per share"),
+     ["current liabilities"]),
     ("noncur_liabs", "Non-current liabilities", "Balance sheet", "value",
      ["non current liabilities", "total non current liabilities", "noncurrent liabilities",
       "long term liabilities", "非流动负债合计", "非流动负债总计"],
@@ -213,7 +215,17 @@ def _score(role, label):
     words = set(bare.split())
     for w in excl:
         wn = norm_label(w)
-        if wn and (_phrase_in(wn, bare) if " " in wn or len(wn) > 2 else wn in words):
+        if not wn:
+            continue
+        if re.search(r"[一-鿿]", wn):
+            # A LANGUAGE THAT DOES NOT SPACE ITS WORDS IS MATCHED BY CONTAINMENT
+            # (reviewer 2026-09-17: _phrase_in needs space boundaries, so 非流动
+            # never excluded 非流动负债合计 and the CURRENT role scored the
+            # NON-current row — the same rule numerics.kinship already uses)
+            if wn in bare.replace(" ", ""):
+                return 0
+            continue
+        if _phrase_in(wn, bare) if " " in wn or len(wn) > 2 else wn in words:
             return 0
     if any(_phrase_in(norm_label(n), bare) for n in names if norm_label(n)):
         return 2

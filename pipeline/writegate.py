@@ -356,11 +356,13 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
     material = abs(value) >= 50
     tied_free = [(it, s) for it, s in tied
                  if not material or _claim_key(it, value) not in claimed]
-    # THE COINCIDENCE TEST, on the lines that actually tie: if not one of them
-    # is named like the row, the number is all the proof there is
+    # THE COINCIDENCE TEST, on the lines the verdict itself is about (reviewer
+    # 2026-09-17: it was computed over `tied` and applied to `tied_free`, so a
+    # kin line already CLAIMED elsewhere let a non-kin free line land "proven")
     kin_tied = [(it, s) for it, s in tied if name_is_kin(it, row_label, block)]
+    kin_free = [(it, s) for it, s in tied_free if name_is_kin(it, row_label, block)]
     if tied_free:
-        if not kin_tied:
+        if not kin_free:
             return ("ALLOW_FLAGGED", COINCIDENCE, "red")
         if held_proven:
             # TWO READINGS (owner 2026-09-08): the cell already holds a figure

@@ -113,15 +113,26 @@ _REF = re.compile(r"(?<![A-Za-z0-9_$!.])(?:(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_.]*
 
 
 def same_period_inputs(formula, coord):
-    """THE ROWS THE MODEL WORKS THIS CELL OUT OF (owner 2026-09-17): the
-    references this formula reads that sit in the cell's OWN column — the same
-    period. A subtotal (=AI10+AI12+AI13), a link ('Driver'!AI37), a check
-    (=AI40-AI41-AI42) are all built out of this period's own rows: they are the
-    model's arithmetic, and the figure is changed by setting those rows. A
-    formula reaching into another column (=AH14*(1+AH20)) reads a DIFFERENT
-    period — that is a projection standing in the actual column, and the
-    mark-to-actual recipe replaces it with the disclosed figure.
-    -> the referenced same-period cells, in order, or []."""
+    """THE ROWS THE MODEL WORKS THIS CELL OUT OF (owner 2026-09-17) — and []
+    when this formula is not the model's arithmetic at all.
+
+    Two shapes live in an actual column, and what a formula READS tells them
+    apart. The model's own arithmetic reads only THIS period: a subtotal
+    (=AI10+AI12+AI13), a check (=AI40-AI41-AI42), a link ('Driver'!AI37 — the
+    model computing the row on another sheet). Set its inputs, never the total.
+    A PROJECTION reads another period of this row's own axis (=AH60*AI7/AH7,
+    =AH48*(1+AI49)) — last year carried forward, standing in the actual column
+    because nobody has marked it yet; that is precisely what the mark-to-actual
+    recipe replaces, so it stays settable. ONE other-column reference on this
+    sheet makes it a projection: a formula that reaches back a year is carrying
+    a year forward, whatever else it also reads.
+
+    (Reviewer 2026-09-17: the first cut asked whether ANY reference was in this
+    column, so 85 of the 113 formula cells in CLP's Final!AI — receivables,
+    payables, DPS — became unwritable, the DPS key among them. And a
+    cross-sheet reference is judged as a LINK on its own account, never by its
+    column letter matching: another sheet's column AI need not be this year.)
+    -> the same-period cells this formula reads, in order, or []."""
     col = "".join(ch for ch in str(coord) if ch.isalpha()).upper()
     row = "".join(ch for ch in str(coord) if ch.isdigit())
     body = str(formula)
@@ -130,9 +141,14 @@ def same_period_inputs(formula, coord):
     out = []
     for m in _REF.finditer(body[1:]):
         sh, c, r = (m.group(1) or m.group(2) or ""), m.group(3).upper(), m.group(4)
-        if c != col or (not sh and r == row):
-            continue                 # another period, or the cell itself
-        ref = (f"{sh.strip()}!" if sh.strip() else "") + c + r
+        if not sh.strip():
+            if c != col:
+                return []            # another period of this row's own axis: a projection
+            if r == row:
+                continue             # the cell itself
+            ref = c + r
+        else:
+            ref = f"{sh.strip()}!{c}{r}"    # another sheet: a link, whatever its column
         if ref not in out:
             out.append(ref)
     return out
@@ -197,6 +213,16 @@ def hold_zero_forecasts(writer, evaluate, log=print):
                 # a sanctioned hold: the gate's driver-roll check reads this list
                 writer.log.setdefault("frozen", []).append(f"{sheet}!{coord}: held at 0 — the analyst's forecast was 0 (owner 2026-09-14)")
                 n += 1
+            else:
+                # A REFUSED HOLD IS SAID (reviewer 2026-09-17: the formula guard
+                # refused 14 of these on the CLP floor and the count simply
+                # shrank — a law losing to a law, in silence). The row is the
+                # model's own arithmetic there, so the hold belongs on its
+                # INPUTS; the analyst is told which cell and why.
+                _why = next((x for x in reversed(writer.log.get("formula_refused") or [])
+                             if str(x).startswith(f"{sheet}!{coord}:")), "a write guard refused it")
+                writer.log.setdefault("unheld_zero", []).append(f"{sheet}!{coord}: {_why}")
+                log(f"[run] zero forecast NOT held at {sheet}!{coord} — {_why}")
     if n:
         log(f"[run] zero forecast: {n} forecast cell(s) held at 0 — the analyst's own forecast was nil")
     return n

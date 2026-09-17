@@ -1500,6 +1500,16 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 open_checks.append(str(f_)[:120])
         log(f"[run] delivered with {len(open_checks)} OPEN CHECK(S) marked red for the analyst: "
             + "; ".join(open_checks[:6]))
+    # NOTHING THE RUN SWALLOWED STAYS OFF THE REPORT (the change law, (d)):
+    # a stage that was lost, a hold a guard refused, a write refused over the
+    # model's own arithmetic — each reaches the analyst's page, not only the log
+    for _u in (writer.log.get("unheld_zero") or [])[:12]:
+        open_checks.append(f"forecast NOT held at 0: {str(_u)[:110]}")
+    for _fr in (writer.log.get("formula_refused") or [])[:12]:
+        open_checks.append(f"write refused over the model's own arithmetic: {str(_fr)[:110]}")
+    for _sl in run_log:
+        if "STAGE LOST" in str(_sl):
+            open_checks.append(str(_sl)[:120])
     tag = ""
     out_path = (company_dir / "model"
                 / f"{model_path.stem} {period} (pipeline{tag}){model_path.suffix}")

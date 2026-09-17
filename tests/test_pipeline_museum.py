@@ -7822,7 +7822,23 @@ def test_the_structure_turn_makes_a_cold_model_measurable_2026_09_17():
     assert ("CXMODEL", 133) not in taken, "a non-zero row was taken as a check"
     assert any("CXMODEL!133" in d and "not a check" in d for d in dropped), dropped
     assert any("Ghost" in d for d in dropped), dropped
-    assert any("CXMODEL!999" in d and "a key is a row the model computes" in d for d in dropped), dropped
+    assert any("CXMODEL!999" in d and "the model holds nothing on that row this year" in d
+               for d in dropped), dropped
+    # the reason is the REAL one (reviewer 2026-09-17: an empty row and a row the
+    # evaluator raised on were both reported as "the model computes no number")
+    from pipeline.anatomy import _reads_zero, _row_cells
+    wb2 = _cold_model()
+    wb2["CXMODEL"]["AO118"] = "=1/0"
+    unread = []
+    ok2, why2 = _reads_zero(wb2, __import__("pipeline.evaluator", fromlist=["Evaluator"]).Evaluator(wb2),
+                            spec, "CXMODEL", 118, 2025, unread)
+    assert isinstance(ok2, bool) and isinstance(why2, (str, int)), (ok2, why2)
+    # a sheet with NO year axis has its newest figure left out of the zero test
+    assert len(_row_cells(wb2, "Fleet", 5)) == 4, _row_cells(wb2, "Fleet", 5)
+    wb2["Fleet"]["F5"] = 12.0        # the rightmost period, the one a run may change
+    ok3, why3 = _reads_zero(wb2, __import__("pipeline.evaluator", fromlist=["Evaluator"]).Evaluator(wb2),
+                            spec, "Fleet", 5, 2025)
+    assert ok3 is True, (ok3, why3)
     keys = {k["name"]: (k["sheet"], k["row"]) for k in spec["key_rows"]}
     assert keys["revenue"] == ("CXMODEL", 118) and keys["operating profit"] == ("CXMODEL", 133), keys
     assert (n_c, n_k) == (2, 2), (n_c, n_k)
@@ -8019,6 +8035,83 @@ def test_the_balance_sheets_four_halves_are_keys_of_their_own_2026_09_17():
     from pipeline.anatomy import SYSTEM
     for nm in ("current assets", "non-current assets", "current liabilities", "non-current liabilities"):
         assert nm in SYSTEM, nm
+
+
+# ── The 2026-09-17 reviewer's confirmed findings ────────────────────────────
+
+def test_a_projection_in_the_actual_column_is_still_settable_2026_09_17():
+    """Reviewer 2026-09-17, driven on the real CLP book: the first cut of the
+    formula guard asked whether ANY reference sat in this column, so a MIXED
+    formula — the ordinary shape of a projection — was refused, and 85 of the
+    113 formula cells in Final!AI became unwritable, DPS (a key) among them.
+    The rule is what the formula READS: one reference to another period of this
+    row's own axis makes it a projection, which mark-to-actual replaces."""
+    from pipeline.writer import same_period_inputs as f
+    for formula, coord in (("=AH60*AI7/AH7", "AI60"),           # receivables
+                           ("=+AH83/(AH10-AH7)*(AI10-AI7)", "AI83"),   # payables
+                           ("=AH38/AH41*AI41", "AI38"),         # interim dividend
+                           ("=AH48*(1+AI49)", "AI48"),          # total DPS — a key
+                           ("=-AJ60*AI59", "AJ15")):
+        assert f(formula, coord) == [], (formula, coord, f(formula, coord))
+    # and the model's own arithmetic is still its own arithmetic
+    assert f("=AI10+AI12+AI13", "AI15") == ["AI10", "AI12", "AI13"]
+    assert f("=AJ8-AJ7", "AJ9") == ["AJ8", "AJ7"]
+    # a cross-sheet reference is a LINK on its own account, never by its column
+    # letter matching: another sheet's column AI need not be this year
+    assert f("='SOC Accounts'!AJ9", "AJ81") == ["SOC Accounts!AJ9"]
+    assert f("=India!AJ53", "AJ87") == ["India!AJ53"]
+
+
+def test_a_zero_forecast_a_guard_refuses_is_said_not_swallowed_2026_09_17():
+    """Reviewer 2026-09-17: the formula guard refused 14 of the zero-forecast
+    law's holds on the pinned CLP floor and the count simply shrank — a law
+    losing to a law, in silence. The change law forbids it: the cell, and which
+    guard, are named in the log and carried to the report."""
+    from pipeline.writer import Writer, hold_zero_forecasts
+    wb = _wb({"AI9": 5.0, "AH9": 0.0, "AJ8": 3.0, "AJ7": 1.0, "AJ9": "=AJ8-AJ7",
+              "AI20": 4.0, "AJ20": 7.0})
+    w = Writer(wb)
+    w.unforecast_rows = {("S", 9), ("S", 20)}
+    w.forecast_cols = {"S": {"AJ"}}
+    said = []
+    n = hold_zero_forecasts(w, lambda sh, co: {"S!AJ9": 2.0, "S!AJ20": 7.0}[f"{sh}!{co}"], said.append)
+    assert n == 1, n                                  # the plain cell was held
+    assert wb["S"]["AJ20"].value == 0
+    assert wb["S"]["AJ9"].value == "=AJ8-AJ7", "the model's arithmetic was overwritten"
+    assert w.log["unheld_zero"] and w.log["unheld_zero"][0].startswith("S!AJ9:"), w.log.get("unheld_zero")
+    assert "the model works this row out of AJ8, AJ7" in w.log["unheld_zero"][0], w.log["unheld_zero"]
+    assert any("zero forecast NOT held at S!AJ9" in x for x in said), said
+
+
+def test_a_refusal_speaks_only_for_the_cell_it_names_2026_09_17():
+    """Reviewer 2026-09-17: log['formula_refused'] is cumulative and never
+    cleared, so once ANY cell in a run had been refused over the model's own
+    arithmetic, every later band/lock/merged failure was reported to the brain
+    as that other cell's reason."""
+    import inspect
+    from pipeline import orchestrator as _O
+    src = inspect.getsource(_O.ObjectiveLoop.t_set_input)
+    assert 'str(_fr).startswith(f"{ref}:")' in src, "the reason is not matched to the cell"
+
+
+def test_the_non_current_row_is_not_claimed_by_the_current_role_2026_09_17():
+    """Reviewer 2026-09-17: reportpage's excluded-word test needs space
+    boundaries, so the one-character CJK exclusion never fired and 非流动负债合计
+    scored for CURRENT liabilities as well. ROLES is walked in order and rows are
+    taken, so on a model carrying the non-current row the current role claimed
+    it and the non-current line found nothing."""
+    from pipeline.reportpage import ROLES, _score
+    by = {r[0]: r for r in ROLES}
+    for lab, want in (("非流动负债合计", "noncur_liabs"), ("流动负债合计", "cur_liabs"),
+                      ("非流动资产合计", "noncur_assets"), ("流动资产合计", "cur_assets"),
+                      ("Total non-current liabilities", "noncur_liabs"),
+                      ("Total current liabilities", "cur_liabs")):
+        scores = {k: _score(by[k], lab) for k in ("cur_assets", "noncur_assets", "cur_liabs", "noncur_liabs")}
+        assert scores[want] == 3, (lab, scores)
+        assert all(v == 0 for k, v in scores.items() if k != want), (lab, scores)
+    # the CJK containment rule must not start excluding unrelated lines
+    assert _score(by["revenue"], "营业收入") == 3
+    assert _score(by["cash"], "货币资金") == 3
 
 
 if __name__ == "__main__":
