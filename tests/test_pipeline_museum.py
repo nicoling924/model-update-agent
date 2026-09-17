@@ -7,6 +7,7 @@ score. Pure stdlib — no LLM, no workbook, no pdfplumber; runs on a bare
 Python 3.9: python tests/test_pipeline_museum.py  (or pytest -q).
 """
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -6795,6 +6796,40 @@ def test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17():
                          {"calls": [{"tool": "done"}]}])
     assert "prints a nil" not in " ".join(said3), "a boolean was read as the figure zero"
     print("PASS test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17")
+
+
+def test_the_faces_are_mapped_while_the_writes_land_2026_09_17():
+    """Live 2026-09-17: three faces a run came back "its context could not be
+    built: RuntimeError('dictionary changed size during iteration')" — a worker
+    was reading the run's own record of what is written and skipped while the
+    main thread applied another face's batch. The context is a snapshot taken
+    under a lock; every face answers while the writes land."""
+    import inspect
+    from pipeline.mapping import map_faces, _written
+    loop, pages, census = _map_model()
+    # the same statement printed on four faces, as a report prints it
+    for pg in (24, 25, 26):
+        pages[("ar.pdf", pg)] = pages[("ar.pdf", 23)]
+        loop.ledger.faces[("ar.pdf", pg)] = "pl"
+    said = []
+
+    def ask(_system, user):
+        said.append(user)
+        time.sleep(0.02)                     # the main thread applies a batch meanwhile
+        return {"calls": [{"tool": "sets", "sets": [
+            {"ref": "Final!C3", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
+             "because": "other gains"}]}]}
+    logs = []
+    answered = map_faces(loop, loop.wb, census, pages, logs.append, ask, deadline_s=120.0, workers=8)
+    assert answered >= 3, f"only {answered} face(s) answered"
+    assert [x for x in logs if f"{answered}/{answered} face(s) answered" in x], \
+        [x for x in logs if "face(s) answered" in x]
+    assert not [x for x in logs if "could not be built" in x], [x for x in logs if "could not be built" in x][:2]
+    assert loop.wb["Final"]["C3"].value == 460.0, loop.wb["Final"]["C3"].value
+    src = inspect.getsource(map_faces)
+    i = src.index("def _one(")
+    assert "with _lock:" in src[i:i + 900] and "dict(skipped)" in src[i:i + 1200], src[i:i + 400]
+    print("PASS test_the_faces_are_mapped_while_the_writes_land_2026_09_17")
 
 
 def test_the_sequential_pass_gets_what_is_left_of_the_clock_2026_09_17():

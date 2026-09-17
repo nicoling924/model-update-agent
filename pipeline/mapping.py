@@ -1581,10 +1581,24 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
         f"{sum(len(v) for _k, v in work)} rows between them")
     t0, answered = time.monotonic(), 0
 
+    import threading
+    _lock = threading.Lock()
+
     def _one(key_rows):
         (doc, pg), rows_here = key_rows
-        ctx = _face_context(loop, pre_wb, faces.get((doc, pg), "table"), doc, pg, rows_here,
-                            page_text, rows, skipped)
+        # THE SHARED STATE IS READ AND WRITTEN UNDER THE SAME LOCK (live
+        # 2026-09-17: three faces a run were lost to "dictionary changed size
+        # during iteration" — a worker was reading the run's record of what is
+        # written and skipped while the main thread applied another face's
+        # batch. A lock only one side takes is not a lock: the applying below
+        # takes this one too.) The context is a snapshot; the writes stay on
+        # one thread.
+        with _lock:
+            try:
+                ctx = _face_context(loop, pre_wb, faces.get((doc, pg), "table"), doc, pg, rows_here,
+                                    page_text, rows, dict(skipped))
+            except Exception as e:  # noqa: BLE001 — said in the log and carried to the face's line
+                return (doc, pg, None, 0.0, f"its context could not be built: {e!r}")
         t1 = time.monotonic()
         try:
             reply = ask_json(MANDATE, ctx)
@@ -1603,14 +1617,19 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
                 continue
             if err or not isinstance(reply, dict):
                 log(f"[map] face {doc} p{pg}: no answer ({err}) — its rows stay open ({took:.0f}s)")
+                # NOTHING IS SWALLOWED: the brain sees the face that was lost and
+                # why, and the rows of that face stay open for the loop
+                loop.__dict__.setdefault("_map_refused", []).append(
+                    f"{doc} p{pg}: this face was not read — {str(err)[:100]}")
                 continue
             log("[map] face %s p%s reply %s" % (doc, pg, json.dumps(reply, ensure_ascii=False)))
             answered += 1
             for call in (reply.get("calls") or []):
                 if not isinstance(call, dict):
                     continue
-                out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log,
-                                deadline=t0 + deadline_s)
+                with _lock:
+                    out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log,
+                                    deadline=t0 + deadline_s)
                 for ln in out:
                     log(f"[map]   {ln.strip()[:300]}")
             log(f"[map] face {doc} p{pg}: answered in {took:.0f}s")
