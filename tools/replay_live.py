@@ -22,6 +22,7 @@ Usage:
                 name judgment fail the way they fail live — so the live
                 path is exercised offline, never only in the hour.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -68,6 +69,18 @@ def maps_from_log(path):
     return out
 
 
+def face_source(user):
+    """Decode current structured contexts, retaining old recorded contexts."""
+    if not user.startswith("## THIS TURN IS ONE FACE"):
+        return None
+    for line in user.splitlines():
+        if line.strip().startswith("source_ref: "):
+            ref = json.loads(line.strip().split(": ",1)[1])
+            return ref["doc"], int(ref["page"])
+    match = re.search(r"^## THIS TURN IS ONE FACE: .*? — (.+) p(\d+)$", user, re.M)
+    return (match.group(1),int(match.group(2))) if match else None
+
+
 class RecordedMaps:
     """Replay each answer against the document/page context that elicited it.
 
@@ -97,14 +110,14 @@ class RecordedMaps:
         return len(self.turns) + len(self.routes) + sum(len(v) for v in self.faces.values())
 
     def __call__(self, system, user):
-        match = re.search(r"^## THIS TURN IS ONE FACE: .*? — (.+) p(\d+)$", user, re.M)
+        source = face_source(user)
         with self.lock:
             if user.startswith("## ROUTE THE OPEN ROWS"):
                 if not self.routes:
                     raise RuntimeError("No recorded routing answer for this context")
                 return self.routes.pop(0)
-            if match:
-                key = (match.group(1), int(match.group(2)))
+            if source:
+                key = source
                 answers = self.faces.get(key, [])
                 if not answers:
                     raise RuntimeError(f"No recorded mapping answer for face {key}")

@@ -798,22 +798,6 @@ class ObjectiveLoop:
         if abs(residual) <= 0.01:
             return "MISS: that check already passes — nothing to plug"
         held = self.wb[i_sheet][f"{i_col}{i_row}"].value
-        hold_formula = None
-        if isinstance(held, str) and held.startswith("="):
-            # the agent's own growth hold (orange, this run) may take the
-            # plug — as a traceable composite on its evaluated value
-            try:
-                rgb_h = str(self.wb[i_sheet][f"{i_col}{i_row}"].fill.fgColor.rgb or "")
-            except Exception:
-                rgb_h = ""
-            if rgb_h.endswith("FFC000") and \
-                    f"{i_sheet}!{i_col}{i_row}" in self.writer.log.get("written", []):
-                try:
-                    hv = Evaluator(self.wb).cell(i_sheet, f"{i_col}{i_row}")
-                except Exception:
-                    hv = None
-                if isinstance(hv, (int, float)):
-                    hold_formula, held = held, float(hv)
         if not isinstance(held, (int, float)):
             return (f"MISS: {i_sheet}!{i_col}{i_row} holds "
                     f"{'a formula' if isinstance(held, str) else 'nothing'}, "
@@ -844,8 +828,7 @@ class ObjectiveLoop:
         wild_txt = (", WILD — swings the component by more than half; "
                     "a mapped sibling is probably wrong" if wild else "")
         fc_before = self._forecast_check_residuals()
-        plug_value = (f"=({held!r})+({-residual_eff!r})" if hold_formula
-                      else held - residual_eff)     # full precision: a
+        plug_value = held - residual_eff     # full precision: a
                                                     # 6-digit '{:g}' left
                                                     # the check at -1 and
                                                     # the plug was reverted
@@ -869,7 +852,7 @@ class ObjectiveLoop:
         except Exception:
             after = None
         if after is None or abs(after) > 0.01:
-            self.writer.write(i_sheet, f"{i_col}{i_row}", hold_formula or held,
+            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
                               note="plug reverted: did not zero the check")
@@ -901,7 +884,7 @@ class ObjectiveLoop:
                     pass
             hurt = []
         if hurt:
-            self.writer.write(i_sheet, f"{i_col}{i_row}", hold_formula or held,
+            self.writer.write(i_sheet, f"{i_col}{i_row}", held,
                               prior_coord=f"{pcol}{i_row}" if pcol else None,
                               trusted=True, force_lock=True,
                               note="plug reverted: forecast damage")

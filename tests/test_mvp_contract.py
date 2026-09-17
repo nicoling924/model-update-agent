@@ -14,6 +14,54 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_embedded_quote_validates_operand_and_never_replaces_formula(self):
+        from pipeline.mapping import verdict
+        loop,pages,_=museum._map_model()
+        ws=loop.wb['Final'];ws['B9']='=100-B2';ws['C9']='=100-C2'
+        pages[('note.pdf',7)]='Operating profit 130 100'
+        entry={'sheet':'Final','coord':'C9','formula':'=130-C2','printed':130,
+               'doc':'note.pdf','page':7,'line':'Operating profit 130 100'}
+        value,_,_,_=verdict(loop,entry,pages,{'note.pdf'},lambda *a:None)
+        self.assertEqual(value,'=130-C2')
+        _apply(loop,[entry],pages,{'note.pdf'},lambda *a:None)
+        self.assertEqual(ws['C9'].value,'=130-C2')
+        self.assertNotEqual(ws['C9'].value,130)
+
+    def test_all_numeric_operands_are_visible_but_pure_formulas_stay_outputs(self):
+        from pipeline.mapping import has_embedded_inputs, verdict
+        for formula in ("=100+C2", "=0+C2", "=0.5*C2", "=1E3+C2"):
+            self.assertTrue(has_embedded_inputs(formula),formula)
+        self.assertFalse(has_embedded_inputs("=SUM(C2:C3)"))
+        loop,pages,census=museum._map_model()
+        loop.wb['Final']['B9']=900
+        loop.wb['Final']['C9']='=B9'
+        value,_,why,_=verdict(loop,{'sheet':'Final','coord':'C9','value':950},pages,{'ar.pdf'},lambda *a:None)
+        self.assertIsNone(value)
+        self.assertIn("own arithmetic",why)
+        value,_,why,_=verdict(loop,{'sheet':'Final','coord':'C9','formula':'=B9+50'},pages,{'ar.pdf'},lambda *a:None)
+        self.assertIsNone(value)
+        self.assertEqual(loop.wb['Final']['C9'].value,'=B9')
+
+    def test_failed_work_does_not_abandon_unoffered_inputs(self):
+        from pipeline import mapping
+        loop, pages, census = museum._map_model_wide(n_rows=12,n_faces=1)
+        prior = loop.wb["Model"]["B13"].value
+        pages[("ar.pdf",20)] += f"Line item 13 {prior+50} {prior}\n"
+        contexts = []
+        original = mapping.build_context
+        def small_context(*args, **kwargs):
+            return original(*args, **kwargs, size_cap=200)
+        def answer(system, context):
+            contexts.append(context)
+            if ("Model","C13") in loop.__dict__.get("_map_offered",set()):
+                return {"calls":[{"tool":"set","ref":"Model!C13","doc":"ar.pdf","page":20,
+                    "printed":prior+50,"line":f"Line item 13 {prior+50} {prior}","because":"Disclosed actual"}]}
+            return {"calls":[{"tool":"done"}]}
+        with patch.object(mapping,"build_context",small_context), patch.object(mapping,"route_open_rows",return_value=0):
+            mapping.run_mapping(loop,loop.wb,census,pages,lambda *a:None,answer,deadline_s=10)
+        self.assertAlmostEqual(loop.wb["Model"]["C13"].value,prior+50)
+        self.assertLess(len(contexts),40)  # repeated unproductive work still terminates
+
     def test_cold_zero_differences_are_candidates_until_their_role_is_read(self):
         from openpyxl import Workbook
         from pipeline.docid import identify_key_rows
@@ -35,6 +83,8 @@ class Contract(unittest.TestCase):
         identify_key_rows(wb,spec,brain,lambda *a:None,target_year=2025)
         self.assertEqual([x['row'] for x in spec['check_rows']],[3])
         self.assertIn("=C4-B4",brain.context)
+        self.assertIn("Statement!C1: Assets",brain.context)
+        self.assertIn("Statement!C2: Liabilities and equity",brain.context)
 
     def test_header_resolution_preserves_dates_and_rejects_cycles(self):
         from datetime import datetime
@@ -102,7 +152,7 @@ class Contract(unittest.TestCase):
                 return {"calls":[{"tool":"route","routes":[
                     {"ref":"Final!C2","pages":[{"doc":"ar.pdf","page":23}]},
                     {"ref":"Final!C3","pages":[{"doc":"ar.pdf","page":77}]}]}]}
-            if "ar.pdf p77" in context.splitlines()[0]:
+            if 'source_ref: {"doc": "ar.pdf", "page": 77}' in context:
                 self.assertIn("Final!C3 ", context)
                 return {"calls":[{"tool":"set","ref":"Final!C3","doc":"ar.pdf","page":77,
                                   "printed":460,"line":"Other gains, net 460 420"}]}
@@ -112,7 +162,7 @@ class Contract(unittest.TestCase):
         self.assertIn("## ROUTE THE OPEN ROWS", calls[0])
         self.assertTrue(any("## THIS TURN IS ONE FACE" in c for c in calls[1:]))
         self.assertEqual(loop.wb["Final"]["C3"].value,460)
-        other_face = next(c for c in calls if "## THIS TURN IS ONE FACE" in c and "ar.pdf p23" in c.splitlines()[0])
+        other_face = next(c for c in calls if "## THIS TURN IS ONE FACE" in c and 'source_ref: {"doc": "ar.pdf", "page": 23}' in c)
         self.assertNotIn("Final!C3     Other gain", other_face)
 
     def test_automatic_face_pass_uses_the_same_period_scope_as_routing(self):
@@ -214,7 +264,7 @@ class Contract(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 replay("", "## THIS TURN IS ONE FACE: PL — Missing.pdf p7")
             self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Prior Report.pdf p7")["identity"], "prior")
-            self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Current Report.pdf p7")["identity"], "current")
+            self.assertEqual(replay("", '## THIS TURN IS ONE FACE: PL\nsource_ref: {"doc": "Current Report.pdf", "page": 7}')["identity"], "current")
             self.assertEqual(replay("", "## ROUTE THE OPEN ROWS")["identity"], "routing")
             with self.assertRaises(RuntimeError):
                 replay("", "## ROUTE THE OPEN ROWS")

@@ -774,9 +774,16 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
                        "a residual input or a conditional receivable is not a check merely because it "
                        "has been zero. Explain the identity from this model; omit uncertain candidates.")
             col = (ax.get("columns") or {}).get(str(target_year)) or cols[-1]
-            candidate_lines = ["CHECK CANDIDATES (unclassified):"] + [
-                f"{c['row']}: {ws.cell(int(c['row']),1).value} | {col}{c['row']} = {ws[col + str(c['row'])].value}"
-                for c in candidates]
+            from .investigate import _refs
+            from .discover import _label
+            candidate_lines = ["CHECK CANDIDATES (unclassified; read the operands as well as the row label):"]
+            for candidate in candidates:
+                row = int(candidate["row"])
+                formula = ws[f"{col}{row}"].value
+                operands = [f"{sh}!{coord}: {_label(wb_values[sh], wb_values[sh][coord].row)}"
+                            for sh, coord in _refs(formula, sheet, wb_values)]
+                candidate_lines.append(f"{row}: {_label(ws,row)} | {col}{row} = {formula}"
+                                       + " | operands: " + "; ".join(operands))
         user = f"Sheet: {sheet}\n" + "\n".join(candidate_lines + lines)
         try:
             obj = client.json(system, user[:14000], _keys_validate,

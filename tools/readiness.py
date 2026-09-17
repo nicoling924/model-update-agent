@@ -89,8 +89,9 @@ def main(argv):
             seen[p["ref"]] = ("MAPPING PROPOSAL", str(p.get("line", "")))
         def maps(system, user):
             if route_first and user.startswith("## THIS TURN IS ONE FACE"):
-                head = user.splitlines()[0]
-                batch = [p for p in pending if f"{p['doc']} p{p['page']}" in head
+                from tools.replay_live import face_source
+                source = face_source(user)
+                batch = [p for p in pending if (p["doc"],p["page"]) == source
                          and p['ref'] in user]
                 for p in batch:
                     pending.remove(p)

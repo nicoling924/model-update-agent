@@ -56,8 +56,9 @@ bridge, never against a bare label. Every model is different: reason in this mod
 NEVER TYPE OVER THE MODEL'S OWN ARITHMETIC. A formula cell is the model thinking; it is refused —
 if the number belongs there, its input site is named for you and you set that instead.
 For amounts embedded in an actual formula, supply `formula` with updated numeric operands while
-keeping its references, operators and functions unchanged. A formula must never become a hardcode.
+keeping its references, operators and functions unchanged. Numeric operands may be disclosed inputs or structural constants: use the source and model meaning to distinguish them, never their size. Preserve conversion factors and forecast assumptions. A formula must never become a hardcode.
 
+For disclosed figures, copy the displayed source_ref object into each proposal (or its batch). It identifies the exact source; quote the line as printed.
 WORK FACE BY FACE, IN ONE BATCH. A printed face is shown beside the model rows its lines point at:
 read it once, and on that first sight answer with ONE `sets` batch marking every row of that face
 you can map. A turn costs about two minutes of your budget, so a face you inspect row by row is a
@@ -410,9 +411,18 @@ def literal_template(formula):
 
 
 def has_embedded_inputs(formula):
-    from .composites import literals_of, MODELING_CONSTANTS
-    return (isinstance(formula, str) and formula.startswith("=")
-            and any(abs(float(n)) not in MODELING_CONSTANTS for n in literals_of(formula)))
+    """Expose numeric operands; their magnitude cannot establish their role.
+
+    The brain distinguishes disclosed amounts from structural constants using
+    the expression and source. Visibility is not permission to change a driver.
+    """
+    if not isinstance(formula, str) or not formula.startswith("="):
+        return False
+    from openpyxl.formula.tokenizer import Tokenizer
+    try:
+        return any(t.type == "OPERAND" and t.subtype == "NUMBER" for t in Tokenizer(formula).items)
+    except Exception:
+        return False
 
 
 def input_rows(loop, census):
@@ -1079,8 +1089,8 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     for key in order_of_face:
         doc, pg = key
         face = faces_by_key.get(key, "table")
-        L.append(f"  ===== {str(face).upper()} — {doc} p{pg} ====="
-                 + ("" if bodies.get(key) else " (no text on file — `find` reads its extracted lines)"))
+        L.append("  source_ref: " + json.dumps({"doc": str(doc), "page": int(pg)}, ensure_ascii=False))
+        L.append(f"  Statement role: {face}" + ("" if bodies.get(key) else " (no page text on file)"))
         L += ["   " + x for x in (bodies.get(key) or [])]
         mine = [b for k2, b in shown if k2 == key]
         L.append(f"    --- the model rows of this turn that are read against this face ({len(mine)}) ---")
@@ -1091,6 +1101,7 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
         L.append("  ----- the open rows this run found no printed face for — `find` or `page` what carries "
                  "them, or skip them with \"scope\":\"disclosure\" -----")
         L += loose
+    loop.__dict__["_map_offered"] = {(sh, co) for sh, co, _r in placed}
     unshown = len(queue) - len(shown)
     L.append(f"  ({len(rows)} input rows in total, {len(queue)} of them still open"
              + (f"; the {unshown} open rows this turn had no room for are the ones the next turn opens "
@@ -1166,11 +1177,15 @@ def verdict(loop, entry, page_text, sources, log):
     (None, False, refusal, {}). The two refusals are the model's own
     arithmetic and a cell outside the actual column; nothing else refuses.
     Weak evidence lands RED with the brain's reason."""
+    source_ref = entry.get("source_ref")
+    if source_ref is not None:
+        if not isinstance(source_ref, dict) or not isinstance(source_ref.get("doc"), str) or not isinstance(source_ref.get("page"), int) or isinstance(source_ref.get("page"), bool):
+            return None, False, "source_ref must contain the displayed doc and integer page", {}
+        if any(k in entry and entry[k] != source_ref[k] for k in ("doc", "page")):
+            return None, False, "source_ref conflicts with doc/page; identify one source", {}
+        entry = dict(entry, doc=source_ref["doc"], page=source_ref["page"])
     sheet, coord = entry["sheet"], entry["coord"]
     held = loop.wb[sheet][coord].value
-    if isinstance(held, str) and held.startswith("=") and not is_own_arithmetic(
-            loop.wb, sheet, coord, _act_col(loop, sheet), prior_column(loop.spec, sheet, int(loop.ty))):
-        held = None                      # the analyst's forecast for this year: the actual replaces it
     proposed = entry.get("formula")
     preserves_structure = (has_embedded_inputs(held) and isinstance(proposed, str)
                            and literal_template(held) is not None
@@ -1196,6 +1211,36 @@ def verdict(loop, entry, page_text, sources, log):
     because = str(entry.get("because") or "")
     loop.__dict__["_map_ref"] = (sheet, coord)
     printed, page, line = entry.get("printed"), entry.get("page"), entry.get("line")
+    if preserves_structure:
+        # A formula proposal changes operands, not the calculated output.
+        # The comparative and unit proof must refer to those operands too.
+        from openpyxl.formula.tokenizer import Tokenizer
+        old_numbers = [float(t.value) for t in Tokenizer(held).items
+                       if t.type == "OPERAND" and t.subtype == "NUMBER"]
+        new_numbers = [float(t.value) for t in Tokenizer(proposed).items
+                       if t.type == "OPERAND" and t.subtype == "NUMBER"]
+        changed = [(old, new) for old, new in zip(old_numbers,new_numbers) if old != new]
+        if len(changed) == 1 and isinstance(printed,(int,float)) and page is not None:
+            from .reader import _page_line, _quoted_verdict
+            old_operand, new_operand = changed[0]
+            docs = {str(entry["doc"])} if entry.get("doc") else set(sources)
+            scales = _page_scales(loop)
+            for doc in sorted(docs):
+                pg = int(page)
+                text = (page_text or {}).get((doc,pg)) or "\n".join(
+                    _quote(it) for it in _items(loop) if getattr(it,"doc",None)==doc and getattr(it,"page",None)==pg)
+                hit = _page_line({(doc,pg):text},pg,float(printed),line or "",{doc})
+                if hit:
+                    reading = _quoted_verdict(hit,hit["figure"],old_operand,pg,scales,_dominant(scales),log,f"{sheet}!{coord} operand")
+                    if reading and abs(abs(reading["value"])-abs(new_operand)) <= max(1e-9,abs(new_operand)*1e-9):
+                        kin, why_kin = _name_is_kin(loop,sheet,coord,hit["text"])
+                        return proposed, reading.get("conf")==4 and kin, (reading.get("why","") if kin else why_kin), reading
+            return None, False, "the changed numeric operand does not reconcile to its quoted source and comparative; keep the formula structure and correct the operand evidence", {}
+        # A composition may update several operands. Its expression stays
+        # traceable; unverified operands remain an analyst-review item.
+        missing = [new for _old,new in changed if not _hits_printed(loop,new,page_text)]
+        return proposed, False, ("embedded numeric inputs updated with structure preserved; "
+                                + ("source evidence unresolved for " + ", ".join(map(str,missing)) if missing else "verify the operand definitions")), {}
     # A ZERO IS A FIGURE ONLY WHERE A NIL IS PRINTED (CLP live: 34 rows answered
     # `printed: 0` with no line printing a nil, and 34 cells were zeroed). A row
     # that CARRIED a figure last year and carries none now is a real change, and
@@ -1221,13 +1266,16 @@ def verdict(loop, entry, page_text, sources, log):
         scales = _page_scales(loop)
         hits = []
         unit_errors = []
+        page_available = quote_found = False
         for doc in sorted(docs):
             text = (page_text or {}).get((doc, pg))
             if not text:
                 text = "\n".join(_quote(it) for it in _items(loop)
                                  if getattr(it, "doc", None) == doc and getattr(it, "page", None) == pg)
+            page_available = page_available or bool(text)
             hit = _page_line({(doc, pg): text}, pg, float(printed), line or "", {doc}) if text else None
             if hit:
+                quote_found = True
                 answer = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg,
                                          scales, _dominant(scales), log, f"{sheet}!{coord}")
                 if hit.get("unit_error"):
@@ -1242,7 +1290,13 @@ def verdict(loop, entry, page_text, sources, log):
             return None, False, "the quote resolves to multiple documents; specify doc", {}
         if unit_errors:
             return None, False, "; ".join(sorted(set(unit_errors))), {}
-        return None, False, "the document-unit quote has no verified conversion; specify doc and printed line", {}
+        if quote_found:
+            return None, False, "the quoted line is verified but its conversion to model units is unresolved; supply the model-unit value and explain the units", {}
+        if page_available:
+            return None, False, (f"the quoted line is absent from {next(iter(docs), 'the declared document')} p{pg}; "
+                                 "specify the canonical document, page and printed line"), {}
+        return None, False, (f"the declared document/page is unavailable ({next(iter(docs), 'document')} p{pg}); "
+                             "specify the canonical document, page and printed line"), {}
     f_ = entry.get("formula")
     if isinstance(f_, str) and f_.strip().startswith("="):
         # A BACK-OUT IS A FORMULA, NOT A HARDCODE (house law): the analyst must
@@ -1573,7 +1627,7 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None, 
 
 def _entries(loop, call):
     """The cells this call names. -> (entries, complaints)"""
-    raw = call.get("sets") or [call]
+    raw = call["sets"] if isinstance(call.get("sets"), list) else [call]
     entries, bad = [], []
     for s_ in raw:
         if not isinstance(s_, dict):
@@ -1588,6 +1642,8 @@ def _entries(loop, call):
             continue
         e = dict(s_)
         e["sheet"], e["coord"] = sheet, coord
+        if e.get("source_ref") is None and call.get("source_ref") is not None:
+            e["source_ref"] = call["source_ref"]
         if e.get("because") is None:
             e["because"] = call.get("because")
         if e.get("scope") is None:
@@ -1893,14 +1949,15 @@ def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, s
     and the keys — small enough to answer in one batch, and nothing else."""
     ev0 = Evaluator(pre_wb)
     written = _written(loop)
-    L = [f"## THIS TURN IS ONE FACE: {str(face).upper()} — {doc} p{pg}",
+    L = [f"## THIS TURN IS ONE FACE: {str(face).upper()}",
+         "source_ref: " + json.dumps({"doc": str(doc), "page": int(pg)}, ensure_ascii=False),
          "Answer with ONE `sets` batch for the rows below. Nothing else is asked of you now; the rows of "
          "other faces are another call's work.", ""]
     L.append(f"## THE KEYS against the print ({int(loop.ty)}) — a key is the model's own arithmetic: "
              "you never type into one, you set the inputs underneath it")
     L += _key_table(loop, rows_all, written, skipped)
     L.append("")
-    L.append(f"## THE PAGE — {doc} p{pg}")
+    L.append("## THE SOURCE PAGE")
     txt = (page_text or {}).get((doc, pg))
     if txt:
         L += ["   " + ln for ln in str(txt).splitlines() if ln.strip()][:60]
@@ -2166,6 +2223,7 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
     skipped = loop.__dict__.setdefault("_map_skipped", {})
     state, answers, dead, turn, stuck = {"history": []}, [], 0, 0, 0
+    offered_since_progress = set()
     t0 = time.monotonic()
     log(f"[map] {len(rows)} input rows in the actual column; {deadline_s / 60:.1f} min for the mapping")
     if ask_json is None or not brain:
@@ -2193,6 +2251,7 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             except Exception as e:  # noqa: BLE001
                 log(f"[map] turn {turn}: the context could not be built ({e!r}) — the rest is not reached")
                 break
+            offered_since_progress.update(loop.__dict__.get("_map_offered", set()))
             log(f"[map] turn {turn}: context {len(ctx):,} chars, {left / 60:.1f} min left")
             try:
                 reply = ask_json(MANDATE, ctx)
@@ -2314,12 +2373,17 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                 answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
                                "your reason — another turn that changes nothing ends the mapping and the "
                                "rows still open go red.")
-                if stuck >= _EMPTY_RUN:
-                    log(f"[map] {stuck} turns running read nothing and changed nothing — the mapping ends; "
-                        "the rows still open go red 'not reached'")
+                # Failure on the offered work says nothing about inputs the
+                # brain has not seen. The queue must expose those before a
+                # no-progress decision can close the whole mapping stage.
+                unseen = {(sh, co) for sh, co, _r in open_queue(loop, rows, skipped)} - offered_since_progress
+                if stuck >= _EMPTY_RUN and not unseen:
+                    log(f"[map] {stuck} turns running read nothing and changed nothing after all open rows "
+                        "were offered — the mapping ends; unresolved rows go red 'not reached'")
                     break
             else:
                 stuck = 0
+                offered_since_progress.clear()
     n_open = _close_out(loop, rows, skipped, log)
     by_sheet, _ = coverage(loop, rows, skipped)
     filled = sum(c.get("filled", 0) for c in by_sheet.values())

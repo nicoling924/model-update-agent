@@ -30,6 +30,17 @@ _OTHERS = re.compile(r"^(others?|其他|其它)\b", re.IGNORECASE)
 PLUG_RED_SHARE = 0.10        # plug > 10% of the year's total assets move
 
 
+def _numeric_input(value):
+    """Return whether a cell is an original, typed numeric input.
+
+    Deterministic balance repairs may only change these cells.  In
+    particular, a formula containing embedded constants is still a formula:
+    it must remain visible to the normal input/update machinery and cannot be
+    silently converted into a plug site.
+    """
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _label(ws, row, max_col=6):
     for c in range(1, max_col + 1):
         v = ws.cell(row=row, column=c).value
@@ -52,7 +63,7 @@ def cf_input_rows(ws, target_col_letter, max_row=250):
     out = []
     for r in range(start + 1, max_row + 1):
         v = ws.cell(row=r, column=tci).value
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
+        if _numeric_input(v):
             out.append((r, _label(ws, r)))
     return out
 
@@ -128,7 +139,7 @@ def place_flow(wb, writer, sheet, bs_row, cf_row, target_col, prior_col):
                         "instead" % (bs_row, m.group(1)))
     tc = ws.cell(row=cf_row,
                  column=column_index_from_string(target_col)).value
-    if not isinstance(tc, (int, float)) or isinstance(tc, bool):
+    if not _numeric_input(tc):
         return None, ("REFUSED: %s!%s%d is not a typed CF input cell — "
                       "flows may only land in the model's own input slots"
                       % (sheet, target_col, cf_row))
@@ -233,7 +244,16 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
         row = others[0]
         held = ws.cell(row=row,
                        column=column_index_from_string(col)).value
-        held = float(held) if isinstance(held, (int, float)) else 0.0
+        # `targets` was discovered from the original workbook.  Re-check the
+        # live cell before probing/writing so a formula can never be reached
+        # through a stale target list or a writer over_formula bypass.
+        if not _numeric_input(ws.cell(row=row,
+                                      column=column_index_from_string(col)).value):
+            log(f"[run] forecast plug WITHHELD on {col}: catch-all target "
+                "is no longer a typed numeric input (formula preserved)")
+            continue
+        held = float(ws.cell(row=row,
+                             column=column_index_from_string(col)).value)
         # THE COEFFICIENT PROBE (2026-09-02: a plug sized on the +1
         # assumption DOUBLED the residual it aimed to close — the row's
         # true coefficient on the check was -2. Measure, never assume:

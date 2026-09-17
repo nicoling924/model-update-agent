@@ -6148,7 +6148,7 @@ def test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18():
     import re as _re
     assert _re.search(r"Final!C11\s+Development expenditure.*unfilled", said[1]), \
         "the row was not offered again after its page was refused"
-    assert said[1].index("ar.pdf p23") < said[1].index("Final!C11 "), \
+    assert said[1].index('source_ref: {"doc": "ar.pdf", "page": 23}') < said[1].index("Final!C11 "), \
         "the row was not read against the statement face"
     assert loop.wb["Final"]["C11"].value == 350.0, \
         f"the row was never mapped off the face that carries it: {loop.wb['Final']['C11'].value}"
@@ -6210,7 +6210,7 @@ def test_a_face_round_refusal_deals_the_row_to_the_next_face_2026_09_18():
             return {"calls": []}
         if ref + " " not in user:
             return {"calls": []}
-        saw.append(user.splitlines()[0].split("—")[-1].strip())
+        saw.append(next(x for x in user.splitlines() if x.startswith("source_ref:")))
         carried.append("ALREADY REFUSED FOR THESE ROWS" in user)
         return {"calls": [{"tool": "skip", "ref": ref, "because": "this print does not carry my row"}]}
     for _round in range(3):
@@ -6281,7 +6281,7 @@ def test_the_brain_routes_the_open_rows_to_their_pages_2026_09_18():
     assert _routes(loop)["Final!C11"] == [("pres.pdf", 37)], _routes(loop)
     assert routed_page(loop, "Final", "C4") == ("ar.pdf", 23), _routes(loop)
     ctx = said[0]
-    assert ctx.index("pres.pdf p37") < ctx.index("Final!C11 "), \
+    assert ctx.index('source_ref: {"doc": "pres.pdf", "page": 37}') < ctx.index("Final!C11 "), \
         "the row was not put under the page the brain routed it to"
     assert "lead: p37 'Capex by business" in ctx, "the lead stopped being shown under the row"
     print("PASS test_the_brain_routes_the_open_rows_to_their_pages_2026_09_18")
@@ -6336,11 +6336,11 @@ def test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18():
                       deadline_s=8.0, routed_said=seen)
     assert seen and not _routes(loop), "a silent router routed something"
     ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
-    faces = [f"ar.pdf p{20 + i}" for i in range(3)]
+    faces = ['source_ref: {"doc": "ar.pdf", "page": ' + str(20 + i) + '}' for i in range(3)]
     assert sum(1 for f in faces if f in ctx) >= 2, ctx[:1200]
     # the rows that DO have a tying lead are dealt to the statement faces too —
     # the tie is information under the row, never the page it is read against
-    assert "Model!C2 " in ctx and "===== PL — ar.pdf p20 =====" in ctx, ctx[:1200]
+    assert "Model!C2 " in ctx and 'source_ref: {"doc": "ar.pdf", "page": 20}' in ctx, ctx[:1200]
     print("PASS test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18")
 
 
@@ -6534,11 +6534,9 @@ def test_a_tie_at_another_scale_is_not_plain_2026_09_17():
 
 
 def test_the_analysts_forecast_is_an_input_the_models_arithmetic_is_not_2026_09_17():
-    """Reviewer 2026-09-17: an actual-column cell holding the analyst's forecast
-    (=AH14*1.03) was never offered, counted or flagged because 'it is a formula'
-    — while the mark-to-actual recipe exists to replace exactly that. The
-    distinction is measured: a formula that reads an earlier column is a
-    forecast; one that reads only this period is the model's own arithmetic."""
+    """Owner 2026-09-18: expose embedded inputs, but preserve the expression.
+    This supersedes the old permission to flatten a prior-period formula
+    into a printed total. The brain must update its input operand instead."""
     from pipeline.mapping import input_rows, is_own_arithmetic
     loop, pages, census = _map_model()
     ws = loop.wb["Final"]
@@ -6552,7 +6550,7 @@ def test_the_analysts_forecast_is_an_input_the_models_arithmetic_is_not_2026_09_
                          "line": "Staff costs (21,000) (20,000)", "because": "my staff costs row"}]},
              {"calls": [{"tool": "done"}]}]
     _s, _said = _drive(loop, pages, census, turns)
-    assert loop.wb["Final"]["C4"].value == -21000.0, loop.wb["Final"]["C4"].value
+    assert loop.wb["Final"]["C4"].value == "=B4*1.05", "the printed total flattened the expression"
     print("PASS test_the_analysts_forecast_is_an_input_the_models_arithmetic_is_not_2026_09_17")
 
 
@@ -6671,7 +6669,7 @@ def test_the_context_puts_each_face_beside_its_rows_2026_09_17():
     loop, pages, census = _map_model()
     loop.__dict__.setdefault("_map_refused", []).append("Final!C9: skipped — p207 合计 is a total line")
     ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
-    head = ctx.index("===== PL — ar.pdf p23 =====")
+    head = ctx.index('source_ref: {"doc": "ar.pdf", "page": 23}')
     rows_at = ctx.index("the model rows of this turn that are read against this face", head)
     assert ctx.index("Revenue 88,018 76,061", head) < rows_at, "the face's text is not above its rows"
     assert "Final!C2" in ctx[rows_at:rows_at + 1200], ctx[rows_at:rows_at + 400]
@@ -6911,7 +6909,7 @@ def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
         # non-controlling interests on the other — both tie the model's prior of
         # 900, so both land, and the row is the analyst's call. (The face is read
         # off the call's own header: a row's leads name other pages in the body.)
-        if "ar.pdf p24" in user.splitlines()[0]:
+        if 'source_ref: {"doc": "ar.pdf", "page": 24}' in user:
             return {"calls": [{"tool": "sets", "sets": [
                 {"ref": "Final!C8", "printed": 1000, "page": 24,
                  "line": "Non-controlling interests 1,000 900", "because": "my minority interests row"}]}]}

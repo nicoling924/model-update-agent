@@ -1,0 +1,25 @@
+{
+  "mode": "offline replay of actual LLM answer; no new API call",
+  "observed": {
+    "Aus!AI11": 3475.0,
+    "Aus!AI13": -2795.0,
+    "Aus!AI14": -425,
+    "Aus!AI19": "=5181-(-AI13*$AU$29)",
+    "Aus!AI21": "=-1572-(-AI13*$AU$30)"
+  },
+  "feedback": [
+    "set Aus!AI11, Aus!AI13, Aus!AI19, Aus!AI21, Aus!AI14:",
+    "  Aus!AI11 = 3,475.00 \u2192 plain, read: quoted from p42 'Total EBITDAF                           ', the printed comparative ties the prior",
+    "  Aus!AI13 = -2,795.00 \u2192 plain, read: quoted from p42 'Depreciation &  Amortisation            ', the printed comparative ties the prior",
+    "  Aus!AI19 = 2,849.87 \u2192 plain, read: quoted from p42 'Energy (Wholesale)                      ', the printed comparative ties the prior",
+    "  Aus!AI21 = -1,707.74 \u2192 plain, read: quoted from p42 'Enterprise (Corporate)                  ', the printed comparative ties the prior",
+    "  Aus!AI14 nothing written: Aus!AI14: no `value`, `printed` figure or `formula` \u2014 a model cell takes a figure"
+  ],
+  "source_candidate_counts": {
+    "Aus!AI11": 1,
+    "Aus!AI13": 1,
+    "Aus!AI19": 1,
+    "Aus!AI21": 1
+  },
+  "candidate_method": "tools.readiness.source_candidates on fresh native PDF page lines, not a stored ledger"
+}
