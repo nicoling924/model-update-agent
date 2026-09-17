@@ -7483,9 +7483,14 @@ def test_the_clock_is_the_only_end_of_the_review_2026_09_16():
     from pipeline.review import run_review
     lp, pre, panel, logs = _review_harness()
     turns = []
+    # the budget is wall-clock, so it must be long enough that 40 turns are
+    # comfortably inside it on a LOADED machine — at 3.0 s this pin failed about
+    # one run in two under a concurrent floor, and a museum that fails at random
+    # gates nothing (measured on 108929e, before the 2026-09-17 changes). The
+    # claim is untouched: a count of 40 does not stop the review.
     run_review(lp, pre, logs.append,
                lambda _s, _u: turns.append(1) or {"calls": [{"tool": "find", "q": "46.3"}]},
-               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=3.0)
+               lambda: (True, [], {}), lambda _t: None, {}, panel, None, deadline_s=12.0)
     assert len(turns) > 40, f"the review stopped after {len(turns)} turns, before its clock"
     assert any("[review] clock" in x for x in logs), logs[-3:]
     assert any("the clock ended the review" in str(x) for x in lp.writer.log.get("ending", [])), \
