@@ -7608,11 +7608,12 @@ def test_the_name_judges_refusal_follows_the_line_to_the_next_card_2026_09_17():
     assert cands[2]["warnings"] == [], "a line never judged carries no refusal"
 
 
-def test_a_rewrite_on_names_the_brain_never_judged_lands_red_2026_09_17():
-    """THE REWRITE'S OWN COINCIDENCE (owner 2026-09-17): trust_names is exactly
-    the case where a composite's literals tie lines named unlike the row. Orange
-    means 'derived, awaiting true-up'; this is not derived, it is unjudged — it
-    lands RED and is never recorded as proven."""
+def test_a_rewrite_the_brain_judged_lands_orange_not_red_2026_09_17():
+    """THE REWRITE CARD IS A JUDGMENT (owner ruling 2026-09-17, refining the
+    morning's rule): `trust_names` reaches rewrite_cell from ONE place — the
+    card answer 'rewrite:1', the brain saying those printed lines ARE this row's
+    items, though they are named unlike it. A name the brain has judged is not a
+    coincidence: the rewrite lands ORANGE, derived and awaiting true-up."""
     import openpyxl
     from pipeline.composites import rewrite_cell
     from pipeline.writegate import COINCIDENCE, is_proven
@@ -7634,11 +7635,12 @@ def test_a_rewrite_on_names_the_brain_never_judged_lands_red_2026_09_17():
     ok, msg = rewrite_cell(wb, spec, 2025, led, w, "Final", 65, trust_names=True)
     assert ok, msg
     assert ws["U65"].value == "=2401-250", ws["U65"].value
-    assert f"Final!U65" in w.log["flags"], w.log["flags"]
-    assert str(ws["U65"].fill.fgColor.rgb or "").endswith("FFC7CE"), ws["U65"].fill.fgColor.rgb
+    assert str(ws["U65"].fill.fgColor.rgb or "").endswith("FFC000"), ws["U65"].fill.fgColor.rgb
     e = w.served[("Final", 65)]
-    assert e["flag"] == "red" and COINCIDENCE in e["note"], e
-    assert is_proven(e) is False, e
+    assert e["flag"] == "orange" and COINCIDENCE not in e["note"], e
+    assert is_proven(e) is True, e
+    assert "the brain judged these printed lines to be this row's items" in \
+        str(ws["U65"].comment.text), ws["U65"].comment.text
 
 
 
@@ -8112,6 +8114,52 @@ def test_the_non_current_row_is_not_claimed_by_the_current_role_2026_09_17():
     # the CJK containment rule must not start excluding unrelated lines
     assert _score(by["revenue"], "营业收入") == 3
     assert _score(by["cash"], "货币资金") == 3
+
+
+# ── Owner ruling 2026-09-17 (evening): WHOSE JUDGMENT BOUGHT THE CELL ───────
+
+def test_the_glossary_is_not_a_coincidence_but_an_unlike_name_is_2026_09_17():
+    """Owner ruling 2026-09-17, after the reviewer found ~25 correct CLP
+    mappings un-proven: (a) a line the BRAIN picked on a card — or named in the
+    review or the anatomy turn — has had its name judged and lands plain when
+    the tie holds; (b) CODE's own writes still need kinship, and kinship reads
+    the CLAUDE.md HOUSE GLOSSARY, so the department's own vocabulary is not
+    called a coincidence. 'Other jointly controlled entities' off a line printed
+    'Joint ventures' is CLAUDE.md's own glossary line. 'Lost Days' under a
+    finance-costs header is not."""
+    from pipeline.numerics import synonymous
+    from pipeline.writegate import COINCIDENCE, judge_write, name_is_kin
+
+    jce = _item(95, 4, "Joint ventures", [1595.0, 1250.0])
+    row = "Other jointly controlled entities"
+    # (b) code's own write: the glossary carries it — plain, proven
+    v, why, flag = judge_write(1595.0, 1250.0, False, [(jce, 1.0)], set(), row_label=row)
+    assert (v, flag) == ("ALLOW", None), (v, why, flag)
+    assert name_is_kin(jce, row) is True
+    assert synonymous(row, "Joint ventures") is True
+
+    # a name outside the glossary and unlike the row is still a coincidence
+    lost = _item(95, 9, "Lost Days", [1595.0, 1250.0])
+    v2, why2, flag2 = judge_write(1595.0, 1250.0, False, [(lost, 1.0)], set(),
+                                  row_label="Finance costs", block=["Finance costs"])
+    assert (v2, flag2) == ("ALLOW_FLAGGED", "red"), (v2, why2, flag2)
+    assert why2 == COINCIDENCE, why2
+    # (a) the same line, picked by the BRAIN off a card, is not a coincidence
+    v3, why3, flag3 = judge_write(1595.0, 1250.0, False, [(lost, 1.0)], set(),
+                                  row_label="Finance costs", block=["Finance costs"],
+                                  row_named=True)
+    assert (v3, flag3) == ("ALLOW", None), (v3, why3, flag3)
+
+    # the glossary carries the house synonyms, and keeps the splits CLAUDE.md
+    # says to watch: associates is NOT a joint venture
+    for a, b in (("Turnover", "Revenue"), ("Finance costs", "Interest expense"),
+                 ("Currency adjustments", "Effect of exchange rate changes"),
+                 ("Fixed assets", "Property, plant and equipment")):
+        assert synonymous(a, b), (a, b)
+    assert synonymous("Associates", "Joint ventures") is False
+    assert synonymous("Lost Days", "Finance costs") is False
+    # and a section header carries the glossary too
+    assert name_is_kin(jce, "Share of results", ["Jointly controlled entities"]) is True
 
 
 if __name__ == "__main__":

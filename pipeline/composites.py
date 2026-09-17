@@ -418,20 +418,21 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row, trust_names=
                        f"{val:g}", new_f, count=1)
     srcs = "; ".join(f"{lit}->{val:g} ({src})"
                      for lit, (val, src) in proof.items())
-    # A COINCIDENCE IS ALWAYS RED (owner 2026-09-17): trust_names is exactly
-    # the case where the literals tie lines named unlike the row — the numbers
-    # bought the rewrite, nothing named it. Orange says "derived, awaiting
-    # true-up"; this is not derived, it is unjudged. It lands RED so the review
-    # brain sees it, and it is never recorded as proven.
-    from .writegate import COINCIDENCE
-    coincidence = bool(trust_names)
+    # A NAME THE BRAIN HAS JUDGED IS NOT A COINCIDENCE (owner ruling 2026-09-17,
+    # refining the morning's rule): `trust_names` reaches this function from ONE
+    # place — the rewrite card's own answer (workqueue 'rewrite:1'), the brain
+    # saying those printed lines ARE this row's items. That is a judgment of
+    # meaning, so the rewrite lands ORANGE, derived and awaiting true-up, like
+    # any back-out. Code's own rewrites (phase0, the sweep) never reach here on
+    # unlike names: prove_cell's kin test refuses them first.
     ok = writer.write(
         sheet, f"{tcol}{row}", new_f, prior_coord=f"{pcol}{row}",
-        flag="red" if coincidence else "orange",
+        flag="orange",
         note=(f"COMPOSITE REWRITE (constants law): was {f} = stale prior; "
               f"each literal tied to its disclosed comparative and "
               f"replaced by the same line's current figure: {srcs}"
-              + (f"; {COINCIDENCE} — the printed lines are named unlike this row" if coincidence else ""))[:400])
+              + ("; the brain judged these printed lines to be this row's items, though they "
+                 "are named unlike it" if trust_names else ""))[:400])
     if not ok:
         return False, (f"{sheet}!{tcol}{row}: rewrite {new_f} REFUSED by "
                        "the write guard (band vs prior) — the tie is "
@@ -445,13 +446,10 @@ def rewrite_cell(wb, spec, target_year, ledger, writer, sheet, row, trust_names=
         # the rewrite's proof is a serve record (audit 2026-09-15: receivables 14,035 and
         # deferred creditors 8,363 were rewritten correctly, then treated as unproven by
         # the cards and overwritten) — conf 4, orange: proven, not a doubt
-        served[(sheet, row)] = {"value": float(after), "status": "OK",
-                                "conf": 3 if coincidence else 4,
-                                "flag": "red" if coincidence else "orange",
+        served[(sheet, row)] = {"value": float(after), "status": "OK", "conf": 4, "flag": "orange",
                                 "doc": None, "page": None, "homed": False,
                                 "line": "COMPOSITE REWRITE (constants law): " + srcs[:80],
-                                "note": (f"composite rewrite: {COINCIDENCE}" if coincidence
-                                         else f"composite rewrite: each literal tied to its comparative ({srcs[:120]})")}
+                                "note": f"composite rewrite: each literal tied to its comparative ({srcs[:120]})"}
     return True, (f"{sheet}!{tcol}{row}: {f} -> {new_f}"
                   + (f" = {after:,.2f}" if isinstance(after, (int, float))
                      else ""))

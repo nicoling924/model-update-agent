@@ -187,6 +187,49 @@ _NOTE_REF = re.compile(r"[（(]?\s*(?:附注\s*)?[五六七八九十]\s*[（(]\s
                        r"|\b(?:note|notes)\s*\d+[a-z]?\b", re.I)
 
 
+# THE HOUSE GLOSSARY (CLAUDE.md, "Line-item mapping — the cascade"; owner
+# ruling 2026-09-17). Synonyms are the FIRST rung of the cascade, and the
+# coincidence gate must know them or it calls the department's own vocabulary a
+# coincidence: 'Other jointly controlled entities' read off a line printed
+# 'Joint ventures' is the same item, not a number that happened to match.
+# Groups only — a pair is kin when BOTH labels land in the same group. Members
+# are normalised phrases; extend as names recur (that is what the glossary is
+# for). Associates is deliberately NOT in the JCE group: CLAUDE.md says watch
+# that split, and a synonym that merges two different items is the dangerous
+# mapping error the gate exists to catch.
+SYNONYM_GROUPS = [
+    {"revenue", "revenues", "turnover", "sales", "net sales", "营业收入", "营业总收入"},
+    {"finance costs", "finance cost", "interest expense", "borrowing costs",
+     "finance charges", "财务费用"},
+    {"finance income", "interest income", "interest received"},
+    {"joint ventures", "joint venture", "jointly controlled entities",
+     "jointly controlled entity", "jces", "jce", "合营企业"},
+    {"property plant and equipment", "ppe", "pp e", "fixed assets", "tangible fixed assets",
+     "固定资产"},
+    {"profit attributable to shareholders", "net profit attributable to owners",
+     "profit for the year attributable to equity holders",
+     "profit attributable to owners of the company", "归母净利润"},
+    {"depreciation and amortisation", "depreciation and amortization", "d a", "da",
+     "折旧和摊销", "折旧与摊销"},
+    {"cash and cash equivalents", "cash and equivalents", "cash and bank balances",
+     "货币资金"},
+    {"effect of exchange rate changes", "currency adjustments", "exchange differences",
+     "foreign exchange translation", "汇率变动影响"},
+]
+
+
+def synonymous(a, b):
+    """Do these two labels name the same item in the HOUSE GLOSSARY? Both must
+    land in the same group; a label that lands in none says nothing."""
+    na, nb = norm_label(a), norm_label(b)
+    if not na or not nb or na == nb:
+        return bool(na) and na == nb
+    for g in SYNONYM_GROUPS:
+        if any(m in na for m in g) and any(m in nb for m in g):
+            return True
+    return False
+
+
 def norm_label(s):
     """Script-aware normalizer: lowercase, keep latin + digits + CJK, collapse
     everything else to single spaces. CJK kept because CN filings ARE the

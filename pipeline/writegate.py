@@ -310,18 +310,25 @@ COINCIDENCE = "number ties, name does not — a coincidence until judged"
 
 
 def name_is_kin(item, row_label, block=()):
-    """Is the printed line's NAME kin to the model row's name, or to one of the
-    section headers above it? A line that carries no label FIELD at all says
-    nothing either way (a fixture, a foreign record) — unknown is not unlike.
-    An unknown row LABEL (no label read for the model row) cannot judge either."""
-    from .numerics import kinship
+    """Is the printed line's NAME kin to the model row's name, to one of the
+    section headers above it, or to either of them THROUGH THE HOUSE GLOSSARY?
+
+    The glossary is the first rung of CLAUDE.md's mapping cascade, and the
+    coincidence gate must read it or it calls the department's own vocabulary a
+    coincidence (owner ruling 2026-09-17, after the reviewer found ~25 correct
+    CLP mappings un-proven: 'Other jointly controlled entities' read off a line
+    printed 'Joint ventures' is the same item — CLAUDE.md's own glossary line).
+
+    A line that carries no label FIELD at all says nothing either way (a
+    fixture, a foreign record) — unknown is not unlike. An unknown row LABEL
+    cannot judge either."""
+    from .numerics import kinship, synonymous
     lab = _meta(item, "label", None)
     if lab is None or not str(row_label or "").strip():
         return True
     line = str(lab)
-    if kinship(str(row_label), line):
-        return True
-    return any(kinship(str(b), line) for b in (block or ()) if str(b or "").strip())
+    names = [str(row_label)] + [str(b) for b in (block or ()) if str(b or "").strip()]
+    return any(kinship(n, line) or synonymous(n, line) for n in names)
 
 
 def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False,
@@ -359,8 +366,15 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
     # THE COINCIDENCE TEST, on the lines the verdict itself is about (reviewer
     # 2026-09-17: it was computed over `tied` and applied to `tied_free`, so a
     # kin line already CLAIMED elsewhere let a non-kin free line land "proven")
-    kin_tied = [(it, s) for it, s in tied if name_is_kin(it, row_label, block)]
-    kin_free = [(it, s) for it, s in tied_free if name_is_kin(it, row_label, block)]
+    # A NAME THE BRAIN HAS JUDGED IS NOT A COINCIDENCE (owner ruling 2026-09-17):
+    # `row_named` means the brain picked THIS printed row off a card, or named it
+    # in the review or the anatomy turn — the meaning is its call, and it made it.
+    # The gate is for CODE's own writes (the join, phase0, the rewrite, dash-nil),
+    # which pick on the number and have judged no name at all.
+    kin_tied = [(it, s) for it, s in tied
+                if row_named or name_is_kin(it, row_label, block)]
+    kin_free = [(it, s) for it, s in tied_free
+                if row_named or name_is_kin(it, row_label, block)]
     if tied_free:
         if not kin_free:
             return ("ALLOW_FLAGGED", COINCIDENCE, "red")
