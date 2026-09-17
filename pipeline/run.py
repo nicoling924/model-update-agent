@@ -63,37 +63,28 @@ def _disclosures(company_dir, period):
 
 
 def _judge_serve(wb, spec_d, target_year, ledger, entry, sheet, row, value, pv, log):
-    """EVERY WRITE MEETS THE EVIDENCE LAW (reviewer 2026-09-17: judge_write had
-    ONE caller, the objective loop's set_input — the serves, the composites, the
-    rollover and the ladder never met the coincidence or kin test. On the CX
-    cold model CXMODEL!AO223 took 59,101 from a printed row with NO LABEL AT
-    ALL, which name_mismatches skips by construction, so the name judge never
-    saw it and it shipped PLAIN into an unbalanced balance sheet).
-    -> (flag, note_suffix): what this serve must wear, or (None, "")."""
-    if ledger is None or not isinstance(value, (int, float)):
-        return None, ""
-    try:
-        from .naming import block_context
-        from .writegate import (claimed_keys, find_evidence, judge_write)
-        lab = ""
-        for c in ("A", "B", "C", "D", "E"):
-            v = wb[sheet][f"{c}{row}"].value
-            if isinstance(v, str) and v.strip() and not v.startswith("="):
-                lab = v.strip()
-                break
-        verdict, why, forced = judge_write(
-            value, pv if isinstance(pv, (int, float)) else None, False,
-            find_evidence(ledger.items, value), claimed_keys({}),
-            all_items=ledger.items,
-            row_named=bool(entry.get("named")),
-            row_label=lab, block=block_context(wb, sheet, int(row)))
-    except Exception as e:      # noqa: BLE001 — said, never swallowed
-        log(f"[run] serve {sheet}!{row} could not be judged ({type(e).__name__}: {str(e)[:70]}) "
-            "— it lands RED rather than unexamined")
-        return "red", " [this serve could not be put through the evidence law — please check]"
-    if forced == "red" or verdict in ("REFUSE", "ALLOW_FLAGGED"):
-        return "red", f" [{why[:150]}]"
-    return None, ""
+    """THE LINE WITH NO NAME (reviewer 2026-09-17): CXMODEL!AO223 took 59,101
+    from a printed row carrying NO LABEL AT ALL, and shipped PLAIN into an
+    unbalanced balance sheet. It could, because the name judge skips such a
+    serve by construction — `name_mismatches` needs a line to judge, and there
+    was none — so nothing in the run ever asked what that row IS.
+
+    Code cannot say what an unlabelled row is; only the brain can, off a card.
+    So a serve whose own printed line has no name, and which the brain never
+    named, lands RED, unproven and unlocked. The rest of the naming discipline
+    stays where it already lives: the walk refuses unkin wide-row and
+    small-prior ties as it reads them, and the name judge rules on the
+    mismatched ones. Re-judging those here reddened 60 correct CLP serves and
+    cost a key — a second court for a case already tried.
+    -> (flag, note_suffix) or (None, "")."""
+    if entry.get("named") or entry.get("flag"):
+        return None, ""            # the brain named it, or it already wears a colour
+    line = str(entry.get("line") or "").strip()
+    import re as _re
+    if line and not _re.match(r"^[\d,.\s()|%+-]+$", line):
+        return None, ""            # the line has a name; the walk and the name judge own it
+    return "red", (" [the printed line this came from carries NO NAME — a number on an unlabelled "
+                   "row. Code cannot say what such a row is; please confirm the item]")
 
 
 def _write_served(wb, spec_d, target_year, served, writer, priors, log, ledger=None):

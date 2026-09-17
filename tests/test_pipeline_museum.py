@@ -8281,11 +8281,12 @@ def test_a_model_with_no_check_row_still_has_a_balance_objective_2026_09_17():
 
 
 def test_a_serve_meets_the_evidence_law_like_every_other_write_2026_09_17():
-    """C4b (reviewer 2026-09-17): judge_write had ONE caller. CXMODEL!AO223 took
-    59,101 from a printed row with NO LABEL AT ALL — which name_mismatches skips
-    by construction, so the name judge never saw it — and it shipped PLAIN into
-    an unbalanced balance sheet. Serves now meet the same law: an unlabelled or
-    unlike-named line lands RED and is never proven or locked."""
+    """C4b (reviewer 2026-09-17): CXMODEL!AO223 took 59,101 from a printed row
+    with NO LABEL AT ALL — which name_mismatches skips by construction, so the
+    name judge never saw it — and it shipped PLAIN into an unbalanced balance
+    sheet. Code cannot say what an unlabelled row IS: such a serve lands RED,
+    unproven, unlocked, unless the brain named it. A serve off a line that HAS a
+    name is left to the walk and the name judge, which already try that case."""
     import openpyxl
     from pipeline.run import _write_served
     from pipeline.writer import Writer
@@ -8300,7 +8301,7 @@ def test_a_serve_meets_the_evidence_law_like_every_other_write_2026_09_17():
                  nums=[59101.0, 68498.0], source_line="59,101 68,498"))
     led.faces[("cx.pdf", 87)] = "bs"
     w = Writer(wb)
-    served = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None,
+    served = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None, "line": "",
                                  "note": "walk serve", "doc": "cx.pdf", "page": 87}}
     _write_served(wb, spec, 2025, served, w, {}, lambda *_a: None, led)
     assert ws["AO223"].value == 59101.0
@@ -8315,11 +8316,22 @@ def test_a_serve_meets_the_evidence_law_like_every_other_write_2026_09_17():
     ws2["A223"] = "Non-current liabilities"
     ws2["AN223"] = 68498.0
     w2 = Writer(wb2)
-    served2 = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None, "named": True,
+    served2 = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None, "named": True, "line": "",
                                   "note": "the brain picked this row", "doc": "cx.pdf", "page": 87}}
     _write_served(wb2, spec, 2025, served2, w2, {}, lambda *_a: None, led)
     assert ws2["AO223"].value == 59101.0
     assert "CXMODEL!AO223" not in w2.log["flags"], w2.log["flags"]
+    # and a serve off a line that HAS a name is left to the walk and the name
+    # judge, which have already tried that case — a second court reddened 60
+    # correct CLP serves and cost a key
+    wb3 = openpyxl.Workbook(); ws3 = wb3.active; ws3.title = "CXMODEL"
+    ws3["A223"] = "Non-current liabilities"; ws3["AN223"] = 68498.0
+    w3 = Writer(wb3)
+    served3 = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None,
+                                  "line": "Borrowings", "note": "walk serve",
+                                  "doc": "cx.pdf", "page": 87}}
+    _write_served(wb3, spec, 2025, served3, w3, {}, lambda *_a: None, led)
+    assert "CXMODEL!AO223" not in w3.log["flags"], w3.log["flags"]
 
 
 def test_the_report_table_uses_the_rows_the_brain_named_2026_09_17():
