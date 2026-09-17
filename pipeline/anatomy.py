@@ -37,9 +37,10 @@ Name:
   roll; a units total less its components). These are how the update proves
   it did not break the model, so find them if they exist.
 - keys: the headline rows — revenue, operating profit, net profit, EPS, DPS,
-  total assets, total liabilities and equity, current liabilities,
-  non-current liabilities, current assets, non-current assets, total equity,
-  cash, the cash flows — whatever THIS model has. Name "total assets" and "total
+  total assets, total liabilities and equity, total liabilities, current
+  liabilities, non-current liabilities, current assets, non-current assets,
+  total equity, non-controlling interests, cash, the cash flows — whatever
+  THIS model has. Name "total assets" and "total
   liabilities and equity" whenever the model computes them, even if it has no
   check row: those two are how a balance sheet is proved, and if this model
   declares no check of its own, their difference becomes the balance objective. Name the balance sheet's four halves whenever the model computes
@@ -219,19 +220,62 @@ def sheet_reading(wb, spec, target_year, cap=52000):
     return "\n".join(L)
 
 
-def _balance_is_checked(wb, spec, by_name):
+def _balance_terms(by_name):
+    """The balance objective, out of whatever total rows this model HAS
+    (reviewer 2026-09-17: the first cut wanted 'total liabilities and equity',
+    CX prints no such row, and the function then answered "already checked" in
+    silence — the 1,787 imbalance stayed unmeasured on the very book the rule
+    was written for).
+
+    A balance sheet balances when assets equal what is owed plus what is owned:
+    assets − liabilities − equity − any separately-stated non-controlling
+    interests. Liabilities come as one total or as current plus non-current;
+    equity as total equity, with NCI subtracted separately only when the model
+    states it outside that total. -> (plus, minus, why_not)."""
+    def _t(*names):
+        for n in names:
+            k = by_name.get(n)
+            if k:
+                return {"sheet": k["sheet"], "row": int(k["row"])}
+        return None
+    assets = _t("total assets")
+    if not assets:
+        return [], [], "no 'total assets' row was named"
+    le = _t("total liabilities and equity", "total liabilities & equity")
+    if le:
+        return [assets], [le], ""          # the two-term form, when the model prints it
+    minus = []
+    liab = _t("total liabilities")
+    if liab:
+        minus.append(liab)
+    else:
+        cur, non = _t("current liabilities"), _t("non-current liabilities")
+        if cur and non:
+            minus += [cur, non]
+    eq = _t("total equity")
+    if eq:
+        minus.append(eq)
+    nci = _t("non-controlling interests")
+    if nci and nci not in minus:
+        minus.append(nci)
+    if not minus:
+        return [], [], ("no liabilities or equity total was named — assets alone "
+                        "cannot be balanced against anything")
+    if not (liab or len(minus) > 1):
+        return [], [], "only one side of the balance sheet was named"
+    return [assets], minus, ""
+
+
+def _balance_is_checked(wb, spec, plus, minus):
     """Does a check row this model already declares MEASURE the balance sheet?
     A check is a row the model works out to zero — but a units total, a fleet
     count or a segment sum is not the balance (CX declares a 'Total Check' on
     Fleet and shipped 1,787 out of balance all the same). The evidence is
-    structural: a balance check READS the two total rows. When none does, and
-    the brain has named them, the run measures their difference itself."""
-    a, b = by_name.get("total assets"), (by_name.get("total liabilities and equity")
-                                         or by_name.get("total liabilities & equity"))
-    if not (a and b):
-        return True            # nothing to build a pair from; the caller says so
+    structural: a balance check READS the total rows."""
     import re as _re
-    want = {int(a["row"]), int(b["row"])}
+    want = {int(t["row"]) for t in list(plus) + list(minus)}
+    if not want:
+        return False
     for c in (spec.get("check_rows") or []):
         sh = c.get("sheet")
         if sh not in wb.sheetnames:
@@ -366,25 +410,24 @@ def read(wb, spec, client, target_year, log, period="FY", values_wb=None):
     # check row of its own, the two total rows the brain just named ARE the
     # balance test, and code measures their difference from here on.
     by_name = {str(k.get("name") or "").lower(): k for k in (spec.get("key_rows") or [])}
-    if not _balance_is_checked(wb, spec, by_name):
-        a = by_name.get("total assets")
-        b = (by_name.get("total liabilities and equity")
-             or by_name.get("total liabilities & equity"))
-        if a and b:
-            spec.setdefault("check_pairs", []).append(
-                {"name": "balance", "sheet": a["sheet"], "a_row": int(a["row"]),
-                 "b_sheet": b["sheet"], "b_row": int(b["row"])})
-            log(f"[anatomy] no check row of this model measures the balance sheet — the balance "
-                f"objective is the run's own: "
-                f"{a['sheet']}!{a['row']} (total assets) less {b['sheet']}!{b['row']} "
-                "(total liabilities and equity); measured every year from here on")
-            notes.append(f"balance measured by the RUN, not the model: {a['sheet']}!{a['row']} − "
-                         f"{b['sheet']}!{b['row']} (no check row of this book reads the balance sheet)")
+    plus, minus, why_not = _balance_terms(by_name)
+    if why_not or not _balance_is_checked(wb, spec, plus, minus):
+        if why_not:
+            # SAID IN THE LOG AND ON THE REPORT (the change law): an objective
+            # nobody could build is never one that holds
+            log(f"[anatomy] BALANCE NOT MEASURED on this run — {why_not}")
+            notes.append(f"BALANCE NOT MEASURED: {why_not}")
+            spec["balance_not_measured"] = why_not
         else:
-            log("[anatomy] no check row of this model measures the balance sheet, and the two total "
-                "rows were not both named — BALANCE IS NOT MEASURED on this run")
-            notes.append("balance NOT measured: no check row reads the balance sheet, and total assets "
-                         "/ total liabilities and equity were not both named")
+            sh_b = plus[0]["sheet"]
+            spec.setdefault("check_pairs", []).append(
+                {"name": "balance", "sheet": sh_b, "plus": plus, "minus": minus})
+            shown = (" + ".join(f"{t['sheet']}!{t['row']}" for t in plus) + " − "
+                     + " − ".join(f"{t['sheet']}!{t['row']}" for t in minus))
+            log(f"[anatomy] no check row of this model measures the balance sheet — the balance "
+                f"objective is the run's own: {shown}; measured every year from here on")
+            notes.append(f"balance measured by the RUN, not the model: {shown} "
+                         "(no check row of this book reads the balance sheet)")
     for d in dropped:
         log(f"[anatomy] dropped {d}")
     log(f"[anatomy] the brain read this model: {took_c} check row(s) and {took_k} key row(s) taken, "

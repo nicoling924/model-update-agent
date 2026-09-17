@@ -74,21 +74,59 @@ def scorecard(wb, spec, target_year, served=None, flags=None):
     # analyst wrote.
     for cp in spec.get("check_pairs") or []:
         sheet = cp.get("sheet")
-        a_row, b_row = int(cp.get("a_row")), int(cp.get("b_row"))
-        b_sheet = cp.get("b_sheet") or sheet
+        # BUILT FROM WHATEVER TOTAL ROWS THE MODEL HAS (reviewer 2026-09-17):
+        # not every book prints "total liabilities and equity" — CX does not —
+        # so the objective is assets less liabilities less equity less any
+        # separately-stated non-controlling interests, over the rows the anatomy
+        # could name. `plus`/`minus` are lists of {sheet, row}; a_row/b_row
+        # remain readable as the two-term form.
+        plus = list(cp.get("plus") or ([{"sheet": sheet, "row": int(cp["a_row"])}] if cp.get("a_row") else []))
+        minus = list(cp.get("minus") or ([{"sheet": cp.get("b_sheet") or sheet, "row": int(cp["b_row"])}]
+                                         if cp.get("b_row") else []))
+        if not plus or not minus:
+            continue
+        # the workbook's own cached results ride on the WORKBOOK, never in the
+        # spec: the spec is written out as JSON (the _SPEC tab, the decisions
+        # dump) and a Workbook in it kills the whole run at save time
+        vwb = getattr(wb, "_values_wb", None)
+
+        def _side(terms, year):
+            tot = 0.0
+            for t in terms:
+                sh_t = t.get("sheet") or sheet
+                col_t = year_columns(spec, sh_t).get(year)
+                if not col_t:
+                    raise KeyError(f"{sh_t} has no column for {year}")
+                try:
+                    v = ev.cell(sh_t, f"{col_t}{int(t['row'])}")
+                except Exception:      # noqa: BLE001
+                    v = None
+                if not isinstance(v, (int, float)) and vwb is not None:
+                    # CODE'S LIMITATION IS NOT THE MODEL'S FAULT: what Excel last
+                    # computed stands where this evaluator cannot (the CX rows
+                    # chain into AVERAGEIFS and full-column references)
+                    try:
+                        c = vwb[sh_t][f"{col_t}{int(t['row'])}"].value
+                        v = c if isinstance(c, (int, float)) and not isinstance(c, bool) else v
+                    except Exception:  # noqa: BLE001
+                        pass
+                if not isinstance(v, (int, float)):
+                    raise TypeError(f"{sh_t}!{col_t}{t['row']} does not compute here")
+                tot += float(v)
+            return tot
+        shown = (" + ".join(f"r{t['row']}" for t in plus) + " − "
+                 + " − ".join(f"r{t['row']}" for t in minus))
         for year, col in sorted(year_columns(spec, sheet).items()):
-            bcol = year_columns(spec, b_sheet).get(year) or col
-            name = f"{cp.get('name') or 'balance'} [run's own] {sheet}!r{a_row}−{b_sheet}!r{b_row} ({year})"
+            name = f"{cp.get('name') or 'balance'} [run's own] {sheet}!{shown} ({year})"
             try:
-                got = ev.cell(sheet, f"{col}{a_row}") - ev.cell(b_sheet, f"{bcol}{b_row}")
+                got = _side(plus, year) - _side(minus, year)
             except Exception as e:  # noqa: BLE001
                 out["eval_errors"].append(f"{name}: {e}")
                 out["checks"].append({"name": name, "year": year, "got": None,
                                       "expect": 0.0, "status": "EVAL_ERROR"})
                 continue
-            ok = isinstance(got, (int, float)) and abs(got) <= CHECK_TOL
-            out["checks"].append({"name": name, "year": year,
-                                  "got": got if isinstance(got, (int, float)) else None,
+            ok = abs(got) <= CHECK_TOL
+            out["checks"].append({"name": name, "year": year, "got": got,
                                   "expect": 0.0, "status": "PASS" if ok else "FAIL"})
 
     tcol_by_sheet = {sh: year_columns(spec, sh).get(str(target_year))

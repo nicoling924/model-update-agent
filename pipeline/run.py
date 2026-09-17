@@ -317,6 +317,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # thin gets ONE brain turn BEFORE the card queue — what a row IS is a
     # reading, and until it is read, balance is not measured at all.
     from .anatomy import read as _read_anatomy, wanted as _anatomy_wanted
+    # the workbook's own cached results, for the objectives this evaluator
+    # cannot compute (never as a source of a figure). On the WORKBOOK, not the
+    # spec: the spec is written out as JSON and a Workbook in it kills the save.
+    try:
+        wb._values_wb = wb_values
+    except Exception:      # noqa: BLE001
+        log("[run] the workbook's cached values could not be attached — objectives "
+            "this evaluator cannot compute will read as EVAL_ERROR, never as holding")
     if _anatomy_wanted(spec_d):
         try:
             _read_anatomy(wb, spec_d, client, target_year, log, period=str(period),

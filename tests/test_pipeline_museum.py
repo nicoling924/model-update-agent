@@ -8259,15 +8259,16 @@ def test_a_model_with_no_check_row_still_has_a_balance_objective_2026_09_17():
     anatomy.read(wb, spec, _Brain(), 2025, logs.append)
     assert spec.get("check_pairs"), spec.get("check_pairs")
     cp = spec["check_pairs"][0]
-    assert (cp["a_row"], cp["b_row"]) == (140, 141), cp
+    assert ([t["row"] for t in cp["plus"]], [t["row"] for t in cp["minus"]]) == ([140], [141]), cp
     assert any("the balance objective is the run's own" in x for x in logs), logs
     # a check that DOES read a total row is the balance check; no pair is added
-    from pipeline.anatomy import _balance_is_checked
+    from pipeline.anatomy import _balance_is_checked, _balance_terms
     wb["CXMODEL"]["AO99"] = "=AO140-AO141"
-    spec2 = dict(spec, check_rows=[{"sheet": "CXMODEL", "row": 99, "expect": 0}])
     by = {k["name"]: k for k in spec["key_rows"]}
-    assert _balance_is_checked(wb, spec2, by) is True
-    assert _balance_is_checked(wb, dict(spec, check_rows=[{"sheet": "Fleet", "row": 5}]), by) is False
+    pl, mi, _w = _balance_terms(by)
+    assert _balance_is_checked(wb, dict(spec, check_rows=[{"sheet": "CXMODEL", "row": 99, "expect": 0}]),
+                               pl, mi) is True
+    assert _balance_is_checked(wb, dict(spec, check_rows=[{"sheet": "Fleet", "row": 5}]), pl, mi) is False
     card = scorecard(wb, spec, 2025)
     bal = [c for c in card["checks"] if "balance" in c["name"] and c["year"] == "2025"]
     assert bal and bal[0]["status"] == "FAIL", bal
@@ -8409,6 +8410,125 @@ def test_kinship_reads_the_glossary_and_tells_the_directions_apart_2026_09_17():
     assert k("Current assets", "Current liabilities") is True
     assert k("Associates", "Joint ventures") is False
     assert name_is_kin(_line("Joint ventures"), "Associates") is False
+
+
+
+
+def test_the_balance_objective_is_built_from_the_totals_the_model_has_2026_09_17():
+    """Reviewer 2026-09-17: the first cut demanded a 'total liabilities and
+    equity' row. CX prints none — it has Total Assets (248), Non-Current
+    liabilities (223), Current liabilities (226) and Total Equity (215) — and
+    the function answered "already checked" in SILENCE, so no pair was built and
+    the 1,787 imbalance stayed unmeasured on the very book the rule was for.
+    The objective is assets less liabilities less equity less any separately
+    stated non-controlling interests, over whatever totals the anatomy named;
+    and when it truly cannot be built, the run SAYS so."""
+    from pipeline.anatomy import _balance_terms
+    A = {"sheet": "CXMODEL", "row": 248}
+    # the two-term form, when the model prints it
+    plus, minus, why = _balance_terms({"total assets": A,
+                                       "total liabilities and equity": {"sheet": "CXMODEL", "row": 300}})
+    assert (plus, [m["row"] for m in minus], why) == ([A], [300], "")
+    # the CX form: assets − current − non-current − equity
+    plus, minus, why = _balance_terms({"total assets": A,
+                                       "current liabilities": {"sheet": "CXMODEL", "row": 226},
+                                       "non-current liabilities": {"sheet": "CXMODEL", "row": 223},
+                                       "total equity": {"sheet": "CXMODEL", "row": 215}})
+    assert why == "" and [m["row"] for m in minus] == [226, 223, 215], (minus, why)
+    # one liabilities total plus equity, and NCI only when stated OUTSIDE it
+    plus, minus, why = _balance_terms({"total assets": A,
+                                       "total liabilities": {"sheet": "CXMODEL", "row": 220},
+                                       "total equity": {"sheet": "CXMODEL", "row": 215},
+                                       "non-controlling interests": {"sheet": "CXMODEL", "row": 216}})
+    assert [m["row"] for m in minus] == [220, 215, 216], minus
+    # and what cannot be built is SAID, never answered "checked"
+    for by, want in (({"total assets": A}, "cannot be balanced against anything"),
+                     ({"total equity": {"sheet": "S", "row": 1}}, "no 'total assets' row was named"),
+                     ({}, "no 'total assets' row was named")):
+        plus, minus, why = _balance_terms(by)
+        assert (plus, minus) == ([], []) and want in why, (by, why)
+
+
+def test_a_balance_that_cannot_be_built_is_said_on_the_report_2026_09_17():
+    """...and the banner must not read as an objective that holds."""
+    from pipeline import anatomy
+    from pipeline.discover import discover
+    from pipeline.reportpage import build
+    wb = _cold_model()
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    spec["check_rows"] = [{"sheet": "Fleet", "row": 5, "expect": 0}]
+
+    class _Brain:
+        def json(self, _s, _u, _v, **k):
+            return {"checks": [], "keys": [{"name": "revenue", "ref": "CXMODEL!118"}],
+                    "because": "this book names no balance-sheet total"}
+    logs = []
+    anatomy.read(wb, spec, _Brain(), 2025, logs.append)
+    assert spec.get("balance_not_measured"), spec.get("balance_not_measured")
+    assert any("BALANCE NOT MEASURED" in x for x in logs), logs
+    assert not spec.get("check_pairs")
+    build(wb, None, spec, 2025, "FY25", {"period": "FY25"}, logs.append)
+    banner = "".join(str(wb["_REPORT"].cell(r, 1).value or "") for r in range(1, 8))
+    assert "balance NOT measured" in banner, banner[:300]
+    assert "checks closed, every year" not in banner, banner[:300]
+
+
+def test_the_cached_values_ride_on_the_workbook_not_the_spec_2026_09_17():
+    """The spec is written out as JSON (the _SPEC tab, the decisions dump): a
+    Workbook parked in it killed the CX run at save time with "Object of type
+    Workbook is not JSON serializable". The cached results ride on the WORKBOOK,
+    where scorecard already has it."""
+    import json
+    from pipeline.checks import scorecard
+    from pipeline.discover import discover
+    wb = _cold_model()
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    spec["check_pairs"] = [{"name": "balance", "sheet": "CXMODEL",
+                            "plus": [{"sheet": "CXMODEL", "row": 140}],
+                            "minus": [{"sheet": "CXMODEL", "row": 141}]}]
+    json.dumps(spec, default=str)          # the spec must stay writable
+    assert "_values_wb" not in spec, spec.keys()
+    wb["CXMODEL"]["AO140"] = "=AVERAGEIFS(FX!B:B,FX!A:A,\">0\")"   # beyond this evaluator
+    got = [c for c in scorecard(wb, spec, 2025)["checks"]
+           if "balance" in c["name"] and c["year"] == "2025"]
+    assert got and got[0]["status"] == "EVAL_ERROR", got     # honest without a cache
+    import openpyxl
+    cached = openpyxl.Workbook()
+    cached.active.title = "CXMODEL"
+    # only the cell the evaluator could not do falls back; AO141 still computes
+    cached["CXMODEL"]["AO140"] = 230000.0 * 1.08
+    wb._values_wb = cached
+    got2 = [c for c in scorecard(wb, spec, 2025)["checks"]
+            if "balance" in c["name"] and c["year"] == "2025"]
+    assert got2 and got2[0]["status"] == "PASS", got2
+
+
+def test_the_faults_reach_the_page_before_the_evaluator_noise_2026_09_17():
+    """Reviewer 2026-09-17: on CX all twelve OPEN CHECK slots went to AO260-AO270
+    'invalid syntax' and the review's own faults never reached the page. The cap
+    is a page-size measure, not a ranking: what the run could not measure comes
+    first, and repeated evaluator errors fold into one line naming how many."""
+    from pipeline.reportpage import _open_checks_ordered as f
+    ocs = [f"NEW ERROR CXMODEL!AO{n}: invalid syntax (<string>, line 1) — this cell computed"
+           for n in range(260, 271)]
+    # the SAME noise in the review's own wording must fold into the same line
+    ocs += [f"objective NOT measured: CXMODEL!AP{n} could not be evaluated here (SyntaxError)"
+            for n in (16, 180, 253)]
+    ocs += ["HEADER Valuation!G6: prior header 2024 not rolled to 2025",
+            "objective NOT measured: the review context could not be built",
+            "forecast NOT held at 0: S!AJ9: the model works this row out of AJ8, AJ7",
+            "Final!AI99 (2025) off by 1,787"]
+    out = f(ocs, {"balance_not_measured": "no 'total assets' row was named"})
+    assert out[0].startswith("BALANCE NOT MEASURED"), out[0]
+    assert "objective NOT measured" in out[1], out[1]
+    assert "forecast NOT held" in out[2], out[2]
+    grouped = [o for o in out if "could not evaluate offline" in o]
+    assert grouped and "14 cell(s)" in grouped[0], out
+    assert "CXMODEL!AO260" in grouped[0] and "NEW ERROR" not in grouped[0], grouped[0]
+    assert sum(1 for o in out if "invalid syntax" in o) == 0, out
+    assert sum(1 for o in out if "could not be evaluated here" in o) == 0, out
+    assert any("off by 1,787" in o for o in out), out      # the finding that was being hidden
+    assert len(out) <= 12
 
 
 if __name__ == "__main__":

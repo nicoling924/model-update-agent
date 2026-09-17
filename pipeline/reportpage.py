@@ -422,6 +422,41 @@ def _print_text(prov, sheet, row, col, key_tie):
 
 # ---------------------------------------------------------------- render
 
+def _open_checks_ordered(open_checks, spec=None, cap=12):
+    """The open findings, worst first and de-duplicated: the balance that was
+    never measured, then the objectives and stages the run LOST, then everything
+    else — with repeated evaluator errors folded into one line naming how many
+    and which cells, because a page full of 'AO261 invalid syntax' tells the
+    analyst nothing the first line did not."""
+    import re as _re
+    faults, errs, rest = [], [], []
+    if spec and spec.get("balance_not_measured"):
+        faults.append(f"BALANCE NOT MEASURED — {str(spec['balance_not_measured'])[:150]}")
+    # ONE CELL THIS EVALUATOR CANNOT DO IS NOT A FINDING; a hundred of them is
+    # one finding. Whatever wording they arrive in — 'NEW ERROR …: invalid
+    # syntax', 'objective NOT measured: … could not be evaluated here' — they
+    # are the same class of noise and they fold into one line.
+    _NOISE = _re.compile(r"invalid syntax|will not evaluate|cannot be evaluated|"
+                         r"could not be evaluated|not evaluable", _re.I)
+    # the reference itself, not the words before it ("NEW ERROR CXMODEL!AO265")
+    _CELL = _re.compile(r"('[^']{1,40}'|[A-Za-z0-9_-]{1,40})!([A-Z]{1,3}\d+)")
+    for oc in open_checks or []:
+        t = str(oc)
+        m = _CELL.search(t)
+        if m and _NOISE.search(t):
+            errs.append(f"{m.group(1)}!{m.group(2)}")
+        elif _re.search(r"objective NOT measured|STAGE LOST|NOT held|refused over the model", t):
+            faults.append(t)
+        else:
+            rest.append(t)
+    out = faults[:]
+    if errs:
+        out.append(f"{len(errs)} cell(s) this run could not evaluate offline: "
+                   + ", ".join(errs[:4]) + (f" … {errs[-1]}" if len(errs) > 4 else ""))
+    out += rest
+    return out[:cap]
+
+
 def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     """Render the page. extra: key_ties, open_checks, sense_rows,
     provenance, elapsed_min, units. -> dict of what was drawn."""
@@ -494,7 +529,8 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     # says what is true — balance NOT measured — and the analyst knows to look.
     # the run's OWN balance pair counts as measured: objective 1 exists on a
     # model that declares no check row of its own (reviewer 2026-09-17)
-    measured = bool((spec.get("check_rows") or []) or (spec.get("check_pairs") or []))
+    measured = bool((spec.get("check_rows") or []) or (spec.get("check_pairs") or [])) \
+        and not spec.get("balance_not_measured")
     kt = extra.get("key_ties") or []
     n_tied = sum(1 for k in kt if isinstance(k, dict) and k.get("tied"))
     kind = period_kind(period)
@@ -651,7 +687,12 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
             cell(r, 2, "      " + str(s["text"])[:300], GREYI)
             r += 1
         n_items += 1
-    for oc in open_checks[:12]:
+    # WHAT THE RUN COULD NOT MEASURE COMES FIRST (reviewer 2026-09-17: on CX all
+    # twelve slots went to AO260-AO270 evaluator errors and the review's own
+    # faults never reached the page). The cap is a page-size measure, so
+    # repeated evaluator errors are GROUPED into one line and the room they free
+    # goes to the findings the analyst can act on.
+    for oc in _open_checks_ordered(open_checks, spec):
         cell(r, 1, "OPEN CHECK", REDF)
         cell(r, 2, oc[:200], SMALL)
         r += 1
