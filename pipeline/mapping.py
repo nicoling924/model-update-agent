@@ -1097,7 +1097,8 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
         # disagreement, and a disagreement is the analyst's, not code's — the
         # cell keeps the first reading and goes red carrying both.
         _st_now = _written(loop).get(f"{sheet}!{coord}")
-        if _st_now == "filled":
+        if _st_now in ("filled", "red") and (_st_now == "filled" or
+                                             (loop.served.get((sheet, _row_of(coord))) or {}).get("conf", 0) >= 4):
             _prev = (loop.served.get((sheet, _row_of(coord))) or {}).get("value")
             _same = isinstance(_prev, (int, float)) and not isinstance(v, str) \
                 and abs(float(_prev) - float(v)) <= max(0.05, abs(float(v)) * 1e-4)

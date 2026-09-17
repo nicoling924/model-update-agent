@@ -6691,6 +6691,27 @@ def test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17():
     print("PASS test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17")
 
 
+def test_a_plain_write_stands_after_it_is_downgraded_to_red_2026_09_17():
+    """Owner 2026-09-17: a cell the parallel faces downgraded to red became
+    overwritable again, though its note said "the first stands" — a third
+    reading typed over the mapped figure. The last PLAIN write stands; later
+    readings land red carrying both."""
+    loop, pages, census = _map_model()
+    turns = [{"calls": [{"tool": "set", "ref": "Final!C3", "printed": 460, "page": 23,
+                         "line": "Other gains, net 460 420", "because": "other gains"}]},
+             {"calls": [{"tool": "set", "ref": "Final!C3", "printed": 500, "page": 23,
+                         "line": "Other gains, net 460 420", "because": "another face reads 500"}]},
+             {"calls": [{"tool": "set", "ref": "Final!C3", "printed": 999, "page": 23,
+                         "line": "Other gains, net 460 420", "because": "a third reading"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert "plain," in said[1], f"the first write was not plain: {said[1][-400:]}"
+    assert loop.wb["Final"]["C3"].value == 460.0, f"the plain write was typed over: {loop.wb['Final']['C3'].value}"
+    assert "Final!C3" in loop.writer.log["flags"], "the disagreement is not red"
+    assert "two readings" in " ".join(said), said[-1][-300:]
+    print("PASS test_a_plain_write_stands_after_it_is_downgraded_to_red_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
