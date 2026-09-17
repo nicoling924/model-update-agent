@@ -453,6 +453,11 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
         fails = [c for c in card["checks"] if c["status"] != "PASS" and str(c["year"]) >= str(target_year)]
     except Exception:
         fails = []
+    # NO CHECK ROW IS NOT A CLOSED CHECK (owner 2026-09-17, the CX cold model):
+    # with nothing to measure, "balance and cash checks closed, every year" is
+    # the report saying an objective holds that was never tested. The banner
+    # says what is true — balance NOT measured — and the analyst knows to look.
+    measured = bool(spec.get("check_rows") or [])
     kt = extra.get("key_ties") or []
     n_tied = sum(1 for k in kt if isinstance(k, dict) and k.get("tied"))
     kind = period_kind(period)
@@ -463,6 +468,8 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
         yrs = sorted({str(c["year"]) for c in fails})
         parts.append(f"CHECKS OPEN: {len(fails)} ({', '.join(yrs[:6])})" if fails
                      else f"CHECKS OPEN: {len(open_checks)}")
+    elif not measured:
+        parts.append("balance NOT measured — this model declares no check row")
     else:
         parts.append("balance and cash checks closed, every year")
     parts.append(f"key numbers tied to the print {n_tied}/{len(kt)}" if kt else "key numbers: no panel")

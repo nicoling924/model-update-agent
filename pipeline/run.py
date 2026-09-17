@@ -275,6 +275,17 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     wb_values = load(model_path, data_only=True)  # cached values
     # THE READING STEP for the model (owner ruling 2026-09-03): the brain
     # names the headline rows; code verifies each carries numbers
+    # THE STRUCTURE TURN (owner 2026-09-17): a model whose spec is absent or
+    # thin gets ONE brain turn BEFORE the card queue — what a row IS is a
+    # reading, and until it is read, balance is not measured at all.
+    from .anatomy import read as _read_anatomy, wanted as _anatomy_wanted
+    if _anatomy_wanted(spec_d):
+        try:
+            _read_anatomy(wb, spec_d, client, target_year, log, period=str(period))
+        except Exception as _e_an:     # noqa: BLE001
+            log(f"[anatomy] STAGE LOST: the structure turn crashed ({_e_an!r}) — "
+                "the deterministic discovery stands")
+            run_log.append(f"[anatomy] STAGE LOST: the structure turn crashed ({_e_an!r})")
     from .docid import identify_key_rows
     identify_key_rows(wb, spec_d, client, log,
                       panel_path=company_dir / "replay" / str(period) / "key_panel.json",

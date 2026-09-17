@@ -7740,6 +7740,125 @@ def test_every_written_cell_carries_its_evidence_into_the_review_2026_09_17():
     assert "A wrong number is a failure" in MANDATE
 
 
+# ── Owner 2026-09-17, ruling 4: THE STRUCTURE TURN BEFORE THE MAPPING ───────
+
+def _cold_model():
+    """A model from another team, shaped like the CX book: a statement sheet on
+    a long year axis whose checks are unlabelled, and a units sheet with the
+    real check on it that carries no year axis at all."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    m = wb.active
+    m.title = "CXMODEL"
+    years = ["AK", "AL", "AM", "AN", "AO", "AP", "AQ"]      # 2021..2027, 2025 actual
+    for i, col in enumerate(years):
+        m[f"{col}1"] = 2021 + i
+    for r, lab, base, form in (
+            (112, "passenger sales", 60000.0, None),
+            (114, "cargo sales", 22000.0, None),
+            (116, "other sales", 7000.0, None),
+            (118, "total sales", None, "=+{c}112+{c}114+{c}116"),
+            (131, "operating costs", 84000.0, None),
+            (133, None, None, "=({c}118-{c}131)"),
+            (140, "total assets", 230000.0, None),
+            (141, "total liabilities and equity", 230000.0, None),
+            (142, None, None, "={c}140-{c}141"),
+            (150, "share price", 8.4, None)):
+        if lab:
+            m[f"A{r}"] = lab
+        for i, col in enumerate(years):
+            m[f"{col}{r}"] = form.format(c=col) if form else base * (1 + 0.02 * i)
+    f = wb.create_sheet("Fleet")
+    f["B4"], f["B5"], f["B120"] = "Total Hardcoded", "Total Check", "Total"
+    for col in ("C", "D", "E", "F"):
+        f[f"{col}4"] = 234.0
+        f[f"{col}120"] = 234.0
+        f[f"{col}5"] = f"={col}4-{col}120"
+    return wb
+
+
+def test_the_structure_turn_makes_a_cold_model_measurable_2026_09_17():
+    """Owner 2026-09-17, the CX cold model: no spec, no labelled check, so
+    objective 1 could not be measured AT ALL — and the report still said
+    "balance and cash checks closed, every year". One brain turn now reads the
+    sheets BEFORE the card queue and names the checks, the keys and the
+    statement roles; code is the referee — a named check must read ZERO in the
+    periods the model already closed, a named key must be a row the model
+    computes — and what fails verification is dropped out loud."""
+    from pipeline import anatomy
+    from pipeline.discover import discover
+    wb = _cold_model()
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    assert anatomy.wanted(spec), "a model with no check rows wants its anatomy read"
+    assert not (spec.get("check_rows") or []), "the fixture must start unmeasured"
+    # the reading code shows the brain: every sheet gets its share of the budget,
+    # so the check on the sheet with NO year axis is visible
+    txt = anatomy.sheet_reading(wb, spec, 2025)
+    assert "--- Fleet:" in txt and "Total Check" in txt, txt[-600:]
+    assert "118: total sales   =+AO112+AO114+AO116" in txt, txt[:900]
+
+    class _Brain:
+        def json(self, _sys, _user, _v, **k):
+            return {"statements": [{"sheet": "CXMODEL", "role": "pl"},
+                                   {"sheet": "Fleet", "role": "drivers"}],
+                    "checks": ["CXMODEL!142", "Fleet!5", "CXMODEL!133", "Ghost!9"],
+                    "keys": [{"name": "revenue", "ref": "CXMODEL!AO118"},
+                             {"name": "operating profit", "ref": "CXMODEL!133"},
+                             {"name": "net profit", "ref": "CXMODEL!999"}],
+                    "inputs": ["CXMODEL!112"],
+                    "definitions": ["row 133 is sales less operating costs; it carries no label"],
+                    "because": "the P&L is on CXMODEL; Fleet carries a units check"}
+    logs = []
+    n_c, n_k, dropped = anatomy.read(wb, spec, _Brain(), 2025, logs.append)
+    taken = {(c["sheet"], c["row"]) for c in spec["check_rows"]}
+    assert ("CXMODEL", 142) in taken and ("Fleet", 5) in taken, taken
+    # operating profit is a fine KEY and a terrible check: it is not zero in the
+    # years the model has already closed, so code refuses it as one
+    assert ("CXMODEL", 133) not in taken, "a non-zero row was taken as a check"
+    assert any("CXMODEL!133" in d and "not a check" in d for d in dropped), dropped
+    assert any("Ghost" in d for d in dropped), dropped
+    assert any("CXMODEL!999" in d and "a key is a row the model computes" in d for d in dropped), dropped
+    keys = {k["name"]: (k["sheet"], k["row"]) for k in spec["key_rows"]}
+    assert keys["revenue"] == ("CXMODEL", 118) and keys["operating profit"] == ("CXMODEL", 133), keys
+    assert (n_c, n_k) == (2, 2), (n_c, n_k)
+    assert any("balance is measured on it from here on" in x for x in logs), logs
+    assert any("row 133 is sales less operating costs" in n for n in spec["anatomy_notes"]), spec["anatomy_notes"]
+    assert {"sheet": "CXMODEL", "row": 112} in spec["input_sites"], spec.get("input_sites")
+    # and the objectives are measured on them from here on
+    from pipeline.checks import scorecard
+    names = [c["name"] for c in scorecard(wb, spec, 2025)["checks"]]
+    assert any("CXMODEL!r142" in n for n in names), names
+    assert any(n.endswith("(2025)") for n in names), names
+
+
+def test_a_dead_brain_leaves_the_report_saying_balance_was_not_measured_2026_09_17():
+    """With no brain the deterministic discovery stands — and if it found no
+    check row, the run has measured NOTHING. The banner must not then say
+    "balance and cash checks closed, every year": it says balance NOT measured,
+    and the model is still delivered (the gate never refuses)."""
+    from pipeline import anatomy
+    from pipeline.discover import discover
+    from pipeline.reportpage import build
+    wb = _cold_model()
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    logs = []
+    assert anatomy.read(wb, spec, None, 2025, logs.append) == (0, 0, [])
+    assert any("no brain to read this model's structure" in x for x in logs), logs
+    assert not (spec.get("check_rows") or [])
+    build(wb, None, spec, 2025, "FY25", {"period": "FY25"}, logs.append)
+    banner = str(wb["_REPORT"]["A2"].value or "") + str(wb["_REPORT"]["A3"].value or "")
+    for r in range(1, 8):
+        banner += str(wb["_REPORT"].cell(r, 1).value or "")
+    assert "balance NOT measured" in banner, banner[:400]
+    assert "checks closed, every year" not in banner, banner[:400]
+    # a model with a verified check says the truth the other way
+    spec["check_rows"] = [{"sheet": "CXMODEL", "row": 142, "expect": 0}]
+    wb2 = _cold_model()
+    build(wb2, None, spec, 2025, "FY25", {"period": "FY25"}, logs.append)
+    b2 = "".join(str(wb2["_REPORT"].cell(r, 1).value or "") for r in range(1, 8))
+    assert "balance NOT measured" not in b2, b2[:300]
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
