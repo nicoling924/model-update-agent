@@ -1,0 +1,23 @@
+pace test run 35238391450 · v3-skip-scope 8f31d41 (route first) · 15-min clock · cold · CLP pinned
+LOOP IS NOW COHERENT AND CHEAP: routing 337 rows in 9 concurrent calls (5.5 s each, 0.3 min wall); face round read only the 34 pages the brain named (was 85-144); 77 brain calls, 9.1 min brain time, 47 rows/min
+ROUTING QUALITY IS THE LIMITER: statement rows routed right (P&L → AR p166: 9 writes; BS → p168: 11) but 51 rows routed to p244 (operating statistics) and 35 to p192; face round 29 plain / 34 red (lead-paired round had 51 plain because the P&L page got 39 rows); sequential 15 turns, mostly refusals of routed pages then re-routes; 37 plain, 39 red, 18 skipped, 231 not reached; keys 3/13; plain typed numbers vs analyst 41/43 (Final!AI38 1.89 HK$/share written into a HK$m dividend row — plain; MI perpetuals)
+reviewer's warning confirmed: the 80-char page index gives the brain too little to route by; first suspect for the next cycle (richer index, routing calls have room: 42k chars, 5.5 s)
+hour run NOT dispatched (bar: face round plain near 51, unreached well below 237 — not met)
+
+===== PACE (live brain) =====
+[run] budget: 4.9 min already spent; 7.1 min left — 5.3 to the mapping, 1.8 to the review
+[map] the face round: 34/34 face(s) answered in 1.9 min — 29 plain, 34 red, 274 rows still open
+[map] the face round took 2.2 min; 3.1 min of the mapping's clock go to the rows that are left
+[map] mapping: 15 turn(s), 37 plain, 39 red, 18 skipped with a reason, 231 not reached (red) of 325 input rows
+[review] ended: 10 objective(s) still broken
+[run] DELIVERED WITH OPEN CHECKS: CLP Model FY25 (pipeline).xlsx
+[run] key count: 3/13 tied to the print (key rows 13, panel 14)
+[run] executive report coverage line: 'key numbers tied 3/13 to the print · 7 plugs · 338 red · 3 orange'
+wall 12.9 min for a 15-min clock · brain calls 77 · brain time 9.1 min
+  pre           17 calls ·   7.1 s/call ·    5867 chars in/call ·    282 chars out/call
+  routing        9 calls ·   5.5 s/call ·   42066 chars in/call ·   1753 chars out/call
+  faces         34 calls ·   7.1 s/call ·   18891 chars in/call ·    848 chars out/call
+  sequential    15 calls ·   8.1 s/call ·   38515 chars in/call ·   2415 chars out/call
+  review         2 calls ·   6.5 s/call ·   62819 chars in/call ·    959 chars out/call
+rows/min of brain time in the mapping: 47.5
+copied companies/CLP/model/CLP Model FY25 (pipeline).xlsx -> drytest_out/CLP Model FY25 (pipeline).xlsx
