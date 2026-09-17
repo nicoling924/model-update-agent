@@ -1,0 +1,31 @@
+run 35194800103 · head 8cd3038 (v25, cold, no spec) · 07:29–08:27Z (58 min) · Cathay Pacific vs test-set KEY (552 cells)
+anatomy: 1 check row (Fleet!5) + 19 key rows named cold, 0 dropped; balance pair chosen by the run: CXMODEL!248 − 226 − 223 − 215
+keys tied 13/23 · 0 plugs · 18 red · 30 orange · balance OFF by 1,210 = non-current liabilities AO223 59,101 (plain, unflagged) vs key 57,891
+review: 364 turns / 40 min, almost all on net cash flow AO202 1,912 vs print 2,485 (formula cell; brain refused to plug, never found the input); ended 1 objective broken
+coverage: CXMODEL 57/413 filled, Fleet 0/119, Valuation 0/20 — the index served only statement faces
+score_cx: 46 correct / 11 wrong / 495 unfilled = 8.3% (old code 8.2%, baseline 1.6%)
+
+scored Cathay Pacific Model FY25 (pipeline).xlsx  against  0001007416_67_20260805073722__KEY.json  (2025 column)
+
+552 key cells: 46 correct, 11 wrong, 495 unfilled, 0 unscorable   -> 8.3% correct
+
+per sheet:
+  Valuation    20 cells   correct    0  wrong    0  unfilled   20  unscorable   0
+  CXMODEL     413 cells   correct   46  wrong   11  unfilled  356  unscorable   0
+  Fleet       119 cells   correct    0  wrong    0  unfilled  119  unscorable   0
+
+0 of the correct cells cleared only the 0.5 absolute band (small-magnitude ratios), not the 0.01% band.
+
+wrong cells (11):
+  cell            fill               delivered              answer   label
+  CXMODEL!AO128   orange                   486                   0   lease rental
+  CXMODEL!AO147   red                     -317             275.532   Air China Net Profit (RMB, 12 month rolling,
+  CXMODEL!AO151   orange                  -488                   0   Securities surplus/(deficit)
+  CXMODEL!AO157   orange                  -974                   0   Preferred Dividend
+  CXMODEL!AO158   orange                   974                   0   minorities
+  CXMODEL!AO170   red               6,438.1206          6,543.1512   shares issued
+  CXMODEL!AO198   red                   -9,750                   0   cf new equity
+  CXMODEL!AO223   plain                 59,101              57,891   Non-Current liabilities
+  CXMODEL!AO233   red                  250,389             251,287   tfa gross bk value
+  CXMODEL!AO234   red                  132,533             133,431   cumul depn
+  CXMODEL!FK2     plain      FY26 Annual Split   FY25 Annual Split   Range names
