@@ -54,3 +54,7 @@ The unit conflict fix passed the full bench, 15 focused contracts, all three bal
 ## Extraction boundary candidate
 
 The reader now separates disclosure transcription from compatibility with model priors. It retains agreed unanchored rows, avoids eager vision for printed prior-period documents, and retries missing/conflicting readings. Full bench, 15 shared contracts and four extraction contracts passed. Three pinned replays remain balanced (24/24, 118/118, 84/84); all three affected-input readiness cases pass with one source candidate each. The synthetic old/new extraction specimen retains 0 versus 8 rows. This is not live OCR or financial accuracy evidence; fresh pilots remain required. Details: `validation/extraction/summary.json`.
+
+## Integrated candidate gate
+
+Combined Claude routing/scope changes through 984e86b with Codex units, transactional evidence, precision checks and extraction changes. The page tool now exposes accepted scanned rows to the same verifier, complete routing replies are replayable, and automatic face selection shares routing’s period scope. Full bench, 19 shared contracts and four extraction contracts pass. Three replays remain balanced (24/24, 118/118, 84/84); routing-first readiness confirms the intended page and final value for EPS, inventory and finance cost, with one source candidate each. See `validation/integrated/summary.json`. Fresh live pilots, independent semantic/rollover review and native calculation remain outstanding for MVP acceptance.

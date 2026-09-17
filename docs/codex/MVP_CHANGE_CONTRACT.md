@@ -51,3 +51,25 @@ Generic rule: printed document identity determines historical scope; agreement b
 Museum pins: four independent tests in `tests/test_extraction_boundary.py` cover unfamiliar current reports, disputed rows, printed prior-period scope, and evidence-driven rescanning. An explicit before/after replay of the synthetic specimen retains 0 rows on the previous reader and all 8 agreed rows on the candidate. This tests the boundary; it is not a measured financial accuracy rate. The actual CLP/DFE documents' printed identities were separately checked and correctly identify their current and prior annual reports.
 
 The existing independent transcription, ledger, document identity and mapping components are reused. No company/page-specific exception or larger count fence was added. The full bench, 15 shared-contract tests and four extraction tests pass; all three frozen replays remain balanced and all three full-pipeline readiness cases retain their expected values (one candidate each). Evidence is in validation/extraction/summary.json. Pinned-ledger replays bypass vision and therefore cannot establish new OCR accuracy or actual runtime. Only a completed live pilot can measure those.
+
+## Integrating Claude's page-routing work
+
+Root cause: a numeric coincidence chose which disclosure page the model row was read against, so the agent repeatedly examined irrelevant pages and stopped without mapping the remaining inputs.
+
+Generic rule: page selection is a semantic judgment about the model row and disclosure; numeric matches remain leads. Reuse Claude's routing/scope changes through 984e86b on the Codex branch, preserving document-qualified tools, explicit unit domains and the shared mapping/review writer. A refusal of one page must not retract a previously landed value or close a different row reached from the key table.
+
+The imported routing exhibits cover route placement, re-routing after a rejected page, explicit disclosure-wide closure and fallback when the router supplies no answer. One merge conflict in the parallel-face test was resolved by retaining the newly appropriate minority-interest row and our explicit model-unit proposal; both behavioral assertions stand.
+
+Replay must distinguish routing answers, page-specific mapping answers and sequential mapping answers. The combined harness has separate queues and refuses a missing phase-specific reply without consuming another phase's answer. Routing replies are logged in full; a new contract test re-parses an answer longer than the former truncation point.
+
+Full bench, 16 shared contracts and four extraction contracts pass. The final integrated replay and routing-first readiness gates passed; evidence is in validation/integrated/summary.json. The historical routing diagnosis is imported as `docs/scores/CLP_FY25_pace35217769192_v3-skip-scope.txt`; neither its old metrics nor synthetic routing pace are claimed as current live results. Claude's branch/worktree is unchanged.
+
+## One disclosure view for extraction, routing and quote verification
+
+Root cause: scan evidence existed in the ledger but the page tool indexed only native PDF text, so routing could name a scanned page that the quote verifier could not read.
+
+Generic rule: all reading and verification tools use the same accepted disclosure evidence. Native page text keeps priority; when it is absent, the page view preserves the ledger's non-disputed vision rows in their recorded order and document/page identity. Disputed transcriptions never enter this verified view. Two contract tests exercise the actual page-tool → set-tool path and native-text/disputed-row boundaries. The mapping and review prompts also explain the existing explicit model-unit fallback instead of incorrectly requiring arithmetic for every value.
+
+This completes the integrated candidate under validation. Source is frozen in `/private/tmp/codex-final-build`; the full suite and all three replay/routing-readiness cases passed. No more implementation is being added before the next live evidence.
+
+The final harness exposed a scope mismatch between the automatic face pass and routing: known prior-period pages still received current-input batches. The face pass now reuses `_other_period_docs` exactly as routing does; explicit historical page lookup remains available. A nineteenth shared contract pins both properties. The release snapshot is `/private/tmp/codex-release-build`; final evidence is recorded against that snapshot, superseding the earlier intermediate snapshots.

@@ -22,10 +22,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _SKIP_SCOPE = (os.environ.get("PACE_SKIP_SCOPE") or "disclosure").strip().lower()
 _ROW = re.compile(r"^\s{2}([^\s!]+(?: [^\s!]+)*)!([A-Z]{1,3}\d+)\s")
 _LEAD = re.compile(r"lead: p(\d+) '(.+?)' → this year ([-\d,\.]+)")
+_FACE = re.compile(r"^\s{2}(.+?) p(\d+) \[(\w+)\]:")
+
+
+def _routes_from_context(user):
+    """THE HONEST SYNTHETIC ROUTER: a brain with no judgment cannot say which
+    page carries a row, so it answers what code itself used to do — every open
+    row to one of the run's statement faces, in turn. It measures the loop's
+    cost with the routing call in it; it proves no mapping."""
+    faces, refs = [], []
+    for line in user.splitlines():
+        m = _FACE.match(line)
+        if m and (m.group(1), m.group(2)) not in faces:
+            faces.append((m.group(1), m.group(2)))
+            continue
+        r = _ROW.match(line)
+        if r and "|" in line:
+            refs.append(f"{r.group(1)}!{r.group(2)}")
+    if not faces or not refs:
+        return {"thinking": "this disclosure prints no statement face I can route to", "calls": []}
+    routes = [{"ref": ref, "pages": [f"{faces[i % len(faces)][0]} {faces[i % len(faces)][1]}"],
+               "because": "a statement face of this run"} for i, ref in enumerate(refs)]
+    return {"thinking": f"routing {len(routes)} open rows to the statement faces",
+            "calls": [{"tool": "route", "routes": routes}]}
 
 
 def _turn_from_context(user, batch):
     """What a brain with no judgment would do: take every lead it is shown."""
+    if user.startswith("## ROUTE THE OPEN ROWS"):
+        return _routes_from_context(user)
     sets, sheet_of, cur = [], None, None
     for line in user.splitlines():
         m = _ROW.match(line)

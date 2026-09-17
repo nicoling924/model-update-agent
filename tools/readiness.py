@@ -33,6 +33,8 @@ def source_candidates(items, proposal):
 
 def main(argv):
     import json
+    route_first = "--route-first" in argv
+    argv = [a for a in argv if a != "--route-first"]
     proposal_path = None
     if "--proposals" in argv:
         i = argv.index("--proposals")
@@ -86,6 +88,12 @@ def main(argv):
             print(f"[readiness] {p['ref']}: {len(candidates)} source-line candidates for the supplied quote")
             seen[p["ref"]] = ("MAPPING PROPOSAL", str(p.get("line", "")))
         def maps(system, user):
+            if route_first and user.startswith("## THIS TURN IS ONE FACE"):
+                return {"calls": []}
+            if route_first and user.startswith("## ROUTE THE OPEN ROWS"):
+                return {"calls": [{"tool":"route", "routes":[
+                    {"ref":p["ref"], "pages":[{"doc":p["doc"], "page":p["page"]}]}
+                    for p in pending]}]}
             if pending:
                 batch = list(pending)
                 pending.clear()

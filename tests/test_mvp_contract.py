@@ -14,6 +14,61 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_automatic_face_pass_uses_the_same_period_scope_as_routing(self):
+        from pipeline.mapping import _face_rows, input_rows, _one_call
+        loop, pages, census = museum._map_model()
+        loop.ledger.faces[("old.pdf",23)] = "pl"
+        loop.ledger._doc_periods = {"ar.pdf":"current", "old.pdf":"prior"}
+        pages[("old.pdf",23)] = "Historical comparison only"
+        loop._map_pages = pages
+        dealt = _face_rows(loop, loop.wb, input_rows(loop,census), {})
+        self.assertTrue(dealt)
+        self.assertNotIn(("old.pdf",23),dealt)
+        self.assertIn("Historical comparison only",str(_one_call(loop,loop.wb,
+            {"tool":"page","doc":"old.pdf","n":23},pages,{"ar.pdf","old.pdf"},{},lambda *a:None)))
+
+    def test_scanned_evidence_reaches_page_tools_and_the_shared_quote_verifier(self):
+        from pipeline.mapping import Pages, _one_call
+        loop, _, _ = museum._map_model()
+        for item in loop.ledger.items:
+            item.channel = "vision"
+        pages = Pages([], ledger=loop.ledger)
+        shown = _one_call(loop, loop.wb, {"tool":"page", "doc":"ar.pdf", "n":23},
+                          pages, {"ar.pdf"}, {}, lambda *a:None)
+        self.assertIn("Other gains", str(shown))
+        _one_call(loop, loop.wb, {"tool":"set", "ref":"Final!C3", "doc":"ar.pdf", "page":23,
+                                 "printed":460, "line":"Other gains, net 460 420"},
+                  pages, {"ar.pdf"}, {}, lambda *a:None)
+        self.assertEqual(loop.wb["Final"]["C3"].value,460)
+
+    def test_scan_page_view_preserves_native_text_and_excludes_disputed_readings(self):
+        from pipeline.mapping import Pages
+        from pipeline.ledger import Ledger, Item
+        ledger = Ledger()
+        for page, text, disputed in [(1,"OCR alternative 100 90",False),
+                                      (2,"Revenue 120 100",False),(2,"Uncertain 999 888",True)]:
+            ledger.add(Item(doc="report.pdf",page=page,table_id=0,row_ord=len(ledger.items),
+                            label=text,nums=[120,100],channel="vision",source_line=text,
+                            disputed=disputed))
+        class NativePages(Pages):
+            def _read(self, path): self._d[("report.pdf",1)] = "Original native text"
+        pages = NativePages(["report.pdf"],ledger=ledger)
+        self.assertEqual(pages.get(("report.pdf",1)),"Original native text")
+        self.assertEqual(pages.get(("report.pdf",2)),"Revenue 120 100")
+
+    def test_routing_records_the_complete_answer_for_faithful_replay(self):
+        import json
+        from pipeline.mapping import route_open_rows, input_rows
+        loop, pages, census = museum._map_model()
+        reply = {"thinking": "evidence " * 700, "calls": [{"tool":"route", "ref":"Final!C2",
+                 "pages":[{"doc":"ar.pdf", "page":23}]}]}
+        logs = []
+        placed = route_open_rows(loop, loop.wb, input_rows(loop,census), pages, {},
+                                 lambda *a: reply, logs.append)
+        self.assertEqual(placed, 1)
+        recorded = next(x for x in logs if x.startswith("[map] routing reply "))
+        self.assertEqual(json.loads(recorded[len("[map] routing reply "):]), reply)
+
     def test_readiness_candidate_counts_keep_punctuated_chinese_labels(self):
         from types import SimpleNamespace
         from tools.readiness import source_candidates
@@ -51,13 +106,17 @@ class Contract(unittest.TestCase):
             path.write_text("\n".join([
                 '[map] face Current Report.pdf p7 reply ' + json.dumps({"calls": [], "identity": "current"}),
                 '[map] face Prior Report.pdf p7 reply ' + json.dumps({"calls": [], "identity": "prior"}),
+                '[map] routing reply ' + json.dumps({"calls": [], "identity": "routing"}),
                 '[map] turn 1 reply ' + json.dumps({"calls": [], "identity": "follow-up"})]))
             replay = RecordedMaps(path)
-            self.assertEqual(len(replay), 3)
+            self.assertEqual(len(replay), 4)
             with self.assertRaises(RuntimeError):
                 replay("", "## THIS TURN IS ONE FACE: PL — Missing.pdf p7")
             self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Prior Report.pdf p7")["identity"], "prior")
             self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Current Report.pdf p7")["identity"], "current")
+            self.assertEqual(replay("", "## ROUTE THE OPEN ROWS")["identity"], "routing")
+            with self.assertRaises(RuntimeError):
+                replay("", "## ROUTE THE OPEN ROWS")
             self.assertEqual(replay("", "Sequential context")["identity"], "follow-up")
             self.assertEqual(len(replay), 0)
 

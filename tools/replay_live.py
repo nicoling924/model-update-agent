@@ -79,8 +79,12 @@ class RecordedMaps:
         import threading
         self.turns = maps_from_log(path)
         self.faces = {}
+        self.routes = []
         self.lock = threading.Lock()
         for line in Path(path).read_text(errors="ignore").splitlines() if path else ():
+            route = re.search(r"\[map\] routing reply (\{.*)$", line)
+            if route:
+                self.routes.append(json.loads(route.group(1)))
             match = re.search(r"\[map\] face (.+) p(\d+) reply (\{.*)$", line)
             if match:
                 key = (match.group(1), int(match.group(2)))
@@ -90,11 +94,15 @@ class RecordedMaps:
                     raise ValueError(f"Recorded face {key} has invalid JSON") from exc
 
     def __len__(self):
-        return len(self.turns) + sum(len(v) for v in self.faces.values())
+        return len(self.turns) + len(self.routes) + sum(len(v) for v in self.faces.values())
 
     def __call__(self, system, user):
         match = re.search(r"^## THIS TURN IS ONE FACE: .*? — (.+) p(\d+)$", user, re.M)
         with self.lock:
+            if user.startswith("## ROUTE THE OPEN ROWS"):
+                if not self.routes:
+                    raise RuntimeError("No recorded routing answer for this context")
+                return self.routes.pop(0)
             if match:
                 key = (match.group(1), int(match.group(2)))
                 answers = self.faces.get(key, [])

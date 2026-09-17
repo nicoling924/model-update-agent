@@ -46,7 +46,7 @@ executed in the order you write them; their answers come back in the next turn. 
 A `sets` list with two entries is applied and measured as ONE change — that is how a compensating
 pair is resolved. A `set` lands plain only when its evidence ties (the quote is on the page and the
 comparative ties the model's prior), with a matching definition; arithmetic alone is not source proof; otherwise
-it lands red for the analyst. For disclosed figures use sets with ref, doc, page, printed (DOCUMENT units), line and because. For derived figures use formula so the arithmetic remains traceable."""
+it lands red for the analyst. For disclosed figures use sets with ref, doc, page, printed (DOCUMENT units), line and because. If row and page units conflict, supply value explicitly in MODEL units with the unit explanation; it stays flagged. For derived figures use formula so the arithmetic remains traceable."""
 
 
 # ── reading the model ────────────────────────────────────────────────────

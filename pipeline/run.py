@@ -689,7 +689,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # comparative no longer matches, and the index is built then (owner 2026-09-17)
     _earlier = sorted(q for q in (Path(company_dir) / "disclosures").glob("*/*.pdf")
                       if q.parent.name != str(period))
-    _page_text = _page_text_of_docs(docs, _earlier, log)
+    _page_text = _page_text_of_docs(docs, _earlier, log, ledger=ledger)
     loop.page_text = _page_text
     if _earlier:
         log(f"[map] {len(_earlier)} earlier-period document(s) on the shelf, indexed only if the brain "
