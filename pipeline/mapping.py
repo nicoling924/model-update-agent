@@ -608,7 +608,14 @@ def _other_period_docs(loop):
 
 
 def _index_heads(loop, page_text, cap=120):
-    """{(doc, page): [the first lines printed on it]} for this period's pages."""
+    """{(doc, page): [the first lines printed on it]} for this period's pages.
+
+    Read ONCE per run (reviewer 2026-09-18: it sweeps every line of the ledger,
+    and it was re-swept for every row of every routing batch — 200 full sweeps
+    inside one turn)."""
+    got = loop.__dict__.get("_map_index_heads")
+    if got is not None:
+        return got
     old, heads = _other_period_docs(loop), {}
     for it in _items(loop):
         key = _page_of(it)
@@ -623,6 +630,7 @@ def _index_heads(loop, page_text, cap=120):
         if key[0] in old or heads.get(key) or not txt:
             continue
         heads[key] = [ln.strip() for ln in str(txt).splitlines() if ln.strip()][:4]
+    loop.__dict__["_map_index_heads"] = heads
     return heads
 
 
@@ -633,10 +641,12 @@ def page_index(loop, page_text, cap=120):
     No page is left out and none is ranked: the reading is the brain's."""
     faces = {(str(d), int(p)): str(f)
              for (d, p), f in (getattr(loop.ledger, "faces", {}) or {}).items() if f}
-    heads, out = _index_heads(loop, page_text, cap), []
+    heads, out, doc = _index_heads(loop, page_text, cap), [], None
     for key in sorted(heads):
         d, p = key
-        out.append(f"  {d} p{p}" + (f" [{faces[key]}]" if key in faces else "")
+        if d != doc:                   # the document is said once, its pages under it
+            doc, _ = d, out.append(f"  --- {d} ---")
+        out.append(f"  p{p}" + (f" [{faces[key]}]" if key in faces else "")
                    + ": " + " · ".join(heads[key])[:cap])
     return out
 
@@ -662,6 +672,16 @@ def _named_pages(loop, page_text, named):
             bad.append(f"'{str(n)[:40]}' names no page of this disclosure")
             continue
         hit = [k for k in keys if k[1] == pg and (not doc or doc.lower() in k[0].lower())]
+        if not hit and doc:
+            # THE PAGE IS THE ANSWER, THE DOCUMENT IS HOW IT WAS SPELT (reviewer
+            # 2026-09-18: "income statement p39" names the page perfectly well
+            # and was dropped because the words are not in the filename). The
+            # number is what the index is keyed on; an unrecognised name beside
+            # it is said, and the page still stands.
+            hit = [k for k in keys if k[1] == pg]
+            if hit:
+                bad.append(f"'{doc[:40]}' is no document of this disclosure — p{pg} is read as "
+                           + ", ".join(f"{d} p{p}" for d, p in hit))
         if not hit:
             bad.append(f"p{pg}{(' of ' + doc) if doc else ''} is not a page of this period's documents")
             continue
@@ -1031,6 +1051,15 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     shown, bodies, order_of_face, room = [], {}, [], size_cap
     for sheet, coord, r in order:
         key = face_of.get((sheet, coord))
+        # THE PAGE THE BRAIN ASKED FOR IS FETCHED IF IT IS NOT IN HAND (reviewer
+        # 2026-09-18: a row routed to a page whose text had not been read yet was
+        # dealt there and shown a blank face)
+        if key and hasattr(page_text, "ensure_page") and not (page_text or {}).get(key):
+            try:
+                page_text.ensure_page(key[1])
+            except Exception as _e_pg:  # noqa: BLE001
+                loop.__dict__.setdefault("_map_refused", []).append(
+                    f"{key[0]} p{key[1]}: its text could not be read — {str(_e_pg)[:80]}")
         txt = (page_text or {}).get(key) if key else None
         cost, body = 0, None
         if key and key not in bodies:
@@ -2045,6 +2074,7 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
     if cur:
         chunks.append(cur)
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
+    had = set(_routes(loop)) | set(skipped)          # what was already paired before this pass
     for i, chunk in enumerate(chunks, 1):
         if deadline is not None and time.monotonic() > deadline:
             log(f"[map] routing: the clock ended it after {i - 1} of {len(chunks)} batch(es)")
@@ -2075,10 +2105,18 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
                 log(f"[map] routing: the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
             for ln in out:
                 log(f"[map]   {ln.strip()[:300]}")
+    # PROGRESS IS A PAIRING THAT DID NOT EXIST BEFORE (reviewer 2026-09-18:
+    # counting every re-route defeated the stuck guard — refuse, re-route,
+    # refuse, re-route arms nothing, and a brain could refuse its way through
+    # every page of the report writing no cell). A row placed for the FIRST time
+    # is new; a row the brain is moving from one print to another it already
+    # refused is the brain correcting itself, and correcting without writing is
+    # not work. The turn after a re-route still has the guard's own slack.
     placed = sum(1 for sh, co, _r in need
-                 if routed_page(loop, sh, co) is not None or f"{sh}!{co}" in skipped)
-    log(f"[map] routing: {placed} of {len(need)} open row(s) now have the brain's own page; "
-        "the rest are read against the statement faces")
+                 if (routed_page(loop, sh, co) is not None or f"{sh}!{co}" in skipped)
+                 and f"{sh}!{co}" not in had)
+    log(f"[map] routing: {placed} of {len(need)} open row(s) placed for the first time; "
+        "a row the brain routes nowhere is read against the statement faces")
     return placed
 
 

@@ -6271,7 +6271,7 @@ def test_the_brain_routes_the_open_rows_to_their_pages_2026_09_18():
     assert seen, "the loop never asked the brain where the rows are read"
     assert "Final!C11" in seen[0] and "Development expenditure" in seen[0], seen[0][:800]
     assert "under 'Revenue'" in seen[0] or "| under '" in seen[0], seen[0][:800]
-    assert "pres.pdf p37" in seen[0] and "ar.pdf p23 [pl]" in seen[0], \
+    assert "--- pres.pdf ---" in seen[0] and "p37" in seen[0] and "p23 [pl]" in seen[0], \
         "the page index did not carry this disclosure's pages and their faces"
     assert "Capex by business" in seen[0], "the index did not say what is printed on the page"
     # AND THE ANSWER DEALS THE ROWS TO THOSE PAGES IN THE NEXT CONTEXT
@@ -6339,6 +6339,34 @@ def test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18():
     # the tie is information under the row, never the page it is read against
     assert "Model!C2 " in ctx and "===== PL — ar.pdf p20 =====" in ctx, ctx[:1200]
     print("PASS test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18")
+
+
+def test_routing_and_refusing_for_ever_is_still_ended_by_the_guard_2026_09_18():
+    """REVIEWER 2026-09-18 (adversarial, fresh context): counting every routing
+    pass as progress defeated the stuck guard — refuse the page, be re-routed,
+    refuse the next, be re-routed — and a brain could walk every page of a
+    300-page report writing no cell, on the live clock. Progress is a pairing
+    that did not exist before; a row the brain is moving from one print to
+    another it already refused is correction, and correction without a write is
+    not work. The guard ends it and the open rows land red."""
+    from pipeline.mapping import _EMPTY_RUN
+    loop, pages, census = _map_model_wide(n_rows=3, n_faces=6)
+    seen, turns = [], []
+    pg = [20]
+
+    def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            pg[0] = 20 + (pg[0] - 19) % 6
+            return {"calls": [{"tool": "route", "routes": [
+                {"ref": "Model!C2", "pages": [pg[0]], "because": "try this print"}]}]}
+        turns.append(user)
+        return {"calls": [{"tool": "skip", "ref": "Model!C2", "because": "this print does not carry it"}]}
+    from pipeline.mapping import run_mapping
+    run_mapping(loop, loop.wb, census, pages, seen.append, ask, deadline_s=30.0)
+    assert len(turns) <= _EMPTY_RUN + 1, f"{len(turns)} reading turns of pure refusal before the guard"
+    assert any("changed nothing" in x or "read nothing" in x for x in seen), seen[-3:]
+    assert "Model!C2" in loop.writer.log["flags"], "the open row did not land red for the analyst"
+    print("PASS test_routing_and_refusing_for_ever_is_still_ended_by_the_guard_2026_09_18")
 
 
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
