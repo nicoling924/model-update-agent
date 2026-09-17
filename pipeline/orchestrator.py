@@ -33,6 +33,7 @@ from .writer import _fill_rgb as _fill_rgb_o
 from .evaluator import Evaluator
 from .numerics import SCALES, line_numbers, row_tol, to_model_units
 from .ledger import vintage_ban as _vintage_ban
+from .naming import block_context as _block_context
 
 MAX_ACTIONS = 60
 MAX_HISTORY_SHOWN = 30
@@ -1275,6 +1276,19 @@ class ObjectiveLoop:
             return "REVERTED: the back-out does not evaluate"
         return f"WRITTEN {sheet}!{col}{row} = {formula} -> {after:,.2f} (orange)"
 
+    def _row_label(self, sheet, row):
+        """The model's OWN name for a row — the census label where the run has
+        one, else the first text the sheet's label columns hold on that row."""
+        t = self.targets.get((sheet, int(row)))
+        lab = str(getattr(t, "label", "") or "") if t is not None else ""
+        if lab.strip() or sheet not in self.wb.sheetnames:
+            return lab.strip()
+        for lc in ("A", "B", "C", "D", "E"):
+            v = self.wb[sheet][f"{lc}{row}"].value
+            if isinstance(v, str) and v.strip() and not v.startswith("="):
+                return v.strip()
+        return ""
+
     def t_rewrite_constants(self, args):
         """THE CONSTANTS LAW, on demand (owner ruling 2026-08-31): a
         formula still embedding last year's literals (=4976+23) that
@@ -1414,7 +1428,11 @@ class ObjectiveLoop:
                                        self.writer.log.get("plugs", ()),
                                        _fill_rgb_o(self.wb[sheet][f"{col}{row}"])),
             all_items=self.ledger.items,      # evidence: last year's report is the restatement test's witness, never a source (unchanged argument)
-            row_named=bool(args.get("named")))   # a card pick names the printed row it was chosen from
+            row_named=bool(args.get("named")),   # a card pick names the printed row it was chosen from
+            # the coincidence test needs the row's OWN name and the section it
+            # sits under — the same two names the name judge reads
+            row_label=self._row_label(sheet, row),
+            block=_block_context(self.wb, sheet, row))
         if verdict == "ALLOW" and "RESTATED" in law_reason:
             # the restatement is a fact for the report page, not a paint on the cell;
             # the page prints the RESTATED prior, so "prior not corroborated" does not apply
@@ -1473,7 +1491,11 @@ class ObjectiveLoop:
         proven = verdict == "ALLOW"
         flag = forced_flag if forced_flag in ("red", "orange") else ("red" if args.get("flag") else None)
         if forced_flag == "red":
-            why = "UNPROVEN (no prior tie) — " + why
+            from .writegate import COINCIDENCE as _COINC
+            # the cell says WHICH doubt it carries: no tie at all, or a tie
+            # under a name unlike the row's (the coincidence)
+            why = (f"{_COINC} — " if law_reason == _COINC
+                   else "UNPROVEN (no prior tie) — ") + why
         before_card = self._card()
         before_fails = {c["name"] for c in before_card["checks"]
                         if c["status"] == "FAIL"}

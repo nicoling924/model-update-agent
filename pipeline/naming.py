@@ -157,6 +157,15 @@ def judge_names(client, wb, spec, ledger, served, targets, writer, log, batch=12
             writer.log.setdefault("name_refusals", []).append(
                 f"{sheet}!{row} '{label}': the brain refused the printed line '{str(entry.get('line') or '')[:50]}' "
                 f"(p{entry.get('page')}, {entry['value']:,.2f}) — {why}")
+            # THE NAME JUDGMENT LOG (owner 2026-09-17): a refusal is a reading
+            # of the PRINTED LINE, and it outlives the row it was given for —
+            # any later card offering that same line must show it, so the brain
+            # is never asked to re-judge a name it has already judged blind
+            # (DFE Raw financials!U16: the '合計' total, refused, re-offered).
+            writer.log.setdefault("name_judgments", []).append(
+                {"doc": entry.get("doc"), "page": entry.get("page"),
+                 "line": str(entry.get("line") or "")[:60],
+                 "ref": f"{sheet}!{row}", "label": str(label)[:40], "why": why})
             log(f"[names] REFUSED {sheet}!{row} '{label[:28]}' <- '{str(entry.get('line') or '')[:40]}' {entry['value']:,.2f} — {why}")
     log(f"[names] the brain judged {len(items)} name-mismatched tie(s): {len(items) - refused} accepted, {refused} doubted (land red for the analyst)")
     return len(items), refused

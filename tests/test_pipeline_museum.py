@@ -7517,6 +7517,126 @@ def test_the_mandate_shows_how_a_break_is_closed_2026_09_16():
     print("PASS test_the_mandate_shows_how_a_break_is_closed_2026_09_16")
 
 
+# ── Owner 2026-09-17, ruling 1: A COINCIDENCE WRITE IS ALWAYS RED ────────
+
+def test_a_number_tie_under_an_unlike_name_lands_red_2026_09_17():
+    """THE FUEL-CLAUSE SHAPE (owner 2026-09-17): SOC Accounts!AI7 'Fuel Clause
+    Recovery — closing balance', prior 370, took 20 from a printed line whose
+    comparative was 370 under a name with nothing to do with the row. The tie is
+    evidence about the NUMBER; nothing named the line. It lands red with the
+    coincidence said on it — never plain, never 'proven' — so the review brain
+    can change it. A line that IS named like the row still lands clean."""
+    from pipeline.writegate import COINCIDENCE, is_proven, judge_write
+    kin = _item(95, 3, "Fuel clause account", [20.0, 370.0])
+    alien = _item(95, 9, "Deferred tax on revaluation", [20.0, 370.0])
+    row, block = "Fuel Clause Recovery — closing balance", ["Fuel Clause Recovery"]
+
+    v, why, flag = judge_write(20.0, 370.0, False, [(alien, 1.0)], set(),
+                               row_label=row, block=block)
+    assert (v, flag) == ("ALLOW_FLAGGED", "red"), (v, why, flag)
+    assert why == COINCIDENCE, why
+
+    v2, why2, flag2 = judge_write(20.0, 370.0, False, [(kin, 1.0)], set(),
+                                  row_label=row, block=block)
+    assert (v2, flag2) == ("ALLOW", None), (v2, why2, flag2)
+
+    # the section header alone is kinship enough — the row's block names the item
+    v3, _w3, flag3 = judge_write(20.0, 370.0, False,
+                                 [(_item(95, 4, "Fuel Clause Recovery", [20.0, 370.0]), 1.0)],
+                                 set(), row_label="Closing balance", block=block)
+    assert (v3, flag3) == ("ALLOW", None), (v3, flag3)
+
+    # and the run may never call such a cell proven again
+    assert is_proven({"value": 20.0, "conf": 4, "flag": None,
+                      "note": f"objective loop: {COINCIDENCE} — p95: ..."}) is False
+    assert is_proven({"value": 20.0, "conf": 4, "flag": None,
+                      "note": "objective loop: p95: fuel clause account"}) is True
+
+
+def test_a_coincidence_never_evicts_a_home_2026_09_17():
+    """EVICTION SPENDS A PROOF (owner 2026-09-17): the EVICT branch throws an
+    unproven holder out of its cell because the arriving write is proven. A tie
+    under an unlike name is not a proof — it may land red beside the holder, it
+    may not evict it."""
+    from pipeline.writegate import COINCIDENCE, judge_write
+    alien = _item(95, 9, "Share of results of joint ventures", [1250.0, 980.0])
+    claimed = {1250.0}
+    holders = {1250.0: [("S!U40", {"value": 1250.0, "conf": 3, "flag": None})]}
+    v, why, flag = judge_write(1250.0, 980.0, False, [(alien, 1.0)], claimed,
+                               holders, row_label="Depreciation and amortisation",
+                               block=["Australia"])
+    assert v == "REFUSE", (v, why)
+    assert "one row, one claim" in why, why
+    # named like the row, the same shape evicts
+    kin = _item(95, 9, "Depreciation and amortisation", [1250.0, 980.0])
+    v2, _w2, _f2 = judge_write(1250.0, 980.0, False, [(kin, 1.0)], claimed,
+                               holders, row_label="Depreciation and amortisation",
+                               block=["Australia"])
+    assert v2 == "EVICT", v2
+    assert COINCIDENCE not in _w2
+
+
+def test_the_name_judges_refusal_follows_the_line_to_the_next_card_2026_09_17():
+    """DFE Raw financials!U16 (owner 2026-09-17): the brain read the printed
+    '合計' total and said it is NOT that row. The queue then offered the very
+    same line on another row's card with no sign of the refusal, and the brain
+    judged the same name blind a second time. The name-judgment log now travels
+    with the LINE, onto every later card offering it — shown, never enforced."""
+    from pipeline.workqueue import _show_name_judgments
+
+    class _W:
+        log = {"name_judgments": [
+            {"doc": "dfe.pdf", "page": 88, "line": "合計",
+             "ref": "Raw financials!16", "label": "營業收入",
+             "why": "a note subtotal, not this revenue row"}]}
+
+    class _L:
+        writer = _W()
+    cands = [{"value": 8161.0, "doc": "dfe.pdf", "page": 88, "line": "合計", "warnings": []},
+             {"value": 8161.0, "doc": "dfe.pdf", "page": 90, "line": "合計", "warnings": []},
+             {"value": 8161.0, "doc": "dfe.pdf", "page": 88, "line": "營業收入", "warnings": []}]
+    _show_name_judgments(_L(), cands)
+    assert any("REFUSED this printed line for Raw financials!16" in w
+               for w in cands[0]["warnings"]), cands[0]
+    assert "a note subtotal, not this revenue row" in " ".join(cands[0]["warnings"])
+    assert cands[1]["warnings"] == [], "another page's line is another line"
+    assert cands[2]["warnings"] == [], "a line never judged carries no refusal"
+
+
+def test_a_rewrite_on_names_the_brain_never_judged_lands_red_2026_09_17():
+    """THE REWRITE'S OWN COINCIDENCE (owner 2026-09-17): trust_names is exactly
+    the case where a composite's literals tie lines named unlike the row. Orange
+    means 'derived, awaiting true-up'; this is not derived, it is unjudged — it
+    lands RED and is never recorded as proven."""
+    import openpyxl
+    from pipeline.composites import rewrite_cell
+    from pipeline.writegate import COINCIDENCE, is_proven
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Final"
+    ws["A65"] = "Net finance costs"
+    ws["T65"], ws["U65"] = 2254.0, "=2254-235"
+    spec = {"year_axis": {"Final": {"columns": {"2024": "T", "2025": "U"}}}}
+    led = Ledger()
+    for ro, (lab, nums) in enumerate([("Interest on bank loans", [2401.0, 2254.0]),
+                                      ("Capitalised borrowing costs", [250.0, 235.0])]):
+        led.add(Item(doc=DOC, page=95, table_id=0, row_ord=ro, label=lab,
+                     nums=list(nums), source_line=lab))
+    led.faces[(DOC, 95)] = "pl"
+    w = Writer(wb)
+    w.served = {}
+    ok, msg = rewrite_cell(wb, spec, 2025, led, w, "Final", 65, trust_names=True)
+    assert ok, msg
+    assert ws["U65"].value == "=2401-250", ws["U65"].value
+    assert f"Final!U65" in w.log["flags"], w.log["flags"]
+    assert str(ws["U65"].fill.fgColor.rgb or "").endswith("FFC7CE"), ws["U65"].fill.fgColor.rgb
+    e = w.served[("Final", 65)]
+    assert e["flag"] == "red" and COINCIDENCE in e["note"], e
+    assert is_proven(e) is False, e
+
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
@@ -7528,3 +7648,4 @@ if __name__ == "__main__":
                 print(f"FAIL {name}: {ex}")
                 fails += 1
     sys.exit(1 if fails else 0)
+

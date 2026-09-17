@@ -246,6 +246,11 @@ def is_proven(entry):
     text = f"{entry.get('note') or ''} {entry.get('line') or ''}"
     if "UNPROVEN" in text or "no prior" in text.lower():
         return False
+    if COINCIDENCE in text:
+        # A COINCIDENCE IS NEVER PROVEN (owner 2026-09-17): the cell was bought
+        # by a number tie under a name nothing like the row's. Whatever colour
+        # it wears later, the run may not lock the review brain out of it.
+        return False
     return int(entry.get("conf") or 0) >= 4
 
 
@@ -301,15 +306,42 @@ def _has_label(item):
     return lab is None or bool(str(lab).strip())
 
 
+COINCIDENCE = "number ties, name does not — a coincidence until judged"
+
+
+def name_is_kin(item, row_label, block=()):
+    """Is the printed line's NAME kin to the model row's name, or to one of the
+    section headers above it? A line that carries no label FIELD at all says
+    nothing either way (a fixture, a foreign record) — unknown is not unlike.
+    An unknown row LABEL (no label read for the model row) cannot judge either."""
+    from .numerics import kinship
+    lab = _meta(item, "label", None)
+    if lab is None or not str(row_label or "").strip():
+        return True
+    line = str(lab)
+    if kinship(str(row_label), line):
+        return True
+    return any(kinship(str(b), line) for b in (block or ()) if str(b or "").strip())
+
+
 def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False,
-                all_items=None, row_named=False):
+                all_items=None, row_named=False, row_label="", block=()):
     """Returns (verdict, reason, forced_flag).
     verdict: ALLOW | ALLOW_FLAGGED | REFUSE | EVICT.
 
     EVICT (run-227 autopsy — PROOF OUTRANKS ARRIVAL): the write is
     proven (its row ties the prior) but the figure's only home(s) are
     UNPROVEN claims. The caller reverts and red-flags those holders,
-    then lands this write clean. A PROVEN holder still blocks."""
+    then lands this write clean. A PROVEN holder still blocks.
+
+    A COINCIDENCE IS ALWAYS RED (owner 2026-09-17): a tie is evidence about
+    the NUMBER, never about the meaning. When no tying line's name is kin to
+    the model row's name (nor to its section headers), the tie alone bought
+    the cell — it lands RED with the coincidence said on it, and nothing in
+    the run may afterwards call that cell proven. The brain reviewing the
+    model can then change it; a plain cell it could not see, it could not fix.
+    (The fuel-clause shape: SOC Accounts!AI7 took 20 from a line whose
+    comparative was 370 under a name nothing to do with the row.)"""
     if not evidence:
         return ("REFUSE",
                 "the value appears NOWHERE in the extraction ledger — a "
@@ -324,7 +356,12 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
     material = abs(value) >= 50
     tied_free = [(it, s) for it, s in tied
                  if not material or _claim_key(it, value) not in claimed]
+    # THE COINCIDENCE TEST, on the lines that actually tie: if not one of them
+    # is named like the row, the number is all the proof there is
+    kin_tied = [(it, s) for it, s in tied if name_is_kin(it, row_label, block)]
     if tied_free:
+        if not kin_tied:
+            return ("ALLOW_FLAGGED", COINCIDENCE, "red")
         if held_proven:
             # TWO READINGS (owner 2026-09-08): the cell already holds a figure
             # whose line tied the prior; this is a second line that ties it
@@ -334,7 +371,8 @@ def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_
                     "the brain's choice lands red beside the held figure", "red")
         return ("ALLOW", "proven — the evidence row ties the prior", None)
     if tied:
-        if holders is not None and material:
+        if holders is not None and material and kin_tied:
+            # a coincidence never evicts a home: eviction spends a PROOF
             hs = holders.get(_claim_key(None, value), [])
             if hs and not any(is_proven(e) for _c, e in hs):
                 return ("EVICT",

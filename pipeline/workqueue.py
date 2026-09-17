@@ -363,7 +363,33 @@ def candidates_for(loop, sheet, row, k=MAX_CANDS):
         seen.add(key)
         uniq.append(c)
     uniq = _reader_first(loop, sheet, row, uniq)
+    _show_name_judgments(loop, uniq)
     return uniq if k is None else uniq[:k]
+
+
+def _show_name_judgments(loop, cands):
+    """THE NAME JUDGMENT LOG (owner 2026-09-17): the brain already read some of
+    these printed lines and said they are NOT the row it was shown. That reading
+    is about the LINE, and it belongs on every later card offering it — the
+    brain is never asked to judge a name blind that it has already judged
+    (DFE Raw financials!U16: the '合計' total the name judge refused, re-offered
+    on a card with no sign of the refusal). It is shown, not enforced: the
+    brain may still take the line, and rule 1 lands it red."""
+    log = getattr(getattr(loop, "writer", None), "log", None) or {}
+    judged = log.get("name_judgments") or []
+    if not judged:
+        return
+    for c in cands:
+        for j in judged:
+            if str(j.get("line") or "")[:40] != str(c.get("line") or "")[:40]:
+                continue
+            if j.get("page") is not None and c.get("page") is not None \
+                    and str(j["page"]) != str(c["page"]):
+                continue
+            c.setdefault("warnings", []).append(
+                f"you REFUSED this printed line for {j.get('ref')} "
+                f"'{j.get('label')}' — \"{str(j.get('why'))[:90]}\"")
+            break
 
 
 def _reader_first(loop, sheet, row, cands, keep=None):
