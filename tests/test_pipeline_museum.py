@@ -6205,6 +6205,8 @@ def test_a_face_round_refusal_deals_the_row_to_the_next_face_2026_09_18():
     ref, saw, carried = "Model!C25", [], []
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"thinking": "I route nothing — the statement faces stand", "calls": []}
         if ref + " " not in user:
             return {"calls": []}
         saw.append(user.splitlines()[0].split("—")[-1].strip())
@@ -6367,6 +6369,123 @@ def test_routing_and_refusing_for_ever_is_still_ended_by_the_guard_2026_09_18():
     assert any("changed nothing" in x or "read nothing" in x for x in seen), seen[-3:]
     assert "Model!C2" in loop.writer.log["flags"], "the open row did not land red for the analyst"
     print("PASS test_routing_and_refusing_for_ever_is_still_ended_by_the_guard_2026_09_18")
+
+
+def test_the_face_round_reads_only_the_pages_the_brain_routed_to_2026_09_18():
+    """LIVE 35225954582: the routing call WORKED and came too late. It was put at
+    the top of the sequential pass — after a face round that had already dealt
+    every open row to all 85 printed faces BY POSITION, so SEA rows were read
+    against the consolidated P&L and Final rows against pages that do not print
+    their figures: 1 plain, 48 red, where the round before it had 51 plain.
+
+    THE BRAIN ROUTES BEFORE ANY FACE IS READ, and the face round deals a row
+    only to the page the brain named. A face no row was dealt to is never
+    called: the pages read are the brain's, not the report's contents page."""
+    from pipeline.mapping import map_faces, _routes
+    loop, pages, census = _map_model_wide(n_rows=12, n_faces=6)
+    asked, routed_ctx = [], []
+
+    def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            routed_ctx.append(user)
+            return {"calls": [{"tool": "route", "routes": [
+                {"ref": f"Model!C{r}", "pages": [23 if r % 2 else 25]} for r in range(2, 14)]}]}
+        asked.append(user.splitlines()[0])
+        return {"calls": []}
+    n = map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=4)
+    # the routing question was put FIRST, and it carried the page index
+    assert routed_ctx, "the face round read the pages without asking where the rows are read"
+    assert "## THE PAGES OF THIS DISCLOSURE" in routed_ctx[0], routed_ctx[0][:400]
+    assert len(_routes(loop)) == 12, _routes(loop)
+    # and ONLY the two pages the brain named were read — not the six printed faces
+    read = {ln.split("\u2014")[-1].strip() for ln in asked}
+    assert read == {"ar.pdf p23", "ar.pdf p25"}, read
+    assert n == 2, f"{n} faces answered — a face no row was dealt to was read anyway"
+    print("PASS test_the_face_round_reads_only_the_pages_the_brain_routed_to_2026_09_18")
+
+
+def test_a_row_the_brain_routes_nowhere_reaches_a_statement_face_2026_09_18():
+    """THE FALLBACK SURVIVES THE MOVE. A row the brain does not route and does
+    not close is still read against this run's statement faces, in order — the
+    deal that was there before the router, kept for exactly the rows the brain
+    said nothing about."""
+    from pipeline.mapping import map_faces
+    loop, pages, census = _map_model_wide(n_rows=4, n_faces=3)
+    seen = []
+
+    def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"calls": [{"tool": "route", "routes": [{"ref": "Model!C2", "pages": [21]}]}]}
+        seen.append(user)
+        return {"calls": []}
+    map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=4)
+    where = {}
+    for u in seen:
+        head = u.splitlines()[0].split("\u2014")[-1].strip()
+        body = u.split("## THE MODEL ROWS")[-1]
+        for r in range(2, 6):
+            if f"Model!C{r} " in body:
+                where.setdefault(f"Model!C{r}", []).append(head)
+    assert where.get("Model!C2") == ["ar.pdf p21"], where
+    faces = {"ar.pdf p20", "ar.pdf p21", "ar.pdf p22"}
+    for r in (3, 4, 5):
+        got = where.get(f"Model!C{r}")
+        assert got and set(got) <= faces, (r, where)
+    print("PASS test_a_row_the_brain_routes_nowhere_reaches_a_statement_face_2026_09_18")
+
+
+def test_an_empty_sets_batch_is_nothing_on_this_face_2026_09_18():
+    """LIVE 35225954582: 36 faces answered {"tool":"sets","sets":[],"because":
+    "..."} — "nothing of mine is printed here" — and code read the falsy empty
+    list as "no `sets` key", took the CALL object for a cell and answered "no
+    sheet '' in this workbook" 36 times. The key says a batch was sent; what is
+    in it is what it holds."""
+    from pipeline.mapping import map_faces
+    loop, pages, census = _map_model_wide(n_rows=6, n_faces=3)
+    logs = []
+
+    def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"calls": []}
+        return {"calls": [{"tool": "sets", "sets": [], "because": "nothing of mine is printed here"}]}
+    map_faces(loop, loop.wb, census, pages, logs.append, ask, deadline_s=30.0, workers=4)
+    assert not [x for x in logs if "no sheet" in x], [x for x in logs if "no sheet" in x][:2]
+    assert [x for x in logs if "nothing on this face" in x], logs[-6:]
+    print("PASS test_an_empty_sets_batch_is_nothing_on_this_face_2026_09_18")
+
+
+def test_the_compact_route_shapes_parse_2026_09_18():
+    """THE ROUTING ANSWER IS PAGES ONLY (live 35225954582: the brain wrote a
+    reason for every row — 70k characters in, 26k out, 151 s for one batch, and
+    the clock ended the routing with the second batch unasked). A page is spelt
+    however a reader spells one: a bare number, p166, the document and the page,
+    or an object. A reason is asked for only when the brain CLOSES a row."""
+    from pipeline.mapping import _t_route, _routes
+    loop, pages, census = _map_model_wide(n_rows=6, n_faces=3)
+    loop.__dict__["_map_pages"] = pages
+    out = _t_route(loop, {"tool": "route", "routes": [
+        {"ref": "Model!C2", "pages": [21]},
+        {"ref": "Model!C3", "pages": ["p22"]},
+        {"ref": "Model!C4", "pages": ["ar.pdf p20"]},
+        {"ref": "Model!C5", "pages": ["ar.pdf 21"]},
+        {"ref": "Model!C6", "pages": [{"doc": "ar.pdf", "page": 22}]},
+        {"ref": "Model!C7", "pages": ["income statement p20"]}]}, pages)
+    got = {k: v for k, v in _routes(loop).items()}
+    assert got["Model!C2"] == [("ar.pdf", 21)], got
+    assert got["Model!C3"] == [("ar.pdf", 22)], got
+    assert got["Model!C4"] == [("ar.pdf", 20)], got
+    assert got["Model!C5"] == [("ar.pdf", 21)], got
+    assert got["Model!C6"] == [("ar.pdf", 22)], got
+    # the page is the answer, the document is how it was spelt — and it is said
+    assert got["Model!C7"] == [("ar.pdf", 20)], got
+    assert any("no document of this disclosure" in x for x in out), out
+    # no row carried a reason, and every one of them landed
+    assert len(got) == 6, got
+    # the page index says what a page IS, compactly — not what is on it
+    from pipeline.mapping import page_index
+    idx = [ln for ln in page_index(loop, pages) if not ln.strip().startswith("---")]
+    assert idx and max(len(ln) for ln in idx) <= 100, max(idx, key=len)
+    print("PASS test_the_compact_route_shapes_parse_2026_09_18")
 
 
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
@@ -6927,6 +7046,8 @@ def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
     seen, t0 = [], time.monotonic()
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"thinking": "the statement faces are where these rows are read", "calls": []}
         seen.append(user)
         time.sleep(0.4)                       # every call would be minutes; they must overlap
         # THE CONFLICT IS THE LIVE ONE: minority interests read off the P&L's
@@ -7173,6 +7294,8 @@ def test_the_faces_are_mapped_while_the_writes_land_2026_09_17():
     said = []
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"thinking": "the statement faces are where these rows are read", "calls": []}
         said.append(user)
         time.sleep(0.02)                     # the main thread applies a batch meanwhile
         return {"calls": [{"tool": "sets", "sets": [

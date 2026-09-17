@@ -49,7 +49,8 @@ def main(argv):
         said.append(line)
         if line.startswith("[map] routing"):
             stage["name"] = "routing"          # the brain saying which page each open row is read against
-        elif line.startswith("[map] the face round") or "[map] face" in line:
+        elif (line.startswith("[map] the face round") or "[map] face" in line
+              or "face(s) to map" in line):     # the face round starts here, after the routing batches
             stage["name"] = "faces"
         elif line.startswith("[map] turn") and stage["name"] != "sequential":
             stage["name"] = ("sequential" if stage["name"] in ("faces", "routing")

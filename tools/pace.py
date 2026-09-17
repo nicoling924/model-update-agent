@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 _SKIP_SCOPE = (os.environ.get("PACE_SKIP_SCOPE") or "disclosure").strip().lower()
 _ROW = re.compile(r"^\s{2}([^\s!]+(?: [^\s!]+)*)!([A-Z]{1,3}\d+)\s")
 _LEAD = re.compile(r"lead: p(\d+) '(.+?)' → this year ([-\d,\.]+)")
-_FACE = re.compile(r"^\s{2}(.+?) p(\d+) \[(\w+)\]:")
+_DOC = re.compile(r"^\s{2}--- (.+?) ---\s*$")
+_FACE = re.compile(r"^\s{2}p(\d+) \[(\w+)\]:")
 
 
 def _routes_from_context(user):
@@ -30,11 +31,15 @@ def _routes_from_context(user):
     page carries a row, so it answers what code itself used to do — every open
     row to one of the run's statement faces, in turn. It measures the loop's
     cost with the routing call in it; it proves no mapping."""
-    faces, refs = [], []
+    faces, refs, doc = [], [], None
     for line in user.splitlines():
+        d = _DOC.match(line)           # the index says the document once, its pages under it
+        if d:
+            doc = d.group(1)
+            continue
         m = _FACE.match(line)
-        if m and (m.group(1), m.group(2)) not in faces:
-            faces.append((m.group(1), m.group(2)))
+        if m and (doc, m.group(1)) not in faces:
+            faces.append((doc, m.group(1)))
             continue
         r = _ROW.match(line)
         if r and "|" in line:

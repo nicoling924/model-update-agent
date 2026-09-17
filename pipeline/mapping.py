@@ -607,7 +607,7 @@ def _other_period_docs(loop):
         return set()
 
 
-def _index_heads(loop, page_text, cap=120):
+def _index_heads(loop, page_text, cap=80):
     """{(doc, page): [the first lines printed on it]} for this period's pages.
 
     Read ONCE per run (reviewer 2026-09-18: it sweeps every line of the ledger,
@@ -634,11 +634,16 @@ def _index_heads(loop, page_text, cap=120):
     return heads
 
 
-def page_index(loop, page_text, cap=120):
+def page_index(loop, page_text, cap=80):
     """THE DISCLOSURE'S OWN CONTENTS: every page of this period's documents, one
     line each — the page, the kind of face the run bound to it if it bound one,
     and the first thing printed on it. This is what the brain routes a row to.
-    No page is left out and none is ranked: the reading is the brain's."""
+    No page is left out and none is ranked: the reading is the brain's.
+
+    A line says WHAT THE PAGE IS, not what is on it (live 35225954582: the index
+    was 40k characters of a 70k call and one routing batch of two got an answer
+    before the clock). The kind of face and the title line identify a page; the
+    page's text comes with the row once a row is routed to it."""
     faces = {(str(d), int(p)): str(f)
              for (d, p), f in (getattr(loop.ledger, "faces", {}) or {}).items() if f}
     heads, out, doc = _index_heads(loop, page_text, cap), [], None
@@ -1540,8 +1545,16 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
 # ── the tools ────────────────────────────────────────────────────────────
 
 def _entries(loop, call):
-    """The cells this call names. -> (entries, complaints)"""
-    raw = call.get("sets") or [call]
+    """The cells this call names. -> (entries, complaints)
+
+    AN EMPTY BATCH IS AN EMPTY BATCH (live 35225954582: 36 faces answered
+    {"tool":"sets","sets":[],"because":"nothing of mine is on this page"} and
+    code read the falsy list as "no `sets` key", took the CALL itself for a cell
+    object and complained "no sheet '' in this workbook"). The key is what says
+    whether the brain sent a batch; what is in it is what it holds."""
+    raw = call.get("sets")
+    if not isinstance(raw, list):
+        raw = [call] if raw is None else [raw]
     entries, bad = [], []
     for s_ in raw:
         if not isinstance(s_, dict):
@@ -1753,7 +1766,7 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
         if entries:
             out += _apply(loop, entries, page_text, sources, log, skipped=skipped, deadline=deadline)
         elif not bad:
-            out = ["set: no cell named"]
+            out = ["sets: nothing on this face — no cell named, nothing written"]
         return out
     if tool == "skip":
         entries, bad = _entries(loop, call)
@@ -1861,7 +1874,11 @@ def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, s
     written = _written(loop)
     L = [f"## THIS TURN IS ONE FACE: {str(face).upper()} — {doc} p{pg}",
          "Answer with ONE `sets` batch for the rows below. Nothing else is asked of you now; the rows of "
-         "other faces are another call's work.", ""]
+         "other faces are another call's work.",
+         "REFUSE ONLY THE ROWS DEALT TO THIS FACE — the ones under THE MODEL ROWS THIS FACE'S LINES "
+         "POINT AT. Every other row named on this page (the inputs under the keys) is shown to you as "
+         "INFORMATION: it is dealt to its own face, nothing was laid beside it here, and a skip on it "
+         "takes nothing off anything.", ""]
     L.append(f"## THE KEYS against the print ({int(loop.ty)}) — a key is the model's own arithmetic: "
              "you never type into one, you set the inputs underneath it")
     L += _key_table(loop, rows_all, written, skipped)
@@ -1911,12 +1928,29 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
     model of 337 rows in half an hour — CLP live: 19 turns, 34 minutes, 19
     cells). One call per printed face, all in flight together; code applies the
     batches in the order the faces come, under every gate rule, and a later
-    batch never overwrites an earlier plain write. -> faces answered"""
+    batch never overwrites an earlier plain write.
+
+    THE BRAIN ROUTES FIRST (live 35225954582: the routing call was put at the
+    top of the sequential pass, AFTER this round, so the face round — seven
+    tenths of the mapping's clock — dealt every row to every printed face BY
+    POSITION: 1 plain, 48 red, and rows read against pages that do not print
+    their figures). Which page a row is read against is the brain's judgment,
+    and it is asked before any page is read. What the brain routes nowhere and
+    does not close falls to this run's statement faces, as it did before.
+    -> faces answered"""
     import concurrent.futures as _cf
     rows = input_rows(loop, census)
     loop.__dict__["_map_pages"] = page_text
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
     skipped = loop.__dict__.setdefault("_map_skipped", {})
+    t0 = time.monotonic()
+    if ask_json is not None:
+        try:
+            route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log,
+                            deadline=t0 + deadline_s, workers=workers)
+        except Exception as e:  # noqa: BLE001 — said in the log; the statement-face deal stands
+            log(f"[map] routing: the pass was lost ({e!r}) — every open row is read against the "
+                "statement faces")
     by_face = _face_rows(loop, pre_wb, rows, skipped)
     faces = {(d, p): f for f, d, p in _faces(loop)}
     work = sorted(by_face.items(), key=lambda kv: -len(kv[1]))
@@ -1924,8 +1958,8 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
         log("[map] no face's lines point at an unfilled row — nothing to map in parallel")
         return 0
     log(f"[map] {len(work)} face(s) to map, {workers} at a time; "
-        f"{sum(len(v) for _k, v in work)} rows between them")
-    t0, answered = time.monotonic(), 0
+        f"{sum(len(v) for _k, v in work)} rows between them — a face no row was dealt to is not read")
+    tf0, answered = time.monotonic(), 0
 
     import threading
     _lock = threading.Lock()
@@ -1984,7 +2018,7 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
             log(f"[map] face {doc} p{pg}: answered in {took:.0f}s")
     by_sheet, still = coverage(loop, rows, skipped)
     log(f"[map] the face round: {answered}/{len(work)} face(s) answered in "
-        f"{(time.monotonic() - t0) / 60:.1f} min — "
+        f"{(time.monotonic() - tf0) / 60:.1f} min — "
         f"{sum(c.get('filled', 0) for c in by_sheet.values())} plain, "
         f"{sum(c.get('red', 0) for c in by_sheet.values())} red, {len(still)} rows still open")
     return answered
@@ -2012,15 +2046,17 @@ def routing_context(loop, pre_wb, chunk, index_lines, lines, part=1, parts=1, n_
     row MEANS, read against what the page IS."""
     L = ["## ROUTE THE OPEN ROWS — which page of this disclosure does each one print on?",
          "Code cannot pair a row with a page: a printed line whose comparative happens to equal a row's "
-         "prior is a coincidence, not a reading. You say where each row is read, and the next turns put "
+         "prior is a coincidence, not a reading. You say where each row is read, and the face round puts "
          "each row in front of the page you named, with that page's text.",
-         "Answer with `route` calls — one per row, or one batch:",
-         '  {"tool":"route","routes":[{"ref":"Sheet!C12","pages":["ar.pdf 39", 15],'
-         '"because":"my finance costs row prints on the income statement"}, ...]}',
-         "  `pages` may name several: the row is read against the first, and against the next only if you "
-         "refuse that one. A bare number is that page in every document of this disclosure.",
-         'If NO page of this disclosure carries a row, close it here: {"tool":"skip","ref":"Sheet!C12",'
-         '"scope":"disclosure","because":"..."} — it lands red for the analyst with your reason.',
+         "PAGES ONLY — no reason, no working. One `route` call for the whole batch:",
+         '  {"tool":"route","routes":[{"ref":"Sheet!C12","pages":[39]},'
+         '{"ref":"Sheet!C13","pages":["ar.pdf 166",15]}]}',
+         "  A page is a bare number (that page in every document of this disclosure) or "
+         '"<document> <page>". `pages` may name several: the row is read against the first, and against '
+         "the next only if you refuse that one.",
+         'SAY WHY ONLY TO CLOSE A ROW — no page of this disclosure carries it: {"tool":"skip",'
+         '"ref":"Sheet!C12","scope":"disclosure","because":"..."}. It lands red for the analyst with your '
+         "reason.",
          "A row you route nowhere and do not close is read against this run's statement faces, in order.",
          ""]
     L.append(f"## THE OPEN ROWS ({len(chunk)} of the {n_open} still open"
@@ -2035,13 +2071,20 @@ def routing_context(loop, pre_wb, chunk, index_lines, lines, part=1, parts=1, n_
 
 
 def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadline=None,
-                    rows_cap=22000):
+                    rows_cap=22000, workers=8):
     """THE BRAIN ROUTES THE ROWS IT HAS NOT PLACED YET (live 35217769192: code
     paired rows with pages by number coincidence and four turns running were
     all refusals). Every open row with no page left that the brain named goes in
     — the newly open and the re-routes together, never one row per call. Nothing
     is capped by count: if the rows do not fit one call they are split by sheet.
+
+    THE BATCHES ARE IN FLIGHT TOGETHER (live 35225954582: two batches, one
+    answered, and the clock ended the routing with 159 rows placed and the rest
+    dealt by position). The wall cost of routing a whole model is one batch's
+    latency. Only the asking is on the workers; every reply is applied here, on
+    one thread, in the order the batches were built.
     -> how many rows this pass placed or closed."""
+    import concurrent.futures as _cf
     written = _written(loop)
     need = [(sh, co, r) for sh, co, r in rows
             if status_of(loop, sh, co, written, skipped) == "unfilled" and needs_route(loop, sh, co)]
@@ -2075,24 +2118,34 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
         chunks.append(cur)
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
     had = set(_routes(loop)) | set(skipped)          # what was already paired before this pass
+    # THE QUESTION IS PUT ONCE PER STATE, answered or not: a row is asked about
+    # again when something about it has changed (it refused a print), never turn
+    # after turn — the same question gets the same answer, and a routing call
+    # that is lost leaves the statement-face deal standing.
+    ctxs = []
     for i, chunk in enumerate(chunks, 1):
-        if deadline is not None and time.monotonic() > deadline:
-            log(f"[map] routing: the clock ended it after {i - 1} of {len(chunks)} batch(es)")
-            break
-        log(f"[map] routing: {len(chunk)} open row(s) over {len(index_lines)} page(s) "
-            f"(batch {i} of {len(chunks)})")
-        ctx = routing_context(loop, pre_wb, chunk, index_lines, lines, i, len(chunks), len(need))
-        # THE QUESTION IS PUT ONCE PER STATE, answered or not: a row is asked
-        # about again when something about it has changed (it refused a print),
-        # never turn after turn — the same question gets the same answer, and a
-        # routing call that is lost leaves the statement-face deal standing.
+        ctxs.append(routing_context(loop, pre_wb, chunk, index_lines, lines, i, len(chunks), len(need)))
         for sh, co, _r in chunk:
             loop.__dict__.setdefault("_map_route_asked", {})[f"{sh}!{co}"] = \
                 len(_refused_pages(loop, sh, co))
-        try:
-            reply = ask_json(MANDATE, ctx)
-        except Exception as e:  # noqa: BLE001 — said in the log, and the statement-face deal stands
-            log(f"[map] routing: no answer ({e!r}) — these rows are read against the statement faces")
+    log(f"[map] routing: {len(need)} open row(s) over {len(index_lines)} page(s) in "
+        f"{len(chunks)} batch(es), {workers} in flight together")
+    replies = [None] * len(chunks)
+    with _cf.ThreadPoolExecutor(max_workers=max(1, int(workers))) as pool:
+        futures = [(i, pool.submit(ask_json, MANDATE, ctx)) for i, ctx in enumerate(ctxs)
+                   if deadline is None or time.monotonic() < deadline]
+        if len(futures) < len(ctxs):
+            log(f"[map] routing: the clock ended it before {len(ctxs) - len(futures)} batch(es) were "
+                "asked — their rows are read against the statement faces")
+        for i, fut in futures:
+            left = (deadline - time.monotonic()) if deadline is not None else 600.0
+            try:
+                replies[i] = fut.result(timeout=max(1.0, left))
+            except Exception as e:  # noqa: BLE001 — said in the log; the statement-face deal stands
+                log(f"[map] routing: batch {i + 1} of {len(chunks)} came back with nothing ({e!r}) — "
+                    "its rows are read against the statement faces")
+    for i, reply in enumerate(replies, 1):
+        if reply is None:
             continue
         log("[map] routing reply %s" % json.dumps(reply, ensure_ascii=False)[:4000])
         for call in ((reply.get("calls") if isinstance(reply, dict) else None) or []):
