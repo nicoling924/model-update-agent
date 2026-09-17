@@ -1,0 +1,23 @@
+pace test run 35217769192 · v3-skip-scope 9575929 · 15-min clock · cold · CLP pinned extraction (run 35157121848)
+brain: 170 calls · faces 6.2 s/call (144/144 in 3.5 min) · sequential 7.9 s · review 23 s
+mapping: 7 turns, 50 plain, 40 red, 0 skipped (was 69), 237 not reached of 327 · keys 3/13 · plain typed numbers vs analyst 53 right / 1 wrong (MI 5,943 perpetuals)
+SKIP FIX WORKS: no row retired; 307 skips were for rows not on the face (reached via the key table) → 'nothing to take off', 12 page skips recorded, 2 disclosure closes
+NEW BLOCKER EXPOSED: sequential turns 3,5,6,7 were all refusals (12-15 rows each, 0 writes) because rows are paired with pages by number-coincidence leads (presentation p5/p6/p7/p8/p12/p37, AR p244) — the stuck guard ended the mapping after 3 no-progress turns; a full hour would end the same way (~100 rows mapped)
+NEXT (deduction): remove lead→page pairing; the brain routes open rows to pages (one call after the face round, given the open rows and the disclosure's page index); leads stay shown as information
+
+===== PACE (live brain) =====
+[run] budget: 5.3 min already spent; 6.7 min left — 5.1 to the mapping, 1.7 to the review
+[map] the face round: 144/144 face(s) answered in 3.5 min — 51 plain, 48 red, 238 rows still open
+[map] the face round took 3.5 min; 1.6 min of the mapping's clock go to the rows that are left
+[map] mapping: 7 turn(s), 50 plain, 40 red, 0 skipped with a reason, 237 not reached (red) of 327 input rows
+[review] ended: 12 objective(s) still broken
+[run] DELIVERED WITH OPEN CHECKS: CLP Model FY25 (pipeline).xlsx
+[run] key count: 3/13 tied to the print (key rows 13, panel 14)
+[run] executive report coverage line: 'key numbers tied 3/13 to the print · 6 plugs · 333 red · 1 orange'
+wall 12.8 min for a 15-min clock · brain calls 170 · brain time 18.9 min
+  pre           18 calls ·   7.9 s/call ·    6981 chars in/call ·    440 chars out/call
+  faces        143 calls ·   6.2 s/call ·   15088 chars in/call ·   1041 chars out/call
+  sequential     7 calls ·   7.9 s/call ·   35756 chars in/call ·   2054 chars out/call
+  review         2 calls ·  23.4 s/call ·   60558 chars in/call ·   1090 chars out/call
+rows/min of brain time in the mapping: 20.8
+copied companies/CLP/model/CLP Model FY25 (pipeline).xlsx -> drytest_out/CLP Model FY25 (pipeline).xlsx
