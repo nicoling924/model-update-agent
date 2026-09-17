@@ -308,6 +308,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     _restate = str(_os_env.get("RESTATE", "")).strip().lower() in ("1", "true", "yes")
     if not docs:
         raise FileNotFoundError(f"no disclosures for {period} under {company_dir}")
+    _kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
+             else "Q" if "Q" in str(period).upper() else "FY")
     if pinned_ledger:
         # THE PINNED-SNAPSHOT PATH (operator council 2026-09-01): replay
         # a prior run's evidence ledger — offline validation for models
@@ -320,7 +322,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
             f"({len(ledger.items)} items)")
     else:
         ledger = read_documents(docs, client=client, known_values=known,
-                                log=log)
+                                log=log, target_year=target_year, period_kind=_kind)
         ledger.corroborate(log)
     # THE VINTAGE LAW (run-228 autopsy): each document's vintage is
     # decided ONCE, here, before any stage serves. A document is
@@ -334,8 +336,6 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # vote as backstop — and the verdict binds every serving stage. The
     # folder is never the authority; the document is.
     from .docid import identify_documents
-    _kind = ("1H" if str(period).upper().startswith(("1H", "2H", "H1", "H2"))
-             else "Q" if "Q" in str(period).upper() else "FY")
     _pinned_periods = dict(getattr(ledger, "_doc_periods", None) or {}) if pinned_ledger else None
     documents = identify_documents(docs, ledger, client, target_year, _kind, log)
     if _pinned_periods:

@@ -12,23 +12,15 @@ TEXT (deterministic): every digit-bearing line of every text page, parsed
   Code does not misread; one pass is exact. Free, and the bulk of the
   evidence on text-layer filings.
 
-VISION (LLM, gated): scanned statement pages (CN annual reports print the
-  audited statements as pictures — the exact pages the model needs most).
-  Multi-pass consensus transcription: misreads rarely repeat identically,
-  so only rows on which >= 2 passes agree digit-for-digit are consensus;
-  the rest are kept but marked disputed (never joinable). Then the PRIOR-
-  COLUMN CHECKSUM decides page acceptance: the model already holds last
-  year, so a real transcription of a real consolidated statement reproduces
-  dozens of known priors at one locked scale; a hallucination — or a
-  母公司 parent-company twin, or an equity-movement grid — cannot
-  (measured separation: real faces anchor 17-29, poison pages 0-2).
-  Known values are NEVER in the prompt: the checksum must stay independent
-  evidence, not an echo. Fail -> one retry at higher resolution -> the page
-  is reported UNREAD, loudly. A loud gap beats an invented digit.
+VISION: independent transcriptions establish what a scanned page says.
+  Agreeing rows remain available even when an unfamiliar or restated model
+  contains no matching prior. Disagreements remain visible but not joinable.
+  Model comparatives can corroborate a scale; they do not decide whether
+  the rest of a document exists. Printed document identity establishes
+  historical scope before eager vision. Known values never enter the prompt.
 
-The accepted checksum scale is recorded on the page's items as scale_hint:
-the old pipeline's checksums were SECRETLY the block-scale anchor (removing
-them for no-prior rows caused run 116); here the anchor is explicit.
+A corroborated scale remains a hint for downstream row mapping, which must
+still resolve units, definitions, period and accounting relationships.
 
 Heavy deps (pdfplumber, PIL) import lazily inside the functions that need
 them — the pure logic (segmentation, consensus, checksum) runs on stdlib
@@ -483,8 +475,8 @@ def _validate_transcription(o):
 def _transcribe(pdf_path, page_no, img, client, known_values, votes, cache_dir, log):
     """One scanned page -> {"votes": [...], "why": ...} — RAW transcriptions,
     cached; acceptance is judged at load time so tuning thresholds never
-    re-spends a call. Higher-resolution retry only when the first vote's
-    page anchors weakly (a strong page needs no second look at 3072px)."""
+    re-spends a call. Higher-resolution retry follows missing or conflicting transcription
+    evidence, not absence of a match with an analyst's workbook."""
     ck = Path(cache_dir) / f"{_cache_key(pdf_path, page_no)}.json"
     if ck.exists():
         cached = json.loads(ck.read_text())
@@ -504,12 +496,11 @@ def _transcribe(pdf_path, page_no, img, client, known_values, votes, cache_dir, 
                 entry["why"] = f"vision call failed: {e}"
                 break
             entry["votes"].append({"title": o.get("title"), "rows": o.get("rows")})
-            if i == 0:
-                hits, _s, _c = checksum_page(
-                    [r for r in o.get("rows", []) if isinstance(r, dict)],
-                    known_values)
-                if hits < ANCHOR_MIN and LONG_EDGE_RETRY not in edges:
-                    edges.append(LONG_EDGE_RETRY)   # weak page: one hi-res retry
+            readings = entry["votes"]
+            missing = not o.get("rows")
+            disagreement = len(readings) > 1 and any(r.get("disputed") for r in merge_votes(readings)[1])
+            if (missing or disagreement) and LONG_EDGE_RETRY not in edges:
+                edges.append(LONG_EDGE_RETRY)  # evidence: conflicting or missing digits need a clearer reading
     ck.parent.mkdir(parents=True, exist_ok=True)
     ck.write_text(json.dumps(entry, ensure_ascii=False))
     log(f"[stage1] {Path(pdf_path).name} p{page_no}: transcribed "
@@ -524,11 +515,12 @@ def _transcribe(pdf_path, page_no, img, client, known_values, votes, cache_dir, 
 # ---------------------------------------------------------------------------
 
 def read_documents(paths, client=None, known_values=(), votes=VOTES,
-                   cache_dir=".cache/pipeline-vision", log=print):
+                   cache_dir=".cache/pipeline-vision", log=print, target_year=None, period_kind="FY"):
     """Documents -> Ledger. The one paid read of the run.
 
     known_values: the model's prior-year actuals (from the target census),
-    used ONLY to judge vision acceptance — never shown to the LLM.
+    used to corroborate scale, never to discard an otherwise readable page
+    and never shown to the LLM.
     client=None runs text-only (scanned pages reported unread) — the dry-run
     and text-filing path.
     """
@@ -556,21 +548,15 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
         image_pages = [pn for pn, c in classes.items() if c == "image"]
         unread = []
         vision_faces = {}   # accepted scan pages self-identify by their rows
-        # A PRIOR-VINTAGE DOCUMENT IS READ AS TEXT ONLY (run 257: the 2024
-        # annual report's scanned pages were transcribed at three votes
-        # each and every one discarded as anchorless — the hour went there
-        # and the cards got ten minutes). Its text still serves every tie
-        # and identity read; its numbers are never a current-year source,
-        # so paying vision for them buys nothing.
-        if image_pages and client is not None and known_values:
-            try:
-                _period = led.classify_doc_periods(list(known_values)).get(doc)
-            except Exception:
-                _period = None
-            if _period == "prior":
-                log(f"[stage1] {doc}: prior-vintage document — text only, "
-                    f"{len(image_pages)} scanned pages not transcribed")
-                unread += [(pn, "prior-vintage document: text only") for pn in image_pages]
+        # Printed period identity, not compatibility with an analyst's numbers,
+        # establishes whether a document is historical. Unknown identity stays
+        # available; later row mapping must resolve its scope.
+        if image_pages and target_year is not None:
+            from .docid import printed_identity, classify_identity
+            identity = printed_identity([(pn, text) for pn, text, _cls in pages])
+            if classify_identity(identity, target_year, period_kind) == "prior":
+                log(f"[stage1] {doc}: printed prior-period identity — scanned evidence remains on demand")
+                unread += [(pn, "printed prior-period identity: text only") for pn in image_pages]
                 image_pages = []
         if image_pages and client is None:
             unread = [(pn, "no vision client") for pn in image_pages]
@@ -585,17 +571,10 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
             # pixels come out sequentially (pdfplumber pages are not
             # thread-safe); the PAID calls run 3-wide — sequential vision
             # measured ~6 min/page, a 2-hour Stage 1 on a scanned AR.
-            # EARLY ABORT (generic): a prior-period document's scans can
-            # never anchor the model's priors in their prior column — if the
-            # first ABORT_AFTER transcribed pages of a doc all fail the
-            # checksum, stop paying for its remaining scans and report them
-            # unread. (Measured live: the FY24 AR burned ~12 pages x 3 votes
-            # producing correct refusals that one batch already proved.)
-            ABORT_AFTER = 6
             with pdfplumber.open(path) as pdf:
                 imgs = {pn: _page_image(pdf.pages[pn - 1]) for pn in image_pages}
             from concurrent.futures import ThreadPoolExecutor
-            entries, judged_pages, accepted_any = {}, 0, False
+            entries = {}
             with ThreadPoolExecutor(3) as ex:
                 for i in range(0, len(image_pages), 3):
                     batch = image_pages[i:i + 3]
@@ -604,23 +583,6 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                                                    known_values, votes,
                                                    cache_dir, log), batch)):
                         entries[pn] = entry
-                        judged_pages += 1
-                        rows = merge_votes(entry.get("votes") or [])[1]
-                        hits, _s, _c = checksum_page(
-                            [r for r in rows if not r.get("disputed")],
-                            known_values)
-                        if hits >= ANCHOR_MIN:
-                            accepted_any = True
-                    if not accepted_any and judged_pages >= ABORT_AFTER:
-                        skipped = image_pages[i + 3:]
-                        unread += [(pn, "doc aborted: first "
-                                    f"{judged_pages} scanned pages anchor no "
-                                    "model prior (prior-period document?)")
-                                   for pn in skipped]
-                        log(f"[stage1] {doc}: vision ABORTED after "
-                            f"{judged_pages} anchorless pages "
-                            f"({len(skipped)} pages saved)")
-                        break
             for pn in [p for p in image_pages if p in entries]:
                 entry = entries[pn]
                 if not entry.get("votes"):
@@ -634,18 +596,21 @@ def read_documents(paths, client=None, known_values=(), votes=VOTES,
                     face_lines.append((pn, title))
                 judged = [r for r in rows if not r.get("disputed")]
                 hits, scale, copy_frac = checksum_page(judged, known_values)
-                if hits < ANCHOR_MIN or copy_frac > COPY_MAX:
-                    unread.append((pn, f"checksum FAILED: prior-column anchors "
-                                       f"{hits}, copy {copy_frac:.0%}"))
-                    continue
-                for it in vision_items(doc, pn, title, rows, scale):
+                anchored = hits >= ANCHOR_MIN and copy_frac <= COPY_MAX
+                if not anchored:
+                    # Agreement between independent transcriptions is evidence of
+                    # what the page says, even when the model contains no matching
+                    # prior. Uncorroborated readings remain visible but not joinable.
+                    rows = [dict(r, disputed=bool(r.get("disputed")) or
+                                 int(r.get("consensus") or 1) < 2) for r in rows]  # evidence: independently agreeing readings
+                for it in vision_items(doc, pn, title, rows, scale if anchored else None):
                     led.add(it)
                 inferred = face_from_row_labels(
                     [r.get("name") for r in rows if r.get("name")])
                 if inferred:
                     vision_faces[pn] = inferred
                 log(f"[stage1] {doc} p{pn}: vision accepted — anchors {hits} "
-                    f"at scale {scale:g}, {len(rows)} rows"
+                    f"at scale {scale if anchored else 'unresolved'}, {len(rows)} rows retained"
                     + (f", face {inferred} (from rows)" if inferred else ""))
         for pn, why in unread:
             log(f"[stage1] {doc} p{pn}: UNREAD — {why}")

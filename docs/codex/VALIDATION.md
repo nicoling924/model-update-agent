@@ -50,3 +50,7 @@ Only the code/dispatch gate is cleared. These replays still lack LLM mapping tur
 ## Mixed-unit candidate verification
 
 The unit conflict fix passed the full bench, 15 focused contracts, all three balanced pinned replays (24/24, 118/118, 84/84), and three full-pipeline readiness cases. EPS 1.15, inventory 26171.15303444 and finance costs -1860 survive the complete runs. Each quoted line has one label-qualified source candidate. These values remain red for semantic review. Evidence and test-harness limitations are in `validation/units/summary.json`. Live pilots remain cancelled; no new end-to-end accuracy claim is made.
+
+## Extraction boundary candidate
+
+The reader now separates disclosure transcription from compatibility with model priors. It retains agreed unanchored rows, avoids eager vision for printed prior-period documents, and retries missing/conflicting readings. Full bench, 15 shared contracts and four extraction contracts passed. Three pinned replays remain balanced (24/24, 118/118, 84/84); all three affected-input readiness cases pass with one source candidate each. The synthetic old/new extraction specimen retains 0 versus 8 rows. This is not live OCR or financial accuracy evidence; fresh pilots remain required. Details: `validation/extraction/summary.json`.

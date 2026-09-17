@@ -41,3 +41,13 @@ Generic rule: conflicting comparative and page units do not establish a conversi
 Museum pin: `test_mixed_unit_pages_do_not_force_a_currency_scale_on_small_metrics` covers positive EPS, small ratios, negative values, refusal without mutation, and an explicit model-unit resolution. Existing conflicting-scale museum exhibits remain unchanged. Full bench and 15 contract tests passed. All three frozen replays delivered and passed their discovered balance checks; all three affected-cell readiness values survived. Evidence is in validation/units/summary.json. This clears this change’s code gate, not overall MVP acceptance.
 
 The GitHub workflow also retains raw vision transcriptions in a separate artifact on cancellation/failure. This preserves paid extraction for diagnosis without introducing cross-run cache reuse or changing production input selection.
+
+## Extraction and model compatibility (next candidate)
+
+Root cause: the reader uses agreement with model priors to decide whether disclosure evidence may be retained, confusing transcription reliability with mapping compatibility.
+
+Generic rule: printed document identity determines historical scope; agreement between independent transcriptions establishes what a scanned row says; matching model comparatives may corroborate units but cannot erase an otherwise readable document. Missing or conflicting transcriptions justify a clearer reading. A merely unfamiliar model does not. Uncorroborated readings stay visible and disputed, outside the automatic join pool. Downstream mapping still owns scope, definitions, conversion and reconciliation.
+
+Museum pins: four independent tests in `tests/test_extraction_boundary.py` cover unfamiliar current reports, disputed rows, printed prior-period scope, and evidence-driven rescanning. An explicit before/after replay of the synthetic specimen retains 0 rows on the previous reader and all 8 agreed rows on the candidate. This tests the boundary; it is not a measured financial accuracy rate. The actual CLP/DFE documents' printed identities were separately checked and correctly identify their current and prior annual reports.
+
+The existing independent transcription, ledger, document identity and mapping components are reused. No company/page-specific exception or larger count fence was added. The full bench, 15 shared-contract tests and four extraction tests pass; all three frozen replays remain balanced and all three full-pipeline readiness cases retain their expected values (one candidate each). Evidence is in validation/extraction/summary.json. Pinned-ledger replays bypass vision and therefore cannot establish new OCR accuracy or actual runtime. Only a completed live pilot can measure those.
