@@ -7688,6 +7688,58 @@ def test_putting_the_analysts_own_content_back_is_never_refused_2026_09_17():
     assert wb["S"]["AI15"].value == "=AI10+AI12"
 
 
+# ── Owner 2026-09-17, ruling 3: THE EVIDENCE IN FRONT OF THE REVIEW BRAIN ────
+
+def test_every_written_cell_carries_its_evidence_into_the_review_2026_09_17():
+    """Owner 2026-09-17 (dividends payable 8,085): the brain may change any input
+    it is confident is wrong — but only if the REASON is in front of it. Every
+    code-written actual-column cell now reaches the review with its document, its
+    page, the quoted line, and what that line actually proves: the comparative
+    ties AND the line is named like the row (the best evidence there is), or the
+    NUMBER TIES ONLY under an alien name (rule 1's coincidence), or no printed
+    line supports the figure at all."""
+    from pipeline.review import build_context
+    lp, pre, panel, _logs = _review_harness()
+    # (a) a figure NOTHING on file prints — the dividends-payable shape
+    for _b in (lp.wb, pre):        # the prior is read from the analyst's own book
+        _b["Final"][f"A96"] = "Dividends payable"
+        _b["Final"][f"AH96"] = 7200.0
+    assert lp.writer.write("Final", "AI96", 8085.0, trusted=True, force_lock=True, allow_empty=True)
+    # (b) a figure whose only tying line is named nothing like the row
+    for _b in (lp.wb, pre):        # the prior is read from the analyst's own book
+        _b["Final"][f"A94"] = "Depreciation and amortisation"
+        _b["Final"][f"AH94"] = 980.0
+    lp.ledger.add(Item(doc="AR.PDF", page=112, table_id=0, row_ord=7,
+                       label="Tariff stabilisation fund movement", nums=[1250.0, 980.0],
+                       source_line="Tariff stabilisation fund movement 1,250 980"))
+    assert lp.writer.write("Final", "AI94", 1250.0, trusted=True, force_lock=True, allow_empty=True)
+    # (c) the same figure, this time on a line named like the row
+    for _b in (lp.wb, pre):        # the prior is read from the analyst's own book
+        _b["Final"][f"A93"] = "Depreciation and amortisation"
+        _b["Final"][f"AH93"] = 980.0
+    lp.ledger.add(Item(doc="AR.PDF", page=95, table_id=0, row_ord=3,
+                       label="Depreciation and amortisation", nums=[1310.0, 980.0],
+                       source_line="Depreciation and amortisation 1,310 980"))
+    assert lp.writer.write("Final", "AI93", 1310.0, trusted=True, force_lock=True, allow_empty=True)
+    lp.__dict__.pop("_review_vindex", None)
+    ctx = build_context(lp, pre, panel, None)
+
+    def _line(ref):
+        return next(ln for ln in ctx.splitlines() if ref in ln)
+    assert "no printed line supports this figure" in _line("Final!AI96"), _line("Final!AI96")
+    l94 = _line("Final!AI94")
+    assert "NUMBER TIE ONLY" in l94 and "no tying line is named like this row" in l94, l94
+    assert "AR.PDF p112" in l94 and "Tariff stabilisation fund movement" in l94, l94
+    l93 = _line("Final!AI93")
+    assert "comparative ties the model's prior 980.00, and the line is named like the row" in l93, l93
+    assert "1,310.00" in l93, l93
+    assert "AR.PDF p95" in l93, l93
+    # the mandate already lets the brain change what it is confident is wrong:
+    # a teaching, not a rule — nothing here obliges it to act
+    from pipeline.review import MANDATE
+    assert "A wrong number is a failure" in MANDATE
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

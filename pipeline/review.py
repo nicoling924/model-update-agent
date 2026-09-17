@@ -16,6 +16,7 @@ import time
 from .checks import CHECK_TOL, forecast_columns, prior_column, year_columns
 from .consequence import _fault, _plug_here, restore, sanity_rows, snapshot
 from .evaluator import Evaluator
+from .naming import block_context as _block_context
 
 MANDATE = """You are the equity analyst reviewing your own model update before delivery.
 
@@ -163,25 +164,58 @@ def _quote(it):
     return " ".join(str(getattr(it, "source_line", "") or getattr(it, "label", "")).split())
 
 
-def _evidence_line(loop, sheet, coord, value, prior):
+def _evidence_line(loop, sheet, coord, value, prior, row_label=""):
+    """Memoized: the same cell holding the same figure has the same evidence,
+    and the context is rebuilt on every turn of the review."""
+    memo = loop.__dict__.setdefault("_review_evidence", {})
+    key = (sheet, coord, round(float(value), 4) if isinstance(value, (int, float)) else value,
+           round(float(prior), 4) if isinstance(prior, (int, float)) else prior, row_label)
+    if key not in memo:
+        memo[key] = _evidence_of(loop, sheet, coord, value, prior, row_label)
+    return memo[key]
+
+
+def _evidence_of(loop, sheet, coord, value, prior, row_label=""):
     """THE PRINTED LINE, NOT THE CELL'S NOTE (owner 2026-09-16: a note is what
-    the run said about itself). -> the quoted line with its page and whether the
-    comparative ties the model's prior, or 'no printed line'. A TYING row wins
-    over the first row that merely carries the number."""
-    from .writegate import ties_prior
-    first = None
+    the run said about itself; owner 2026-09-17: the brain overrides an input
+    with the REASON in front of it). -> the document, the page, the quoted line,
+    and what the line proves: the comparative ties this row's prior, or the
+    number ties and the NAME does not (a coincidence, rule 1), or no printed
+    line supports it at all. A tying row wins over one that merely carries the
+    number, and a tying row NAMED like the model's is the best evidence there
+    is — so it is the one shown."""
+    from .writegate import name_is_kin, ties_prior
+    first = tied = None
+    # the headers above a row do not move while the review runs: read once
+    cache = loop.__dict__.setdefault("_review_blocks", {})
+    key = (sheet, _row_of(coord))
+    if key not in cache:
+        cache[key] = _block_context(loop.wb, sheet, _row_of(coord)) if sheet in loop.wb.sheetnames else []
+    block = cache[key]
     for it, scale in _hits(loop, value):
         tie = ties_prior(it, scale, prior, value) if isinstance(prior, (int, float)) else False
+        if tie and name_is_kin(it, row_label, block):
+            return (f"{_src(it)} '{_quote(it)[:90]}' — comparative ties the model's "
+                    f"prior {_fmt(prior)}, and the line is named like the row")
         if tie:
-            return f"p{getattr(it, 'page', '?')} '{_quote(it)[:90]}' — comparative ties the model's prior {_fmt(prior)}"
+            tied = tied or it
         first = first or it
+    if tied is not None:
+        return (f"{_src(tied)} '{_quote(tied)[:90]}' — NUMBER TIE ONLY: the comparative ties "
+                f"the model's prior {_fmt(prior)} but no tying line is named like this row")
     if first is not None:
-        return (f"p{getattr(first, 'page', '?')} '{_quote(first)[:90]}' — no row carrying this value has a "
+        return (f"{_src(first)} '{_quote(first)[:90]}' — no row carrying this value has a "
                 f"comparative that ties the model's prior {_fmt(prior) if prior is not None else '(none)'}")
     e = (loop.served or {}).get((sheet, _row_of(coord)))
     if isinstance(e, dict) and e.get("line"):
-        return f"p{e.get('page')} '{str(e.get('line'))[:70]}' — the value is not printed on any page on file"
-    return "no printed line"
+        return (f"{e.get('doc') or '?'} p{e.get('page')} '{str(e.get('line'))[:70]}' — "
+                "the value is not printed on any page on file")
+    return "no printed line supports this figure"
+
+
+def _src(it):
+    """Where a printed line came from: the document and the page."""
+    return f"{str(getattr(it, 'doc', '') or '?')[:26]} p{getattr(it, 'page', '?')}"
 
 
 def _metrics(loop, key_panel, panel_path):
@@ -373,7 +407,7 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
         pcol = prior_column(spec, sh, ty)
         prior = _held(pre_wb, ev0, sh, f"{pcol}{r}") if pcol else None
         row = (sh, co, _label(wb[sh], r), _num(old), new, hist, _fill(wb[sh][co]),
-               _evidence_line(loop, sh, co, new, prior))
+               _evidence_line(loop, sh, co, new, prior, _label(wb[sh], r)))
         if not hist:
             nohist.append(row)
             continue
