@@ -7846,11 +7846,14 @@ def test_a_dead_brain_leaves_the_report_saying_balance_was_not_measured_2026_09_
     assert any("no brain to read this model's structure" in x for x in logs), logs
     assert not (spec.get("check_rows") or [])
     build(wb, None, spec, 2025, "FY25", {"period": "FY25"}, logs.append)
-    banner = str(wb["_REPORT"]["A2"].value or "") + str(wb["_REPORT"]["A3"].value or "")
-    for r in range(1, 8):
-        banner += str(wb["_REPORT"].cell(r, 1).value or "")
+    banner = "".join(str(wb["_REPORT"].cell(r, 1).value or "") for r in range(1, 8))
     assert "balance NOT measured" in banner, banner[:400]
     assert "checks closed, every year" not in banner, banner[:400]
+    # and it is said EVEN when other findings are open — they are not balance
+    wb3 = _cold_model()
+    build(wb3, None, spec, 2025, "FY25", {"period": "FY25", "open_checks": ["a hole the run left"]}, logs.append)
+    b3 = "".join(str(wb3["_REPORT"].cell(r, 1).value or "") for r in range(1, 8))
+    assert "balance NOT measured" in b3 and "CHECKS OPEN: 1" in b3, b3[:400]
     # a model with a verified check says the truth the other way
     spec["check_rows"] = [{"sheet": "CXMODEL", "row": 142, "expect": 0}]
     wb2 = _cold_model()
@@ -7924,6 +7927,93 @@ def test_a_plug_is_the_last_act_and_never_lands_on_a_formula_2026_09_17():
     src = inspect.getsource(_R._exit)
     assert "writer.plugs_allowed = True" in src, "the exit no longer opens the plugs"
     assert "actual-year check(s) still off" in src and "terminal_ladder" in src, src[:400]
+
+
+# ── Owner 2026-09-17: THE BALANCE SHEET'S OWN FOUR ARE KEYS ─────────────────
+
+def _bs_halves_model():
+    """The CLP shape: the perpetual securities are EQUITY in the print and the
+    model has them plugged into a non-current liability row. Total assets ties,
+    total liabilities and equity ties, the balance check closes — and each half
+    of the liabilities-and-equity side is 3,883 out."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Final"
+    rows = {40: ("Current assets", 52000.0, 54000.0),
+            41: ("Non-current assets", 188000.0, 196000.0),
+            42: ("Total assets", None, None),
+            50: ("Current liabilities", 39000.0, 41000.0),
+            51: ("Non-current liabilities", 76117.0, 82883.0),   # 79,000 + the 3,883 plug
+            52: ("Total equity", 124883.0, 126117.0),            # 130,000 − 3,883
+            53: ("Total liabilities and equity", None, None),
+            99: ("Balance check", None, None)}
+    for r, (lab, ah, ai) in rows.items():
+        ws[f"A{r}"] = lab
+        for col, v in (("AH", ah), ("AI", ai)):
+            if v is not None:
+                ws[f"{col}{r}"] = v
+    for col in ("AH", "AI"):
+        ws[f"{col}42"] = f"={col}40+{col}41"
+        ws[f"{col}53"] = f"={col}50+{col}51+{col}52"
+        ws[f"{col}99"] = f"={col}42-{col}53"
+    spec = {"year_axis": {"Final": {"columns": {"2024": "AH", "2025": "AI"}}},
+            "check_rows": [{"sheet": "Final", "row": 99, "expect": 0}],
+            "key_rows": [{"name": "current assets", "sheet": "Final", "row": 40},
+                         {"name": "non-current assets", "sheet": "Final", "row": 41},
+                         {"name": "total assets", "sheet": "Final", "row": 42},
+                         {"name": "current liabilities", "sheet": "Final", "row": 50},
+                         {"name": "non-current liabilities", "sheet": "Final", "row": 51},
+                         {"name": "total equity", "sheet": "Final", "row": 52}]}
+    return wb, spec
+
+
+def test_the_balance_sheets_four_halves_are_keys_of_their_own_2026_09_17():
+    """Owner 2026-09-17: a balance check that closes proves the two SIDES agree,
+    not that either side is right. With the perpetuals plugged into a non-current
+    liability row, total assets ties the print, total liabilities and equity
+    ties, and the check reads zero — while non-current liabilities (and the
+    equity it was taken from) are each 3,883 off the printed statement. Current
+    assets, non-current assets, current liabilities and non-current liabilities
+    are therefore keys in their own right, measured on the MODEL's own computed
+    row against the print, and they render on the report under Balance sheet."""
+    from pipeline.checks import scorecard
+    from pipeline.docid import KEY_NAMES
+    from pipeline.keytie import key_state
+    from pipeline.reportpage import ROLES, resolve_rows
+    for nm in ("current assets", "non-current assets", "current liabilities", "non-current liabilities"):
+        assert nm in KEY_NAMES, nm
+    wb, spec = _bs_halves_model()
+    # the model's own check closes — both sides agree
+    assert all(c["status"] == "PASS" for c in scorecard(wb, spec, 2025)["checks"]),         scorecard(wb, spec, 2025)["checks"]
+    panel = {"current assets": {"print": 54000.0}, "non-current assets": {"print": 196000.0},
+             "total assets": {"print": 250000.0},
+             "current liabilities": {"print": 41000.0},
+             "non-current liabilities": {"print": 79000.0},   # the print excludes the perpetuals
+             "total equity": {"print": 130000.0}}
+    state = {nm: (ref, v, pr, tied) for nm, ref, v, pr, tied in key_state(wb, spec, 2025, None, panel=panel)}
+    assert state["total assets"][3] is True, state["total assets"]
+    assert state["current assets"][3] is True and state["current liabilities"][3] is True, state
+    off = state["non-current liabilities"]
+    assert off[3] is False, off
+    assert abs(off[1] - 82883.0) < 0.5 and abs(off[2] - 79000.0) < 0.5, off
+    assert state["total equity"][3] is False, state["total equity"]
+    # the two sides still sum the same: the check never saw it
+    from pipeline.evaluator import Evaluator
+    ev = Evaluator(wb)
+    assert abs(ev.cell("Final", "AI53") - 250000.0) < 0.5, ev.cell("Final", "AI53")
+    assert abs(ev.cell("Final", "AI99")) < 0.5, ev.cell("Final", "AI99")
+    # and the report renders all four under Balance sheet
+    groups = {r[0]: r[2] for r in ROLES}
+    for k in ("cur_assets", "noncur_assets", "cur_liabs", "noncur_liabs"):
+        assert groups.get(k) == "Balance sheet", (k, groups.get(k))
+    placed = resolve_rows(wb, spec, 2025, "FY25")[0]
+    for k, row in (("cur_assets", 40), ("noncur_assets", 41), ("cur_liabs", 50), ("noncur_liabs", 51)):
+        assert placed.get(k) and int(placed[k][1]) == row, (k, placed.get(k))
+    # the anatomy turn asks the brain for them by name
+    from pipeline.anatomy import SYSTEM
+    for nm in ("current assets", "non-current assets", "current liabilities", "non-current liabilities"):
+        assert nm in SYSTEM, nm
 
 
 if __name__ == "__main__":

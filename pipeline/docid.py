@@ -654,8 +654,16 @@ def identify_statement_pages(paths, ledger, client, priors, log):
 
 
 # -- the model's key rows: which rows are the headline outputs? ----------
+# THE BALANCE SHEET'S OWN FOUR (owner 2026-09-17): a balance check that closes
+# proves the two SIDES agree, not that either side is right — the perpetuals
+# plugged into a liability row leave total liabilities and equity tying the
+# print while non-current liabilities is off it. Each side's halves are keys in
+# their own right, measured on the MODEL's computed total row against the
+# printed one, exactly like every other key.
 KEY_NAMES = ("revenue", "gross profit", "operating profit", "net profit",
              "recurring net profit", "eps", "dps", "total assets",
+             "current assets", "non-current assets",
+             "current liabilities", "non-current liabilities",
              "total equity", "operating cash flow", "investing cash flow",
              "financing cash flow", "cash year end")
 

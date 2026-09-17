@@ -37,9 +37,13 @@ Name:
   roll; a units total less its components). These are how the update proves
   it did not break the model, so find them if they exist.
 - keys: the headline rows — revenue, operating profit, net profit, EPS, DPS,
-  total assets, equity, cash, the cash flows — whatever THIS model has. A key
-  is a row the MODEL computes from its own inputs, never a place where the
-  printed statement is retyped.
+  total assets, current assets, non-current assets, current liabilities,
+  non-current liabilities, total equity, cash, the cash flows — whatever THIS
+  model has. Name the balance sheet's four halves whenever the model computes
+  them: a balance check that closes proves the two SIDES agree, not that either
+  side is right, and a figure plugged into the wrong half hides there. A key is
+  a row the MODEL computes from its own inputs, never a place where the printed
+  statement is retyped.
 - inputs: rows that are typed in (hardcoded actuals), not computed — where an
   update lands its figures.
 - definitions: anything the formulas or the history tell you about what a row
