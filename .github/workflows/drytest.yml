@@ -3,12 +3,21 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Actions run id whose artifact to review"
-        default: "35066977462"
+        description: "Actions run id whose artifact to download into ./artifact (blank = none)"
+        default: ""
+      script:
+        description: "The script to run (tools/...)"
+        default: "tools/drytest_review.py"
+      company:
+        description: "First argument to the script (company dir or artifact dir)"
+        default: "companies/CX"
+      args:
+        description: "Further arguments to the script"
+        default: ""
 jobs:
   drytest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       actions: read
@@ -24,9 +33,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: gh run download "${{ inputs.run_id }}" -D artifact
-      - run: python tools/drytest_review.py "$(ls -d artifact/*-update | head -1)" | tee drytest.txt
+      - if: inputs.run_id != ''
+        run: gh run download "${{ inputs.run_id }}" -D artifact
+      - run: python "${{ inputs.script }}" "${{ inputs.company }}" ${{ inputs.args }} 2>&1 | tee drytest.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: drytest
-          path: drytest.txt
+          path: |
+            drytest.txt
+            drytest_out
