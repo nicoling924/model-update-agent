@@ -1,0 +1,67 @@
+[
+  {
+    "file": "/private/tmp/codex-mvp-pins/CLP/replay/FY25/ledger.json",
+    "sha256": "81e6c5c394e5b6930d4ee1e07a3ba38c45ade16b22876495f1b73175836ed552",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/CLP/replay/FY25/ledger.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/CLP/replay/FY25/targets.json",
+    "sha256": "ce8225577e24d7b73526b006d85b8d914ce955dfa3a23bb8c1d49122a4e145f9",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/CLP/replay/FY25/targets.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/CLP/replay/FY25/provenance.json",
+    "sha256": "e088fbd64e8ad6fdbf53e7e7aeb77352531a6b356d2a3897baab5b29caf7e824",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/CLP/replay/FY25/provenance.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/CLP/replay/FY25/key_panel.json",
+    "sha256": "910ae74f246ff06b060d9107594361feef4ef051b534f760cd10674ef2710cee",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/CLP/replay/FY25/key_panel.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/FY25/ledger.json",
+    "sha256": "bdeba35bb4335f729bbae5f73eb930058b02cc890464429ba730c7b9c5965d2e",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/FY25/ledger.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/FY25/targets.json",
+    "sha256": "4f1a2da3fd9a6ef17e01cceb1c9234a0e55d5bea849808a8d9dae2808d444ef8",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/FY25/targets.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/FY25/provenance.json",
+    "sha256": "2667bb6a17de5bca12bf40b2125f236abb7c8e83a863e2c333b35d1bf51dadb4",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/FY25/provenance.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/FY25/key_panel.json",
+    "sha256": "608b84cee459464eda886e5e2614b7ac341601e903b0a97cf4a59c5c36d54661",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/FY25/key_panel.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/1H25/ledger.json",
+    "sha256": "c20860d30581a103c2e77abfea4715ec38dbba06ddc9932713ceb775efd3288b",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/1H25/ledger.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/1H25/targets.json",
+    "sha256": "7bcda2d33a1f2b4b3bd94a11ad8d56acf9cdb269b705d5f6be727e8cf81a717b",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/1H25/targets.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/1H25/provenance.json",
+    "sha256": "ed8d366bcbdbd07a7954cc57352a13f0e284e730672d98fa4a28e848d13f81dc",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/1H25/provenance.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/CLP/replay/FY25/key_rows.json",
+    "sha256": "65dd5ea8ef3d00ad06e77fee345b4e80c7b73a0c6945b15cd2a17ca0722f242e",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/CLP/replay/FY25/key_rows.json"
+  },
+  {
+    "file": "/private/tmp/codex-mvp-pins/DFE/replay/FY25/key_rows.json",
+    "sha256": "bdc10fb54a045d2b39f89b3e342abe9c0c288631a3f4665398dea5b76508d0af",
+    "source": "/Users/lingling/Project M/model-update-agent/companies/DFE/replay/FY25/key_rows.json"
+  }
+]

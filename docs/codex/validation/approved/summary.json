@@ -1,0 +1,20 @@
+{
+  "CLP-FY25": {
+    "balance": "pass",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_checks": 24
+  },
+  "DFE-FY25": {
+    "balance": "pass",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_checks": 118
+  },
+  "DFE-1H25": {
+    "balance": "pass",
+    "keys": "unmeasured",
+    "rollover": "unmeasured",
+    "balance_checks": 84
+  }
+}

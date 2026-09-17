@@ -35,6 +35,7 @@ reason your own way; this is how an analyst thinks, not a checklist.
 
 You answer in JSON only: {"thinking": "...", "calls": [ ... ]}. Any number of calls per turn,
 executed in the order you write them; their answers come back in the next turn. The calls:
+  {"tool":"page","doc":"report.pdf","n":23} original disclosure page
   {"tool":"show","ref":"Sheet!AI16"}                  the row's inputs, what uses it, its history, printed lines on file
   {"tool":"find","q":"46.3"}  or {"q":"Fuel Cost"}    printed lines carrying that number or naming that label, with page
   {"tool":"try","sets":[{"ref":"Sheet!AI16","value":46.3}]}    preview on a snapshot: the objectives before and after, then restored
@@ -44,8 +45,8 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"done","objectives":{"balance":"holds | cannot be closed because ...","keys":"...","rollforward":"..."}}
 A `sets` list with two entries is applied and measured as ONE change — that is how a compensating
 pair is resolved. A `set` lands plain only when its evidence ties (the quote is on the page and the
-comparative ties the model's prior), or when `because` states arithmetic code can verify; otherwise
-it lands red for the analyst — it is never refused for want of evidence."""
+comparative ties the model's prior), with a matching definition; arithmetic alone is not source proof; otherwise
+it lands red for the analyst. For disclosed figures use sets with ref, doc, page, printed (DOCUMENT units), line and because. For derived figures use formula so the arithmetic remains traceable."""
 
 
 # ── reading the model ────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ def _num(x):
     if x is None or (isinstance(x, str) and not x.strip()) or isinstance(x, bool):
         return None
     try:
-        return round(float(x), 2)
+        return float(x)
     except (TypeError, ValueError):
         return None
 
@@ -194,7 +195,7 @@ def _evidence_line(loop, sheet, coord, value, prior):
 
 
 def _metrics(loop, key_panel, panel_path):
-    """ONE READING of every objective, as numbers: {ref: (what, value, kind, off)}
+    """ONE READING keyed by (cell, objective family, identity), not cell alone.
     — the balance checks in every year, each key against its print, cash and
     total assets from the actual period on, the headline lines against the
     analyst's own book. `off` is how far this objective is from where it must
@@ -219,7 +220,7 @@ def _metrics(loop, key_panel, panel_path):
                 _fault(loop, f"check {sheet}!{col}{row} cannot be evaluated: {e!r}")
                 continue
             if isinstance(v, (int, float)):
-                out[f"{sheet}!{col}{row}"] = (f"balance check {year} (must be {expect:,.0f})", float(v),
+                out[(f"{sheet}!{col}{row}", "balance", str(year))] = (f"balance check {year} (must be {expect:,.0f})", float(v),
                                               "check" if col == act else "forecast-check", float(v) - expect)
     try:
         # A KEY IS MEASURED AGAINST THE PRINT, FULL STOP (reviewer 2026-09-16:
@@ -231,9 +232,12 @@ def _metrics(loop, key_panel, panel_path):
         from .keytie import key_state
         for nm, ref, got, want, ok in key_state(wb, spec, ty, panel_path, panel=key_panel):
             if not isinstance(got, (int, float)):
+                _fault(loop, f"key '{nm}' at {ref} has no evaluable model value")
                 continue
-            off = (float(got) - want) if isinstance(want, (int, float)) and not ok else 0.0
-            out[ref] = (f"key '{nm}' vs print {_fmt(_num(want))}" + ("" if ok else "  ← OFF THE PRINT"), float(got), "key", off)
+            off = (0.0 if ok else float(got) - want) if isinstance(want, (int, float)) else None
+            if off is None:
+                _fault(loop, f"key '{nm}' at {ref} has no verified printed target")
+            out[(ref, "key", nm)] = (f"key '{nm}' vs print {_fmt(_num(want))}" + ("" if ok else "  ← OFF THE PRINT"), float(got), "key", off)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"key objectives unavailable: {e!r}")
     try:
@@ -255,7 +259,7 @@ def _metrics(loop, key_panel, panel_path):
                 # a normal roll-forward may go negative later on the analyst's own
                 # assumptions (owner 2026-09-15): past the horizon it is a watch
                 kind = "sanity" if i <= 2 else "watch"
-                out[f"{sh}!{col}{r}"] = (f"{nm} {year} (must not be negative)", float(v), kind,
+                out[(f"{sh}!{col}{r}", kind, nm)] = (f"{nm} {year} (must not be negative)", float(v), kind,
                                          float(v) if (v < -0.5 and kind == "sanity") else 0.0)
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"sanity objectives unavailable: {e!r}")
@@ -264,7 +268,7 @@ def _metrics(loop, key_panel, panel_path):
         from .sensecheck import headline_deltas, reason_text, suspicious
         for d in (suspicious(headline_deltas(wb, pre, spec, ty)) if pre is not None else ()):
             sh, co = str(d["ref1"]).split("!", 1)
-            out[f"{sh}!{co}"] = (f"roll-forward: {reason_text(d)[:80]}  ← OUT OF LINE",
+            out[(f"{sh}!{co}", "sense", str(d["name"]))] = (f"roll-forward: {reason_text(d)[:80]}  ← OUT OF LINE",
                                  float(d["d1"]), "sense", float(d["d1"] - d["d0"]))
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"the roll-forward objective could not be measured: {e!r}")
@@ -286,8 +290,8 @@ def _broken(loop, keys_before, key_panel, panel_path):
         # model's own failing-check list — it is never silently empty
         _fault(loop, f"the objectives could not be measured: {e!r}")
         reading = {}
-    for ref, (what, v, kind, off) in reading.items():
-        if abs(off) > CHECK_TOL:
+    for (ref, _family, _name), (what, v, kind, off) in reading.items():
+        if off is not None and (off != 0 if kind == "key" else abs(off) > CHECK_TOL):
             sh, co = ref.split("!", 1)
             out.append((kind, sh, co, float(off), f"{what} at {ref} reads {_fmt(v)}"))
     try:
@@ -309,15 +313,16 @@ def _broken(loop, keys_before, key_panel, panel_path):
 
 
 def _metrics_text(m):
-    return [f"  {ref:<20} {what:<46} {_fmt(v):>14}" for ref, (what, v, _k, _o) in m.items()]
+    return [f"  {ref:<20} {what:<46} {_fmt(v):>14}" + ("  NOT MEASURED" if _o is None else "") for (ref, _family, _name), (what, v, _k, _o) in m.items()]
 
 
 def _metric_diff(m0, m1):
     """What a change did to the objectives, line by line — only what moved."""
     out = []
-    for ref, (what, v1, _k, _o) in m1.items():
-        v0 = m0.get(ref, (None, None))[1]
-        if v0 is None or abs(v1 - v0) > CHECK_TOL:
+    for ident, (what, v1, _k, _o) in m1.items():
+        ref = ident[0]
+        v0 = m0.get(ident, (None, None))[1]
+        if v0 is None or (v1 != v0 if _k == "key" else abs(v1 - v0) > CHECK_TOL):
             out.append(f"    {ref} {what}: {_fmt(v0)} → {_fmt(v1)}")
     for ref in m0:
         if ref not in m1:
@@ -597,8 +602,7 @@ def _evidence_verdict(loop, sets, because):
         # regex happens to find ('pp. 12-14: 396.2 + 36' matched '12-14' and a
         # genuine derivation landed red)
         if any(_arith_ties(m, v) for m in _ARITH.finditer(because)):
-            proven, arith_only = False, True
-            continue
+            return False, False, "arithmetic alone does not establish operand sources or definitions"
         return False, False, f"{sh}!{co}: no quoted page line whose comparative ties the model's prior, and no arithmetic to verify"
     return True, proven, ("the arithmetic re-computes (the operands are the brain's, so the world band still polices it)"
                           if arith_only else "the evidence ties")
@@ -616,32 +620,6 @@ def _sets_text(sets):
     return ", ".join("{0}!{1}={2}".format(s["sheet"], s["coord"], _fmt(_num(s["value"]))) for s in sets)
 
 
-def _apply_sets(loop, sets, plain, proven, note, log):
-    """One change — a pair is ONE write batch: all of it lands or none of it
-    does (a half-applied compensating pair is worse than neither half)."""
-    w, applied, refused = loop.writer, [], []
-    snap = snapshot(loop)
-    try:
-        for s_ in sets:
-            sh, co, v = s_["sheet"], s_["coord"], s_["value"]
-            pcol = prior_column(loop.spec, sh, int(loop.ty))
-            ok = w.write(sh, co, v, prior_coord=f"{pcol}{_row_of(co)}" if pcol else None,
-                         trusted=bool(proven), force_lock=True, flag=None if plain else "red", note=note)
-            (applied if ok else refused).append(f"{sh}!{co}")
-            if not ok:
-                continue
-            if not plain:
-                loop.served.pop((sh, _row_of(co)), None)
-            back = Evaluator(loop.wb).cell(sh, co)          # read back: never trust the write code
-            if isinstance(back, (int, float)) and abs(back - v) > max(0.05, abs(v) * 1e-6):
-                log(f"[review] read-back {sh}!{co} shows {back} after writing {v}")
-    except Exception as e:  # noqa: BLE001
-        restore(loop, snap)
-        return [], [f"{s_['sheet']}!{s_['coord']}" for s_ in sets], f"the write raised {type(e).__name__}: {str(e)[:90]}"
-    if refused and applied:
-        restore(loop, snap)
-        return [], refused + applied, "the writer refused part of the change, so none of it was kept"
-    return applied, refused, ""
 
 
 # ── the loop ─────────────────────────────────────────────────────────────
@@ -727,52 +705,45 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
     tool = str(call.get("tool") or "").strip().lower()
     if tool == "show":
         return t_show(loop, pre_wb, call.get("ref", "")), None
+    if tool == "page":
+        from .mapping import _page_text_of
+        return _page_text_of(getattr(loop, "page_text", {}), call.get("n") or call.get("page") or 0,
+                             doc=call.get("doc")), None
     if tool == "find":
-        return t_find(loop, call.get("q", "")), None
-    if tool in ("try", "set"):
-        sets, bad = [], []
-        for s_ in (call.get("sets") or ([call] if call.get("ref") else [])):
-            sh, co, err = _parse_ref(loop, s_.get("ref", ""))
-            if err:
-                bad.append(err)
-                continue
-            if _col_of(co) != _act_col(loop, sh):
-                bad.append(f"{sh}!{co} is not in the actual column — the review changes the actual period only")
-                continue
-            v = _num(s_.get("value"))          # '46.3' is a number the brain typed as text; anything else is not a value
-            if v is None:
-                bad.append(f"{sh}!{co}: '{s_.get('value')}' is not a number — a model cell takes a figure")
-                continue
-            sets.append({"sheet": sh, "coord": co, "value": v})
+        from .mapping import _find
+        return _find(loop, getattr(loop, "page_text", {}), call.get("q", "")), None
+    if tool in ("try", "set", "sets"):
+        from .mapping import _entries, _apply
+        sets, bad = _entries(loop, call)
         if bad:
             return [f"{tool}: " + "; ".join(bad)], None
         if not sets:
             return [f"{tool}: no cell named"], None
         m0 = _metrics(loop, key_panel, panel_path)
+        pages = getattr(loop, "page_text", {})
+        sources = {getattr(it, "doc", None) for it in getattr(loop.ledger, "items", [])}
+        sources.discard(None)
+        snap = snapshot(loop)
+        mark = len(loop.writer.log.get("change_records", []))
+        try:
+            applied_lines = _apply(loop, sets, pages, sources, log, correction=True)
+            if len(loop.writer.log.get("change_records", [])) - mark != len(sets):
+                restore(loop, snap)
+                return applied_lines + ["the batch was not fully writable; none of it was kept"], None
+        except Exception:
+            restore(loop, snap)
+            raise
         if tool == "try":
-            snap = snapshot(loop)
             try:
-                _applied, refused, note = _apply_sets(loop, sets, True, True, "trial", log)
                 repair_round("review try")
-                lines = ["try " + _sets_text(sets) + ":"]
-                if refused:
-                    lines.append(f"    the writer refused {refused} — {note or 'this change cannot be written as it stands'}")
-                lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
+                return ["try " + _sets_text(sets) + ":"] + applied_lines + _metric_diff(m0, _metrics(loop, key_panel, panel_path)) + ["the trial was unwound"], None
             finally:
-                restore(loop, snap)              # the repairs the trial ran are inside the snapshot and come back with it
-            lines.append("    (the trial was unwound; the verdict and watch lines it wrote are the run's own record)")
-            return lines, None
-        plain, proven, why = _evidence_verdict(loop, sets, call.get("because"))
-        note = ((f"Set by the review: {str(call.get('because'))[:200]}") if plain else
-                (f"Set by the review WITHOUT tying evidence — please check: {str(call.get('because') or 'no reason given')[:200]}"))
-        _applied, refused, said = _apply_sets(loop, sets, plain, proven, note, log)
+                restore(loop, snap)
         if hold_zero:
             hold_zero()
         repair_round("review")
         res = gate_once()
-        lines = ["set " + _sets_text(sets) + " → " + ("plain, " + why if plain else "RED: " + why)]
-        if refused:
-            lines.append(f"    the writer refused {refused} — {said or 'a guard'} (said out loud, not silently dropped)")
+        lines = applied_lines
         lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
         return lines, res
     if tool == "restore":
@@ -809,7 +780,7 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         if err:
             return [f"plug: {err}"], None
         m = _metrics(loop, key_panel, panel_path)
-        kind = (m.get(f"{sh}!{co}") or (None, None, None, None))[2]
+        kind = next((v[2] for ident, v in m.items() if ident[0] == f"{sh}!{co}" and v[2] in ("check", "forecast-check")), None)
         if kind not in ("check", "forecast-check"):
             # A PLUG CLOSES A CHECK (reviewer: `plug` took any ref and ran the
             # ladder into the key row Final!AI95, blowing two proven keys). The
@@ -851,7 +822,7 @@ def _finish(loop, pre_wb, log, res, statement):
     except Exception as e:  # noqa: BLE001
         _fault(loop, f"closing sense rows not written: {e!r}")
     try:
-        for ref, (what, v, kind, _off) in _metrics(loop, _key_panel_of(loop), None).items():
+        for (ref, _family, _name), (what, v, kind, _off) in _metrics(loop, _key_panel_of(loop), None).items():
             if kind != "watch" or v >= -0.5:
                 continue
             w = (f"{what.split(' (')[0]} is negative ({_fmt(v)} at {ref}) — beyond the next two periods: "
@@ -1105,7 +1076,8 @@ def _exit(loop, pre_wb, log, gate_once, repair_round, hold_zero,
                      "_SPEC tab (or let the agent's anatomy turn name it) and the balance is measured next run.")
     lines.append(f"ended: {left_n} objective(s) still broken" if left_n
                  else ("ended: every objective that could be measured holds"
-                       if not (loop.spec.get("check_rows") or []) else "ended: every objective holds"))
+                       if not (loop.spec.get("check_rows") or []) or not (loop.spec.get("key_rows") or [])
+                       or loop.__dict__.get("objective_faults") else "ended: every objective holds"))
     log(f"[review] {lines[-1]}")
     try:
         return _finish(loop, pre_wb, log, result if result is not None else gate_once(), statement)

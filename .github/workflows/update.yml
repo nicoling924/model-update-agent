@@ -19,6 +19,10 @@ on:
         description: "pipeline (THE agent — default), updater (previous gen), legacy behind explicit name"
         default: "pipeline"
         required: false
+      persist_results:
+        description: "Commit generated models and reports back to the selected branch"
+        type: boolean
+        default: true
       prior_period:
         description: "Prior period for the learner leg of chain/learn (e.g. FY24)"
         default: "FY24"
@@ -92,7 +96,7 @@ jobs:
             exit 64
           fi
       - name: Persist results (model, replay evidence, case law)
-        if: ${{ always() && (inputs.action == 'pipeline' || inputs.action == 'updater' || inputs.action == '') }}
+        if: ${{ always() && inputs.persist_results != false && (inputs.action == 'pipeline' || inputs.action == 'updater' || inputs.action == '') }}
         run: |
           git config user.name "model-update-agent"
           git config user.email "agent@users.noreply.github.com"

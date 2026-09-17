@@ -1,0 +1,32 @@
+[
+  {
+    "company": "CLP",
+    "ref": "ROAFNA!AH19",
+    "before": "=4223+36",
+    "after": "=5487+36",
+    "cached_cell_value": 5523,
+    "evidence": "2025 annual report PDF p243 and 2024 annual report PDF p274; current assets 5487 plus other non-current assets 36.",
+    "approved_by": "owner in conversation: approved both permission",
+    "original_sha256": "3fa28c91325b5aba4684c72c7793da444af24ad2f70a479a4e5aba28ee9227a5",
+    "corrected_sha256": "18b87b593f4941729b00d10860209691c4af47d12b835147d695355e289ea18b",
+    "archive": "companies/CLP/model-archive/CLP_FY24_pre_owner_correction.xlsx",
+    "changed_zip_members": [
+      "xl/worksheets/sheet8.xml"
+    ]
+  },
+  {
+    "company": "DFE",
+    "ref": "Model!AG132",
+    "before": "=B132",
+    "after": "='Raw financials'!AA242",
+    "cached_cell_value": 3873.24,
+    "evidence": "Opening cash in the existing half-year source table Raw financials!AA242; source closing cash AA243 reconciles within rounding.",
+    "approved_by": "owner in conversation: approved both permission",
+    "original_sha256": "614db804432925e61ef48b2c02e865dd4240798ebe2a2bdad86ec791db656bc6",
+    "corrected_sha256": "d42f82c20d6cd3d619f24d025a304d649bc919fcb8c0cae1e24d6a5dde32f309",
+    "archive": "companies/DFE/model-archive/DFE_1H06_pre_owner_correction.xlsx",
+    "changed_zip_members": [
+      "xl/worksheets/sheet4.xml"
+    ]
+  }
+]

@@ -24,8 +24,18 @@ from .checks import prior_column, year_columns
 from .evaluator import Evaluator
 from .ledger import vintage_ban as _vintage_ban, sourceable as _sourceable
 
-TOL_REL = 0.002          # 0.2% — keys tie the print or get backed out
-TOL_ABS = 1.0
+def matches_print(value, printed):
+    """A signed figure ties at the evidence's precision, in the same units.
+
+    Shared by repair, review and reporting: a whole-unit allowance cannot
+    establish identity for a per-share amount or other small measure.
+    """
+    from math import isfinite
+    from .writegate import _ties_full_precision
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and isinstance(printed, (int, float)) and not isinstance(printed, bool)
+            and isfinite(value) and isfinite(printed)
+            and value * printed >= 0 and _ties_full_precision(value, printed))
 
 
 def _leaves(wb, sheet, coord, depth=0, seen=None, order=None):
@@ -93,7 +103,6 @@ def _printed(ledger, v):
     # CURRENT-document FACE pages only, tight tolerance — a loose
     # whole-ledger search excused every wrong key via coincidental ties
     # in the prior-year AR (measured on run-203's file)
-    tol = max(0.6, abs(v) * 1e-4)
     for it in ledger.items:
         if not _sourceable(it) or getattr(it, "table_kind", None) == "matrix":
             continue                 # any period line, wherever printed (owner 2026-09-14)
@@ -108,7 +117,7 @@ def _printed(ledger, v):
         cur = _current_index(it)
         if cur is None or cur >= len(nums):
             continue
-        if abs(abs(nums[cur]) - abs(v)) <= tol:
+        if matches_print(abs(nums[cur]), abs(v)):
             return f"{it.doc} p{it.page}"
     return None
 
@@ -257,7 +266,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 continue
             if isinstance(g2, (int, float)):
                 out.append((nm, g2, w2,
-                            abs(g2 - w2) <= max(TOL_ABS, abs(w2) * TOL_REL)))
+                            matches_print(g2, w2)))
         return out
 
     # a key row is never another key's absorber (run-231 replay: the
@@ -340,7 +349,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
         if not isinstance(got, (int, float)):
             continue
         delta = got - want
-        if abs(delta) <= max(TOL_ABS, abs(want) * TOL_REL):
+        if matches_print(got, want):
             if prev_c is not None:
                 # the key ties on its own now — the back-out is withdrawn
                 _, _, psh, pcoord, porig, _pw = prev_c
@@ -384,8 +393,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 pass
         adjusted = (isinstance(pin_prior, (int, float))
                     and isinstance(model_prior, (int, float))
-                    and abs(model_prior - pin_prior)
-                    > max(TOL_ABS, abs(pin_prior) * TOL_REL))
+                    and not matches_print(model_prior, pin_prior))
         if adjusted:
             d_prior = model_prior - pin_prior
             bridge = _bridge_rows(wb, spec, target_year, sheet,
@@ -565,7 +573,7 @@ def key_tie(wb, spec, target_year, writer, panel_path, log, ledger=None,
                 untied = {nm for nm, _g, _w, ok in _key_state()
                           if not ok} & tied_before
                 if isinstance(after, (int, float)) \
-                        and abs(after - want) <= max(TOL_ABS, abs(want) * TOL_REL) \
+                        and matches_print(after, want) \
                         and not untied:
                     landed = new_f
                     break
@@ -708,7 +716,7 @@ def merge_panel(built, pinned, log=None):
     for nm, e in (built or {}).items():
         pin = (pinned or {}).get(nm)
         if pin and isinstance(pin.get("print"), (int, float)) \
-                and abs(pin["print"] - e["print"]) > max(TOL_ABS, abs(e["print"]) * TOL_REL) \
+                and not matches_print(pin["print"], e["print"]) \
                 and log is not None:
             log(f"[run] key panel: '{nm}' pinned print {pin['print']:,.2f} disagrees with the "
                 f"prior-tie print {e['print']:,.2f} ({e['line']}) — the prior tie wins")
@@ -759,7 +767,7 @@ def key_state(wb, spec, target_year, panel_path, panel=None):
             # untied, with nothing to tie to, until someone quotes its print.
             out.append((nm, f"{sh}!{tc}{r}", v, None, False))
             continue
-        ok = isinstance(v, (int, float)) and abs(v - want) <= max(TOL_ABS, abs(want) * TOL_REL)
+        ok = isinstance(v, (int, float)) and matches_print(v, want)
         out.append((nm, f"{sh}!{tc}{r}", v, float(want), bool(ok)))
     return out
 
@@ -781,11 +789,11 @@ def key_snapshot(wb, spec, target_year, ledger, panel_path, panel=None):
             v = ev.cell(sh, f"{tc}{r}")
         except Exception:
             continue
-        if not isinstance(v, (int, float)) or abs(v) < 1:
+        if not isinstance(v, (int, float)):
             continue
         want = (panel.get(nm) or {}).get("print")
         basis = None
-        if isinstance(want, (int, float)) and abs(v - want) <= max(TOL_ABS, abs(want) * TOL_REL):
+        if isinstance(want, (int, float)) and matches_print(v, want):
             basis = f"pinned print {want:,.2f}"
         else:
             where = _printed(ledger, v)
@@ -816,10 +824,10 @@ def key_violations(wb, spec, target_year, ledger, panel_path, snapshot, panel=No
         if not isinstance(now, (int, float)):
             out.append((nm, ref, then, None))
             continue
-        if abs(now - then) <= max(TOL_ABS, abs(then) * TOL_REL):
+        if matches_print(now, then):
             continue
         want = (panel.get(nm) or {}).get("print")
-        if isinstance(want, (int, float)) and abs(now - want) <= max(TOL_ABS, abs(want) * TOL_REL):
+        if isinstance(want, (int, float)) and matches_print(now, want):
             continue
         if _printed(ledger, now):
             continue
@@ -994,7 +1002,7 @@ def subtotal_tie(wb, spec, target_year, writer, ledger, log, priors=None, absorb
             v = ev.cell(d["sheet"], f"{tc}{d['row']}")
         except Exception:
             continue
-        if isinstance(v, (int, float)) and abs(v - d["print"]) <= max(TOL_ABS, abs(d["print"]) * TOL_REL):
+        if isinstance(v, (int, float)) and matches_print(v, d["print"]):
             tied[d["name"]] = (f"{d['sheet']}!{tc}{d['row']}", float(v),
                                f"printed subtotal {d['print']:,.1f}")
     log(f"[run] printed subtotals: {len(subs)} identified on the faces, "

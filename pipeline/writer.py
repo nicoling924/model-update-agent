@@ -418,6 +418,7 @@ class Writer:
             (sheet, coord, _fill_rgb(cell),
              str(cell.comment.text) if cell.comment is not None else None,
              ref in self.log["flags"]))
+        before = cell.value
         cell.value = value
         if prior_coord is not None:      # inherit the prior actual's look
             prior = ws[prior_coord]
@@ -434,6 +435,8 @@ class Writer:
         got = ws[coord].value
         if got != value:
             raise WriteError(f"read-back mismatch {ref}: wrote {value!r} got {got!r}")
+        if before != value:
+            self._unserve(sheet, coord)
         self.log["written"].append(ref)
         # a successful write REPLACES the cell's standing flag state: a
         # proven rewrite clears it, a flagged write records exactly one
@@ -445,6 +448,27 @@ class Writer:
         if kind == "plug":
             self.log.setdefault("plugs", []).append(ref)
         return True
+
+    def _unserve(self, sheet, coord):
+        """A source claim belongs to its cell, not to every period in its row.
+
+        A changed cell loses its old proof. A caller with new evidence records
+        that proof after the write; a transaction restores it on rollback.
+        """
+        served = getattr(self, "served", None)
+        if not isinstance(served, dict):
+            return
+        key = (sheet, self.wb[sheet][coord].row)
+        entry = served.get(key)
+        if not isinstance(entry, dict):
+            return
+        home = entry.get("home")
+        actual = getattr(self, "actual_cols", {}).get(sheet)
+        if home is not None and tuple(home) != (sheet, coord):
+            return
+        if home is None and actual and coord != f"{actual}{key[1]}":
+            return
+        served.pop(key, None)
 
     # -- the flag, the revert: journaled like every write -------------------
 
@@ -482,13 +506,11 @@ class Writer:
         run 2026-09-14 audit: reverted serves stayed locked and 'proven'),
         and it wears the colour the guard gives it (red: unconfirmed)."""
         ref = f"{sheet}!{coord}"
-        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True, over_formula=True)
         if not ok:
             return False
         self.locked.discard(ref)
-        served = getattr(self, "served", None)
-        if isinstance(served, dict):
-            served.pop((sheet, int(re.sub(r"[A-Z]+", "", coord))), None)
+        self._unserve(sheet, coord)
         if colour:
             self.flag(sheet, coord, colour, note)
         return True
@@ -509,13 +531,11 @@ class Writer:
     def take_back(self, sheet, coord, old, style):
         """A write undone: the old value AND the old look; the cell is
         unlocked and un-served (what the run believed about it goes too)."""
-        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True, over_formula=True)
         if ok:
             self.restore_style(sheet, coord, style)
             self.locked.discard(f"{sheet}!{coord}")
-            served = getattr(self, "served", None)
-            if isinstance(served, dict):
-                served.pop((sheet, int(re.sub(r"[A-Z]+", "", coord))), None)
+            self._unserve(sheet, coord)
         return ok
 
     def restate(self, sheet, coord, new_value, why):

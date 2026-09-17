@@ -1,0 +1,1245 @@
+{
+  "balance": {
+    "status": "pass",
+    "checks": [
+      {
+        "name": "Model!r95 (2006)",
+        "year": "2006",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2007)",
+        "year": "2007",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2008)",
+        "year": "2008",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2009)",
+        "year": "2009",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2010)",
+        "year": "2010",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2011)",
+        "year": "2011",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2012)",
+        "year": "2012",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2013)",
+        "year": "2013",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2014)",
+        "year": "2014",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2015)",
+        "year": "2015",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2016)",
+        "year": "2016",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2017)",
+        "year": "2017",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2018)",
+        "year": "2018",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2019)",
+        "year": "2019",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2020)",
+        "year": "2020",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2021)",
+        "year": "2021",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2022)",
+        "year": "2022",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2023)",
+        "year": "2023",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2024)",
+        "year": "2024",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2025)",
+        "year": "2025",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2026)",
+        "year": "2026",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2027)",
+        "year": "2027",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2028)",
+        "year": "2028",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2029)",
+        "year": "2029",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r95 (2030)",
+        "year": "2030",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2006)",
+        "year": "2006",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2007)",
+        "year": "2007",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2008)",
+        "year": "2008",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2009)",
+        "year": "2009",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2010)",
+        "year": "2010",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2011)",
+        "year": "2011",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2012)",
+        "year": "2012",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2013)",
+        "year": "2013",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2014)",
+        "year": "2014",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2015)",
+        "year": "2015",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2016)",
+        "year": "2016",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2017)",
+        "year": "2017",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2018)",
+        "year": "2018",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2019)",
+        "year": "2019",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2020)",
+        "year": "2020",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2021)",
+        "year": "2021",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2022)",
+        "year": "2022",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2023)",
+        "year": "2023",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2024)",
+        "year": "2024",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2025)",
+        "year": "2025",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2026)",
+        "year": "2026",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2027)",
+        "year": "2027",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2028)",
+        "year": "2028",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2029)",
+        "year": "2029",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Model!r135 (2030)",
+        "year": "2030",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2017)",
+        "year": "2017",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2018)",
+        "year": "2018",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2019)",
+        "year": "2019",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2020)",
+        "year": "2020",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2021)",
+        "year": "2021",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2022)",
+        "year": "2022",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2023)",
+        "year": "2023",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2024)",
+        "year": "2024",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2025)",
+        "year": "2025",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2026)",
+        "year": "2026",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2027)",
+        "year": "2027",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2028)",
+        "year": "2028",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2029)",
+        "year": "2029",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r109 (2030)",
+        "year": "2030",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2017)",
+        "year": "2017",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2018)",
+        "year": "2018",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2019)",
+        "year": "2019",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2020)",
+        "year": "2020",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2021)",
+        "year": "2021",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2022)",
+        "year": "2022",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2023)",
+        "year": "2023",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2024)",
+        "year": "2024",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2025)",
+        "year": "2025",
+        "got": -0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2026)",
+        "year": "2026",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2027)",
+        "year": "2027",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2028)",
+        "year": "2028",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2029)",
+        "year": "2029",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Driver!r139 (2030)",
+        "year": "2030",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2006)",
+        "year": "2006",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2007)",
+        "year": "2007",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2008)",
+        "year": "2008",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2009)",
+        "year": "2009",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2010)",
+        "year": "2010",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2011)",
+        "year": "2011",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2012)",
+        "year": "2012",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2013)",
+        "year": "2013",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2014)",
+        "year": "2014",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2015)",
+        "year": "2015",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2016)",
+        "year": "2016",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2017)",
+        "year": "2017",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2018)",
+        "year": "2018",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2019)",
+        "year": "2019",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2020)",
+        "year": "2020",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2021)",
+        "year": "2021",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2022)",
+        "year": "2022",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2023)",
+        "year": "2023",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2024)",
+        "year": "2024",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r114 (2025)",
+        "year": "2025",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2006)",
+        "year": "2006",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2007)",
+        "year": "2007",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2008)",
+        "year": "2008",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2009)",
+        "year": "2009",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2010)",
+        "year": "2010",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2011)",
+        "year": "2011",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2012)",
+        "year": "2012",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2013)",
+        "year": "2013",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2014)",
+        "year": "2014",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2015)",
+        "year": "2015",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2016)",
+        "year": "2016",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2017)",
+        "year": "2017",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2018)",
+        "year": "2018",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2019)",
+        "year": "2019",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2020)",
+        "year": "2020",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2021)",
+        "year": "2021",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2022)",
+        "year": "2022",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2023)",
+        "year": "2023",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2024)",
+        "year": "2024",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Raw financials!r180 (2025)",
+        "year": "2025",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      }
+    ],
+    "cycles": []
+  },
+  "keys": {
+    "status": "fail",
+    "checks": [
+      {
+        "name": "revenue",
+        "ref": "Model!U4",
+        "actual": 69695.14,
+        "printed": 78615.27743983,
+        "status": "fail"
+      },
+      {
+        "name": "gross profit",
+        "ref": "Model!U7",
+        "actual": 10819.029999999999,
+        "printed": null,
+        "status": "unmeasured"
+      },
+      {
+        "name": "operating profit",
+        "ref": "Model!U15",
+        "actual": 3086.079999999998,
+        "printed": null,
+        "status": "unmeasured"
+      },
+      {
+        "name": "eps",
+        "ref": "Model!U35",
+        "actual": 0.94,
+        "printed": 1.15,
+        "status": "fail"
+      },
+      {
+        "name": "dps",
+        "ref": "Model!U39",
+        "actual": 0.4382743285123221,
+        "printed": null,
+        "status": "unmeasured"
+      },
+      {
+        "name": "total assets",
+        "ref": "Model!U67",
+        "actual": 142009.2847,
+        "printed": 162674.19521732998,
+        "status": "fail"
+      },
+      {
+        "name": "operating cash flow",
+        "ref": "Model!U114",
+        "actual": 2014.32091285,
+        "printed": 2014.32091285,
+        "status": "pass"
+      },
+      {
+        "name": "investing cash flow",
+        "ref": "Model!U120",
+        "actual": 2711.2879026300016,
+        "printed": -10587.324054319999,
+        "status": "fail"
+      },
+      {
+        "name": "financing cash flow",
+        "ref": "Model!U127",
+        "actual": 126.91194389999976,
+        "printed": 5101.688322569999,
+        "status": "fail"
+      },
+      {
+        "name": "cash year end",
+        "ref": "Model!U133",
+        "actual": 18980.820759380003,
+        "printed": 18980.959402689998,
+        "status": "fail"
+      },
+      {
+        "name": "net profit",
+        "ref": "Model!U28",
+        "actual": 2922.0999999999976,
+        "printed": 3831.30122213,
+        "status": "fail"
+      }
+    ],
+    "missing": [
+      "net profit attributable",
+      "total current assets",
+      "total equity"
+    ],
+    "scope": "arithmetic against verified key panel; definitions require independent review"
+  },
+  "rollover": {
+    "status": "review_required",
+    "checks": [
+      {
+        "name": "revenue",
+        "sheet": "Model",
+        "row": 4,
+        "ref0": "Model!U4",
+        "ref1": "Model!V4",
+        "d0": -0.14332494506714144,
+        "d1": -0.17403580889667683,
+        "old0": 81355.39794077734,
+        "new0": 69695.14,
+        "old1": 90419.64983580049,
+        "new1": 74683.39293647268
+      },
+      {
+        "name": "gross profit",
+        "sheet": "Model",
+        "row": 7,
+        "ref0": "Model!U7",
+        "ref1": "Model!V7",
+        "d0": -0.1797422950290213,
+        "d1": -0.21813053735164634,
+        "old0": 13189.793810449832,
+        "new0": 10819.029999999999,
+        "old1": 15926.82817527643,
+        "new1": 12452.700587096042
+      },
+      {
+        "name": "ebitda",
+        "sheet": "Model",
+        "row": 140,
+        "ref0": "Model!U140",
+        "ref1": "Model!V140",
+        "d0": -0.24423200222430436,
+        "d1": -0.21184596005629322,
+        "old0": 5296.757750766901,
+        "new0": 4003.119999999998,
+        "old1": 7165.404573625393,
+        "new1": 5647.442562533967
+      },
+      {
+        "name": "operating profit",
+        "sheet": "Model",
+        "row": 15,
+        "ref0": "Model!U15",
+        "ref1": "Model!V15",
+        "d0": -0.2587048840274019,
+        "d1": -0.29318070945845964,
+        "old0": 4163.0923143895025,
+        "new0": 3086.079999999998,
+        "old1": 5894.412267972804,
+        "new1": 4166.284297407889
+      },
+      {
+        "name": "net finance costs",
+        "sheet": "Model",
+        "row": 17,
+        "ref0": "Model!U17",
+        "ref1": "Model!V17",
+        "d0": -0.5446837013509893,
+        "d1": -16.61292411053131,
+        "old0": -28.840855872976654,
+        "new0": -44.55,
+        "old1": 3.5746306412995352,
+        "new1": -55.81043692578951
+      },
+      {
+        "name": "associates and jvs",
+        "sheet": "Model",
+        "row": 18,
+        "ref0": "Model!U18",
+        "ref1": "Model!V18",
+        "d0": 0.0,
+        "d1": 0.0,
+        "old0": 1577.06,
+        "new0": 1577.06,
+        "old1": 1577.06,
+        "new1": 1577.06
+      },
+      {
+        "name": "pre-tax profit",
+        "sheet": "Model",
+        "row": 22,
+        "ref0": "Model!U22",
+        "ref1": "Model!V22",
+        "d0": -0.32918751292106513,
+        "d1": -0.34530979537921863,
+        "old0": 5790.351364677172,
+        "new0": 3884.239999999998,
+        "old1": 7626.8789935219775,
+        "new1": 4993.242968886842
+      },
+      {
+        "name": "tax",
+        "sheet": "Model",
+        "row": 23,
+        "ref0": "Model!U23",
+        "ref1": "Model!V23",
+        "d0": 0.32918751292106513,
+        "d1": 0.3453097953792187,
+        "old0": -889.5481397468137,
+        "new0": -596.72,
+        "old1": -1171.6864130471952,
+        "new1": -767.0916175092575
+      },
+      {
+        "name": "net profit",
+        "sheet": "Model",
+        "row": 28,
+        "ref0": "Model!U28",
+        "ref1": "Model!V28",
+        "d0": -0.3291875129210652,
+        "d1": -0.3453097953792188,
+        "old0": 4356.060831133802,
+        "new0": 2922.0999999999976,
+        "old1": 5737.674064159415,
+        "new1": 3756.399007111877
+      },
+      {
+        "name": "eps",
+        "sheet": "Model",
+        "row": 35,
+        "ref0": "Model!U35",
+        "ref1": "Model!V35",
+        "d0": -0.29053222973573495,
+        "d1": -0.2738030182270561,
+        "old0": 1.3249368602746612,
+        "new0": 0.94,
+        "old1": 1.659246403747662,
+        "new1": 1.2049397304191636
+      },
+      {
+        "name": "dps",
+        "sheet": "Model",
+        "row": 39,
+        "ref0": "Model!U39",
+        "ref1": "Model!V39",
+        "d0": -0.27149999341850156,
+        "d1": -0.28869687559017165,
+        "old0": 0.6016119760505337,
+        "new0": 0.4382743285123221,
+        "old1": 0.8090179065385608,
+        "new1": 0.5754569646243768
+      },
+      {
+        "name": "operating cash flow",
+        "sheet": "Model",
+        "row": 114,
+        "ref0": "Model!U114",
+        "ref1": "Model!V114",
+        "d0": -0.3068273469338352,
+        "d1": -0.07383398595847,
+        "old0": 2905.9440010218186,
+        "new0": 2014.32091285,
+        "old1": 4414.671328863793,
+        "new1": 4088.7185479572036
+      },
+      {
+        "name": "capex",
+        "sheet": "Model",
+        "row": 117,
+        "ref0": "Model!U117",
+        "ref1": "Model!V117",
+        "d0": -0.12868275425125525,
+        "d1": 0.5965987653034757,
+        "old0": -3795.882106794612,
+        "new0": -4284.34667111,
+        "old1": -3823.445430503906,
+        "new1": -1542.3826074600597
+      },
+      {
+        "name": "investing cash flow",
+        "sheet": "Model",
+        "row": 120,
+        "ref0": "Model!U120",
+        "ref1": "Model!V120",
+        "d0": 2.2219492019334632,
+        "d1": 1.0154369735794455,
+        "old0": -2218.822106794612,
+        "new0": 2711.2879026300016,
+        "old1": -2246.3854305039063,
+        "new1": 34.67739253994023
+      },
+      {
+        "name": "financing cash flow",
+        "sheet": "Model",
+        "row": 127,
+        "ref0": "Model!U127",
+        "ref1": "Model!V127",
+        "d0": -0.9665264036951392,
+        "d1": 0.3152298137572415,
+        "old0": 3791.4045071270234,
+        "new0": 126.91194389999976,
+        "old1": -2076.7995825414464,
+        "new1": -1422.1304369257894
+      },
+      {
+        "name": "free cash flow",
+        "sheet": "Model",
+        "row": 137,
+        "ref0": "Model!U137",
+        "ref1": "Model!V137",
+        "d0": -0.9972802004208091,
+        "d1": 3.3068748300115174,
+        "old0": -889.9381057727933,
+        "new0": -1777.4557582599998,
+        "old1": 591.2258983598867,
+        "new1": 2546.335940497144
+      },
+      {
+        "name": "dividends paid",
+        "sheet": "Model",
+        "row": 124,
+        "ref0": "Model!U124",
+        "ref1": "Model!V124",
+        "d0": 0.0,
+        "d1": 0.3432335435894106,
+        "old0": -1366.32,
+        "new0": -1366.32,
+        "old1": -2080.3742131827457,
+        "new1": -1366.32
+      }
+    ],
+    "suspicious": [
+      {
+        "name": "net finance costs",
+        "sheet": "Model",
+        "row": 17,
+        "ref0": "Model!U17",
+        "ref1": "Model!V17",
+        "d0": -0.5446837013509893,
+        "d1": -16.61292411053131,
+        "old0": -28.840855872976654,
+        "new0": -44.55,
+        "old1": 3.5746306412995352,
+        "new1": -55.81043692578951
+      },
+      {
+        "name": "free cash flow",
+        "sheet": "Model",
+        "row": 137,
+        "ref0": "Model!U137",
+        "ref1": "Model!V137",
+        "d0": -0.9972802004208091,
+        "d1": 3.3068748300115174,
+        "old0": -889.9381057727933,
+        "new0": -1777.4557582599998,
+        "old1": 591.2258983598867,
+        "new1": 2546.335940497144
+      },
+      {
+        "name": "financing cash flow",
+        "sheet": "Model",
+        "row": 127,
+        "ref0": "Model!U127",
+        "ref1": "Model!V127",
+        "d0": -0.9665264036951392,
+        "d1": 0.3152298137572415,
+        "old0": 3791.4045071270234,
+        "new0": 126.91194389999976,
+        "old1": -2076.7995825414464,
+        "new1": -1422.1304369257894
+      },
+      {
+        "name": "investing cash flow",
+        "sheet": "Model",
+        "row": 120,
+        "ref0": "Model!U120",
+        "ref1": "Model!V120",
+        "d0": 2.2219492019334632,
+        "d1": 1.0154369735794455,
+        "old0": -2218.822106794612,
+        "new0": 2711.2879026300016,
+        "old1": -2246.3854305039063,
+        "new1": 34.67739253994023
+      },
+      {
+        "name": "capex",
+        "sheet": "Model",
+        "row": 117,
+        "ref0": "Model!U117",
+        "ref1": "Model!V117",
+        "d0": -0.12868275425125525,
+        "d1": 0.5965987653034757,
+        "old0": -3795.882106794612,
+        "new0": -4284.34667111,
+        "old1": -3823.445430503906,
+        "new1": -1542.3826074600597
+      },
+      {
+        "name": "dividends paid",
+        "sheet": "Model",
+        "row": 124,
+        "ref0": "Model!U124",
+        "ref1": "Model!V124",
+        "d0": 0.0,
+        "d1": 0.3432335435894106,
+        "old0": -1366.32,
+        "new0": -1366.32,
+        "old1": -2080.3742131827457,
+        "new1": -1366.32
+      },
+      {
+        "name": "operating cash flow",
+        "sheet": "Model",
+        "row": 114,
+        "ref0": "Model!U114",
+        "ref1": "Model!V114",
+        "d0": -0.3068273469338352,
+        "d1": -0.07383398595847,
+        "old0": 2905.9440010218186,
+        "new0": 2014.32091285,
+        "old1": 4414.671328863793,
+        "new1": 4088.7185479572036
+      }
+    ],
+    "errors": [],
+    "scope": "comparison with original analyst forecasts; no anomaly is not independent approval"
+  },
+  "calculation": "offline evaluator; full Excel recalculation has not been certified",
+  "verification_note": "Frozen v3 end-to-end replay; key acceptance remeasured from recorded final values with the final evidence-precision comparison. Workbook output unchanged."
+}

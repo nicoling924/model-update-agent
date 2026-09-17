@@ -1,0 +1,56 @@
+{
+  "replays-DFE-1H25": {
+    "balance": "fail",
+    "keys": "unmeasured",
+    "rollover": "unmeasured",
+    "balance_failures": [
+      {
+        "name": "Model!r135 (2006)",
+        "year": "2006",
+        "got": -8290.0,
+        "expect": 0.0,
+        "status": "FAIL"
+      }
+    ]
+  },
+  "replays-CLP-FY25": {
+    "balance": "fail",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_failures": [
+      {
+        "name": "ROAFNA!r31 (2024)",
+        "year": "2024",
+        "got": -1264.0,
+        "expect": 0.0,
+        "status": "FAIL"
+      }
+    ]
+  },
+  "replays-DFE-FY25": {
+    "balance": "pass",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_failures": []
+  },
+  "readiness-CLP-FY25": {
+    "balance": "fail",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_failures": [
+      {
+        "name": "ROAFNA!r31 (2024)",
+        "year": "2024",
+        "got": -1264.0,
+        "expect": 0.0,
+        "status": "FAIL"
+      }
+    ]
+  },
+  "readiness-DFE-FY25": {
+    "balance": "pass",
+    "keys": "fail",
+    "rollover": "review_required",
+    "balance_failures": []
+  }
+}

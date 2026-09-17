@@ -1,0 +1,8 @@
+[readiness] Raw financials!U68: 1 source-line candidates for the supplied quote
+/Users/lingling/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[report] page: 25/26 table lines found, 11 key rows, 33 look-here items, period FY25
+[run] note hygiene: 0 notes removed from plain cells, 232 flagged-cell notes rewritten in plain words
+[readiness] run log: /private/tmp/codex-mvp-pins/DFE/readiness_run.log
+run: DELIVERED
+[readiness] Raw financials!U68: card MAPPING PROPOSAL -> value 26171.15303444 fill FFC7CE OK | Mapped by the brain WITHOUT tying evidence.

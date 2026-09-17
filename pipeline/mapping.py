@@ -55,6 +55,8 @@ bridge, never against a bare label. Every model is different: reason in this mod
 
 NEVER TYPE OVER THE MODEL'S OWN ARITHMETIC. A formula cell is the model thinking; it is refused —
 if the number belongs there, its input site is named for you and you set that instead.
+For amounts embedded in an actual formula, supply `formula` with updated numeric operands while
+keeping its references, operators and functions unchanged. A formula must never become a hardcode.
 
 WORK FACE BY FACE, IN ONE BATCH. A printed face is shown beside the model rows its lines point at:
 read it once, and on that first sight answer with ONE `sets` batch marking every row of that face
@@ -67,10 +69,10 @@ You answer in JSON only: {"thinking": "...", "calls": [ ... ]}. Any number of ca
 executed in the order you write them; their answers come back in the next turn. The calls:
   {"tool":"anatomy","checks":["Sheet!99"],"keys":[{"name":"revenue","ref":"Sheet!7"}],
       "statements":["Sheet"],"because":"..."}   only when section 0 asks: what this model's rows ARE
-  {"tool":"page","n":23}                                the page's own text
+  {"tool":"page","doc":"report.pdf","n":23}                                the page's own text
   {"tool":"find","q":"46.3"}   or  {"q":"Fuel Cost"}    printed lines carrying that number or label
   {"tool":"show","ref":"Sheet!AI16"}                    the row, its history, what uses it
-  {"tool":"sets","sets":[{"ref":"Sheet!AI16","printed":74206,"page":23,
+  {"tool":"sets","sets":[{"ref":"Sheet!AI16","printed":74206,"doc":"report.pdf","page":23,
       "line":"Operating expenses (74,206) (76,061)","because":"this is my opex row"}, ...]}
   {"tool":"set","ref":"Sheet!AI20","value":432.2,"because":"p23: 396.2 + 36 — my row is the two lines together"}
   {"tool":"set","ref":"Sheet!AI22","formula":"=88018-74206-1810","because":"p23: the print no longer
@@ -92,7 +94,7 @@ writes nothing into the prior column, and neither does code.
 WHEN A LINE HAS BEEN RECLASSIFIED. Same item, same figure last year: map it as usual. The name or the
 figure has changed and you cannot say confidently which line it is: do not guess — BACK IT OUT of what
 the print does give you, as a `formula` over printed figures (=total-a-b), so the analyst can see how
-it was built. It lands orange with your note of what changed in the print.
+it was built. It retains the formula and a review note; arithmetic alone does not prove operand definitions.
 
 WHEN THE COMPARATIVE NO LONGER MATCHES YOUR MODEL, TRIANGULATE THROUGH LAST YEAR'S REPORT. `find` your
 model's prior figure in the prior-period document (it is indexed for you on first use), read that line
@@ -102,7 +104,7 @@ page. A renamed neighbour is your reading, not a string match.
 `printed` is the figure AS PRINTED on the page (code proves the scale from the comparative and the
 model's own sign convention). `value` is in the model's units and needs arithmetic in `because`.
 A set lands PLAIN when the quoted line is on that page and its comparative ties your model's prior,
-or when the arithmetic re-computes; otherwise it lands RED with your reason, for the analyst. It is
+with the model definition matching; arithmetic alone is not source proof and stays RED with its formula. It is
 never refused for want of evidence. A `skip` carrying scope "disclosure" lands red too — "no print here
 carries it" is your judgment, recorded; a skip of the page in front of you marks nothing and settles
 nothing: it takes that page off the row, and the row comes back."""
@@ -359,34 +361,52 @@ def _classes(loop, rows):
 # ── the model's input rows ───────────────────────────────────────────────
 
 def is_own_arithmetic(wb, sheet, coord, act_col, prior_col):
-    """Is this formula the MODEL'S OWN ARITHMETIC, or a FORECAST waiting to be
-    marked? (reviewer 2026-09-17: the actual column's `=AH14*1.03` — the
-    analyst's estimate for the year now reported — was never offered, counted
-    or flagged, because 'it is a formula'.) The evidence is what the formula
-    reads: a subtotal or a link reads its OWN period (this column, or another
-    sheet's same period); a forecast projects from an earlier column. The
-    mark-to-actual recipe replaces the second and never touches the first."""
+    """The prior actual's cell type defines an input; column distance does not.
+
+    Cross-sheet links and accounting rolls remain formulas even when their
+    references lie left of the target. A typed prior actual is evidence that
+    a projection in that row is meant to be marked to actual.
+    """
     f = wb[sheet][coord].value
     if not (isinstance(f, str) and f.startswith("=")):
         return False
-    refs = re.findall(r"(?<![A-Z0-9])(\$?[A-Z]{1,3})\$?\d+", f)
-    if not refs:
-        return True                      # =SUM() over nothing, a constant: the model's own
-    from openpyxl.utils import column_index_from_string as _ci
+    from openpyxl.formula.tokenizer import Tokenizer
     try:
-        here = _ci(act_col)
-        back = _ci(prior_col) if prior_col else here - 1
-    except Exception:  # noqa: BLE001
+        refs = [t.value for t in Tokenizer(f).items if t.type == "OPERAND" and t.subtype == "RANGE"]
+    except Exception:
         return True
-    reads_back = False
-    for c in refs:
-        try:
-            n = _ci(c.replace("$", ""))
-        except Exception:  # noqa: BLE001
-            continue
-        if n <= back:
-            reads_back = True
-    return not reads_back
+    # A link to another sheet is model structure, independent of its column.
+    if any("!" in ref for ref in refs):
+        return True
+    r = _row_of(coord)
+    prior = wb[sheet][f"{prior_col}{r}"].value if prior_col else None
+    if isinstance(prior, str) and prior.startswith("="):
+        return True
+    if not isinstance(prior, (int, float)) or isinstance(prior, bool):
+        return True
+    # A subtotal consuming the current period remains structural even if the
+    # same row happened to be typed in the preceding period.
+    for ref in refs:
+        for col in re.findall(r"(?:^|:)\$?([A-Z]+)\$?\d+", ref):
+            if col == act_col:
+                return True
+    return not refs
+
+
+def literal_template(formula):
+    """References, operators and functions are structure; numeric inputs are not."""
+    from openpyxl.formula.tokenizer import Tokenizer
+    try:
+        return tuple((t.type, t.subtype, "#" if t.type == "OPERAND" and t.subtype == "NUMBER" else t.value)
+                     for t in Tokenizer(formula).items if t.type != "WHITE-SPACE")
+    except Exception:
+        return None
+
+
+def has_embedded_inputs(formula):
+    from .composites import literals_of, MODELING_CONSTANTS
+    return (isinstance(formula, str) and formula.startswith("=")
+            and any(abs(float(n)) not in MODELING_CONSTANTS for n in literals_of(formula)))
 
 
 def input_rows(loop, census):
@@ -404,10 +424,10 @@ def input_rows(loop, census):
         pcol = prior_column(loop.spec, sheet, int(loop.ty))
         rows = set(int(r) for r in census[sheet])
         ws = loop.wb[sheet]
-        for r in range(1, min(ws.max_row, 400) + 1):
+        for r in range(1, ws.max_row + 1):
             v = ws[f"{col}{r}"].value
             if isinstance(v, str) and v.startswith("="):
-                if r in rows or not is_own_arithmetic(loop.wb, sheet, f"{col}{r}", col, pcol):
+                if r in rows or has_embedded_inputs(v) or not is_own_arithmetic(loop.wb, sheet, f"{col}{r}", col, pcol):
                     if _label(ws, r).startswith("row "):
                         continue         # a formula on an unlabelled row is not a line of this model
                     rows.add(r)
@@ -416,6 +436,7 @@ def input_rows(loop, census):
         for r in sorted(rows):
             v = loop.wb[sheet][f"{col}{r}"].value
             if isinstance(v, str) and v.startswith("=") \
+                    and not has_embedded_inputs(v) \
                     and is_own_arithmetic(loop.wb, sheet, f"{col}{r}", col, prior_column(loop.spec, sheet, int(loop.ty))):
                 continue
             out.append((sheet, f"{col}{r}", int(r)))
@@ -536,16 +557,16 @@ def coverage(loop, rows, skipped):
 
 # ── the context ──────────────────────────────────────────────────────────
 
-def _page_text_of(page_text, n, cap=6000):
+def _page_text_of(page_text, n, cap=6000, doc=None):
     out, room = [], cap
     if hasattr(page_text, "ensure_page"):
-        page_text.ensure_page(n)
-    for (doc, pg), txt in sorted((page_text or {}).items()):
-        if str(pg) != str(n) or not txt:
+        page_text.ensure_page(n, doc=doc)
+    for (source_doc, pg), txt in sorted((page_text or {}).items()):
+        if (doc is not None and source_doc != doc) or str(pg) != str(n) or not txt:
             continue
         body = str(txt)[:room]
         room -= len(body)
-        out.append(f"--- {doc} p{pg} ---\n{body}")
+        out.append(f"--- {source_doc} p{pg} ---\n{body}")
         if room <= 0:
             break
     return out or [f"no page {n} on file"]
@@ -779,7 +800,7 @@ def _anatomy_section(loop, cap=6000):
         cols = (ax.get("columns") or {}) if isinstance(ax, dict) else {}
         L.append(f"  --- {sh}: {len(cols)} year column(s); {loop.ty} is column {cols.get(str(loop.ty), '?')} ---")
         ws = loop.wb[sh]
-        for r in range(1, min(ws.max_row, 400) + 1):
+        for r in range(1, ws.max_row + 1):
             lab = _label(ws, r)
             if lab.startswith("row "):
                 continue
@@ -998,7 +1019,11 @@ def verdict(loop, entry, page_text, sources, log):
     if isinstance(held, str) and held.startswith("=") and not is_own_arithmetic(
             loop.wb, sheet, coord, _act_col(loop, sheet), prior_column(loop.spec, sheet, int(loop.ty))):
         held = None                      # the analyst's forecast for this year: the actual replaces it
-    if isinstance(held, str) and held.startswith("="):
+    proposed = entry.get("formula")
+    preserves_structure = (has_embedded_inputs(held) and isinstance(proposed, str)
+                           and literal_template(held) is not None
+                           and literal_template(held) == literal_template(proposed))
+    if isinstance(held, str) and held.startswith("=") and not preserves_structure:
         site = ""
         try:
             from .writer import resolve_input_site
@@ -1037,18 +1062,42 @@ def verdict(loop, entry, page_text, sources, log):
             pg = int(page)
         except (TypeError, ValueError):
             return float(printed), False, f"'{page}' is not a page number — the figure lands red", {}
-        return _quote_verdict(loop, page_text, sources, pg, float(printed), line, prior)
+        docs = {str(entry["doc"])} if entry.get("doc") else set(sources)
+        if entry.get("units", "document") == "model":
+            return _quote_verdict(loop, page_text, docs, pg, float(printed), line, prior)
+        from .reader import _page_line, _quoted_verdict
+        scales = _page_scales(loop)
+        hits = []
+        for doc in sorted(docs):
+            text = (page_text or {}).get((doc, pg))
+            if not text:
+                text = "\n".join(_quote(it) for it in _items(loop)
+                                 if getattr(it, "doc", None) == doc and getattr(it, "page", None) == pg)
+            hit = _page_line({(doc, pg): text}, pg, float(printed), line or "", {doc}) if text else None
+            if hit:
+                answer = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg,
+                                         scales, _dominant(scales), log, f"{sheet}!{coord}")
+                if answer:
+                    kin, why_k = _name_is_kin(loop, sheet, coord, hit["text"])
+                    plain = answer.get("conf") == 4 and kin
+                    hits.append((answer["value"], plain, (answer.get("note") or answer.get("why", "")) if kin else why_k, answer))
+        if len({(h[3].get("doc"), h[0]) for h in hits}) == 1:
+            return hits[0]
+        if hits:
+            return None, False, "the quote resolves to multiple documents; specify doc", {}
+        return None, False, "the document-unit quote has no verified conversion; specify doc and printed line", {}
     f_ = entry.get("formula")
     if isinstance(f_, str) and f_.strip().startswith("="):
         # A BACK-OUT IS A FORMULA, NOT A HARDCODE (house law): the analyst must
         # see how the number was built. Code checks that every term of it is a
         # figure the print carries; the arithmetic is the model's own from then on.
-        terms = [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*\.?\d*", f_)]
+        from .composites import literals_of
+        terms = [float(x) for x in literals_of(f_)]
         missing = [t for t in terms if abs(t) >= 0.5 and not _hits_printed(loop, t, page_text)]
         if missing:
             return f_, False, (f"the back-out lands red: {', '.join(f'{m:,.2f}' for m in missing[:3])} "
                                "is not a figure printed on any page on file"), {"line": f_[:60]}
-        return f_, "orange", f"backed out of printed figures: {f_[:60]}", {"line": f_[:60]}
+        return f_, False, f"back-out arithmetic is traceable; verify operand definitions: {f_[:60]}", {"line": f_[:60]}
     v = _num(entry.get("value"))
     if v is None:
         return None, False, f"{sheet}!{coord}: no `value`, `printed` figure or `formula` — a model cell takes a figure", {}
@@ -1065,7 +1114,7 @@ def verdict(loop, entry, page_text, sources, log):
         if missing:
             return v, False, (f"your arithmetic re-computes, but {', '.join(f'{x:,.2f}' for x in missing[:3])} "
                               "is not a figure printed on any page on file — it lands red with your reason"), {}
-        return v, True, f"your stated arithmetic re-computes from printed figures: {because[:80]}", {
+        return "=" + m.group(0).replace(",", ""), False, f"arithmetic is traceable but operand meanings need review: {because[:80]}", {
             "line": because[:60]}
     return v, False, "no quoted printed line and no arithmetic code can re-compute — it lands red with your reason", {}
 
@@ -1255,7 +1304,7 @@ def _quote_verdict(loop, page_text, sources, pg, printed, line, prior):
             "— it lands red with your reason", {"page": pg, "line": str(line or "")[:60]})
 
 
-def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
+def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None, correction=False):
     """Apply one change (a `sets` batch is ONE change). -> lines"""
     out, ty = [], int(loop.ty)
     for n_done, e in enumerate(entries):
@@ -1280,7 +1329,7 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
         # disagreement, and a disagreement is the analyst's, not code's — the
         # cell keeps the first reading and goes red carrying both.
         _st_now = _written(loop).get(f"{sheet}!{coord}")
-        if _st_now in ("filled", "red") and (_st_now == "filled" or
+        if not correction and _st_now in ("filled", "red") and (_st_now == "filled" or
                                              (loop.served.get((sheet, _row_of(coord))) or {}).get("conf", 0) >= 4):
             _prev = (loop.served.get((sheet, _row_of(coord))) or {}).get("value")
             _same = isinstance(_prev, (int, float)) and not isinstance(v, str) \
@@ -1308,7 +1357,7 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
         _cur = loop.wb[sheet][coord].value
         _over = isinstance(_cur, str) and _cur.startswith("=")
         if _over:
-            note += f" [replaced the analyst's forecast for {ty}: {str(_cur)[:40]}]"
+            note += f" [previous formula for {ty}: {str(_cur)[:40]}]"
         ok = loop.writer.write(sheet, coord, val,
                                prior_coord=f"{pcol}{_row_of(coord)}" if pcol else None,
                                trusted=(plain is True or plain == "orange"), force_lock=True,
@@ -1338,6 +1387,11 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
         if isinstance(back, (int, float)) and not isinstance(val, str) \
                 and abs(back - float(val)) > max(0.05, abs(float(val)) * 1e-6):
             log(f"[map] read-back {sheet}!{coord} shows {back} after writing {val}")
+        loop.writer.log.setdefault("change_records", []).append({
+            "ref": f"{sheet}!{coord}", "before": _cur, "after": val,
+            "period": getattr(loop, "period", str(ty)), "reason": str(e.get("because") or ""),
+            "evidence": dict(ev), "flag": colour, "correction": bool(correction),
+        })
         loop.served[(sheet, _row_of(coord))] = {
             "value": float(shown) if isinstance(shown, (int, float)) else None,
             "status": "OK", "doc": ev.get("doc"), "page": ev.get("page"),
@@ -1560,7 +1614,7 @@ def _t_anatomy(loop, call, log):
 def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=None, face=None):
     tool = str(call.get("tool") or "").strip().lower()
     if tool == "page":
-        return _page_text_of(page_text, call.get("n") or call.get("page") or 0)
+        return _page_text_of(page_text, call.get("n") or call.get("page") or 0, doc=call.get("doc"))
     if tool == "find":
         return _find(loop, page_text, call.get("q", ""))
     if tool == "show":
@@ -2041,8 +2095,8 @@ class Pages:
     def docs(self):
         return {d for d, _p in self._d}
 
-    def ensure_page(self, n):
-        if not any(str(pg) == str(n) for _d, pg in self._d):
+    def ensure_page(self, n, doc=None):
+        if not any(str(pg) == str(n) and (doc is None or _d == doc) for _d, pg in self._d):
             self._ensure()
 
     def __bool__(self):

@@ -1,0 +1,539 @@
+{
+  "balance": {
+    "status": "fail",
+    "checks": [
+      {
+        "name": "Final!r99 (2019)",
+        "year": "2019",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2020)",
+        "year": "2020",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2021)",
+        "year": "2021",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2022)",
+        "year": "2022",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2023)",
+        "year": "2023",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2024)",
+        "year": "2024",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2025)",
+        "year": "2025",
+        "got": 0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2026)",
+        "year": "2026",
+        "got": -2.9103830456733704e-11,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2027)",
+        "year": "2027",
+        "got": -2.9103830456733704e-11,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2028)",
+        "year": "2028",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2029)",
+        "year": "2029",
+        "got": -2.9103830456733704e-11,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "Final!r99 (2030)",
+        "year": "2030",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2019)",
+        "year": "2019",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2020)",
+        "year": "2020",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2021)",
+        "year": "2021",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2022)",
+        "year": "2022",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2023)",
+        "year": "2023",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2024)",
+        "year": "2024",
+        "got": -1264.0,
+        "expect": 0.0,
+        "status": "FAIL"
+      },
+      {
+        "name": "ROAFNA!r31 (2025)",
+        "year": "2025",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2026)",
+        "year": "2026",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2027)",
+        "year": "2027",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2028)",
+        "year": "2028",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2029)",
+        "year": "2029",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      },
+      {
+        "name": "ROAFNA!r31 (2030)",
+        "year": "2030",
+        "got": 0.0,
+        "expect": 0.0,
+        "status": "PASS"
+      }
+    ],
+    "cycles": []
+  },
+  "keys": {
+    "status": "fail",
+    "checks": [
+      {
+        "name": "revenue",
+        "ref": "Final!AI7",
+        "actual": 90964,
+        "printed": 88018.0,
+        "status": "fail"
+      },
+      {
+        "name": "operating profit",
+        "ref": "Final!AI15",
+        "actual": 14903,
+        "printed": 14272.0,
+        "status": "fail"
+      },
+      {
+        "name": "net profit",
+        "ref": "Final!AI27",
+        "actual": 11742,
+        "printed": 10468.0,
+        "status": "fail"
+      },
+      {
+        "name": "eps",
+        "ref": "Final!AI35",
+        "actual": 4.647627046192318,
+        "printed": 4.14,
+        "status": "fail"
+      },
+      {
+        "name": "total equity",
+        "ref": "Final!AI96",
+        "actual": 104055,
+        "printed": 107610.0,
+        "status": "fail"
+      },
+      {
+        "name": "investing cash flow",
+        "ref": "Final!AI129",
+        "actual": -16216,
+        "printed": -14328.0,
+        "status": "fail"
+      },
+      {
+        "name": "total assets",
+        "ref": "Final!AI75",
+        "actual": 233713,
+        "printed": 238644.0,
+        "status": "fail"
+      },
+      {
+        "name": "total liabilities and equity",
+        "ref": "Final!AI98",
+        "actual": 233713,
+        "printed": 238644.0,
+        "status": "fail"
+      }
+    ],
+    "missing": [
+      "cash year end",
+      "financing cash flow",
+      "operating cash flow"
+    ],
+    "scope": "arithmetic against verified key panel; definitions require independent review"
+  },
+  "rollover": {
+    "status": "review_required",
+    "checks": [
+      {
+        "name": "revenue",
+        "sheet": "Final",
+        "row": 7,
+        "ref0": "Final!AI7",
+        "ref1": "Final!AJ7",
+        "d0": 0.00604662905507706,
+        "d1": 0.010428739378323481,
+        "old0": 90417.28024618239,
+        "new0": 90964,
+        "old1": 92431.0151544711,
+        "new1": 93394.95412199094
+      },
+      {
+        "name": "ebitda",
+        "sheet": "Final",
+        "row": 10,
+        "ref0": "Final!AI10",
+        "ref1": "Final!AJ10",
+        "d0": 0.002028095248385017,
+        "d1": 0.019287726479721164,
+        "old0": 24130.061936044272,
+        "new0": 24179,
+        "old1": 25134.246918155204,
+        "new1": 25619.029397986356
+      },
+      {
+        "name": "operating profit",
+        "sheet": "Final",
+        "row": 15,
+        "ref0": "Final!AI15",
+        "ref1": "Final!AJ15",
+        "d0": 0.0020013026167718614,
+        "d1": 0.04246342643853706,
+        "old0": 14873.234157560613,
+        "new0": 14903,
+        "old1": 15677.31680891726,
+        "new1": 16343.029397986358
+      },
+      {
+        "name": "net finance costs",
+        "sheet": "Final",
+        "row": 21,
+        "ref0": "Final!AI21",
+        "ref1": "Final!AJ21",
+        "d0": -0.054936752471948125,
+        "d1": -0.047577178049552485,
+        "old0": -1913.858812169583,
+        "new0": -2019,
+        "old1": -1824.1634507138988,
+        "new1": -1910.952
+      },
+      {
+        "name": "associates and jvs",
+        "sheet": "Final",
+        "row": 19,
+        "ref0": "Final!AI19",
+        "ref1": "Final!AJ19",
+        "d0": 0.2052469943900213,
+        "d1": 0.10006583278472674,
+        "old0": 1501.7668647379999,
+        "new0": 1810,
+        "old1": 1543.6403499999997,
+        "new1": 1698.1060071428567
+      },
+      {
+        "name": "pre-tax profit",
+        "sheet": "Final",
+        "row": 22,
+        "ref0": "Final!AI22",
+        "ref1": "Final!AJ22",
+        "d0": 0.02454799703425802,
+        "d1": 0.053834198620747176,
+        "old0": 15166.688183453078,
+        "new0": 15539,
+        "old1": 16102.312115045994,
+        "new1": 16969.167183700643
+      },
+      {
+        "name": "tax",
+        "sheet": "Final",
+        "row": 23,
+        "ref0": "Final!AI23",
+        "ref1": "Final!AJ23",
+        "d0": 0.02762219288137094,
+        "d1": 0.03179985230355796,
+        "old0": -2901.13573072924,
+        "new0": -2821,
+        "old1": -3092.459803975006,
+        "new1": -2994.120038953911
+      },
+      {
+        "name": "net profit",
+        "sheet": "Final",
+        "row": 27,
+        "ref0": "Final!AI27",
+        "ref1": "Final!AJ27",
+        "d0": 0.05644008348651184,
+        "d1": 0.08266865311382003,
+        "old0": 11114.686183856746,
+        "new0": 11742,
+        "old1": 11818.644709229118,
+        "new1": 12795.676148971865
+      },
+      {
+        "name": "recurring / core net profit",
+        "sheet": "Final",
+        "row": 31,
+        "ref0": "Final!AI31",
+        "ref1": "Final!AJ31",
+        "d0": 0.04798280467134133,
+        "d1": 0.08266865311382003,
+        "old0": 11114.686183856746,
+        "new0": 11648,
+        "old1": 11818.644709229118,
+        "new1": 12795.676148971865
+      },
+      {
+        "name": "eps",
+        "sheet": "Final",
+        "row": 35,
+        "ref0": "Final!AI35",
+        "ref1": "Final!AJ35",
+        "d0": 0.056440083486511805,
+        "d1": 0.08266865311382005,
+        "old0": 4.399328574180949,
+        "new0": 4.647627046192318,
+        "old1": 4.677963958435616,
+        "new1": 5.064684938194483
+      },
+      {
+        "name": "dps",
+        "sheet": "Final",
+        "row": 48,
+        "ref0": "Final!AI48",
+        "ref1": "Final!AJ48",
+        "d0": 0.0,
+        "d1": 0.0,
+        "old0": 3.149873618940425,
+        "new0": 3.149873618940425,
+        "old1": 3.244369827508638,
+        "new1": 3.244369827508638
+      },
+      {
+        "name": "operating cash flow",
+        "sheet": "Final",
+        "row": 121,
+        "ref0": "Final!AI121",
+        "ref1": "Final!AJ121",
+        "d0": 0.06560314103453006,
+        "d1": -0.07128461232625422,
+        "old0": 20059.062494174235,
+        "new0": 21375.0,
+        "old1": 20688.621581267547,
+        "new1": 19213.841212282314
+      },
+      {
+        "name": "capex",
+        "sheet": "Final",
+        "row": 124,
+        "ref0": "Final!AI124",
+        "ref1": "Final!AJ124",
+        "d0": -0.13939179632248938,
+        "d1": -0.10537682454572535,
+        "old0": -14140.0,
+        "new0": -16111,
+        "old1": -13428.0,
+        "new1": -14843.0
+      },
+      {
+        "name": "investing cash flow",
+        "sheet": "Final",
+        "row": 129,
+        "ref0": "Final!AI129",
+        "ref1": "Final!AJ129",
+        "d0": -0.224817672506324,
+        "d1": -0.09966120775226918,
+        "old0": -13239.521574519307,
+        "new0": -16216,
+        "old1": -12685.72529580642,
+        "new1": -13950.0
+      },
+      {
+        "name": "financing cash flow",
+        "sheet": "Final",
+        "row": 137,
+        "ref0": "Final!AI137",
+        "ref1": "Final!AJ137",
+        "d0": 0.3391180798901215,
+        "d1": -0.006396847583511279,
+        "old0": -8172.413007004379,
+        "new0": -5401,
+        "old1": -8083.68987930458,
+        "new1": -8135.400011374864
+      },
+      {
+        "name": "free cash flow",
+        "sheet": "Final",
+        "row": 145,
+        "ref0": "Final!AI145",
+        "ref1": "Final!AJ145",
+        "d0": -1.0,
+        "d1": -0.26189627483801486,
+        "old0": 9099.489158625931,
+        "new0": 0,
+        "old1": 10177.391546098272,
+        "new1": 7511.97061260723
+      },
+      {
+        "name": "dividends paid",
+        "sheet": "Final",
+        "row": 133,
+        "ref0": "Final!AI133",
+        "ref1": "Final!AJ133",
+        "d0": 0.0,
+        "d1": 0.0,
+        "old0": -7958.0,
+        "new0": -7958,
+        "old1": -8101.249999999999,
+        "new1": -8101.249999999999
+      }
+    ],
+    "suspicious": [
+      {
+        "name": "free cash flow",
+        "sheet": "Final",
+        "row": 145,
+        "ref0": "Final!AI145",
+        "ref1": "Final!AJ145",
+        "d0": -1.0,
+        "d1": -0.26189627483801486,
+        "old0": 9099.489158625931,
+        "new0": 0,
+        "old1": 10177.391546098272,
+        "new1": 7511.97061260723
+      },
+      {
+        "name": "financing cash flow",
+        "sheet": "Final",
+        "row": 137,
+        "ref0": "Final!AI137",
+        "ref1": "Final!AJ137",
+        "d0": 0.3391180798901215,
+        "d1": -0.006396847583511279,
+        "old0": -8172.413007004379,
+        "new0": -5401,
+        "old1": -8083.68987930458,
+        "new1": -8135.400011374864
+      },
+      {
+        "name": "operating cash flow",
+        "sheet": "Final",
+        "row": 121,
+        "ref0": "Final!AI121",
+        "ref1": "Final!AJ121",
+        "d0": 0.06560314103453006,
+        "d1": -0.07128461232625422,
+        "old0": 20059.062494174235,
+        "new0": 21375.0,
+        "old1": 20688.621581267547,
+        "new1": 19213.841212282314
+      },
+      {
+        "name": "investing cash flow",
+        "sheet": "Final",
+        "row": 129,
+        "ref0": "Final!AI129",
+        "ref1": "Final!AJ129",
+        "d0": -0.224817672506324,
+        "d1": -0.09966120775226918,
+        "old0": -13239.521574519307,
+        "new0": -16216,
+        "old1": -12685.72529580642,
+        "new1": -13950.0
+      },
+      {
+        "name": "associates and jvs",
+        "sheet": "Final",
+        "row": 19,
+        "ref0": "Final!AI19",
+        "ref1": "Final!AJ19",
+        "d0": 0.2052469943900213,
+        "d1": 0.10006583278472674,
+        "old0": 1501.7668647379999,
+        "new0": 1810,
+        "old1": 1543.6403499999997,
+        "new1": 1698.1060071428567
+      }
+    ],
+    "errors": [],
+    "scope": "comparison with original analyst forecasts; no anomaly is not independent approval"
+  },
+  "calculation": "offline evaluator; full Excel recalculation has not been certified"
+}

@@ -23,6 +23,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def main(argv):
+    import json
+    proposal_path = None
+    if "--proposals" in argv:
+        i = argv.index("--proposals")
+        proposal_path = Path(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
     if len(argv) < 5:
         print(__doc__)
         return 2
@@ -61,6 +67,26 @@ def main(argv):
         print(f"[readiness] {target}: answered {pick} ({'matched ' + repr(sub) if pick != default else 'default'})")
         return pick
 
+    if proposal_path:
+        proposals = json.loads(proposal_path.read_text())
+        from pipeline.ledger import Ledger
+        evidence = Ledger.load(ledger)
+        pending = [dict(p) for p in proposals]
+        for p in proposals:
+            candidates = [it for it in evidence.items
+                          if (not p.get("doc") or it.doc == p["doc"])
+                          and (not p.get("page") or it.page == p["page"])
+                          and all(word.lower() in str(it.source_line or it.label).lower()
+                                  for word in str(p.get("line", "")).split() if word.isalpha())]
+            print(f"[readiness] {p['ref']}: {len(candidates)} source-line candidates for the supplied quote")
+            seen[p["ref"]] = ("MAPPING PROPOSAL", str(p.get("line", "")))
+        def maps(system, user):
+            if pending:
+                batch = list(pending)
+                pending.clear()
+                return {"calls": [{"tool": "sets", "sets": batch}]}
+            return {"calls": [{"tool": "done"}]}
+        answerer.maps = maps
     from pipeline.run import update
     logf = open(art / "readiness_run.log", "w")
     res = update(company, period, year, client=None, stage4_mode="queue-only",

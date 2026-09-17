@@ -20,6 +20,8 @@ effort ladder (ruling 2026-08-30):
 """
 import re
 
+from .checks import CHECK_TOL
+
 from openpyxl.comments import Comment
 from openpyxl.utils import column_index_from_string, get_column_letter
 
@@ -67,7 +69,7 @@ def audit(wb, evaluate, sheet, check_row, bs_rows, year_cols):
             gap = evaluate(sheet, f"{col}{check_row}")
         except Exception:
             continue
-        if not isinstance(gap, (int, float)) or abs(gap) <= 1:
+        if not isinstance(gap, (int, float)) or abs(gap) <= CHECK_TOL:
             continue
         start = cf_start_row(ws)
         moves = []
@@ -167,7 +169,7 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
             base_col = get_column_letter(
                 column_index_from_string(year_cols[0]) - 1)
             base_gap = make_eval()(sheet, f"{base_col}{check_row}")
-            if isinstance(base_gap, (int, float)) and abs(base_gap) > 1:
+            if isinstance(base_gap, (int, float)) and abs(base_gap) > CHECK_TOL:
                 log(f"[run] forecast plugs WITHHELD: the actual year "
                     f"({base_col}) check is off {base_gap:+,.1f} — "
                     "tie the actuals first")
@@ -181,7 +183,7 @@ def last_resort_plug(wb, writer, make_eval, sheet, check_row, year_cols,
             gap = evaluate(sheet, f"{col}{check_row}")
         except Exception:
             continue
-        if not isinstance(gap, (int, float)) or abs(gap) <= 1:
+        if not isinstance(gap, (int, float)) or abs(gap) <= CHECK_TOL:
             continue
         if only is not None and col not in only:
             continue                 # this break belongs to another period

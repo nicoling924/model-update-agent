@@ -35,7 +35,8 @@ jobs:
       - run: pip install -r requirements.txt
       - if: inputs.run_id != ''
         run: gh run download "${{ inputs.run_id }}" -D artifact
-      - run: python "${{ inputs.script }}" "${{ inputs.company }}" ${{ inputs.args }} 2>&1 | tee drytest.txt
+      - shell: bash
+        run: python "${{ inputs.script }}" "${{ inputs.company }}" ${{ inputs.args }} 2>&1 | tee drytest.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

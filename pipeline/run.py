@@ -418,6 +418,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         sh: set(_fcols0(spec_d, sh, target_year) or ())
         for sh in (spec_d.get("year_axis") or {}) if sh in wb.sheetnames}
     from .checks import prior_column, year_columns
+    writer.actual_cols = {sh: year_columns(spec_d, sh).get(str(target_year))
+                          for sh in (spec_d.get("year_axis") or {})}
     # THE ZERO-FORECAST ROWS (owner 2026-09-14): measured once on the
     # analyst's own model before anything rolls — a row at zero this year
     # and in every forecast year rolls in as 0 and takes no estimate
@@ -688,6 +690,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     _earlier = sorted(q for q in (Path(company_dir) / "disclosures").glob("*/*.pdf")
                       if q.parent.name != str(period))
     _page_text = _page_text_of_docs(docs, _earlier, log)
+    loop.page_text = _page_text
     if _earlier:
         log(f"[map] {len(_earlier)} earlier-period document(s) on the shelf, indexed only if the brain "
             f"reaches for them: {', '.join(q.name for q in _earlier[:4])}")
@@ -985,6 +988,12 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     replay_dir = artifact_dir(company_dir, period, pinned_ledger)
     replay_dir.mkdir(parents=True, exist_ok=True)
     ledger.save(replay_dir / "ledger.json")
+    (replay_dir / "changes.json").write_text(
+        json.dumps(writer.log.get("change_records", []), ensure_ascii=False, indent=2), encoding="utf-8")
+    from .acceptance import assess
+    assessment = assess(loop, _pre_end, _key_panel, _panel_path)
+    (replay_dir / "acceptance.json").write_text(json.dumps(assessment, ensure_ascii=False, indent=2), encoding="utf-8")
+    log("[acceptance] " + " · ".join(f"{name}: {assessment[name]['status']}" for name in ("balance", "keys", "rollover")))
     (replay_dir / "decisions.json").write_text(decisions_to_json(decisions),
                                                encoding="utf-8")
     targets_mod.save(targets, replay_dir / "targets.json")
