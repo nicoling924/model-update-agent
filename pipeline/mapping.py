@@ -701,6 +701,12 @@ def _anatomy_section(loop, cap=6000):
              "\"because\":\"...\"} — a check is a row the model works out and expects to be zero "
              "(assets less liabilities and equity, cash less the cash-flow roll); a key is the row the "
              "MODEL computes, never a copy of the printed statement.")
+    from .docid import KEY_NAMES as _KN
+    L.append("  The key names this report measures — name the row THIS model computes for each one it "
+             "carries, and omit the rest: " + ", ".join(_KN) + ".")
+    L.append("  The four halves of the balance sheet are keys of their own: a figure that lands in the "
+             "wrong half — perpetual securities in a liability row — leaves its half off the print while "
+             "total liabilities and equity still ties, so the balance check cannot see it.")
     L.append("  The sheets, their year columns, and their labels:")
     room = cap
     for sh, ax in (loop.spec.get("year_axis") or {}).items():

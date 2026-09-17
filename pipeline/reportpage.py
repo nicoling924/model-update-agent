@@ -87,6 +87,23 @@ ROLES = [
       "cash year end", "货币资金"],
      _RATIO + ("flow", "restricted", "beginning", "change", "changes", "net", "pledged", "per share",
                "operating", "investing", "financing", "diff"), ["cash", "cash year end"]),
+    # THE FOUR HALVES OF THE BALANCE SHEET (owner 2026-09-17): each is the
+    # MODEL's own total row against the printed total, so a figure landing in
+    # the wrong half is seen even when total liabilities and equity ties
+    ("current_assets", "Total current assets", "Balance sheet", "value",
+     ["total current assets", "current assets", "流动资产合计", "流动资产总计"],
+     _RATIO + ("non", "net", "other", "liabilit"), ["total current assets"]),
+    ("noncurrent_assets", "Total non-current assets", "Balance sheet", "value",
+     ["total non-current assets", "total noncurrent assets", "non-current assets", "noncurrent assets",
+      "非流动资产合计", "非流动资产总计"],
+     _RATIO + ("other", "liabilit"), ["total non-current assets"]),
+    ("current_liabilities", "Total current liabilities", "Balance sheet", "value",
+     ["total current liabilities", "current liabilities", "流动负债合计", "流动负债总计"],
+     _RATIO + ("non", "net", "other", "asset"), ["total current liabilities"]),
+    ("noncurrent_liabilities", "Total non-current liabilities", "Balance sheet", "value",
+     ["total non-current liabilities", "total noncurrent liabilities", "non-current liabilities",
+      "noncurrent liabilities", "非流动负债合计", "非流动负债总计"],
+     _RATIO + ("other", "asset"), ["total non-current liabilities"]),
     ("net_debt", "Net debt", "Balance sheet", "value",
      ["net debt", "net debt cash", "净负债"],
      _RATIO + ("ebitda", "equity", "gearing", "to"), ["net debt"]),

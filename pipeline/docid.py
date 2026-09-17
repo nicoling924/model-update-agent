@@ -654,8 +654,13 @@ def identify_statement_pages(paths, ledger, client, priors, log):
 
 
 # -- the model's key rows: which rows are the headline outputs? ----------
+# the four halves of the balance sheet are keys of their own (owner 2026-09-17):
+# a figure put in the wrong half — perpetuals plugged into a liability row —
+# leaves its half off the print while total liabilities and equity still ties
 KEY_NAMES = ("revenue", "gross profit", "operating profit", "net profit",
              "recurring net profit", "eps", "dps", "total assets",
+             "total current assets", "total non-current assets",
+             "total current liabilities", "total non-current liabilities",
              "total equity", "operating cash flow", "investing cash flow",
              "financing cash flow", "cash year end")
 

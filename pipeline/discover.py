@@ -34,10 +34,15 @@ KEY_PATTERNS = (
     ("operating profit", r"operating\s+profit|^\s*ebit\b|营业利润"),
     ("net profit", r"net\s+profit|profit\s+attributable|归属于母公司(?:股东|所有者)的净利润|净利润"),
     ("eps", r"^\s*eps\b|earnings\s+per\s+share|每股收益"),
-    ("total current assets", r"total\s+current\s+assets|流动资产(?:总计|合计)"),
     ("total non-current assets", r"total\s+non-?current\s+assets|非流动资产(?:总计|合计)"),
+    ("total current assets", r"total\s+current\s+assets|(?<!非)流动资产(?:总计|合计)"),
     ("total assets", r"^\s*total\s+assets\b|资产(?:总计|合计)"),
-    ("total current liabilities", r"total\s+current\s+liabilities|流动负债(?:总计|合计)"),
+    # THE HALVES OF THE BALANCE SHEET ARE KEYS (owner 2026-09-17: perpetuals
+    # plugged into a liability row leave 'non-current liabilities' off the print
+    # while total liabilities and equity still ties — the balance check cannot
+    # see it, the halves can). The label's own '非' / 'non-' decides which half.
+    ("total non-current liabilities", r"total\s+non-?current\s+liabilities|非流动负债(?:总计|合计)"),
+    ("total current liabilities", r"total\s+current\s+liabilities|(?<!非)流动负债(?:总计|合计)"),
     ("total liabilities", r"^\s*total\s+liabilities\b(?!\s+and)|负债(?:总计|合计)"),
     ("total equity", r"total\s+(?:shareholders'?\s+)?equity|所有者权益(?:总计|合计)|股东权益(?:总计|合计)"),
     ("operating cash flow", r"operating\s+cash\s*flow|cash\s+(?:generated\s+)?from\s+operat|经营活动产生的现金流量净额"),

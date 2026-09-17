@@ -6724,6 +6724,55 @@ def test_every_open_row_is_put_in_front_of_a_face_2026_09_17():
     print("PASS test_every_open_row_is_put_in_front_of_a_face_2026_09_17")
 
 
+def test_the_four_halves_of_the_balance_sheet_are_keys_2026_09_17():
+    """OWNER'S RULING 2026-09-17: perpetual capital securities plugged into a
+    non-current liability row leave that half OFF THE PRINT while total
+    liabilities and equity still ties the model's total assets — the balance
+    check cannot see it, the halves can. Each half is measured on the MODEL's
+    own total row against the printed total."""
+    import openpyxl
+    from pipeline.discover import find_key_rows
+    from pipeline.keytie import panel_by_prior_tie, key_state
+    from pipeline.evaluator import Evaluator
+    from pipeline.ledger import Ledger, Item
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "BS"
+    ws["A1"], ws["B1"], ws["C1"] = "Year", 2024, 2025
+    for r, lab, p, c in [(2, "Total current assets", 30142.7, 32517.3),
+                         (3, "Total non-current assets", 120384.2, 128061.9),
+                         (5, "Total current liabilities", 20118.4, 21244.6),
+                         (6, "Total non-current liabilities", 60235.1, 64119.8),
+                         (7, "Total equity", 70173.4, 75214.8)]:
+        ws[f"A{r}"], ws[f"B{r}"], ws[f"C{r}"] = lab, p, c
+    ws["A4"], ws["B4"], ws["C4"] = "Total assets", "=SUM(B2:B3)", "=SUM(C2:C3)"
+    ws["A8"], ws["B8"], ws["C8"] = "Total liabilities and equity", "=SUM(B5:B7)", "=SUM(C5:C7)"
+    axis = {"2024": "B", "2025": "C"}
+    spec = {"year_axis": {"BS": {"columns": axis, "header_row": 1}}, "check_rows": [],
+            "key_rows": find_key_rows(ws, axis, "BS")}
+    assert {k["name"] for k in spec["key_rows"]} >= {
+        "total current assets", "total non-current assets",
+        "total current liabilities", "total non-current liabilities"}, spec["key_rows"]
+    led = Ledger()
+    for i, (lab, c, p) in enumerate([("Total current assets", 32517.3, 30142.7),
+                                     ("Total non-current assets", 128061.9, 120384.2),
+                                     ("Total assets", 160579.2, 150526.9),
+                                     ("Total current liabilities", 21244.6, 20118.4),
+                                     ("Total non-current liabilities", 63119.8, 60235.1),
+                                     ("Total equity", 76214.8, 70173.4)]):
+        led.add(Item(doc="ar.pdf", page=88, table_id=0, row_ord=i, label=lab, nums=[c, p],
+                     source_line=f"{lab} {c:,.1f} {p:,.1f}", stmt_face="bs"))
+    panel = panel_by_prior_tie(wb, spec, 2025, led)
+    state = {nm: (got, want, ok) for nm, _ref, got, want, ok in key_state(wb, spec, 2025, None, panel=panel)}
+    ev = Evaluator(wb)
+    assert abs(ev.cell("BS", "C4") - ev.cell("BS", "C8")) < 0.01, "the exhibit's balance does not tie"
+    assert state["total non-current liabilities"][2] is False, state["total non-current liabilities"]
+    assert abs(state["total non-current liabilities"][0] - 64119.8) < 0.01
+    assert abs(state["total non-current liabilities"][1] - 63119.8) < 0.01
+    assert state["total current liabilities"][2] and state["total current assets"][2], state
+    print("PASS test_the_four_halves_of_the_balance_sheet_are_keys_2026_09_17")
+
+
 def test_the_open_rows_are_a_queue_the_turns_walk_2026_09_17():
     """CLP live 35162933611: 217 of 319 input rows shipped "not reached" — every
     turn rebuilt the context around the same faces and the same rows, so the
