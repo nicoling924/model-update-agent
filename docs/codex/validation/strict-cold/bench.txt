@@ -1,0 +1,18 @@
+change guard: no fences added
+BENCH GREEN
+.........................
+----------------------------------------------------------------------
+Ran 25 tests in 3.046s
+
+OK
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.478s
+
+OK
+.[cold] {"mode": "cold", "period": "FY25", "source_company": "/private/var/folders/2m/756x4ctn3pnb1dllrdlxksr40000gn/T/tmpi46v97gq/company", "inputs": [{"path": "model/input.xlsx", "sha256": "dc9f81445bc453cc6e756476c391a623cec564bf0dd535424351f6c6fc68acc9"}, {"path": "disclosures/FY25/report.pdf", "sha256": "5887b09f536730d59e602d51035a894e07a9bf3c9335e14e823aa4fb126fc4fd"}], "prior_context": [], "contract": "Only original workbook and attached PDFs; no sidecar specs, learned tabs, replay data or prior caches", "working_directory_initially_empty": true, "source_revision": "revision"}
+...
+----------------------------------------------------------------------
+Ran 4 tests in 0.207s
+
+OK

@@ -3,5 +3,5 @@ from pathlib import Path
 import subprocess
 import sys
 root=Path(__file__).resolve().parents[1]
-for command in [['bash','tools/bench.sh'],[sys.executable,'tests/test_mvp_contract.py'],[sys.executable,'tests/test_extraction_boundary.py']]:
+for command in [['bash','tools/bench.sh'],[sys.executable,'tests/test_mvp_contract.py'],[sys.executable,'tests/test_extraction_boundary.py'],[sys.executable,'tests/test_cold_inputs.py']]:
     subprocess.run(command,cwd=root,check=True)

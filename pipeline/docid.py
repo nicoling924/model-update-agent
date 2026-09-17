@@ -681,6 +681,15 @@ def _keys_validate(obj):
         if not isinstance(e, dict) or not isinstance(e.get("row"), int) \
                 or e.get("name") not in KEY_NAMES:
             errs.append(f"bad entry {e!r}: row int + name in the allowed list")
+    if "check_rows" in obj:
+        if not isinstance(obj["check_rows"], list):
+            errs.append("check_rows must be a list")
+        else:
+            for entry in obj["check_rows"]:
+                if (not isinstance(entry, dict) or not isinstance(entry.get("row"), int)
+                        or isinstance(entry.get("row"), bool) or not isinstance(entry.get("reason"), str)
+                        or not entry["reason"].strip()):
+                    errs.append("Each check needs a row and an explanation of its identity")
     return errs
 
 
@@ -691,6 +700,13 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
     each named row carries numbers in the year axis before it replaces
     the pattern-matched pick of the same name. Unverifiable picks are
     logged and dropped. Without a brain the synonym patterns stand."""
+    cold = bool(spec.get("auto_discovered"))
+    if cold:
+        # Zero in history identifies a candidate, not its financial role.
+        # A cash-flow movement can also be zero; only a read of the model's
+        # identity authorizes measuring this expression as a balance check.
+        spec.setdefault("candidate_check_rows", list(spec.get("check_rows") or []))
+        spec["check_rows"] = []
     if client is None:
         return []
     axis = spec.get("year_axis") or {}
@@ -747,14 +763,47 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
             lines.append(f"{r}: {str(lab).strip()[:60]}")
         if len(lines) < 5:
             continue
-        user = f"Sheet: {sheet}\n" + "\n".join(lines)
+        system = _KEYS_SYSTEM
+        candidates = [c for c in spec.get("candidate_check_rows", []) if c.get("sheet") == sheet] if cold else []
+        candidate_lines = []
+        if cold:
+            system += ("\nAlso return check_rows: [{\"row\": integer, \"reason\": string}]. "
+                       "The proposed zero differences are candidates, not known checks. Select only "
+                       "identities intended to equal zero in every period, such as assets less liabilities "
+                       "and equity or a cash reconciliation. A change between years, a cash-flow item, "
+                       "a residual input or a conditional receivable is not a check merely because it "
+                       "has been zero. Explain the identity from this model; omit uncertain candidates.")
+            col = (ax.get("columns") or {}).get(str(target_year)) or cols[-1]
+            candidate_lines = ["CHECK CANDIDATES (unclassified):"] + [
+                f"{c['row']}: {ws.cell(int(c['row']),1).value} | {col}{c['row']} = {ws[col + str(c['row'])].value}"
+                for c in candidates]
+        user = f"Sheet: {sheet}\n" + "\n".join(candidate_lines + lines)
         try:
-            obj = client.json(_KEYS_SYSTEM, user[:14000], _keys_validate,
+            obj = client.json(system, user[:14000], _keys_validate,
                               repair_retries=1)
         except Exception:
             continue
         if not isinstance(obj, dict):
             continue
+        if cold:
+            from .evaluator import Evaluator
+            evaluator = Evaluator(wb_values)
+            for check in obj.get("check_rows") or []:
+                if not isinstance(check, dict) or not check.get("reason"):
+                    continue
+                row = check.get("row")
+                if not isinstance(row, int) or isinstance(row, bool) or not any(c.get("row") == row for c in candidates):
+                    continue
+                coord = f"{col}{row}"
+                if not (isinstance(ws[coord].value, str) and ws[coord].value.startswith("=")):
+                    continue
+                try:
+                    value = evaluator.cell(sheet, coord)
+                except Exception:
+                    continue
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and not evaluator.cycles:
+                    spec["check_rows"].append({"sheet":sheet,"row":row,"expect":0,"source":"model identity read by brain"})
+                    log(f"[run] cold check {sheet}!{row}: {check['reason']}")
         for e in obj.get("key_rows") or []:
             if e["row"] not in numeric_rows:
                 dropped.append(f"{sheet}!{e['row']} as {e['name']} (no numbers on the row)")

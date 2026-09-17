@@ -47,8 +47,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      # NO cross-run caching: every run starts cold (fresh VM, fresh checkout,
-      # fresh extraction) so no run inherits context from a previous one.
+      # Cold means workbook + attached PDFs only, not merely a fresh VM.
+      # The launcher excludes checked-in specs and all prior run artifacts.
       - name: Run model update / learner
         run: |
           if [ "${{ inputs.action || 'pipeline' }}" = "pipeline" ]; then
@@ -58,7 +58,7 @@ jobs:
             # still committed and uploaded), 2 = usage/env error, 3 = brain
             # unavailable (the first-minute handshake: no credits / bad key).
             YY=$(echo "${{ inputs.period }}" | grep -o '[0-9][0-9]$')
-            python -m pipeline.cli "companies/${{ inputs.company }}" \
+            python tools/cold_run.py "companies/${{ inputs.company }}" \
               "${{ inputs.period }}" "20${YY}" --budget=90
           elif [ "${{ inputs.action }}" = "readtest" ]; then
             # THE READING TEST (owner 2026-09-09): not the agent — an experiment.
@@ -116,8 +116,20 @@ jobs:
                   "companies/${{ inputs.company }}/disclosures/${{ inputs.period }}/digest.json" || true
           git commit -m "${{ inputs.action }}: persisted output for ${{ inputs.company }} ${{ inputs.period }}" || echo "no changes to commit"
           git push
-      - name: Upload results (model + reports + staging)
-        if: always()
+      - name: Upload cold results and input manifest
+        if: always() && (inputs.action == 'pipeline' || inputs.action == '')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.company }}-${{ inputs.period }}-update
+          path: |
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/cold-inputs.json
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/model/
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/model-archive/
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/updates/
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/replay/
+          if-no-files-found: warn
+      - name: Upload other action results
+        if: always() && inputs.action != 'pipeline' && inputs.action != ''
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.company }}-${{ inputs.period }}-update
@@ -132,6 +144,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.company }}-${{ inputs.period }}-extraction
-          path: .cache/pipeline-vision/*.json
+          path: |
+            .cache/pipeline-vision/*.json
+            .cold_work/**/.cache/pipeline-vision/*.json
+            cold_out/${{ inputs.company }}-${{ inputs.period }}/extraction/*.json
           include-hidden-files: true
           if-no-files-found: ignore

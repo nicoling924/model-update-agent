@@ -14,6 +14,68 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_cold_zero_differences_are_candidates_until_their_role_is_read(self):
+        from openpyxl import Workbook
+        from pipeline.docid import identify_key_rows
+        wb = Workbook(); ws = wb.active; ws.title = "Statement"
+        for r,label in enumerate(["Assets","Liabilities and equity","Balance check","Share capital","Issuance"],1):
+            ws.cell(r,1,label)
+        for col in ("B","C"):
+            ws[f"{col}1"] = 100; ws[f"{col}2"] = 100
+            ws[f"{col}3"] = f"={col}1-{col}2"
+            ws[f"{col}4"] = 20
+        ws["C5"] = "=C4-B4"
+        spec = {"auto_discovered":True,"year_axis":{"Statement":{"columns":{"2024":"B","2025":"C"}}},
+                "check_rows":[{"sheet":"Statement","row":3,"expect":0},{"sheet":"Statement","row":5,"expect":0}],"key_rows":[]}
+        class Brain:
+            def json(self, system, user, validator, **kwargs):
+                self.context = user
+                return {"key_rows":[],"check_rows":[{"row":3,"reason":"Assets less liabilities and equity is an identity"}]}
+        brain = Brain()
+        identify_key_rows(wb,spec,brain,lambda *a:None,target_year=2025)
+        self.assertEqual([x['row'] for x in spec['check_rows']],[3])
+        self.assertIn("=C4-B4",brain.context)
+
+    def test_header_resolution_preserves_dates_and_rejects_cycles(self):
+        from datetime import datetime
+        from openpyxl import Workbook
+        from pipeline.discover import header_resolver
+        wb = Workbook(); ws = wb.active
+        ws["A1"] = datetime(2024,6,30); ws["B1"] = "=A1"; ws["C1"] = "=B1"
+        ws["A2"] = 2024; ws["B2"] = "=A2+1"
+        ws["A3"] = "=B3"; ws["B3"] = "=A3"
+        ws["A4"] = "=B4+2024"; ws["B4"] = "=A4"
+        value = header_resolver(wb)
+        self.assertEqual(value(ws.title,"C1"),datetime(2024,6,30))
+        self.assertEqual(value(ws.title,"B2"),2025)
+        self.assertIsNone(value(ws.title,"A3"))
+        self.assertIsNone(value(ws.title,"A4"))
+
+    def test_cold_discovery_follows_uncached_header_links_without_changing_cells(self):
+        import io
+        from openpyxl import Workbook, load_workbook
+        from pipeline.discover import discover
+        wb = Workbook(); main = wb.active; main.title = "Statement"
+        driver = wb.create_sheet("Different driver layout")
+        driver.sheet_state = "hidden"
+        for col, year in enumerate(range(2022,2026),2):
+            main.cell(2,col,f"{year}E")
+            driver.cell(1,col,f"='Statement'!{main.cell(2,col).coordinate}")
+        driver["A4"] = "Revenue"
+        before = driver["E1"].value
+        data = io.BytesIO(); wb.save(data); data.seek(0)
+        cached = load_workbook(data,data_only=True)
+        self.assertIsNone(cached[driver.title]["E1"].value)
+        spec = discover(wb,cached,target_year=2025)
+        self.assertEqual(spec["year_axis"][driver.title]["columns"]["2025"],"E")
+        self.assertEqual(driver["E1"].value,before)
+
+    def test_system_examples_do_not_supply_calibration_answers(self):
+        from pipeline.mapping import MANDATE
+        from pipeline.reader import _SYSTEM
+        for value in ("88,018", "88018", "74,206", "74206", "76,061", "76061", "14,272"):
+            self.assertNotIn(value, MANDATE + _SYSTEM)
+
     def test_rerouting_without_writing_does_not_reset_the_progress_guard(self):
         from pipeline.mapping import run_mapping, _EMPTY_RUN
         loop, pages, census = museum._map_model_wide(n_rows=3,n_faces=6)

@@ -17,3 +17,11 @@ Local downloaded evidence: `/private/tmp/codex-cancelled-pilots/{DFE,CLP}/{artif
 The new draft removes the numeric early-abort rule, classifies historical documents using their printed identity before vision, retains agreeing unanchored transcriptions without claiming a verified scale, and requests higher resolution on missing/conflicting readings rather than model mismatch. It removes more pipeline code than it adds. Four extraction contract tests and the full existing bench pass. Workbook gates and fresh live pilots must complete before an accuracy/runtime claim.
 
 The earlier unit fix was pushed as bffc55e and GitHub regression run 35224106449 succeeded. Its three balanced replay results and successful EPS/inventory/finance-cost readiness cases are recorded under `validation/units`.
+
+## Later warm pilots and the cold-start clarification
+
+Runs 35228404338 (DFE) and 35228421482 (CLP), at dfa4cc4, were cancelled after the owner explicitly required no prior context in any form. Both loaded checked-in `spec.yaml`; the 15-minute CLP benchmark 35232276769 at 36b37bc also reused a pinned extraction and was cancelled. None meets that requirement. Their logs may inform engineering diagnosis but must never seed the cold agent.
+
+Before cancellation, CLP extraction/preparation took 10.5 minutes; the unrouted bulk pass produced 5 plain and 11 red writes, and later sequential mapping reached 62 plain / 70 red with 119 inputs unreached. DFE preparation took 17.1 minutes; bulk mapping produced 2 plain / 4 red, followed by 44 plain / 42 red with 136 unreached. These are intermediate coverage counts, not correct-input counts or final accuracy. They corroborate the route-before-bulk fix already independently pinned and committed in 36b37bc. Both runs reached review before cancellation; no completed-model verdict is claimed.
+
+The strict cold preflight additionally exposed missing formula-linked year headers and false check classification that saved specs had hidden. Their root causes and evidence-based changes are recorded in MVP_CHANGE_CONTRACT.md. The next live evaluation starts only from the original model and supplied PDFs, with a recorded input manifest.

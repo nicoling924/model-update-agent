@@ -62,3 +62,7 @@ Combined Claude routing/scope changes through 984e86b with Codex units, transact
 ## Routing before bulk mapping
 
 The first bulk pass now asks for semantic source assignments before constructing its batches. Replacing a refused route no longer resets the no-progress guard. Full bench, 21 shared contracts and four extraction contracts pass; all three pinned replays remain balanced (24/24, 118/118, 84/84). Strengthened readiness confirms that EPS 1.15, inventory 26171.15303444 and finance cost -1860 are reached in the bulk pass and remain in the delivered files, one source candidate each. Evidence: `validation/route-first/summary.json`. This is a dispatch gate, not an MVP acceptance claim.
+
+## Strict cold input and discovery
+
+The full bench, 25 shared contracts, four extraction contracts and four cold-launch tests pass. All three pinned replays retain passing balance results; all three named bulk-readiness values survive delivery with one source candidate each. Source hashes and exact results are in `validation/strict-cold/summary.json`. Cold preflight discovers ten dated CLP sheets from the workbook alone, versus five before header resolution. Live cold performance and independent review remain unproven; these historical fixtures measure regression only.

@@ -114,7 +114,48 @@ def period_tag(v):
     return "FY"
 
 
-def find_year_axis(ws, period_kind="FY"):
+def header_resolver(workbook):
+    """Read header expressions without depending on saved Excel caches.
+
+    A direct reference preserves its text/date type. Numeric header formulas
+    use the existing evaluator. Unknown or circular expressions prove no year.
+    This is a read-only view; the workbook's cells and formatting stay intact.
+    """
+    from .evaluator import Evaluator
+    evaluator, memo, visiting = Evaluator(workbook), {}, set()
+    direct = re.compile(r"^=\s*\+?\s*(?:(?:'((?:[^']|'')+)'|([^!]+))!)?"
+                        r"(\$?[A-Za-z]{1,3}\$?\d+)\s*$")
+
+    def value(sheet, coord):
+        key = (sheet, coord)
+        if key in memo:
+            return memo[key]
+        if key in visiting:
+            return None
+        visiting.add(key)
+        try:
+            raw = workbook[sheet][coord].value
+            if isinstance(raw, str) and raw.startswith("="):
+                match = direct.fullmatch(raw)
+                if match:
+                    target = (match.group(1) or match.group(2) or sheet).strip().replace("''", "'")
+                    result = value(target, match.group(3).replace("$", "").upper())
+                else:
+                    result = evaluator.cell(sheet, coord)
+                    if evaluator.cycles:
+                        result = None
+            else:
+                result = raw
+        except Exception:
+            result = None
+        finally:
+            visiting.remove(key)
+        memo[key] = result
+        return result
+    return value
+
+
+def find_year_axis(ws, period_kind="FY", resolve_header=None):
     """{year(str): column} from the top rows, or None.
 
     Candidate = a consecutive ascending run of year marks (>= _MIN_RUN).
@@ -122,6 +163,7 @@ def find_year_axis(ws, period_kind="FY"):
     panel, an interim update the interim panel — the 1H-panel trap), then
     run length, then topmost row."""
     from .evaluator import n2col
+    resolve_header = resolve_header or header_resolver(ws.parent)
     want_interim = period_kind.upper() != "FY"
     want_tag = {"1H": "H1", "H1": "H1", "2H": "H2", "H2": "H2"}.get(period_kind.upper())
     # ONE MARK PER COLUMN, THE TEXT MARK WINS (run 256 autopsy): a column's
@@ -135,6 +177,8 @@ def find_year_axis(ws, period_kind="FY"):
     for row in ws.iter_rows(min_row=1, max_row=min(_SCAN_ROWS, ws.max_row)):
         for c in row:
             v = getattr(c, "value", None)
+            if v is None or (isinstance(v, str) and v.startswith("=")):
+                v = resolve_header(ws.title, c.coordinate)
             y, _interim = _year_of(v)
             if y is None or not getattr(c, "column", None):
                 continue
@@ -297,11 +341,12 @@ def discover(wb_f, wb_v, target_year=None, period_kind="FY",
     """
     spec = {"year_axis": {}, "check_rows": [], "key_rows": [],
             "auto_discovered": True}
+    resolve_header = header_resolver(wb_f)
     for ws in wb_v.worksheets:
         sheet = ws.title
-        if sheet in skip_sheets or ws.sheet_state != "visible":
+        if sheet in skip_sheets:
             continue
-        axis = find_year_axis(ws, period_kind)
+        axis = find_year_axis(ws, period_kind, resolve_header=resolve_header)
         if not axis:
             continue
         if target_year is not None and str(target_year) not in axis:

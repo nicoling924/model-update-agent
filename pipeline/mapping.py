@@ -72,10 +72,10 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"page","doc":"report.pdf","n":23}                                the page's own text
   {"tool":"find","q":"46.3"}   or  {"q":"Fuel Cost"}    printed lines carrying that number or label
   {"tool":"show","ref":"Sheet!AI16"}                    the row, its history, what uses it
-  {"tool":"sets","sets":[{"ref":"Sheet!AI16","printed":74206,"doc":"report.pdf","page":23,
-      "line":"Operating expenses (74,206) (76,061)","because":"this is my opex row"}, ...]}
-  {"tool":"set","ref":"Sheet!AI20","value":432.2,"because":"p23: 396.2 + 36 — my row is the two lines together"}
-  {"tool":"set","ref":"Sheet!AI22","formula":"=88018-74206-1810","because":"p23: the print no longer
+  {"tool":"sets","sets":[{"ref":"Sheet!AI16","printed":30,"doc":"report.pdf","page":23,
+      "line":"Operating expenses (30) (25)","because":"this is my opex row"}, ...]}
+  {"tool":"set","ref":"Sheet!AI20","value":18,"because":"p23: 12 + 6 — my row is the two lines together"}
+  {"tool":"set","ref":"Sheet!AI22","formula":"=100-30-5","because":"p23: the print no longer
       splits this line, so I back it out of the total and the two lines it does print"}
   {"tool":"skip","ref":"Sheet!AI31","because":"this page is the auditor's report, it does not carry my row"}
       a skip is about THE PAGE YOU WERE SHOWN, and is never a verdict on the row: that page is taken off
@@ -86,7 +86,7 @@ executed in the order you write them; their answers come back in the next turn. 
       the income statement"}, ...]}      WHICH PAGE A ROW IS READ AGAINST IS YOURS TO SAY, never a number
       coincidence: name the page(s) and the row comes to you under them, with their text. You are asked
       this outright for the open rows, and you may say it in any turn.
-  {"tool":"restate","ref":"Sheet!AI16","printed":76061,"page":23,"line":"...","because":"the print's
+  {"tool":"restate","ref":"Sheet!AI16","printed":25,"page":23,"line":"...","because":"the print's
       comparative is not what my model holds for last year"}
   {"tool":"done"}                          accepted when every input row is filled or skipped with a reason
 

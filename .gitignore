@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .cache/
+.cold_work/
+cold_out/
 companies/*/model/*.xlsx
 companies/*/model/*.xlsm
 companies/*/model-archive/
