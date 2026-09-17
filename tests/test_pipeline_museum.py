@@ -7637,6 +7637,57 @@ def test_a_rewrite_on_names_the_brain_never_judged_lands_red_2026_09_17():
 
 
 
+# ── Owner 2026-09-17, ruling 2: THE MODEL'S OWN ARITHMETIC IS NOT TYPED OVER ──
+
+def test_a_subtotal_is_not_typed_over_its_inputs_are_named_2026_09_17():
+    """CLP live turn 4 (owner 2026-09-17): the review typed four printed
+    subtotals over four formula cells and the evidence "tied" — a tie proves the
+    number, never the right to replace the model's thinking. The guard lives in
+    the WRITER, so the review's `set`, the terminal ladder and every code writer
+    meet it, and it knows a subtotal from a projection by what the formula
+    READS: this period's own rows (the model works the figure out — set those
+    rows) against another period (a forecast projection standing in the actual
+    column, which the mark-to-actual recipe is meant to replace)."""
+    from pipeline.writer import Writer, same_period_inputs
+    wb = _wb({"AH10": 9000.0, "AH12": 3000.0, "AH13": 1800.0, "AH14": 700.0,
+              "AH15": "=AH10+AH12+AH13", "AH20": 0.03,
+              "AI10": 9400.0, "AI12": 3100.0, "AI13": 1772.0,
+              "AI14": "=AH14*(1+AH20)", "AI15": "=AI10+AI12+AI13",
+              "AI9": "='Driver'!AI37", "AI8": "=SUM(AI10:AI13)"})
+    w = Writer(wb)
+    # the exhibit: set Final!AI15 = 14,272 (the printed subtotal) is REFUSED
+    assert w.write("S", "AI15", 14272.0, prior_coord="AH15") is False
+    said = w.log["formula_refused"][-1]
+    assert said.startswith("S!AI15:"), said
+    for named in ("AI10", "AI12", "AI13"):
+        assert named in said, said          # the input rows are named for the brain
+    assert wb["S"]["AI15"].value == "=AI10+AI12+AI13", "the formula must survive"
+    # a link and a SUM over this period's rows are the same thing
+    assert w.write("S", "AI9", 1595.0, prior_coord="AH14") is False
+    assert w.write("S", "AI8", 14272.0, prior_coord="AH15") is False
+    # AI14 projects off LAST year — an input the mark-to-actual recipe replaces
+    assert w.write("S", "AI14", 742.0, prior_coord="AH14") is True
+    assert wb["S"]["AI14"].value == 742.0
+    # and a formula written over a formula is not a numeric write at all
+    assert w.write("S", "AI15", "=AI10+AI12", prior_coord="AH15") is True
+    assert same_period_inputs("=AH14*(1+AH20)", "AI14") == []
+
+
+def test_putting_the_analysts_own_content_back_is_never_refused_2026_09_17():
+    """A take-back and the review's `restore` return the cell to what the
+    analyst had. That is undoing a write, not typing over the model — the
+    formula guard must not strand a cell on a value the run put there."""
+    from pipeline.writer import Writer
+    wb = _wb({"AH15": 13800.0, "AI15": "=AI10+AI12", "AI10": 9400.0, "AI12": 3100.0})
+    w = Writer(wb)
+    assert w.write("S", "AI15", 14272.0, prior_coord="AH15") is False
+    # the run did land a number there by another (older) route:
+    wb["S"]["AI15"] = 14272.0
+    style = ("S", "AI15", "", None, False)
+    assert w.take_back("S", "AI15", "=AI10+AI12", style) is True
+    assert wb["S"]["AI15"].value == "=AI10+AI12"
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

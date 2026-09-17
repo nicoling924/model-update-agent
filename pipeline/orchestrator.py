@@ -1509,7 +1509,9 @@ class ObjectiveLoop:
                                note=f"objective loop: {why[:300]}",
                                flag=flag, allow_empty=bool(args.get("no_prior")))
         if not ok:
-            reason = (self.writer.log["band_refused"][-1]
+            reason = (self.writer.log["formula_refused"][-1]
+                      if self.writer.log.get("formula_refused") else
+                      self.writer.log["band_refused"][-1]
                       if self.writer.log["band_refused"] else
                       self.writer.log["lock_refused"][-1]
                       if self.writer.log["lock_refused"] else "guard refusal")

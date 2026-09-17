@@ -106,6 +106,38 @@ def _shape(formula):
     return _re.sub(r"(?<![A-Za-z_])\$?[A-Z]{1,3}\$?(\d+)", r"C\1", str(formula).replace("$", ""))
 
 
+# a cell reference, with an optional sheet qualifier; a function name that ends
+# in digits (LOG10() ) is not one — a reference is never called
+_REF = re.compile(r"(?<![A-Za-z0-9_$!.])(?:(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?"
+                  r"\$?([A-Z]{1,3})\$?(\d+)(?![A-Za-z0-9_(])")
+
+
+def same_period_inputs(formula, coord):
+    """THE ROWS THE MODEL WORKS THIS CELL OUT OF (owner 2026-09-17): the
+    references this formula reads that sit in the cell's OWN column — the same
+    period. A subtotal (=AI10+AI12+AI13), a link ('Driver'!AI37), a check
+    (=AI40-AI41-AI42) are all built out of this period's own rows: they are the
+    model's arithmetic, and the figure is changed by setting those rows. A
+    formula reaching into another column (=AH14*(1+AH20)) reads a DIFFERENT
+    period — that is a projection standing in the actual column, and the
+    mark-to-actual recipe replaces it with the disclosed figure.
+    -> the referenced same-period cells, in order, or []."""
+    col = "".join(ch for ch in str(coord) if ch.isalpha()).upper()
+    row = "".join(ch for ch in str(coord) if ch.isdigit())
+    body = str(formula)
+    if not body.startswith("="):
+        return []
+    out = []
+    for m in _REF.finditer(body[1:]):
+        sh, c, r = (m.group(1) or m.group(2) or ""), m.group(3).upper(), m.group(4)
+        if c != col or (not sh and r == row):
+            continue                 # another period, or the cell itself
+        ref = (f"{sh.strip()}!" if sh.strip() else "") + c + r
+        if ref not in out:
+            out.append(ref)
+    return out
+
+
 def unforecast_rows(wb, sheet, target_col, forecast_cols, evaluate=None, skip_rows=()):
     """THE ZERO FORECAST (owner 2026-09-14, CLP ROAFNA!AI71 'Coal-fired
     (CAPCO)': every forecast year linked to the actual, all 0 before the
@@ -321,7 +353,7 @@ class Writer:
 
     def write(self, sheet, coord, value, prior_coord=None, note=None,
               flag=None, trusted=False, force_lock=False, allow_empty=False,
-              kind=None):
+              kind=None, over_formula=False):
         """Write one cell through every guard, then read it back.
 
         trusted=True is for values whose magnitude is PROVEN (a checksummed
@@ -344,6 +376,26 @@ class Writer:
         if type(cell).__name__ == "MergedCell":
             self.log["skipped_merged"].append(ref)
             return False
+        # THE MODEL'S OWN ARITHMETIC IS NEVER TYPED OVER (owner 2026-09-17;
+        # CLP live turn 4 typed four printed subtotals over four formula cells
+        # and the evidence "tied" — a tie proves the NUMBER, never the right to
+        # replace the model's thinking). The guard lives in the writer, so the
+        # review loop's `set`, the terminal ladder and every code writer meet
+        # it. It knows one thing from the other by what the formula READS: a
+        # formula built out of THIS period's own rows is the model working the
+        # figure out (a subtotal, a link, a check) — set its inputs instead; a
+        # formula reaching into another period is a forecast projection sitting
+        # in the actual column, and the mark-to-actual recipe replaces exactly
+        # those with the disclosed figure.
+        if isinstance(cell.value, str) and cell.value.startswith("=") \
+                and not (isinstance(value, str) and str(value).startswith("=")) \
+                and not over_formula:
+            inputs = same_period_inputs(cell.value, coord)
+            if inputs:
+                self.log.setdefault("formula_refused", []).append(
+                    f"{ref}: {str(cell.value)[:70]} — the model works this row out of "
+                    + ", ".join(inputs[:8]))
+                return False
         # numeric preview (run-114): judge the NUMBER inside '=a*b' strings
         guard_v = value
         if isinstance(value, str) and _ARITH_FORMULA.match(value):
@@ -461,7 +513,9 @@ class Writer:
         run 2026-09-14 audit: reverted serves stayed locked and 'proven'),
         and it wears the colour the guard gives it (red: unconfirmed)."""
         ref = f"{sheet}!{coord}"
-        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        # putting the analyst's own content back is never "typing over the
+        # model's arithmetic" — it is undoing a write that already happened
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True, over_formula=True)
         if not ok:
             return False
         self.locked.discard(ref)
@@ -488,7 +542,9 @@ class Writer:
     def take_back(self, sheet, coord, old, style):
         """A write undone: the old value AND the old look; the cell is
         unlocked and un-served (what the run believed about it goes too)."""
-        ok = self.write(sheet, coord, old, trusted=True, force_lock=True)
+        # putting the analyst's own content back is never "typing over the
+        # model's arithmetic" — it is undoing a write that already happened
+        ok = self.write(sheet, coord, old, trusted=True, force_lock=True, over_formula=True)
         if ok:
             self.restore_style(sheet, coord, style)
             self.locked.discard(f"{sheet}!{coord}")

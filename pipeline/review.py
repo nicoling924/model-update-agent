@@ -604,7 +604,7 @@ def _sets_text(sets):
 def _apply_sets(loop, sets, plain, proven, note, log):
     """One change — a pair is ONE write batch: all of it lands or none of it
     does (a half-applied compensating pair is worse than neither half)."""
-    w, applied, refused = loop.writer, [], []
+    w, applied, refused, said = loop.writer, [], [], ""
     snap = snapshot(loop)
     try:
         for s_ in sets:
@@ -614,6 +614,12 @@ def _apply_sets(loop, sets, plain, proven, note, log):
                          trusted=bool(proven), force_lock=True, flag=None if plain else "red", note=note)
             (applied if ok else refused).append(f"{sh}!{co}")
             if not ok:
+                # SAY WHICH GUARD, AND WHAT TO DO INSTEAD (owner 2026-09-17): a
+                # refusal over the model's own arithmetic names the input rows,
+                # so the brain sets those rather than repeating the same call
+                last = (w.log.get("formula_refused") or [None])[-1]
+                if last and last.startswith(f"{sh}!{co}:"):
+                    said = last
                 continue
             if not plain:
                 loop.served.pop((sh, _row_of(co)), None)
@@ -625,8 +631,8 @@ def _apply_sets(loop, sets, plain, proven, note, log):
         return [], [f"{s_['sheet']}!{s_['coord']}" for s_ in sets], f"the write raised {type(e).__name__}: {str(e)[:90]}"
     if refused and applied:
         restore(loop, snap)
-        return [], refused + applied, "the writer refused part of the change, so none of it was kept"
-    return applied, refused, ""
+        return [], refused + applied, (said or "") + " — the writer refused part of the change, so none of it was kept"
+    return applied, refused, said
 
 
 # ── the loop ─────────────────────────────────────────────────────────────
@@ -776,6 +782,7 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         back = pre_wb[sh].cell(_row_of(co), _ci(_col_of(co))).value
         why = str(call.get("why") or "")[:200]
         ok = loop.writer.write(sh, co, back, trusted=True, force_lock=True, flag="red", allow_empty=True,
+                               over_formula=True,   # the analyst's own content goes back, whatever the run put there
                                note=f"Reverted by the brain: {why}. This input was moved by the run and is put back to what you had.")
         if ok:
             loop.served.pop((sh, _row_of(co)), None)
