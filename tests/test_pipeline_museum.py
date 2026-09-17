@@ -5975,11 +5975,19 @@ def _map_model_wide(n_rows=319, n_faces=6):
     return loop, pages, census
 
 
-def _drive(loop, pages, census, turns, deadline_s=30.0):
+def _drive(loop, pages, census, turns, deadline_s=30.0, routes=None, routed_said=None):
+    """The scripted brain. THE ROUTING CALL IS ITS OWN QUESTION (2026-09-18: the
+    loop asks which page each open row is read against before it reads): the
+    script answers it from `routes`, and a script with no routing answer says
+    nothing — the statement-face deal stands, as it did before the router."""
     from pipeline.mapping import run_mapping
-    said = []
+    said, routes = [], list(routes or ())
 
     def ask(system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            if routed_said is not None:
+                routed_said.append(user)
+            return routes.pop(0) if routes else {"thinking": "I route nothing", "calls": []}
         said.append(user)
         if not turns:
             return {"thinking": "the script is done", "calls": [{"tool": "done"}]}
@@ -6112,9 +6120,14 @@ def test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18():
     as "this disclosure does not carry the row", retiring 69 rows (55 on the
     core sheet) the statement faces would have answered. A page-scoped skip
     drops THAT PAGE'S lead and the row stays open; a skip against a statement
-    face, or with scope "disclosure", closes the row."""
+    face, or with scope "disclosure", closes the row.
+
+    (2026-09-18: the coincidental page reaches the row through the BRAIN's own
+    routing now — a lead never chooses the page — and the rule is unchanged.)"""
     from pipeline.mapping import _page_skips, open_queue, status_of, _written
     loop, pages, census = _map_model_junk_lead()
+    routes = [{"calls": [{"tool": "route", "routes": [
+        {"ref": "Final!C11", "pages": ["pres.pdf 37"], "because": "the presentation prints capex"}]}]}]
     turns = [{"calls": [
         {"tool": "skip", "ref": "Final!C11",
          "because": "p37 is the results presentation, it does not disclose development expenditure"},
@@ -6124,7 +6137,7 @@ def test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18():
             {"ref": "Final!C11", "printed": 350, "page": 23, "line": "Development expenditure 350 333",
              "because": "the face carries my row after all"}]}]},
         {"calls": [{"tool": "done"}]}]
-    _s, said = _drive(loop, pages, census, turns, deadline_s=8.0)
+    _s, said = _drive(loop, pages, census, turns, deadline_s=8.0, routes=routes)
     # the coincidental page is closed, the ROW is not
     assert _page_skips(loop).get("Final!C11") == {("pres.pdf", 37)}, _page_skips(loop)
     assert "Final!C11" not in loop.__dict__["_map_skipped"], "a page's refusal retired the row"
@@ -6232,6 +6245,100 @@ def test_a_page_skip_is_not_progress_2026_09_18():
     assert loop2.__dict__["_map_skipped"].get("Final!C9"), "scope disclosure did not settle the row"
     assert len(said2) >= 3, "the guard ended a run that was settling rows"
     print("PASS test_a_page_skip_is_not_progress_2026_09_18")
+
+
+def test_the_brain_routes_the_open_rows_to_their_pages_2026_09_18():
+    """LIVE 35217769192: after the face round, code paired each open row with a
+    page by its LEADS — a printed line anywhere in the report whose comparative
+    equalled the row's prior. The ties are coincidences, so the brain was shown
+    presentation highlight pages and an ESG page for rows they do not carry:
+    turns 3, 5, 6, 7 were twelve to fifteen refusals each and no write, and the
+    stuck guard ended the mapping with 237 of 327 rows never reached.
+
+    A lead never chooses the page. THE BRAIN ROUTES: it is shown the open rows
+    and the disclosure's page index and says which page each row is read
+    against; code deals the rows there. The leads stay under the row as
+    information."""
+    from pipeline.mapping import _routes, routed_page
+    loop, pages, census = _map_model_junk_lead()
+    seen = []
+    routes = [{"calls": [{"tool": "route", "routes": [
+        {"ref": "Final!C11", "pages": ["pres.pdf 37"], "because": "the presentation prints capex"},
+        {"ref": "Final!C4", "pages": [23], "because": "staff costs are on the income statement"}]}]}]
+    turns = [{"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns, deadline_s=8.0, routes=routes, routed_said=seen)
+    # THE ROUTING CALL SAW THE OPEN ROWS AND THE PAGE INDEX
+    assert seen, "the loop never asked the brain where the rows are read"
+    assert "Final!C11" in seen[0] and "Development expenditure" in seen[0], seen[0][:800]
+    assert "under 'Revenue'" in seen[0] or "| under '" in seen[0], seen[0][:800]
+    assert "pres.pdf p37" in seen[0] and "ar.pdf p23 [pl]" in seen[0], \
+        "the page index did not carry this disclosure's pages and their faces"
+    assert "Capex by business" in seen[0], "the index did not say what is printed on the page"
+    # AND THE ANSWER DEALS THE ROWS TO THOSE PAGES IN THE NEXT CONTEXT
+    assert _routes(loop)["Final!C11"] == [("pres.pdf", 37)], _routes(loop)
+    assert routed_page(loop, "Final", "C4") == ("ar.pdf", 23), _routes(loop)
+    ctx = said[0]
+    assert ctx.index("pres.pdf p37") < ctx.index("Final!C11 "), \
+        "the row was not put under the page the brain routed it to"
+    assert "lead: p37 'Capex by business" in ctx, "the lead stopped being shown under the row"
+    print("PASS test_the_brain_routes_the_open_rows_to_their_pages_2026_09_18")
+
+
+def test_a_row_the_router_sent_wrong_is_re_routed_and_one_it_closes_lands_red_2026_09_18():
+    """The two other halves of the rule. A row routed to a page it then REFUSES
+    comes back in the next routing call — batched with everything else open,
+    never one call per row — and the page it refused is not offered again. A row
+    the router says no page carries is closed there and then, red, with its
+    reason, through the one disclosure-scope path."""
+    from pipeline.mapping import _routes, status_of, _written
+    loop, pages, census = _map_model_junk_lead()
+    seen = []
+    routes = [{"calls": [{"tool": "route", "routes": [
+        {"ref": "Final!C11", "pages": [37], "because": "the presentation prints capex"}]}]},
+        {"calls": [
+            {"tool": "route", "routes": [{"ref": "Final!C11", "pages": [23],
+                                          "because": "it is on the income statement after all"}]},
+            {"tool": "skip", "ref": "Final!C9", "scope": "disclosure",
+             "because": "no page of this announcement splits the segments"}]}]
+    turns = [{"calls": [{"tool": "skip", "ref": "Final!C11",
+                         "because": "p37 is the presentation, it does not carry my row"}]},
+             {"calls": [{"tool": "sets", "sets": [
+                 {"ref": "Final!C11", "printed": 350, "page": 23,
+                  "line": "Development expenditure 350 333", "because": "my row, on the face"}]}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns, deadline_s=10.0, routes=routes, routed_said=seen)
+    # the re-route: the refused row is back in the NEXT routing call, with the others
+    assert len(seen) >= 2, f"the row was never re-routed: {len(seen)} routing call(s)"
+    assert "Final!C11" in seen[1], seen[1][:600]
+    assert "you refused pres.pdf p37" in seen[1], "the re-route did not carry what the row refused"
+    assert sum(1 for s in seen if "Final!C4" in s) >= 1, "the re-route was not batched with the open rows"
+    assert _routes(loop)["Final!C11"] == [("ar.pdf", 23)], _routes(loop)
+    assert loop.wb["Final"]["C11"].value == 350.0, loop.wb["Final"]["C11"].value
+    # the close: red, with the brain's own reason, and the row is settled
+    assert loop.__dict__["_map_skipped"].get("Final!C9"), "the router's close did not settle the row"
+    assert status_of(loop, "Final", "C9", _written(loop), loop.__dict__["_map_skipped"]) == "skipped"
+    assert "Final!C9" in loop.writer.log["flags"], "a row closed by the router is not red for the analyst"
+    print("PASS test_a_row_the_router_sent_wrong_is_re_routed_and_one_it_closes_lands_red_2026_09_18")
+
+
+def test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18():
+    """THE FALLBACK IS THE ONE THAT WAS ALREADY THERE (real shape, 30 rows over
+    three faces): a brain that routes nothing — or a routing call that is lost —
+    changes nothing, and every open row is still dealt to this run's statement
+    faces, never to a page a lead coincided with."""
+    from pipeline.mapping import build_context, input_rows, _routes
+    loop, pages, census = _map_model_wide(n_rows=30, n_faces=3)
+    seen = []
+    _s, said = _drive(loop, pages, census, [{"calls": [{"tool": "done"}]}],
+                      deadline_s=8.0, routed_said=seen)
+    assert seen and not _routes(loop), "a silent router routed something"
+    ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
+    faces = [f"ar.pdf p{20 + i}" for i in range(3)]
+    assert sum(1 for f in faces if f in ctx) >= 2, ctx[:1200]
+    # the rows that DO have a tying lead are dealt to the statement faces too —
+    # the tie is information under the row, never the page it is read against
+    assert "Model!C2 " in ctx and "===== PL — ar.pdf p20 =====" in ctx, ctx[:1200]
+    print("PASS test_a_router_that_answers_nothing_leaves_the_statement_faces_2026_09_18")
 
 
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
@@ -6668,7 +6775,9 @@ def test_a_read_it_has_already_made_is_not_progress_2026_09_17():
         n[0] += 1
         return {"thinking": "again", "calls": [{"tool": "show", "ref": "Final!C2"}, {"tool": "done"}]}
     run_mapping(loop, loop.wb, census, pages, logs.append, ask, deadline_s=30.0)
-    assert n[0] <= 4, f"the loop turned {n[0]} times on a brain repeating itself"
+    # (2026-09-18: one of these calls is the routing question, put ONCE — it is
+    # asked again only when a row's state changes, never turn after turn)
+    assert n[0] <= 5, f"the loop turned {n[0]} times on a brain repeating itself"
     assert any("changed nothing" in x or "read nothing" in x for x in logs), logs[-3:]
     print("PASS test_a_read_it_has_already_made_is_not_progress_2026_09_17")
 
@@ -6792,21 +6901,24 @@ def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
     def ask(_system, user):
         seen.append(user)
         time.sleep(0.4)                       # every call would be minutes; they must overlap
-        if "p23" in user:
+        # THE CONFLICT IS THE LIVE ONE: minority interests read off the P&L's
+        # perpetual distributions on one face and off the balance sheet's
+        # non-controlling interests on the other — both tie the model's prior of
+        # 900, so both land, and the row is the analyst's call. (The face is read
+        # off the call's own header: a row's leads name other pages in the body.)
+        if "ar.pdf p24" in user.splitlines()[0]:
             return {"calls": [{"tool": "sets", "sets": [
-                {"ref": "Final!C2", "printed": 88018, "page": 23, "line": "Revenue 88,018 76,061",
-                 "because": "revenue"},
-                {"ref": "Final!C3", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
-                 "because": "other gain"}]}]}
+                {"ref": "Final!C8", "printed": 1000, "page": 24,
+                 "line": "Non-controlling interests 1,000 900", "because": "my minority interests row"}]}]}
         return {"calls": [{"tool": "sets", "sets": [
-            {"ref": "Final!C2", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
+            {"ref": "Final!C8", "printed": 460, "page": 23, "line": "Other gains, net 460 420",
              "because": "I read the same row as something else"}]}]}
     n = map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=8)
     spent = time.monotonic() - t0
     assert n >= 1 and len(seen) >= 2, (n, len(seen))
     assert spent < 0.4 * len(seen), f"the faces were called one after another ({spent:.1f}s for {len(seen)})"
-    assert loop.wb["Final"]["C2"].value == 88018.0, loop.wb["Final"]["C2"].value
-    assert "Final!C2" in loop.writer.log["flags"], "a second reading overwrote the first in silence"
+    assert loop.wb["Final"]["C8"].value == -1000.0, loop.wb["Final"]["C8"].value
+    assert "Final!C8" in loop.writer.log["flags"], "a second reading overwrote the first in silence"
     print("PASS test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17")
 
 

@@ -80,6 +80,10 @@ executed in the order you write them; their answers come back in the next turn. 
       the row and the row comes back to you against a print it has not refused. Under each row you are
       shown the pages you have already refused for it. When NO print in this disclosure carries the row,
       add  "scope":"disclosure"  — that, and only that, closes the row, red, with your reason.
+  {"tool":"route","routes":[{"ref":"Sheet!AI31","pages":["ar.pdf 39", 15],"because":"my row prints on
+      the income statement"}, ...]}      WHICH PAGE A ROW IS READ AGAINST IS YOURS TO SAY, never a number
+      coincidence: name the page(s) and the row comes to you under them, with their text. You are asked
+      this outright for the open rows, and you may say it in any turn.
   {"tool":"restate","ref":"Sheet!AI16","printed":76061,"page":23,"line":"...","because":"the print's
       comparative is not what my model holds for last year"}
   {"tool":"done"}                          accepted when every input row is filled or skipped with a reason
@@ -468,6 +472,42 @@ def _read_against(loop):
     return loop.__dict__.setdefault("_map_read_against", {})
 
 
+def _routes(loop):
+    """{ref: [(doc, page)]} — THE PRINTS THE BRAIN SAID THIS ROW IS READ AGAINST
+    (live 35217769192: code paired a row with a page by a number coincidence —
+    a printed line anywhere in the report whose comparative equalled the row's
+    prior — and four sequential turns running were twelve to fifteen refusals
+    and no write, on presentation highlights and an ESG page. Which page carries
+    a row is a judgment of MEANING; the brain makes it, code deals the rows to
+    the pages it named.) A lead never chooses the page: it stays under the row
+    as information."""
+    return loop.__dict__.setdefault("_map_routes", {})
+
+
+def routed_page(loop, sheet, coord):
+    """The page this row is to be read against next: the first the brain routed
+    it to that it has not already refused, or None — then the statement-face
+    deal places it."""
+    refused = set(_refused_pages(loop, sheet, coord))
+    for key in _routes(loop).get(f"{sheet}!{coord}") or ():
+        if key not in refused:
+            return key
+    return None
+
+
+def needs_route(loop, sheet, coord):
+    """An open row with no page left that the brain routed it to, AND a question
+    the brain has not already been asked in this state — a row it routed nowhere
+    is not asked about again until something about it has changed (it refused a
+    print since), because the same question gets the same answer. The same
+    measure the stuck guard uses for a read."""
+    if routed_page(loop, sheet, coord) is not None:
+        return False
+    ref = f"{sheet}!{coord}"
+    asked = loop.__dict__.setdefault("_map_route_asked", {})
+    return asked.get(ref) != len(_refused_pages(loop, sheet, coord))
+
+
 def status_of(loop, sheet, coord, written, skipped):
     ref = f"{sheet}!{coord}"
     if ref in skipped:
@@ -555,6 +595,110 @@ def _faces(loop):
     """The pages the run judged to be statement faces: [(face, doc, page)]."""
     faces = getattr(loop.ledger, "faces", {}) or {}
     return sorted({(str(face), doc, int(pg)) for (doc, pg), face in faces.items() if face})
+
+
+def _other_period_docs(loop):
+    """The documents the run judged to prove a period OTHER than this one. They
+    are not offered as the place to read this year's figure; `page` and `find`
+    still read every one of them, and the brain may route a row to one by name."""
+    try:
+        return set(loop.ledger.noncurrent_docs() or ())   # evidence: the run's own vintage verdict on which document prints THIS period's column
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _index_heads(loop, page_text, cap=120):
+    """{(doc, page): [the first lines printed on it]} for this period's pages."""
+    old, heads = _other_period_docs(loop), {}
+    for it in _items(loop):
+        key = _page_of(it)
+        if key[0] in old:
+            continue
+        head = heads.setdefault(key, [])
+        q = _quote(it)
+        if q and len(" · ".join(head)) < cap:
+            head.append(q)
+    for key, txt in sorted((page_text or {}).items()):
+        key = (str(key[0]), int(key[1]))
+        if key[0] in old or heads.get(key) or not txt:
+            continue
+        heads[key] = [ln.strip() for ln in str(txt).splitlines() if ln.strip()][:4]
+    return heads
+
+
+def page_index(loop, page_text, cap=120):
+    """THE DISCLOSURE'S OWN CONTENTS: every page of this period's documents, one
+    line each — the page, the kind of face the run bound to it if it bound one,
+    and the first thing printed on it. This is what the brain routes a row to.
+    No page is left out and none is ranked: the reading is the brain's."""
+    faces = {(str(d), int(p)): str(f)
+             for (d, p), f in (getattr(loop.ledger, "faces", {}) or {}).items() if f}
+    heads, out = _index_heads(loop, page_text, cap), []
+    for key in sorted(heads):
+        d, p = key
+        out.append(f"  {d} p{p}" + (f" [{faces[key]}]" if key in faces else "")
+                   + ": " + " · ".join(heads[key])[:cap])
+    return out
+
+
+def _named_pages(loop, page_text, named):
+    """The pages of the index the brain's answer names. -> ([(doc, page)], why
+    not). A bare page number is every page of this disclosure that carries it;
+    a name fragment picks the document; a page the index does not hold is said
+    so, never guessed."""
+    keys = sorted(_index_heads(loop, page_text))
+    out, bad = [], []
+    for n in (named if isinstance(named, (list, tuple)) else [named]):
+        if isinstance(n, dict):
+            doc, pg = str(n.get("doc") or ""), n.get("page", n.get("n"))
+        else:
+            s = " ".join(str(n).split())
+            m = re.search(r"(?:^|[\s:p])(\d{1,4})\s*$", s)
+            pg = m.group(1) if m else s
+            doc = s[:m.start()].strip().rstrip(" :pP") if m else ""
+        try:
+            pg = int(str(pg).strip().lstrip("pP"))
+        except Exception:  # noqa: BLE001
+            bad.append(f"'{str(n)[:40]}' names no page of this disclosure")
+            continue
+        hit = [k for k in keys if k[1] == pg and (not doc or doc.lower() in k[0].lower())]
+        if not hit:
+            bad.append(f"p{pg}{(' of ' + doc) if doc else ''} is not a page of this period's documents")
+            continue
+        out += [k for k in hit if k not in out]
+    return out, bad
+
+
+def _t_route(loop, call, page_text):
+    """`route`: the brain says which page(s) of the disclosure a row is to be
+    read against. Code deals the row there next turn — and takes the row off
+    that page the moment the brain refuses it."""
+    raw = call.get("routes") or [call]
+    out = []
+    for s_ in (raw if isinstance(raw, list) else [raw]):
+        if not isinstance(s_, dict):
+            out.append(f"route: '{str(s_)[:50]}' is not a row object")
+            continue
+        sheet, coord, err = _parse_ref(loop, s_.get("ref", ""))
+        if err:
+            out.append(f"route: {err}")
+            continue
+        ref = f"{sheet}!{coord}"
+        keys, bad = _named_pages(loop, page_text, s_.get("pages", s_.get("page", [])))
+        refused = set(_refused_pages(loop, sheet, coord))
+        keep = [k for k in keys if k not in refused]
+        if bad:
+            out.append(f"route {ref}: " + "; ".join(bad[:3]))
+        if not keep:
+            out.append(f"route {ref}: no page of this disclosure to read it against"
+                       + (" — you have already refused " + ", ".join(f"{d} p{p}" for d, p in sorted(refused))
+                          if refused else "")
+                       + ". Name another page, or skip it with \"scope\":\"disclosure\" to close it.")
+            continue
+        _routes(loop)[ref] = keep
+        out.append(f"route {ref}: read against " + ", ".join(f"{d} p{p}" for d, p in keep)
+                   + " — the page's text comes with the row on the next turn.")
+    return out
 
 
 def cold_run():
@@ -840,14 +984,20 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     if cur >= len(queue):
         cur = 0
     order = queue[cur:] + queue[:cur]
-    lead_pages, with_lead = {}, set()
+    # A LEAD NEVER CHOOSES THE PAGE A ROW IS READ AGAINST (owner 2026-09-18,
+    # live 35217769192): pairing a row with a page because some printed line's
+    # comparative equals the row's prior is a number coincidence standing in for
+    # a judgment of meaning — it put presentation highlights and an ESG page
+    # under rows they do not carry, and four sequential turns running were
+    # nothing but refusals. THE BRAIN ROUTES (`route`, see the routing call);
+    # code deals each row to the page the brain named for it. The leads stay
+    # under the row, as information.
+    lead_pages, routed = {}, set()
     for sheet, coord, r in order:
-        pcol = prior_column(loop.spec, sheet, ty)
-        prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
-        for it, _cur in leads_for(loop, prior, k=2, skip_pages=_refused_pages(loop, sheet, coord)):
-            lead_pages.setdefault(_page_of(it), []).append(
-                (sheet, coord, r))
-            with_lead.add((sheet, coord))
+        pick = routed_page(loop, sheet, coord)
+        if pick is not None:
+            lead_pages.setdefault(pick, []).append((sheet, coord, r))
+            routed.add((sheet, coord))
     placed, room = set(), size_cap
     # THE EARLIER PERIOD'S FACES ARE ON THE SHELF, NOT IN THE CONTEXT (reviewer
     # 2026-09-17: last year's report filled the section with stubs). `page` and
@@ -856,14 +1006,14 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     try:
         here = {str(d) for d in (page_text.docs() if hasattr(page_text, "docs")
                                  else {d for d, _p in (page_text or {})})}
-        old_docs = set(loop.ledger.noncurrent_docs() or ())   # evidence: the run's own verdict on which document proves THIS period; the shelf still answers `page`/`find`
     except Exception:  # noqa: BLE001
-        old_docs = set()
+        here = set()
+    old_docs = _other_period_docs(loop)
     faces = [f for f in _faces(loop) if f[1] in here and f[1] not in old_docs]
-    # every open row gets a face: a lead puts it on its own page, and a row no
-    # printed line points at is read against the statement faces of this run —
-    # never one it has already refused
-    for _k, _chunk in spread_over_faces([t for t in order if (t[0], t[1]) not in with_lead],
+    # every open row gets a page: the one the brain routed it to, and a row the
+    # brain has not routed (or whose routed pages it has all refused) is read
+    # against the statement faces of this run — never one it has already refused
+    for _k, _chunk in spread_over_faces([t for t in order if (t[0], t[1]) not in routed],
                                         [(d, p) for _f, d, p in faces],
                                         refused=lambda t: _refused_pages(loop, t[0], t[1])).items():
         lead_pages.setdefault(_k, []).extend(_chunk)
@@ -1621,11 +1771,13 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
                 + f" — closed, not in this disclosure — {why[:90]}")
             out.append(f"skip {ref}: recorded red — {why[:100]}")
         return out
+    if tool == "route":
+        return _t_route(loop, call, page_text)
     if tool == "anatomy":
         return _t_anatomy(loop, call, log)
     if tool == "restate":
         return _t_restate(loop, call, page_text, sources, log)
-    return [f"'{tool}' is not one of the tools: page, find, show, set, sets, skip, restate, done"]
+    return [f"'{tool}' is not one of the tools: page, find, show, set, sets, skip, route, restate, done"]
 
 
 # ── the loop ─────────────────────────────────────────────────────────────
@@ -1645,20 +1797,19 @@ def _face_rows(loop, pre_wb, rows, skipped):
 
     EVERY OPEN ROW GETS A PAGE (owner 2026-09-17: the faces were built only from
     rows that had a lead, so a row with no printed line whose comparative ties
-    its prior was never shown to anybody and shipped "not reached"). A lead
-    places a row on its own page; a row with no lead is placed on the faces of
-    its own kind — the statement pages the name judgment identified — so the
-    brain at least reads it against the right print and can say why not."""
-    ev0 = Evaluator(pre_wb)
+    its prior was never shown to anybody and shipped "not reached"). THE PAGE IS
+    THE STATEMENT FACE, OR THE ONE THE BRAIN ROUTED THE ROW TO (owner 2026-09-18:
+    a lead placed the row on the page of a number coincidence — the face round
+    mapped what it dealt to the statement faces almost perfectly and burned the
+    rest on highlight pages). A lead is information under the row, never the
+    pick."""
     written, out, placed = _written(loop), {}, set()
     for sheet, coord, r in rows:
         if status_of(loop, sheet, coord, written, skipped) != "unfilled":
             continue
-        pcol = prior_column(loop.spec, sheet, int(loop.ty))
-        prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
-        for it, _cur in leads_for(loop, prior, k=2, skip_pages=_refused_pages(loop, sheet, coord)):
-            out.setdefault(_page_of(it), []).append(
-                (sheet, coord, r))
+        pick = routed_page(loop, sheet, coord)
+        if pick is not None:
+            out.setdefault(pick, []).append((sheet, coord, r))
             placed.add((sheet, coord))
     rest = [(sh, co, r) for sh, co, r in rows
             if (sh, co) not in placed and status_of(loop, sh, co, written, skipped) == "unfilled"]
@@ -1810,6 +1961,127 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
     return answered
 
 
+def _route_line(loop, pre_wb, ev0, sheet, coord, r, cls):
+    """One open row as the router sees it: what the model calls it, the section
+    it sits under, the figure it holds for last period, what it feeds — and the
+    prints it has already refused."""
+    pcol = prior_column(loop.spec, sheet, int(loop.ty))
+    prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
+    sec = _section_label(loop, sheet, r)
+    line = (f"  {sheet}!{coord:<6} {_label(loop.wb[sheet], r)[:40]:40} | under '{sec[:26]}' | prior "
+            f"{_fmt(prior):>12} | feeds {cls}")
+    refused = _refused_pages(loop, sheet, coord)
+    if refused:
+        line += " | you refused " + ", ".join(f"{d} p{p}" for d, p in sorted(refused))[:90]
+    return line
+
+
+def routing_context(loop, pre_wb, chunk, index_lines, lines, part=1, parts=1, n_open=0):
+    """THE ROUTING CALL: the open rows of the model on one side, the disclosure's
+    own contents on the other, and one question — which page does this row's
+    figure print on? Code cannot answer it: which page carries a row is what the
+    row MEANS, read against what the page IS."""
+    L = ["## ROUTE THE OPEN ROWS — which page of this disclosure does each one print on?",
+         "Code cannot pair a row with a page: a printed line whose comparative happens to equal a row's "
+         "prior is a coincidence, not a reading. You say where each row is read, and the next turns put "
+         "each row in front of the page you named, with that page's text.",
+         "Answer with `route` calls — one per row, or one batch:",
+         '  {"tool":"route","routes":[{"ref":"Sheet!C12","pages":["ar.pdf 39", 15],'
+         '"because":"my finance costs row prints on the income statement"}, ...]}',
+         "  `pages` may name several: the row is read against the first, and against the next only if you "
+         "refuse that one. A bare number is that page in every document of this disclosure.",
+         'If NO page of this disclosure carries a row, close it here: {"tool":"skip","ref":"Sheet!C12",'
+         '"scope":"disclosure","because":"..."} — it lands red for the analyst with your reason.',
+         "A row you route nowhere and do not close is read against this run's statement faces, in order.",
+         ""]
+    L.append(f"## THE OPEN ROWS ({len(chunk)} of the {n_open} still open"
+             + (f"; batch {part} of {parts}, by sheet" if parts > 1 else "") + ")")
+    for sheet, coord, _r in chunk:
+        L.append(lines[f"{sheet}!{coord}"])
+    L.append("")
+    L.append(f"## THE PAGES OF THIS DISCLOSURE ({len(index_lines)}) — page, the face this run bound to it "
+             "if it bound one, and what is printed at the top of it")
+    L += index_lines
+    return "\n".join(L)
+
+
+def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadline=None,
+                    rows_cap=22000):
+    """THE BRAIN ROUTES THE ROWS IT HAS NOT PLACED YET (live 35217769192: code
+    paired rows with pages by number coincidence and four turns running were
+    all refusals). Every open row with no page left that the brain named goes in
+    — the newly open and the re-routes together, never one row per call. Nothing
+    is capped by count: if the rows do not fit one call they are split by sheet.
+    -> how many rows this pass placed or closed."""
+    written = _written(loop)
+    need = [(sh, co, r) for sh, co, r in rows
+            if status_of(loop, sh, co, written, skipped) == "unfilled" and needs_route(loop, sh, co)]
+    if not need or ask_json is None:
+        return 0
+    index_lines = page_index(loop, page_text)
+    if not index_lines:
+        log("[map] routing: this run read no page of this period — the statement faces stand")
+        return 0
+    cls, ev0, lines, by_sheet = _classes(loop, rows), Evaluator(pre_wb), {}, {}
+    for sh, co, r in need:
+        lines[f"{sh}!{co}"] = _route_line(loop, pre_wb, ev0, sh, co, r, cls.get((sh, co), ""))
+        by_sheet.setdefault(sh, []).append((sh, co, r))
+    # ONE CALL IF THE ROWS FIT IN ONE; OTHERWISE BATCHES BY SHEET, and a sheet
+    # too big for a call is split across calls — never a row left out (reviewer
+    # 2026-09-17: a per-face count dropped 79 rows on the floor).
+    chunks, cur, room = [], [], rows_cap
+    for sheet in sorted(by_sheet):
+        here = by_sheet[sheet]
+        if cur and sum(len(lines[f"{t[0]}!{t[1]}"]) for t in here) > room:
+            chunks.append(cur)
+            cur, room = [], rows_cap
+        for t in here:
+            cost = len(lines[f"{t[0]}!{t[1]}"])
+            if cur and room - cost < 0:
+                chunks.append(cur)
+                cur, room = [], rows_cap
+            cur.append(t)
+            room -= cost
+    if cur:
+        chunks.append(cur)
+    sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
+    for i, chunk in enumerate(chunks, 1):
+        if deadline is not None and time.monotonic() > deadline:
+            log(f"[map] routing: the clock ended it after {i - 1} of {len(chunks)} batch(es)")
+            break
+        log(f"[map] routing: {len(chunk)} open row(s) over {len(index_lines)} page(s) "
+            f"(batch {i} of {len(chunks)})")
+        ctx = routing_context(loop, pre_wb, chunk, index_lines, lines, i, len(chunks), len(need))
+        # THE QUESTION IS PUT ONCE PER STATE, answered or not: a row is asked
+        # about again when something about it has changed (it refused a print),
+        # never turn after turn — the same question gets the same answer, and a
+        # routing call that is lost leaves the statement-face deal standing.
+        for sh, co, _r in chunk:
+            loop.__dict__.setdefault("_map_route_asked", {})[f"{sh}!{co}"] = \
+                len(_refused_pages(loop, sh, co))
+        try:
+            reply = ask_json(MANDATE, ctx)
+        except Exception as e:  # noqa: BLE001 — said in the log, and the statement-face deal stands
+            log(f"[map] routing: no answer ({e!r}) — these rows are read against the statement faces")
+            continue
+        log("[map] routing reply %s" % json.dumps(reply, ensure_ascii=False)[:4000])
+        for call in ((reply.get("calls") if isinstance(reply, dict) else None) or []):
+            if not isinstance(call, dict):
+                continue
+            try:
+                out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=deadline)
+            except Exception as e:  # noqa: BLE001
+                out = [f"    that routing call failed: {type(e).__name__}: {str(e)[:120]}"]
+                log(f"[map] routing: the call {json.dumps(call, ensure_ascii=False)[:120]} failed: {e!r}")
+            for ln in out:
+                log(f"[map]   {ln.strip()[:300]}")
+    placed = sum(1 for sh, co, _r in need
+                 if routed_page(loop, sh, co) is not None or f"{sh}!{co}" in skipped)
+    log(f"[map] routing: {placed} of {len(need)} open row(s) now have the brain's own page; "
+        "the rest are read against the statement faces")
+    return placed
+
+
 def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, brain=True):
     """THE MAPPING LOOP. Every turn: code lays out the printed faces beside the
     model's input rows with their leads, the brain calls tools, code verifies,
@@ -1832,6 +2104,16 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             if left <= 0:
                 log("[map] clock: the rest of the input rows are not reached")
                 break
+            # THE BRAIN ROUTES BEFORE IT READS: the rows it has not placed —
+            # newly open, or every page it named refused — are put to it as one
+            # question, and the turns below deal each row to the page it named.
+            try:
+                routed = route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log,
+                                         deadline=t0 + deadline_s)
+            except Exception as e:  # noqa: BLE001 — said in the log; the statement-face deal stands
+                routed = 0
+                log(f"[map] routing: the pass was lost ({e!r}) — the rows are read against the "
+                    "statement faces")
             try:
                 ctx = build_context(loop, pre_wb, rows, page_text, skipped,
                                     answers=answers, history=state["history"])
@@ -1950,7 +2232,11 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             # that lands nothing changes no cell, however many rows it names —
             # and a red flag is not a write either.
             _wrote = int(loop.__dict__.get("_map_cells") or 0) != _writes_before
-            if not _wrote and len(_written(loop)) + len(skipped) == _before and not _new_read:
+            # A ROUTING PASS THAT PLACED ROWS IS PROGRESS: it changes what the
+            # next turn shows — the row is in front of a different print — so
+            # the guard must not end the loop on the turn after a re-route.
+            if not _wrote and len(_written(loop)) + len(skipped) == _before and not _new_read \
+                    and not routed:
                 stuck += 1
                 answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
                                "your reason — another turn that changes nothing ends the mapping and the "

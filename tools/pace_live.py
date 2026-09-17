@@ -47,10 +47,13 @@ def main(argv):
     def log(*a):
         line = " ".join(str(x) for x in a)
         said.append(line)
-        if line.startswith("[map] the face round") or "[map] face" in line:
+        if line.startswith("[map] routing"):
+            stage["name"] = "routing"          # the brain saying which page each open row is read against
+        elif line.startswith("[map] the face round") or "[map] face" in line:
             stage["name"] = "faces"
         elif line.startswith("[map] turn") and stage["name"] != "sequential":
-            stage["name"] = "sequential" if "the face round took" in "\n".join(said[-3:]) or stage["name"] == "faces" else stage["name"]
+            stage["name"] = ("sequential" if stage["name"] in ("faces", "routing")
+                             or "the face round took" in "\n".join(said[-3:]) else stage["name"])
         elif line.startswith("[review]"):
             stage["name"] = "review"
         elif line.startswith("[anatomy]"):
@@ -78,7 +81,7 @@ def main(argv):
     m = re.search(r"of (\d+) input rows", head)
     if m:
         rows = int(m.group(1))
-        map_s = sum(c[1] for c in calls if c[0] in ("faces", "sequential")) or 1
+        map_s = sum(c[1] for c in calls if c[0] in ("faces", "routing", "sequential")) or 1
         print(f"rows/min of brain time in the mapping: {rows / (map_s/60):.1f}")
     out = Path("drytest_out"); out.mkdir(exist_ok=True)
     for p in Path(company).glob("model/*pipeline*.xlsx"):
