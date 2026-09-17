@@ -73,3 +73,15 @@ Generic rule: all reading and verification tools use the same accepted disclosur
 This completes the integrated candidate under validation. Source is frozen in `/private/tmp/codex-final-build`; the full suite and all three replay/routing-readiness cases passed. No more implementation is being added before the next live evidence.
 
 The final harness exposed a scope mismatch between the automatic face pass and routing: known prior-period pages still received current-input batches. The face pass now reuses `_other_period_docs` exactly as routing does; explicit historical page lookup remains available. A nineteenth shared contract pins both properties. The release snapshot is `/private/tmp/codex-release-build`; final evidence is recorded against that snapshot, superseding the earlier intermediate snapshots.
+
+## Route before bulk mapping (17 September, next candidate)
+
+Root cause: bulk mapping constructed its row/page batches before semantic routing, so the expensive first pass used positional assignments that the later routing stage could not undo efficiently.
+
+Generic rule: establish the model row's semantic source assignment before constructing its batch; page position and numeric coincidence are not assignment evidence. The same mapping clock includes routing. Compact route replies need only references and pages when the choice is unambiguous; figure/definition verification remains in the shared write path.
+
+Related root cause: treating each replacement route as fresh progress let repeated refusals reset the no-progress guard without writing a cell. Generic rule: only the first placement counts as newly completed routing work; a corrected route does not manufacture another unit of progress. This reuses the independently reproduced finding from Claude commit d364d98, without taking its unrelated changes.
+
+Pins: `Contract.test_bulk_mapping_routes_before_it_builds_any_face_batch` failed before the change and now proves a row is read and written from its routed note page in the bulk pass. `Contract.test_rerouting_without_writing_does_not_reset_the_progress_guard` reproduced nine refusal turns before the change versus the existing guard's four-turn bound. Existing concurrency/refusal museum fixtures now explicitly answer the new routing question; their substantive assertions are unchanged.
+
+The readiness harness now requires the named cell to be reached in the bulk pass, rather than allowing the sequential cleanup to mask this ordering defect. Full bench and 21 shared contracts plus four extraction contracts passed. All three frozen replays remain balanced, and all three bulk-readiness values survive delivery with one source candidate each; see validation/route-first/summary.json. Running full pilots remain on dfa4cc4 and are not evidence for this new candidate.

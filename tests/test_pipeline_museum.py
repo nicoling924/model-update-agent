@@ -6206,6 +6206,8 @@ def test_a_face_round_refusal_deals_the_row_to_the_next_face_2026_09_18():
     ref, saw, carried = "Model!C25", [], []
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"calls": []}
         if ref + " " not in user:
             return {"calls": []}
         saw.append(user.splitlines()[0].split("—")[-1].strip())
@@ -6900,6 +6902,8 @@ def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
     seen, t0 = [], time.monotonic()
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"calls": []}
         seen.append(user)
         time.sleep(0.4)                       # every call would be minutes; they must overlap
         # THE CONFLICT IS THE LIVE ONE: minority interests read off the P&L's
@@ -7148,6 +7152,8 @@ def test_the_faces_are_mapped_while_the_writes_land_2026_09_17():
     said = []
 
     def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            return {"calls": []}
         said.append(user)
         time.sleep(0.02)                     # the main thread applies a batch meanwhile
         return {"calls": [{"tool": "sets", "sets": [

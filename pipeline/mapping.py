@@ -1951,6 +1951,12 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
     loop.__dict__["_map_pages"] = page_text
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
     skipped = loop.__dict__.setdefault("_map_skipped", {})
+    t0, answered = time.monotonic(), 0
+    # A batch inherits the semantic page assignment before it is built. Doing
+    # this only in the later sequential pass leaves the bulk reads paired by
+    # position, regardless of what the model row or disclosure actually means.
+    route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log,
+                    deadline=t0 + deadline_s)
     by_face = _face_rows(loop, pre_wb, rows, skipped)
     faces = {(d, p): f for f, d, p in _faces(loop)}
     work = sorted(by_face.items(), key=lambda kv: -len(kv[1]))
@@ -1959,8 +1965,6 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
         return 0
     log(f"[map] {len(work)} face(s) to map, {workers} at a time; "
         f"{sum(len(v) for _k, v in work)} rows between them")
-    t0, answered = time.monotonic(), 0
-
     import threading
     _lock = threading.Lock()
 
@@ -2050,7 +2054,9 @@ def routing_context(loop, pre_wb, chunk, index_lines, lines, part=1, parts=1, n_
          "each row in front of the page you named, with that page's text.",
          "Answer with `route` calls — one per row, or one batch:",
          '  {"tool":"route","routes":[{"ref":"Sheet!C12","pages":["ar.pdf 39", 15],'
-         '"because":"my finance costs row prints on the income statement"}, ...]}',
+         '"because":"optional explanation when ambiguous"}, ...]}',
+         "Keep routing compact: ref and pages are sufficient for an unambiguous choice. "
+         "The later mapping turn verifies the figure and its definition.",
          "  `pages` may name several: the row is read against the first, and against the next only if you "
          "refuse that one. A bare number is that page in every document of this disclosure.",
          'If NO page of this disclosure carries a row, close it here: {"tool":"skip","ref":"Sheet!C12",'
@@ -2108,6 +2114,7 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
     if cur:
         chunks.append(cur)
     sources = {getattr(it, "doc", None) for it in _items(loop)} - {None}
+    previously_placed = set(_routes(loop)) | set(skipped)
     for i, chunk in enumerate(chunks, 1):
         if deadline is not None and time.monotonic() > deadline:
             log(f"[map] routing: the clock ended it after {i - 1} of {len(chunks)} batch(es)")
@@ -2139,8 +2146,11 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
             for ln in out:
                 log(f"[map]   {ln.strip()[:300]}")
     placed = sum(1 for sh, co, _r in need
-                 if routed_page(loop, sh, co) is not None or f"{sh}!{co}" in skipped)
-    log(f"[map] routing: {placed} of {len(need)} open row(s) now have the brain's own page; "
+                 if (routed_page(loop, sh, co) is not None or f"{sh}!{co}" in skipped)
+                 and f"{sh}!{co}" not in previously_placed)
+    # Replacing a refused route is not another completed unit of work. It
+    # cannot reset the same progress guard that protects time for review.
+    log(f"[map] routing: {placed} of {len(need)} open row(s) placed for the first time; "
         "the rest are read against the statement faces")
     return placed
 

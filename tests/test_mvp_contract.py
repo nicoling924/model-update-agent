@@ -14,6 +14,45 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_rerouting_without_writing_does_not_reset_the_progress_guard(self):
+        from pipeline.mapping import run_mapping, _EMPTY_RUN
+        loop, pages, census = museum._map_model_wide(n_rows=3,n_faces=6)
+        turns, logs, page = [], [], [20]
+        def answer(system, context):
+            if context.startswith("## ROUTE THE OPEN ROWS"):
+                page[0] = 20 + (page[0] - 19) % 6
+                return {"calls":[{"tool":"route","ref":"Model!C2","pages":[page[0]]}]}
+            turns.append(context)
+            return {"calls":[{"tool":"skip","ref":"Model!C2","because":"This print does not carry it"}]}
+        run_mapping(loop,loop.wb,census,pages,logs.append,answer,deadline_s=30)
+        self.assertLessEqual(len(turns),_EMPTY_RUN+1)
+        self.assertIn("Model!C2",loop.writer.log["flags"])
+
+    def test_bulk_mapping_routes_before_it_builds_any_face_batch(self):
+        from pipeline.mapping import map_faces
+        loop, pages, census = museum._map_model()
+        pages[("ar.pdf",77)] = "Other gains, net 460 420"
+        loop.ledger.faces[("ar.pdf",77)] = "notes"
+        calls = []
+        def answer(system, context):
+            calls.append(context)
+            if "## ROUTE THE OPEN ROWS" in context:
+                return {"calls":[{"tool":"route","routes":[
+                    {"ref":"Final!C2","pages":[{"doc":"ar.pdf","page":23}]},
+                    {"ref":"Final!C3","pages":[{"doc":"ar.pdf","page":77}]}]}]}
+            if "ar.pdf p77" in context.splitlines()[0]:
+                self.assertIn("Final!C3 ", context)
+                return {"calls":[{"tool":"set","ref":"Final!C3","doc":"ar.pdf","page":77,
+                                  "printed":460,"line":"Other gains, net 460 420"}]}
+            return {"calls":[]}
+        map_faces(loop,loop.wb,census,pages,lambda *a:None,answer,deadline_s=30,workers=1)
+        self.assertTrue(calls)
+        self.assertIn("## ROUTE THE OPEN ROWS", calls[0])
+        self.assertTrue(any("## THIS TURN IS ONE FACE" in c for c in calls[1:]))
+        self.assertEqual(loop.wb["Final"]["C3"].value,460)
+        other_face = next(c for c in calls if "## THIS TURN IS ONE FACE" in c and "ar.pdf p23" in c.splitlines()[0])
+        self.assertNotIn("Final!C3     Other gain", other_face)
+
     def test_automatic_face_pass_uses_the_same_period_scope_as_routing(self):
         from pipeline.mapping import _face_rows, input_rows, _one_call
         loop, pages, census = museum._map_model()

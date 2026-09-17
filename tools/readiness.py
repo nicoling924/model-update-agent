@@ -89,7 +89,13 @@ def main(argv):
             seen[p["ref"]] = ("MAPPING PROPOSAL", str(p.get("line", "")))
         def maps(system, user):
             if route_first and user.startswith("## THIS TURN IS ONE FACE"):
-                return {"calls": []}
+                head = user.splitlines()[0]
+                batch = [p for p in pending if f"{p['doc']} p{p['page']}" in head
+                         and p['ref'] in user]
+                for p in batch:
+                    pending.remove(p)
+                    seen[p['ref']] = ("BULK MAPPING PROPOSAL", str(p.get("line", "")))
+                return {"calls": [{"tool":"sets", "sets":batch}]} if batch else {"calls":[]}
             if route_first and user.startswith("## ROUTE THE OPEN ROWS"):
                 return {"calls": [{"tool":"route", "routes":[
                     {"ref":p["ref"], "pages":[{"doc":p["doc"], "page":p["page"]}]}
@@ -139,6 +145,9 @@ def main(argv):
                 good = str(shown) == exp
             verdict = "OK" if good else "FAIL"
             fails += not good
+        if route_first and asked != "BULK MAPPING PROPOSAL":
+            verdict = "FAIL (not reached through bulk mapping)"
+            fails += 1
         print(f"[readiness] {cell}: card {asked} -> value {shown!r} fill {rgb} {verdict} | {note}")
     return 0 if (ok and not fails) else 1
 

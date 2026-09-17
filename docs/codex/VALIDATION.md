@@ -58,3 +58,7 @@ The reader now separates disclosure transcription from compatibility with model 
 ## Integrated candidate gate
 
 Combined Claude routing/scope changes through 984e86b with Codex units, transactional evidence, precision checks and extraction changes. The page tool now exposes accepted scanned rows to the same verifier, complete routing replies are replayable, and automatic face selection shares routing’s period scope. Full bench, 19 shared contracts and four extraction contracts pass. Three replays remain balanced (24/24, 118/118, 84/84); routing-first readiness confirms the intended page and final value for EPS, inventory and finance cost, with one source candidate each. See `validation/integrated/summary.json`. Fresh live pilots, independent semantic/rollover review and native calculation remain outstanding for MVP acceptance.
+
+## Routing before bulk mapping
+
+The first bulk pass now asks for semantic source assignments before constructing its batches. Replacing a refused route no longer resets the no-progress guard. Full bench, 21 shared contracts and four extraction contracts pass; all three pinned replays remain balanced (24/24, 118/118, 84/84). Strengthened readiness confirms that EPS 1.15, inventory 26171.15303444 and finance cost -1860 are reached in the bulk pass and remain in the delivered files, one source candidate each. Evidence: `validation/route-first/summary.json`. This is a dispatch gate, not an MVP acceptance claim.
