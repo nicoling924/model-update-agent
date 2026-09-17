@@ -452,7 +452,7 @@ def _refused_pages(loop, sheet, coord):
     return _page_skips(loop).get(f"{sheet}!{coord}") or ()
 
 
-_WHOLE_DISCLOSURE = ("disclosure", "document", "run", "all", "whole disclosure", "not disclosed")
+_WHOLE_DISCLOSURE = ("disclosure", "document", "run", "all", "whole disclosure")
 
 
 def _whole_disclosure(scope):
@@ -1557,7 +1557,8 @@ def _t_anatomy(loop, call, log):
             f"{measured} key row(s) are measured from now on"] + out
 
 
-def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=None, face=None):
+def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=None, face=None,
+              face_refs=None):
     tool = str(call.get("tool") or "").strip().lower()
     if tool == "page":
         return _page_text_of(page_text, call.get("n") or call.get("page") or 0)
@@ -1591,14 +1592,16 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
             if not why:
                 out.append(f"skip {ref}: a skip carries your reason — say why")
                 continue
-            where = face or _read_against(loop).get(ref)
+            # the face is the print this row was read against only if the row was on it;
+            # a ref the brain reached from the key table was read against its own print
+            where = (face if (face and (face_refs is None or ref in face_refs))
+                     else _read_against(loop).get(ref))
             whole = _whole_disclosure(e.get("scope"))
             if not whole and where is None:
                 out.append(f"skip {ref}: no print was in front of you for this row, so there is nothing to "
                            "take off it. `find` or `page` what carries it — or, if NO print in this "
                            "disclosure does, skip it again with \"scope\":\"disclosure\" and it is closed.")
                 continue
-            _written(loop).pop(ref, None)      # the last action on a cell is the one that stands
             if not whole:
                 _page_skips(loop).setdefault(ref, set()).add(where)
                 # it is re-paired with a print it has not refused
@@ -1609,6 +1612,7 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
                            "it again, and the row stays open for the prints that do carry it. If NO print in "
                            "this disclosure carries it, skip it again with \"scope\":\"disclosure\".")
                 continue
+            _written(loop).pop(ref, None)      # closing the row retracts what was written on it
             loop.writer.flag_ref(ref, "red", f"NOT MAPPED — the analyst's own judgment: {why[:200]}")
             skipped[ref] = why
             loop.__dict__.setdefault("_map_refused", []).append(
@@ -1793,7 +1797,8 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
                     # the face this reply was read against: a refusal here is a
                     # refusal of THIS print, and code knows which one it was
                     out = _one_call(loop, pre_wb, call, page_text, sources, skipped, log,
-                                    deadline=t0 + deadline_s, face=(doc, pg))
+                                    deadline=t0 + deadline_s, face=(doc, pg),
+                                    face_refs={f"{t[0]}!{t[1]}" for t in (by_face.get((doc, pg)) or [])})
                 for ln in out:
                     log(f"[map]   {ln.strip()[:300]}")
             log(f"[map] face {doc} p{pg}: answered in {took:.0f}s")
