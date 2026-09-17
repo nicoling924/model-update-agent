@@ -283,21 +283,30 @@ def resolve_rows(wb, spec, target_year, period, primary=None):
         key, _l, group, _kind, _names, _excl, keynames = role
         best = None
         pool = []
+        # A ROW THE BRAIN NAMED OUTRANKS ANY LABEL MATCH (reviewer 2026-09-17,
+        # the CX cold model: Revenue was drawn from AO16 'Overall unit revenue
+        # (RASK)', EBITDA from a net-debt/EBITDA ratio, EBIT from a cash-flow
+        # line and Total equity from the row excluding minorities — while the
+        # anatomy had NAMED the right rows. Label matching is what code does
+        # when nobody has read the model; once someone has, it is the reading
+        # that counts.)
         for k in keys:
             if norm_label(k.get("name")) in {norm_label(x) for x in keynames} and k.get("sheet") in cands \
                     and isinstance(k.get("row"), int):
-                pool.append((k["sheet"], int(k["row"]), _label_of(wb[k["sheet"]], int(k["row"])) or str(k.get("name")), 4))
+                judged = 1 if str(k.get("source") or "").strip() in ("brain", "the brain's anatomy") else 0
+                pool.append((k["sheet"], int(k["row"]),
+                             _label_of(wb[k["sheet"]], int(k["row"])) or str(k.get("name")), 4, judged))
         for sh, rows in cands.items():
             for r, lab in rows:
                 s = _score(role, lab)
                 if s:
-                    pool.append((sh, r, lab, s))
-        for sh, r, lab, s in pool:
+                    pool.append((sh, r, lab, s, 0))
+        for sh, r, lab, s, judged in pool:
             if (sh, r) in taken:
                 continue
             near = placed.get((group, sh))
             dist = abs(r - near) if near is not None else 0
-            rank = (len(axes[sh]), 1 if s >= 2 else 0, 1 if sh == primary else 0, -dist, s, -r)
+            rank = (judged, len(axes[sh]), 1 if s >= 2 else 0, 1 if sh == primary else 0, -dist, s, -r)
             if best is None or rank > best[0]:
                 best = (rank, sh, r, lab)
         if best is not None:
@@ -483,7 +492,9 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     # with nothing to measure, "balance and cash checks closed, every year" is
     # the report saying an objective holds that was never tested. The banner
     # says what is true — balance NOT measured — and the analyst knows to look.
-    measured = bool(spec.get("check_rows") or [])
+    # the run's OWN balance pair counts as measured: objective 1 exists on a
+    # model that declares no check row of its own (reviewer 2026-09-17)
+    measured = bool((spec.get("check_rows") or []) or (spec.get("check_pairs") or []))
     kt = extra.get("key_ties") or []
     n_tied = sum(1 for k in kt if isinstance(k, dict) and k.get("tied"))
     kind = period_kind(period)

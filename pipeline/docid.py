@@ -664,6 +664,7 @@ KEY_NAMES = ("revenue", "gross profit", "operating profit", "net profit",
              "recurring net profit", "eps", "dps", "total assets",
              "current assets", "non-current assets",
              "current liabilities", "non-current liabilities",
+             "total liabilities and equity",
              "total equity", "operating cash flow", "investing cash flow",
              "financing cash flow", "cash year end")
 

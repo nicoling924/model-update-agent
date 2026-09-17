@@ -71,6 +71,25 @@ def _fmt(x):
     return f"{x:,.2f}" if abs(x) < 10000 else f"{x:,.0f}"
 
 
+def _ev(loop, ev, sheet, coord):
+    """What this cell computes, or None — NEVER a raise. This evaluator cannot
+    do every function Excel can (AVERAGEIFS, a full-column reference, '&'), and
+    on the CX cold model one such cell took the WHOLE review context down:
+    "[review] FAULT the review context could not be built … SyntaxError", then
+    "every objective holds" (reviewer 2026-09-17). A cell code cannot work out
+    is skipped and SAID; it never costs the analyst the review."""
+    try:
+        return _num(ev.cell(sheet, coord))
+    except Exception as e:  # noqa: BLE001
+        _fault(loop, f"{sheet}!{coord} could not be evaluated here ({type(e).__name__}) — "
+                     "shown from the workbook's own cached value where it has one")
+        try:
+            raw = ev.wb[sheet][coord].value if hasattr(ev, "wb") else None
+        except Exception:  # noqa: BLE001
+            raw = None
+        return _num(raw)
+
+
 def _held(wb, ev, sheet, coord):
     """The number this cell HOLDS, or None. AN EMPTY CELL HOLDS NOTHING
     (reviewer 2026-09-16): an evaluator answers 0 for a blank reference, and
@@ -395,8 +414,8 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
         if not ac:
             continue
         hist = " | ".join(_fmt(_held(pre_wb, ev0, sh, f"{c}{r}")) for c in _hist_cols(loop, sh))
-        est, now = _fmt(_num(ev0.cell(sh, f"{ac}{r}"))), _fmt(_num(ev.cell(sh, f"{ac}{r}")))
-        nx = (f" | next {_fmt(_num(ev0.cell(sh, f'{fcs[0]}{r}')))} → {_fmt(_num(ev.cell(sh, f'{fcs[0]}{r}')))}") if fcs else ""
+        est, now = _fmt(_ev(loop, ev0, sh, f"{ac}{r}")), _fmt(_ev(loop, ev, sh, f"{ac}{r}"))
+        nx = (f" | next {_fmt(_ev(loop, ev0, sh, f'{fcs[0]}{r}'))} → {_fmt(_ev(loop, ev, sh, f'{fcs[0]}{r}'))}") if fcs else ""
         L.append(f"  {sh}!{ac}{r:<5} {role:26} {hist} | est {est} | now {now}{nx}")
     L.append("")
     L.append("## 3. EVERY CELL THE RUN WROTE IN THE ACTUAL COLUMN (largest move against the cell's own "
@@ -434,8 +453,14 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
 
     def _line(row):
         sh_, co_, lab, old_, new_, hist_, flag, evid = row
+        # A PLAIN CELL WITH NO PRINTED LINE IS A CONTRADICTION, AND IT IS NAMED
+        # (reviewer 2026-09-17: two cells said "no printed line supports this
+        # figure" and wore no colour at all; the brain had to notice the two
+        # columns disagreeing for itself)
+        odd = (" ⚠ PLAIN, yet nothing on file prints it — one of the two is wrong"
+               if str(flag).strip() in ("", "plain") and "no printed line" in evid else "")
         return (f"  {sh_}!{co_:<6} {lab:40} was {_fmt(old_):>12} → now {_fmt(new_):>12} | "
-                f"history {(', '.join(_fmt(h) for h in hist_) or 'none in this model'):34} | {flag:6} | {evid}")
+                f"history {(', '.join(_fmt(h) for h in hist_) or 'none in this model'):34} | {flag:6} | {evid}{odd}")
     # the section is capped by SIZE, not by a row count: what the brain can read
     # in one turn is a budget of characters, and the rest is named as unshown
     room, shown = size_cap, 0

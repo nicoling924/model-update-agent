@@ -62,7 +62,41 @@ def _disclosures(company_dir, period):
     return sorted(str(p) for p in root.glob("*.[pP][dD][fF]"))
 
 
-def _write_served(wb, spec_d, target_year, served, writer, priors, log):
+def _judge_serve(wb, spec_d, target_year, ledger, entry, sheet, row, value, pv, log):
+    """EVERY WRITE MEETS THE EVIDENCE LAW (reviewer 2026-09-17: judge_write had
+    ONE caller, the objective loop's set_input — the serves, the composites, the
+    rollover and the ladder never met the coincidence or kin test. On the CX
+    cold model CXMODEL!AO223 took 59,101 from a printed row with NO LABEL AT
+    ALL, which name_mismatches skips by construction, so the name judge never
+    saw it and it shipped PLAIN into an unbalanced balance sheet).
+    -> (flag, note_suffix): what this serve must wear, or (None, "")."""
+    if ledger is None or not isinstance(value, (int, float)):
+        return None, ""
+    try:
+        from .naming import block_context
+        from .writegate import (claimed_keys, find_evidence, judge_write)
+        lab = ""
+        for c in ("A", "B", "C", "D", "E"):
+            v = wb[sheet][f"{c}{row}"].value
+            if isinstance(v, str) and v.strip() and not v.startswith("="):
+                lab = v.strip()
+                break
+        verdict, why, forced = judge_write(
+            value, pv if isinstance(pv, (int, float)) else None, False,
+            find_evidence(ledger.items, value), claimed_keys({}),
+            all_items=ledger.items,
+            row_named=bool(entry.get("named")),
+            row_label=lab, block=block_context(wb, sheet, int(row)))
+    except Exception as e:      # noqa: BLE001 — said, never swallowed
+        log(f"[run] serve {sheet}!{row} could not be judged ({type(e).__name__}: {str(e)[:70]}) "
+            "— it lands RED rather than unexamined")
+        return "red", " [this serve could not be put through the evidence law — please check]"
+    if forced == "red" or verdict in ("REFUSE", "ALLOW_FLAGGED"):
+        return "red", f" [{why[:150]}]"
+    return None, ""
+
+
+def _write_served(wb, spec_d, target_year, served, writer, priors, log, ledger=None):
     """Served values -> input cells, per the mark-to-actual law: only where
     the number is actually TYPED. Formula rows redirect to their input site
     (link-through models) or stay computed (derived rows).
@@ -115,16 +149,26 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log):
                     and isinstance(site_pv, (int, float)) and site_pv != 0 \
                     and (row_pv < 0) != (site_pv < 0):
                 value = -value      # the link between site and row negates
+        s_pv = wb[s_sheet][f"{s_pcol}{s_row}"].value if s_pcol else None
+        j_flag, j_why = _judge_serve(wb, spec_d, target_year, ledger, entry,
+                                     s_sheet, s_row, value, s_pv, log)
+        flag = entry.get("flag") or j_flag
+        conf = int(entry.get("conf") or 0)
+        if j_flag == "red":
+            # a coincidence is never proven, and never locked (the morning's rule 1)
+            entry["flag"], entry["conf"] = "red", min(conf, 3)
+            entry["note"] = (entry.get("note") or "") + j_why
+            conf = min(conf, 3)
         ok = writer.write(
             s_sheet, f"{s_tcol}{s_row}", value,
             prior_coord=f"{s_pcol}{s_row}" if s_pcol else None,
-            note=entry.get("note"), flag=entry.get("flag"),
-            trusted=int(entry.get("conf") or 0) >= 4)
+            note=(entry.get("note") or "") + ("" if j_flag != "red" else ""),
+            flag=flag, trusted=conf >= 4)
         if ok:
             n_written += 1
             entry["homed"] = True
             entry["home"] = (s_sheet, f"{s_tcol}{s_row}")
-            if int(entry.get("conf") or 0) >= 5:
+            if int(entry.get("conf") or 0) >= 5 and j_flag != "red":
                 writer.lock(s_sheet, f"{s_tcol}{s_row}")
     log(f"[run] wrote {n_written} served values "
         f"({n_redirect} redirected to input sites, {n_skip} derived/skipped)")
@@ -281,7 +325,8 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     from .anatomy import read as _read_anatomy, wanted as _anatomy_wanted
     if _anatomy_wanted(spec_d):
         try:
-            _read_anatomy(wb, spec_d, client, target_year, log, period=str(period))
+            _read_anatomy(wb, spec_d, client, target_year, log, period=str(period),
+                          values_wb=wb_values)
         except Exception as _e_an:     # noqa: BLE001
             log(f"[anatomy] STAGE LOST: the structure turn crashed ({_e_an!r}) — "
                 "the deterministic discovery stands")
@@ -627,7 +672,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     except Exception as _e_nm:
         log(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
         run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm!r})")
-    _write_served(wb, spec_d, target_year, served, writer, prior_map, log)
+    _write_served(wb, spec_d, target_year, served, writer, prior_map, log, ledger)
 
     # -- ROLL-FORWARD SCHEDULES (owner 2026-09-10): the vertical prior tie —
     # a movement table's opening row is last year's closing; the model's
@@ -674,7 +719,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         except Exception as _e_nm2:
             log(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
             run_log.append(f"[names] STAGE LOST: name judgment crashed ({_e_nm2!r})")
-        _write_served(wb, spec_d, target_year, gap_served, writer, prior_map, log)
+        _write_served(wb, spec_d, target_year, gap_served, writer, prior_map, log, ledger)
     else:
         log("[run] stage 3 skipped: no client (dry run)")
 
@@ -1510,6 +1555,13 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     for _sl in run_log:
         if "STAGE LOST" in str(_sl):
             open_checks.append(str(_sl)[:120])
+    # AN OBJECTIVE THE MEASURE COULD NOT TAKE IS NOT AN OBJECTIVE THAT HOLDS
+    # (reviewer 2026-09-17: on CX the review context died on a SyntaxError and
+    # the run went on to say "every objective holds"). Every fault the loop
+    # recorded reaches the analyst's page, red.
+    for _f in (locals().get("loop").__dict__.get("objective_faults", [])
+               if isinstance(locals().get("loop"), object) and hasattr(locals().get("loop"), "__dict__") else [])[:12]:
+        open_checks.append(f"objective NOT measured: {str(_f)[:110]}")
     tag = ""
     out_path = (company_dir / "model"
                 / f"{model_path.stem} {period} (pipeline{tag}){model_path.suffix}")

@@ -138,17 +138,27 @@ def same_period_inputs(formula, coord):
     body = str(formula)
     if not body.startswith("="):
         return []
-    out = []
+    out, held_sheet = [], ""
     for m in _REF.finditer(body[1:]):
         sh, c, r = (m.group(1) or m.group(2) or ""), m.group(3).upper(), m.group(4)
-        if not sh.strip():
+        sh = sh.strip()
+        # A RANGE'S END BELONGS TO THE RANGE'S SHEET (reviewer 2026-09-17:
+        # '=SUM(Driver!AI6:AI9)' named 'Driver!AI6' and a bare 'AI9', so 81 of
+        # 112 cross-sheet ranges pointed the brain at the wrong sheet in the very
+        # message telling it where to write instead). Excel qualifies a range
+        # once, at its start; the cell after a ':' inherits that qualifier.
+        at = m.start() + 1
+        if not sh and at > 0 and body[at - 1] == ":":
+            sh = held_sheet
+        held_sheet = sh
+        if not sh:
             if c != col:
                 return []            # another period of this row's own axis: a projection
             if r == row:
                 continue             # the cell itself
             ref = c + r
         else:
-            ref = f"{sh.strip()}!{c}{r}"    # another sheet: a link, whatever its column
+            ref = f"{sh}!{c}{r}"     # another sheet: a link, whatever its column
         if ref not in out:
             out.append(ref)
     return out

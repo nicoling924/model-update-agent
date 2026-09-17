@@ -66,6 +66,31 @@ def scorecard(wb, spec, target_year, served=None, flags=None):
                                   "expect": expect,
                                   "status": "PASS" if ok else "FAIL"})
 
+    # THE SYNTHETIC BALANCE CHECK (owner/reviewer 2026-09-17, the CX cold model:
+    # it shipped 1,787 out of balance and NOTHING measured it, because the book
+    # declares no check row of its own). Objective 1 must exist on EVERY model:
+    # when the anatomy names the two total rows, code measures their difference
+    # itself. It is said on the report as the run's own check, never as one the
+    # analyst wrote.
+    for cp in spec.get("check_pairs") or []:
+        sheet = cp.get("sheet")
+        a_row, b_row = int(cp.get("a_row")), int(cp.get("b_row"))
+        b_sheet = cp.get("b_sheet") or sheet
+        for year, col in sorted(year_columns(spec, sheet).items()):
+            bcol = year_columns(spec, b_sheet).get(year) or col
+            name = f"{cp.get('name') or 'balance'} [run's own] {sheet}!r{a_row}−{b_sheet}!r{b_row} ({year})"
+            try:
+                got = ev.cell(sheet, f"{col}{a_row}") - ev.cell(b_sheet, f"{bcol}{b_row}")
+            except Exception as e:  # noqa: BLE001
+                out["eval_errors"].append(f"{name}: {e}")
+                out["checks"].append({"name": name, "year": year, "got": None,
+                                      "expect": 0.0, "status": "EVAL_ERROR"})
+                continue
+            ok = isinstance(got, (int, float)) and abs(got) <= CHECK_TOL
+            out["checks"].append({"name": name, "year": year,
+                                  "got": got if isinstance(got, (int, float)) else None,
+                                  "expect": 0.0, "status": "PASS" if ok else "FAIL"})
+
     tcol_by_sheet = {sh: year_columns(spec, sh).get(str(target_year))
                      for sh in (spec.get("year_axis") or {})}
     for k in spec.get("key_rows") or []:

@@ -8162,6 +8162,214 @@ def test_the_glossary_is_not_a_coincidence_but_an_unlike_name_is_2026_09_17():
     assert name_is_kin(jce, "Share of results", ["Jointly controlled entities"]) is True
 
 
+
+
+# ── The cold-model reviewer's confirmed findings, 2026-09-17 ────────────────
+
+def test_the_anatomy_prompt_budgets_by_content_not_by_sheet_count_2026_09_17():
+    """C1 BLOCKER (reviewer 2026-09-17): the prompt split its budget equally over
+    CX's eight sheets, so CXMODEL was cut at row 83 and the brain never saw
+    revenue (118), operating profit (133) or the ten other rows the turn exists
+    to find — while six of the eight sheets are a few hundred characters and the
+    whole book reads in 17.6k. A sheet takes what it NEEDS; the statement-shaped
+    sheets go first; anything cut is said."""
+    import openpyxl
+    from pipeline import anatomy
+    from pipeline.discover import discover
+    wb = _cold_model()
+    # seven small sheets crowding the one that matters — the CX shape
+    for n in range(7):
+        ws = wb.create_sheet(f"Aux{n}")
+        for r in range(1, 30):
+            ws[f"A{r}"] = f"aux line {r}"
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    txt = anatomy.sheet_reading(wb, spec, 2025)
+    body = txt[txt.index("--- CXMODEL"):]
+    nxt = body.find("\n--- ", 1)
+    body = body[:nxt] if nxt > 0 else body
+    for r in (112, 114, 116, 118, 131, 133, 140, 141, 142, 150):
+        assert f"\n  {r}: " in body or body.startswith(f"  {r}: "), (r, body[-500:])
+    # the statement sheet is served FIRST, before the small ones
+    assert txt.index("--- CXMODEL") < txt.index("--- Aux0"), txt[:200]
+    # and a budget that truly cannot fit says which sheets it dropped
+    tiny = anatomy.sheet_reading(wb, spec, 2025, cap=600)
+    assert "did not fit this turn and are NOT shown" in tiny, tiny[-300:]
+
+
+def test_a_key_is_not_rejected_for_the_evaluators_own_limits_2026_09_17():
+    """C2 (reviewer 2026-09-17): the CX referee threw out 10 of 12 correct keys
+    because this evaluator cannot compute AVERAGEIFS, a full-column FX!B:B or
+    '&'. A key is verified by EXISTING as a row the model computes; when code
+    cannot work it out, the workbook's own cached value stands, and if there is
+    none the key is still taken and marked "not evaluable offline"."""
+    import openpyxl
+    from pipeline import anatomy
+    from pipeline.discover import discover
+    wb = _cold_model()
+    wb["CXMODEL"]["A159"] = "Underlying profit"
+    for col in ("AK", "AL", "AM", "AN", "AO", "AP", "AQ"):
+        wb["CXMODEL"][f"{col}159"] = f'=AVERAGEIFS(FX!B:B,FX!A:A,">0")&""'
+    values = openpyxl.Workbook()          # what Excel last computed
+    vs = values.active
+    vs.title = "CXMODEL"
+    vs["AO159"] = 3912.0
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+
+    class _Brain:
+        def json(self, _s, _u, _v, **k):
+            return {"keys": [{"name": "recurring net profit", "ref": "CXMODEL!159"},
+                             {"name": "revenue", "ref": "CXMODEL!118"}],
+                    "checks": ["CXMODEL!142"], "because": "x"}
+    logs = []
+    n_c, n_k, dropped = anatomy.read(wb, spec, _Brain(), 2025, logs.append, values_wb=values)
+    taken = {k["name"] for k in spec["key_rows"]}
+    assert "recurring net profit" in taken, (taken, dropped)
+    assert n_k == 2, (n_k, dropped)
+    assert not any("recurring" in d for d in dropped), dropped
+    assert any("cached value" in x for x in logs), logs
+    # with no cached value either, the key is STILL taken and said to be offline
+    n2 = anatomy.read(_cold_model(), discover(wb, wb, target_year=2025, period_kind="FY"),
+                      _Brain(), 2025, logs.append)
+    assert isinstance(n2, tuple)
+
+
+def test_a_model_with_no_check_row_still_has_a_balance_objective_2026_09_17():
+    """C4a (reviewer 2026-09-17): CX shipped 1,787 out of balance — assets
+    171,244 against liabilities and equity 169,457 — and NOTHING measured it,
+    because the book declares no check row of its own. Objective 1 must exist on
+    every model: the two total rows the brain named ARE the balance test, and
+    code measures their difference from the anatomy turn on."""
+    from pipeline import anatomy
+    from pipeline.checks import scorecard
+    from pipeline.discover import discover
+    wb = _cold_model()
+    wb["CXMODEL"]["A141"] = "Total liabilities and equity"
+    wb["CXMODEL"]["AO141"] = 248213.0          # 1,787 short of AO140's 250,000... shape
+    spec = discover(wb, wb, target_year=2025, period_kind="FY")
+    spec["check_rows"] = []
+
+    class _Brain:
+        def json(self, _s, _u, _v, **k):
+            return {"checks": [], "because": "this book carries no check row",
+                    "keys": [{"name": "total assets", "ref": "CXMODEL!140"},
+                             {"name": "total liabilities and equity", "ref": "CXMODEL!141"}]}
+    logs = []
+    anatomy.read(wb, spec, _Brain(), 2025, logs.append)
+    assert spec.get("check_pairs"), spec.get("check_pairs")
+    cp = spec["check_pairs"][0]
+    assert (cp["a_row"], cp["b_row"]) == (140, 141), cp
+    assert any("the balance objective is the run's own" in x for x in logs), logs
+    card = scorecard(wb, spec, 2025)
+    bal = [c for c in card["checks"] if "balance" in c["name"] and c["year"] == "2025"]
+    assert bal and bal[0]["status"] == "FAIL", bal
+    assert abs(bal[0]["got"] - (250000.0 * 1.08 - 248213.0)) < 1.0 or bal[0]["got"] != 0, bal
+    assert "run's own" in bal[0]["name"], bal[0]["name"]
+    # and the report no longer calls that "balance NOT measured"
+    from pipeline.reportpage import build
+    build(wb, None, spec, 2025, "FY25", {"period": "FY25"}, logs.append)
+    banner = "".join(str(wb["_REPORT"].cell(r, 1).value or "") for r in range(1, 8))
+    assert "balance NOT measured" not in banner, banner[:300]
+
+
+def test_a_serve_meets_the_evidence_law_like_every_other_write_2026_09_17():
+    """C4b (reviewer 2026-09-17): judge_write had ONE caller. CXMODEL!AO223 took
+    59,101 from a printed row with NO LABEL AT ALL — which name_mismatches skips
+    by construction, so the name judge never saw it — and it shipped PLAIN into
+    an unbalanced balance sheet. Serves now meet the same law: an unlabelled or
+    unlike-named line lands RED and is never proven or locked."""
+    import openpyxl
+    from pipeline.run import _write_served
+    from pipeline.writer import Writer
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "CXMODEL"
+    ws["A223"] = "Non-current liabilities"
+    ws["AN223"], ws["AO223"] = 68498.0, None
+    spec = {"year_axis": {"CXMODEL": {"columns": {"2024": "AN", "2025": "AO"}}}}
+    led = Ledger()
+    led.add(Item(doc="cx.pdf", page=87, table_id=0, row_ord=0, label="",
+                 nums=[59101.0, 68498.0], source_line="59,101 68,498"))
+    led.faces[("cx.pdf", 87)] = "bs"
+    w = Writer(wb)
+    served = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None,
+                                 "note": "walk serve", "doc": "cx.pdf", "page": 87}}
+    _write_served(wb, spec, 2025, served, w, {}, lambda *_a: None, led)
+    assert ws["AO223"].value == 59101.0
+    assert "CXMODEL!AO223" in w.log["flags"], w.log["flags"]
+    assert str(ws["AO223"].fill.fgColor.rgb or "").endswith("FFC7CE"), ws["AO223"].fill.fgColor.rgb
+    assert served[("CXMODEL", 223)]["conf"] <= 3, served
+    assert "CXMODEL!AO223" not in w.locked, w.locked
+    # the SAME figure off a line the brain named lands plain
+    wb2 = openpyxl.Workbook()
+    ws2 = wb2.active
+    ws2.title = "CXMODEL"
+    ws2["A223"] = "Non-current liabilities"
+    ws2["AN223"] = 68498.0
+    w2 = Writer(wb2)
+    served2 = {("CXMODEL", 223): {"value": 59101.0, "conf": 4, "flag": None, "named": True,
+                                  "note": "the brain picked this row", "doc": "cx.pdf", "page": 87}}
+    _write_served(wb2, spec, 2025, served2, w2, {}, lambda *_a: None, led)
+    assert ws2["AO223"].value == 59101.0
+    assert "CXMODEL!AO223" not in w2.log["flags"], w2.log["flags"]
+
+
+def test_the_report_table_uses_the_rows_the_brain_named_2026_09_17():
+    """C5 (reviewer 2026-09-17): on the cold model the report drew Revenue from
+    'Overall unit revenue (RASK)' and EBIT from a cash-flow line while the
+    anatomy had NAMED the right rows. Label matching is what code does when
+    nobody has read the model; once someone has, the reading counts."""
+    from pipeline.reportpage import resolve_rows
+    wb = _cold_model()
+    wb["CXMODEL"]["A16"] = "Overall unit revenue (RASK)"
+    for col in ("AK", "AL", "AM", "AN", "AO", "AP", "AQ"):
+        wb["CXMODEL"][f"{col}16"] = 0.61
+    spec = {"year_axis": {"CXMODEL": {"columns": {"2021": "AK", "2022": "AL", "2023": "AM",
+                                                  "2024": "AN", "2025": "AO", "2026": "AP", "2027": "AQ"}}},
+            "key_rows": [{"name": "revenue", "sheet": "CXMODEL", "row": 118,
+                          "source": "the brain's anatomy"}]}
+    placed = resolve_rows(wb, spec, 2025, "FY25")[0]
+    assert placed["revenue"][1] == 118, placed.get("revenue")
+    # without the brain's reading, label matching is all code has
+    spec2 = dict(spec, key_rows=[])
+    placed2 = resolve_rows(wb, spec2, 2025, "FY25")[0]
+    assert placed2.get("revenue") is None or placed2["revenue"][1] in (16, 118), placed2.get("revenue")
+
+
+def test_a_ranges_end_belongs_to_the_ranges_sheet_2026_09_17():
+    """G1 (reviewer 2026-09-17): '=SUM(Driver!AI6:AI9)' named 'Driver!AI6' and a
+    bare 'AI9' — 81 of 112 cross-sheet ranges pointed the brain at the wrong
+    sheet in the very message telling it where to write instead."""
+    from pipeline.writer import same_period_inputs as f
+    assert f("=SUM(Driver!AI6:AI9)", "AI5") == ["Driver!AI6", "Driver!AI9"]
+    assert f("=SUM('SOC Accounts'!AI6:AI9)+AI4", "AI5") == \
+        ["SOC Accounts!AI6", "SOC Accounts!AI9", "AI4"]
+    assert f("=SUM(AI10:AI13)", "AI15") == ["AI10", "AI13"]
+    assert f("=Driver!AI6+AI9", "AI5") == ["Driver!AI6", "AI9"]     # not a range: AI9 is local
+
+
+def test_kinship_reads_the_glossary_and_tells_the_directions_apart_2026_09_17():
+    """R1b (owner ruling 2026-09-17): kinship ignored the house glossary —
+    turnover/revenue, revenue/sales, finance costs/interest expense, JCE/joint
+    ventures all False — while 'operating activities' and 'investing activities'
+    came back True. The glossary is the cascade's first rung; the activity and
+    direction words are what tell two lines apart."""
+    from pipeline.numerics import kinship as k
+    for a, b in (("Turnover", "Revenue"), ("Revenue", "Sales"),
+                 ("Finance costs", "Interest expense"),
+                 ("Jointly controlled entities", "Joint ventures"),
+                 ("Revenues", "Revenue")):
+        assert k(a, b) is True, (a, b)
+    for a, b in (("net cash from operating activities", "net cash from investing activities"),
+                 ("Trade receivables", "Trade payables"),
+                 ("Current liabilities", "Non-current liabilities"),
+                 ("经营活动产生的现金流量净额", "投资活动产生的现金流量净额"),
+                 ("Lost Days", "Finance costs")):
+        assert k(a, b) is False, (a, b)
+    # a family one label says nothing about does not block kinship
+    assert k("Current assets", "Current liabilities") is True
+    assert k("Associates", "Joint ventures") is False
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

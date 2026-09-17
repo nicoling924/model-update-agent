@@ -243,10 +243,64 @@ def norm_label(s):
     return re.sub(r"[^a-z0-9一-鿿]+", " ", t.lower()).strip()
 
 
+# WORDS THAT TELL TWO LINES APART (owner ruling 2026-09-17). Within a family
+# the members are mutually exclusive: two labels that each carry a member, and
+# carry DIFFERENT ones, name opposite things however much else they share --
+# 'net cash from operating activities' and 'net cash from investing activities'
+# share every other word, and kinship called them kin.
+DISTINGUISHERS = [
+    {"operating": ("operating", "operations", "经营"),
+     "investing": ("investing", "investment", "投资"),
+     "financing": ("financing", "筹资", "融资")},
+    {"current": ("current", "流动"),
+     "noncurrent": ("non current", "noncurrent", "non-current", "长期", "非流动")},
+    {"receivable": ("receivable", "receivables", "应收"),
+     "payable": ("payable", "payables", "应付")},
+]
+
+
+def _distinguished(na, nb):
+    """Do these two labels carry DIFFERENT members of the same family? Then
+    they are not kin, whatever else they share. A label carrying none of a
+    family's words says nothing about that family."""
+    for fam in DISTINGUISHERS:
+        ha = {k for k, words in fam.items() if any(w in na for w in words)}
+        hb = {k for k, words in fam.items() if any(w in nb for w in words)}
+        # 'non current' contains 'current': the longer member owns its label
+        if "noncurrent" in ha:
+            ha.discard("current")
+        if "noncurrent" in hb:
+            hb.discard("current")
+        if ha and hb and not (ha & hb):
+            return True
+    return False
+
+
+def _stem(w):
+    """A word's stem, for matching: the plural forms only. A stemmer that
+    reaches further starts inventing kinship."""
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 4 and w.endswith(("ses", "xes", "ches", "shes")):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
 def kinship(a, b):
     """Non-vacuous label kinship: POSITIVE evidence required.
 
-    Languages with spaces: content-word overlap (stopwords and <=2-char
+    THE HOUSE GLOSSARY IS THE FIRST RUNG (owner ruling 2026-09-17): 'turnover'
+    and 'revenue' share no word and are the same line, and CLAUDE.md's cascade
+    says so -- a kinship that does not read the glossary calls the department's
+    own vocabulary a coincidence. Words match on their STEMS, so 'revenues' is
+    'revenue'. And the activity and direction words TELL LINES APART: operating
+    / investing / financing, current / non-current, receivable / payable. Two
+    labels carrying different members of one family are not kin however many
+    other words they share.
+
+    Languages with spaces: content-word overlap on stems (stopwords and <=2-char
     tokens carry no identity). CJK / short labels: normalized substring
     containment, both sides >= 2 chars. An empty content-word set confirms
     NOTHING — vacuous truth is how every hint-path poison got in.
@@ -257,11 +311,15 @@ def kinship(a, b):
     na, nb = norm_label(a), norm_label(b)
     if not na or not nb:
         return False
+    if _distinguished(na, nb):
+        return False                      # opposite members of one family
+    if synonymous(na, nb):
+        return True                       # the house glossary, cascade rung 1
     import re as _re
     cjk = bool(_re.search(r"[\u4e00-\u9fff]", na + nb))
     if not cjk:
-        wa = {w for w in na.split() if w not in STOPWORDS and len(w) > 2}
-        wb = {w for w in nb.split() if w not in STOPWORDS and len(w) > 2}
+        wa = {_stem(w) for w in na.split() if w not in STOPWORDS and len(w) > 2}
+        wb = {_stem(w) for w in nb.split() if w not in STOPWORDS and len(w) > 2}
         if wa and wb:
             return bool(wa & wb)
     sa, sb = na.replace(" ", ""), nb.replace(" ", "")
