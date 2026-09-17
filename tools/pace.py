@@ -11,6 +11,7 @@ stated think-time per turn, so the answer is honest about which half is which.
 
 It writes no live call and needs no brain.
 """
+import os
 import re
 import sys
 import time
@@ -18,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+_SKIP_SCOPE = (os.environ.get("PACE_SKIP_SCOPE") or "disclosure").strip().lower()
 _ROW = re.compile(r"^\s{2}([^\s!]+(?: [^\s!]+)*)!([A-Z]{1,3}\d+)\s")
 _LEAD = re.compile(r"lead: p(\d+) '(.+?)' → this year ([-\d,\.]+)")
 
@@ -45,13 +47,21 @@ def _turn_from_context(user, batch):
                 break
     if not sets:
         # nothing left that a lead can answer: say so row by row, as the brain
-        # must — an unmapped row is a judgment with a reason, never a silence
+        # must — an unmapped row is a judgment with a reason, never a silence.
+        # THIS BRAIN'S REASON IS ABOUT THE WHOLE DISCLOSURE ("no printed line ON
+        # FILE carries this row's prior"), so its skip carries that scope: a
+        # bare skip is about the page it was shown, and this brain was never
+        # reading one. PACE_SKIP_SCOPE=page drives the other path instead — the
+        # row comes back against a print it has not refused, and a brain that
+        # only refuses is ended by the stuck guard.
         skips = []
         for line in user.splitlines():
             m = _ROW.match(line)
             if m and "unfilled" in line:
                 skips.append({"tool": "skip", "ref": f"{m.group(1)}!{m.group(2)}",
                               "because": "no printed line on file carries this row's prior"})
+                if _SKIP_SCOPE != "page":
+                    skips[-1]["scope"] = _SKIP_SCOPE
             if len(skips) >= batch * 4:
                 break
         if skips:

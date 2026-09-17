@@ -76,9 +76,10 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"set","ref":"Sheet!AI22","formula":"=88018-74206-1810","because":"p23: the print no longer
       splits this line, so I back it out of the total and the two lines it does print"}
   {"tool":"skip","ref":"Sheet!AI31","because":"this page is the auditor's report, it does not carry my row"}
-      a skip is about THIS PAGE unless you say otherwise: the page's lead for that row is dropped and the
-      row comes back to you against a statement face. When NO print in this disclosure carries the row,
-      add  "scope":"disclosure"  — that closes the row, red, with your reason.
+      a skip is about THE PAGE YOU WERE SHOWN, and is never a verdict on the row: that page is taken off
+      the row and the row comes back to you against a print it has not refused. Under each row you are
+      shown the pages you have already refused for it. When NO print in this disclosure carries the row,
+      add  "scope":"disclosure"  — that, and only that, closes the row, red, with your reason.
   {"tool":"restate","ref":"Sheet!AI16","printed":76061,"page":23,"line":"...","because":"the print's
       comparative is not what my model holds for last year"}
   {"tool":"done"}                          accepted when every input row is filled or skipped with a reason
@@ -102,8 +103,9 @@ page. A renamed neighbour is your reading, not a string match.
 model's own sign convention). `value` is in the model's units and needs arithmetic in `because`.
 A set lands PLAIN when the quoted line is on that page and its comparative ties your model's prior,
 or when the arithmetic re-computes; otherwise it lands RED with your reason, for the analyst. It is
-never refused for want of evidence. A `skip` of the whole disclosure lands red too — "not disclosed" is
-your judgment, recorded; a skip of one page is not a verdict on the row and marks nothing."""
+never refused for want of evidence. A `skip` carrying scope "disclosure" lands red too — "no print here
+carries it" is your judgment, recorded; a skip of the page in front of you marks nothing and settles
+nothing: it takes that page off the row, and the row comes back."""
 
 
 # ── the index: what code FINDS ───────────────────────────────────────────
@@ -439,16 +441,25 @@ def _page_skips(loop):
     and bank loans under the auditor's report; the brain answered "p37 does not
     disclose Development expenditure" — a verdict on the row AGAINST THAT PAGE —
     and code read it as "this disclosure does not carry the row", retiring 69
-    rows the statement faces would have answered). A refusal drops that page's
-    leads for that row; the row stays open."""
+    rows the statement faces would have answered). A refusal takes that page off
+    the row EVERYWHERE — its leads and the prints it is dealt to — and the row
+    stays open. Only the brain's own "scope": "disclosure" closes a row."""
     return loop.__dict__.setdefault("_map_page_skips", {})
 
 
-def _settled(loop, skipped):
-    """HOW MUCH THE BRAIN HAS SETTLED — rows filled, rows closed, and pages taken
-    off a row. Refusing a page IS work: it is what makes a row lead-less and
-    sends it to the statement faces, so a turn that does it has moved."""
-    return len(_written(loop)) + len(skipped) + sum(len(v) for v in _page_skips(loop).values())
+def _refused_pages(loop, sheet, coord):
+    """The prints this row has been read against and refused."""
+    return _page_skips(loop).get(f"{sheet}!{coord}") or ()
+
+
+_WHOLE_DISCLOSURE = ("disclosure", "document", "run", "all", "whole disclosure", "not disclosed")
+
+
+def _whole_disclosure(scope):
+    """The brain's own words for 'no print in this report carries the row' — the
+    only thing that turns a skip into a verdict on the ROW rather than on the
+    page it was shown."""
+    return " ".join(str(scope or "").split()).strip().lower().strip(".\"'") in _WHOLE_DISCLOSURE
 
 
 def _read_against(loop):
@@ -485,24 +496,29 @@ def open_queue(loop, rows, skipped):
     return [(sh, co, r) for _p, sh, r, co in sorted(q)]
 
 
-def spread_over_faces(rows, faces):
+def spread_over_faces(rows, faces, refused=None):
     """{(doc, page): [rows]} — the rows no printed line's comparative points at,
     placed on the statement faces this run identified. A row with no lead is
     still a row of this model: it is read against a print so the brain can say
     what it is, or say why the print does not carry it. EVERY row given is
     placed (reviewer 2026-09-17: a per-face count dropped 79 of 319 rows on the
-    floor while the docstring said every open row gets a face)."""
+    floor while the docstring said every open row gets a face) — except on a
+    print it has already refused: `refused(row)` gives the pages the brain said
+    do not carry that row, and the row is dealt on to the next face it has not
+    seen. A row that has refused every face is placed nowhere and comes back
+    loose, carrying the pages it refused, for the brain to `find` it or close
+    it."""
     out = {}
     if not rows or not faces:
         return out
+    faces = list(faces)
     k = max(1, (len(rows) + len(faces) - 1) // len(faces))
-    for i, (d, p) in enumerate(faces):
-        chunk = rows[i * k:(i + 1) * k]
-        if chunk:
-            out[(d, p)] = list(chunk)
-    left = rows[len(faces) * k:]
-    if left:                      # more rows than the faces' shares hold: the last face takes them
-        out.setdefault(faces[-1], []).extend(left)
+    for i, t in enumerate(rows):
+        seen = set(refused(t) or ()) if callable(refused) else set()
+        j = min(i // k, len(faces) - 1)          # this row's own share of the run's faces
+        pick = next((f for f in faces[j:] + faces[:j] if f not in seen), None)
+        if pick is not None:
+            out.setdefault(pick, []).append(t)
     return out
 
 
@@ -685,7 +701,7 @@ def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
                        f"({str(loop.wb[s2][c2].value)[:60]})")
         except Exception:  # noqa: BLE001
             continue
-    refused = _page_skips(loop).get(f"{sheet}!{coord}") or ()
+    refused = _refused_pages(loop, sheet, coord)
     for it, cur in leads_for(loop, prior, skip_pages=refused):
         blk.append(f"      lead: p{getattr(it, 'page', '?')} '{_quote(it)[:78]}' → this year {_fmt(cur)}")
     for it in nil_leads(loop, prior, skip_pages=refused):
@@ -693,6 +709,11 @@ def _row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls):
                    "a blank beside it; this period may be nil")
     if len(blk) == 1 and prior is not None:
         blk.append("      lead: no printed line on file carries a comparative equal to this row's prior")
+    if refused:
+        blk.append("      you have refused this row against "
+                   + ", ".join(f"{d} p{p}" for d, p in sorted(refused))
+                   + " — those prints are not put under it again. If no print in this disclosure carries "
+                     "it, skip it with \"scope\":\"disclosure\" and it is closed.")
     for extra in (getattr(loop, "leads", None) or {}).get((sheet, r), ())[:3]:
         blk.append(f"      lead: {str(extra)[:150]}")
     # the label-only and companion searches: what the card queue used to show
@@ -823,8 +844,7 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     for sheet, coord, r in order:
         pcol = prior_column(loop.spec, sheet, ty)
         prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
-        for it, _cur in leads_for(loop, prior, k=2,
-                                  skip_pages=_page_skips(loop).get(f"{sheet}!{coord}") or ()):
+        for it, _cur in leads_for(loop, prior, k=2, skip_pages=_refused_pages(loop, sheet, coord)):
             lead_pages.setdefault(_page_of(it), []).append(
                 (sheet, coord, r))
             with_lead.add((sheet, coord))
@@ -841,9 +861,11 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
         old_docs = set()
     faces = [f for f in _faces(loop) if f[1] in here and f[1] not in old_docs]
     # every open row gets a face: a lead puts it on its own page, and a row no
-    # printed line points at is read against the statement faces of this run
+    # printed line points at is read against the statement faces of this run —
+    # never one it has already refused
     for _k, _chunk in spread_over_faces([t for t in order if (t[0], t[1]) not in with_lead],
-                                        [(d, p) for _f, d, p in faces]).items():
+                                        [(d, p) for _f, d, p in faces],
+                                        refused=lambda t: _refused_pages(loop, t[0], t[1])).items():
         lead_pages.setdefault(_k, []).extend(_chunk)
     # THE ROWS COME FIRST, THE FACES FOLLOW THEM (reviewer 2026-09-17: the face
     # section was built face by face and drained the room before the queue was
@@ -893,7 +915,8 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     loose = [b for k2, b in shown if k2 is None]
     if loose:
         L.append("")
-        L.append("  ----- the open rows this run found no printed face for -----")
+        L.append("  ----- the open rows this run found no printed face for — `find` or `page` what carries "
+                 "them, or skip them with \"scope\":\"disclosure\" -----")
         L += loose
     unshown = len(queue) - len(shown)
     L.append(f"  ({len(rows)} input rows in total, {len(queue)} of them still open"
@@ -905,9 +928,9 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     ref_lines = list(loop.__dict__.get("_map_refused") or [])
     if ref_lines:
         L.append("")
-        L.append("## 4b. WHAT YOU HAVE ALREADY REFUSED, AND WHY — a row you refused against a page is never "
-                 "put under that page again; a row you refused against a statement face, or with "
-                 "scope \"disclosure\", is closed")
+        L.append("## 4b. WHAT YOU HAVE ALREADY REFUSED, AND WHY — a page you refused for a row is never put "
+                 "under that row again; the row itself is closed only when you skip it with "
+                 "scope \"disclosure\"")
         L += [f"  {x[:160]}" for x in ref_lines[-25:]]
     if answers:
         L.append("")
@@ -1557,13 +1580,11 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
         if bad and not entries:
             return ["skip: " + "; ".join(bad)]
         out = []
-        # THE SKIP IS SCOPED TO THE PRINT THE ROW WAS READ AGAINST. "This page
-        # does not disclose it" closes the page, not the row: the lead that put
-        # the row here is dropped and the row goes back in the queue, lead-less,
-        # to be spread over the statement faces. The row is CLOSED only when the
-        # brain refused it against one of the faces this run identified — the
-        # prints the model's rows live on — or said so of the disclosure itself.
-        stmt_faces = {(d, p) for _f, d, p in _faces(loop)}
+        # THE SKIP IS A VERDICT ON THE PRINT THE ROW WAS READ AGAINST, NEVER ON
+        # THE ROW — unless the brain says the disclosure itself lacks it. "This
+        # page does not carry my row" takes that page off the row (its leads,
+        # and the faces it is dealt to) and the row goes back in the queue for
+        # the prints it has not refused. Only "scope":"disclosure" closes it.
         for e in entries:
             why = str(e.get("because") or "").strip()
             ref = f"{e['sheet']}!{e['coord']}"
@@ -1571,20 +1592,25 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
                 out.append(f"skip {ref}: a skip carries your reason — say why")
                 continue
             where = face or _read_against(loop).get(ref)
-            whole = (str(e.get("scope") or "").strip().lower() in ("disclosure", "document", "run")
-                     or where is None or where in stmt_faces)
+            whole = _whole_disclosure(e.get("scope"))
+            if not whole and where is None:
+                out.append(f"skip {ref}: no print was in front of you for this row, so there is nothing to "
+                           "take off it. `find` or `page` what carries it — or, if NO print in this "
+                           "disclosure does, skip it again with \"scope\":\"disclosure\" and it is closed.")
+                continue
+            _written(loop).pop(ref, None)      # the last action on a cell is the one that stands
             if not whole:
                 _page_skips(loop).setdefault(ref, set()).add(where)
+                # it is re-paired with a print it has not refused
+                _read_against(loop).pop(ref, None)
                 loop.__dict__.setdefault("_map_refused", []).append(
                     f"{ref}: refused against {where[0]} p{where[1]} — {why[:90]}")
-                out.append(f"skip {ref}: recorded against {where[0]} p{where[1]}. That page's lead for this "
-                           "row is dropped and the row stays open for the prints that do carry it — it comes "
-                           "back against a statement face. If NO print in this disclosure carries it, skip it "
-                           "again with \"scope\":\"disclosure\" and it is closed.")
+                out.append(f"skip {ref}: {where[0]} p{where[1]} is taken off this row — it is not put under "
+                           "it again, and the row stays open for the prints that do carry it. If NO print in "
+                           "this disclosure carries it, skip it again with \"scope\":\"disclosure\".")
                 continue
             loop.writer.flag_ref(ref, "red", f"NOT MAPPED — the analyst's own judgment: {why[:200]}")
             skipped[ref] = why
-            _written(loop).pop(ref, None)      # the last action on a cell is the one that stands
             loop.__dict__.setdefault("_map_refused", []).append(
                 f"{ref}: skipped"
                 + (f" against {where[0]} p{where[1]}" if where else "")
@@ -1626,15 +1652,15 @@ def _face_rows(loop, pre_wb, rows, skipped):
             continue
         pcol = prior_column(loop.spec, sheet, int(loop.ty))
         prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
-        for it, _cur in leads_for(loop, prior, k=2,
-                                  skip_pages=_page_skips(loop).get(f"{sheet}!{coord}") or ()):
+        for it, _cur in leads_for(loop, prior, k=2, skip_pages=_refused_pages(loop, sheet, coord)):
             out.setdefault(_page_of(it), []).append(
                 (sheet, coord, r))
             placed.add((sheet, coord))
     rest = [(sh, co, r) for sh, co, r in rows
             if (sh, co) not in placed and status_of(loop, sh, co, written, skipped) == "unfilled"]
     faces = [(d, p) for _f, d, p in _faces(loop) if (page_of_text(loop, d, p))]
-    for key, chunk in spread_over_faces(rest, faces).items():
+    for key, chunk in spread_over_faces(rest, faces,
+                                        refused=lambda t: _refused_pages(loop, t[0], t[1])).items():
         out.setdefault(key, []).extend(chunk)
     return out
 
@@ -1681,6 +1707,17 @@ def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, s
     if left:
         L.append(f"  ({left} more open row(s) of this model do not fit in this call — they stay open and "
                  "come back in the mapping loop)")
+    # WHAT THESE ROWS HAVE ALREADY REFUSED comes with them (reviewer 2026-09-18:
+    # the face round never carried it, so a row refused on one face was refused
+    # again on the next without the brain knowing it had been there before)
+    here = {f"{sh}!{co}:" for sh, co, _r in rows_here}
+    ref_lines = [x for x in (loop.__dict__.get("_map_refused") or [])
+                 if any(x.startswith(p) for p in here)]
+    if ref_lines:
+        L.append("")
+        L.append("## WHAT YOU HAVE ALREADY REFUSED FOR THESE ROWS — a page you refused is never put under "
+                 "that row again; the row itself is closed only by a skip with scope \"disclosure\"")
+        L += [f"  {x[:160]}" for x in ref_lines[-25:]]
     return "\n".join(L)
 
 
@@ -1831,7 +1868,12 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             # PROGRESS IS MEASURED FROM BEFORE THE CALLS RUN (2026-09-17: the
             # count was read AFTER the turn's writes had landed, so it always
             # matched itself and no write ever counted as progress).
-            _before = _settled(loop, skipped)
+            # WHAT IS SETTLED IS WHAT IS WRITTEN OR CLOSED. Refusing a page is
+            # not progress (reviewer 2026-09-18: counting page skips armed
+            # nothing — a brain refusing page after page could spend the whole
+            # budget writing no cell, and `done` stays refused while rows are
+            # open, so only this measure can end it).
+            _before = len(_written(loop)) + len(skipped)
             _writes_before = int(loop.__dict__.get("_map_cells") or 0)
             for call in calls:
                 if time.monotonic() - t0 > deadline_s:
@@ -1903,7 +1945,7 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             # that lands nothing changes no cell, however many rows it names —
             # and a red flag is not a write either.
             _wrote = int(loop.__dict__.get("_map_cells") or 0) != _writes_before
-            if not _wrote and _settled(loop, skipped) == _before and not _new_read:
+            if not _wrote and len(_written(loop)) + len(skipped) == _before and not _new_read:
                 stuck += 1
                 answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
                                "your reason — another turn that changes nothing ends the mapping and the "

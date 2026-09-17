@@ -6064,7 +6064,8 @@ def test_done_before_coverage_is_refused_and_the_clock_reds_the_rest_2026_09_17(
     estimate, never a code guess."""
     loop, pages, census = _map_model()
     turns = [{"calls": [{"tool": "done"}]},
-             {"calls": [{"tool": "skip", "ref": "Final!C9", "because": "not disclosed in this announcement"}]}]
+             {"calls": [{"tool": "skip", "ref": "Final!C9", "scope": "disclosure",
+                         "because": "not disclosed in this announcement"}]}]
     summary, said = _drive(loop, pages, census, turns, deadline_s=30.0)
     assert "not done:" in " ".join(said), said[-1][-300:]
     assert "NOT MAPPED" in str(loop.writer.log["flags"]) or "Final!C9" in loop.writer.log["flags"]
@@ -6150,24 +6151,87 @@ def test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18():
     print("PASS test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18")
 
 
-def test_a_skip_against_a_statement_face_closes_the_row_2026_09_18():
-    """The other half of the same rule: the face IS the print the model's rows
-    live on. When the brain reads a row against one and says the print does not
-    carry it, that is a verdict on the row — red, recorded, never re-served."""
+def test_a_face_refused_is_still_only_a_page_2026_09_18():
+    """The other half of the same rule (reviewer 2026-09-18: "a skip against a
+    statement face closes the row" was a SECOND verdict rule, and the face round
+    deals every lead-less row to a face by position — so a Final!C9 dealt to the
+    P&L page and refused there never reached the balance sheet). A face is a
+    print like any other: refusing it takes THAT print off the row. A row that
+    has refused every print this run found comes back loose, carrying what it
+    refused, and only the brain's own scope "disclosure" closes it."""
     from pipeline.mapping import _page_skips, _written, status_of
     loop, pages, census = _map_model_junk_lead()
     turns = [{"calls": [{"tool": "skip", "ref": "Final!C8",
                          "because": "p23 prints perpetual distributions, not minority interests"}]},
+             {"calls": [{"tool": "skip", "ref": "Final!C8", "scope": "disclosure",
+                         "because": "no print in this announcement carries minority interests"}]},
              {"calls": [{"tool": "done"}]}]
     _s, said = _drive(loop, pages, census, turns, deadline_s=8.0)
     # C8 has no lead: the run spreads it over its own statement face, ar.pdf p23
-    assert loop.__dict__["_map_read_against"].get("Final!C8") == ("ar.pdf", 23), \
-        loop.__dict__["_map_read_against"]
-    assert loop.__dict__["_map_skipped"].get("Final!C8"), "a refusal on the face left the row open"
-    assert not _page_skips(loop).get("Final!C8"), "a face refusal was recorded as a page refusal"
+    assert _page_skips(loop).get("Final!C8") == {("ar.pdf", 23)}, _page_skips(loop)
+    # and it comes BACK — loose now, with the print it refused named on it
+    assert "Final!C8" in said[1], "a row refused on a face was never put in front of the brain again"
+    assert "no printed face for" in said[1], said[1][-500:]
+    assert "you have refused this row against ar.pdf p23" in said[1], said[1][-800:]
+    # only the brain's own verdict on the disclosure closes the row
+    assert loop.__dict__["_map_skipped"].get("Final!C8"), "scope disclosure did not close the row"
     assert status_of(loop, "Final", "C8", _written(loop), loop.__dict__["_map_skipped"]) == "skipped"
     assert "Final!C8" in loop.writer.log["flags"], "a closed row is not red for the analyst"
-    print("PASS test_a_skip_against_a_statement_face_closes_the_row_2026_09_18")
+    print("PASS test_a_face_refused_is_still_only_a_page_2026_09_18")
+
+
+def test_a_face_round_refusal_deals_the_row_to_the_next_face_2026_09_18():
+    """THE FACE ROUND ON THE REAL SHAPE (probe on _map_model_wide: a brain
+    answering "this page does not carry my row" closed 319 of 319 rows in a
+    single face round, because the lead-less rows are dealt to faces BY
+    POSITION and the refusal was read as a verdict on the row). A refusal in the
+    face round is a refusal of THAT PRINT: the row is dealt on to a face it has
+    not seen, and it is never closed by it."""
+    from pipeline.mapping import map_faces, _page_skips
+    loop, pages, census = _map_model_wide(n_rows=30, n_faces=3)
+    ref, saw, carried = "Model!C25", [], []
+
+    def ask(_system, user):
+        if ref + " " not in user:
+            return {"calls": []}
+        saw.append(user.splitlines()[0].split("—")[-1].strip())
+        carried.append("ALREADY REFUSED FOR THESE ROWS" in user)
+        return {"calls": [{"tool": "skip", "ref": ref, "because": "this print does not carry my row"}]}
+    for _round in range(3):
+        map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=4)
+    assert len(saw) == 3, f"the row was not put in front of the brain in every round: {saw}"
+    assert len(set(saw)) == 3, f"the row was re-served a print it had already refused: {saw}"
+    assert len(_page_skips(loop).get(ref) or ()) == 3, _page_skips(loop)
+    assert ref not in (loop.__dict__.get("_map_skipped") or {}), "a page's refusal closed the row"
+    assert carried[1:] == [True, True], f"the face round did not carry what the row had refused: {carried}"
+    print("PASS test_a_face_round_refusal_deals_the_row_to_the_next_face_2026_09_18")
+
+
+def test_a_page_skip_is_not_progress_2026_09_18():
+    """Reviewer 2026-09-18: counting a page refusal as progress disarmed the
+    stuck guard, and `done` is refused while any row is open — so a brain that
+    refuses print after print and writes nothing could spend the whole budget.
+    What is SETTLED is what is written or closed; refusing a page is neither,
+    and the guard ends a run that only refuses."""
+    from pipeline.mapping import _EMPTY_RUN
+    loop, pages, census = _map_model_junk_lead()
+    turns = [{"calls": [{"tool": "skip", "ref": "Final!C9", "because": "p23 does not split the segments"}]}
+             for _ in range(12)]
+    _s, said = _drive(loop, pages, census, turns, deadline_s=20.0)
+    assert turns, "the refusing brain ran its whole script — the guard never armed"
+    assert len(said) <= _EMPTY_RUN + 1, f"{len(said)} turns of refusals before the guard ended it"
+    assert "Final!C9" not in loop.__dict__["_map_skipped"], "a page refusal closed the row"
+    assert "Final!C9" in loop.writer.log["flags"], "an open row did not land red for the analyst"
+    # and a CLOSE is progress: the brain that says the disclosure lacks the row moves
+    loop2, pages2, census2 = _map_model_junk_lead()
+    t2 = [{"calls": [{"tool": "skip", "ref": "Final!C9", "because": "p23 does not split the segments"}]},
+          {"calls": [{"tool": "skip", "ref": "Final!C9", "scope": "Disclosure",
+                      "because": "the announcement carries no segment split at all"}]},
+          {"calls": [{"tool": "done"}]}]
+    _s2, said2 = _drive(loop2, pages2, census2, t2, deadline_s=20.0)
+    assert loop2.__dict__["_map_skipped"].get("Final!C9"), "scope disclosure did not settle the row"
+    assert len(said2) >= 3, "the guard ended a run that was settling rows"
+    print("PASS test_a_page_skip_is_not_progress_2026_09_18")
 
 
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
