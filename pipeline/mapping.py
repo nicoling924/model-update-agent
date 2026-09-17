@@ -849,6 +849,7 @@ def verdict(loop, entry, page_text, sources, log):
     pcol = prior_column(loop.spec, sheet, ty)
     prior = _held(loop.wb, Evaluator(loop.wb), sheet, f"{pcol}{_row_of(coord)}") if pcol else None
     because = str(entry.get("because") or "")
+    loop.__dict__["_map_ref"] = (sheet, coord)
     printed, page, line = entry.get("printed"), entry.get("page"), entry.get("line")
     if isinstance(printed, (int, float)) and page is not None:
         try:
@@ -873,6 +874,97 @@ def verdict(loop, entry, page_text, sources, log):
     if any(_arith_ties(m, v) for m in _ARITH.finditer(because)):
         return v, True, f"your stated arithmetic re-computes: {because[:80]}", {"line": because[:60]}
     return v, False, "no quoted printed line and no arithmetic code can re-compute — it lands red with your reason", {}
+
+
+def _section_label(loop, sheet, r):
+    """The section this row sits under — the model's own heading for it, which
+    a row whose OWN name carries no content words ('of which', '— Australia')
+    borrows. It is read as the nearest line above that names something and
+    holds no figure of its own."""
+    ws = loop.wb[sheet]
+    for k in range(r - 1, 0, -1):
+        lab = _label(ws, k)
+        if lab.startswith("row ") or not _kin_words(lab):
+            continue
+        if any(isinstance(ws.cell(row=k, column=c).value, (int, float)) for c in range(2, 6)):
+            continue   # evidence: a line carrying figures is a row of the statement, not its heading
+        return lab
+    return ""
+
+
+def _kin_words(text):
+    """The content words of a name, at their stems — 'Other gains, net' and
+    'Other gain' are the same word twice."""
+    from .numerics import norm_label, STOPWORDS
+    return {(w[:-1] if len(w) > 3 and w.endswith("s") else w)
+            for w in str(norm_label(text) or "").split()
+            if w not in STOPWORDS and len(w) > 2}
+
+
+# THE HOUSE GLOSSARY (CLAUDE.md): names an analyst's model and a printed
+# statement both use for one thing. Two names in the same entry are kin —
+# positive evidence, the same kind the number tie is, and the reason the
+# glossary exists at all. It never decides a mapping; it only stops a correct
+# mapping being called a name mismatch.
+_GLOSSARY = (
+    {"revenue", "turnover", "sales", "income from operations"},
+    {"finance cost", "interest expense", "borrowing cost", "finance expense", "financial expense"},
+    {"finance income", "interest income"},
+    {"property plant and equipment", "ppe", "fixed asset", "tangible asset"},
+    {"depreciation and amortisation", "depreciation and amortization", "d a", "da"},
+    {"capex", "capital expenditure", "purchase of property plant and equipment",
+     "purchase of fixed asset", "addition to property plant and equipment"},
+    {"net profit", "net income", "profit attributable to shareholder",
+     "profit attributable to owner", "profit for the year attributable to equity holder", "earnings"},
+    {"minority interest", "non controlling interest", "noncontrolling interest"},
+    {"associate", "joint venture", "jointly controlled entity", "jce"},
+    {"cash", "cash and cash equivalent", "cash and bank balance", "bank balances and cash"},
+    {"gearing", "net debt to total capital", "net debt to equity"},
+)
+
+
+def _glossary_kin(a, b):
+    from .numerics import norm_label
+    na, nb = " " + str(norm_label(a) or "") + " ", " " + str(norm_label(b) or "") + " "
+    for entry in _GLOSSARY:
+        if any(" " + t + " " in na or na.strip() == t for t in entry) \
+                and any(" " + t + " " in nb or nb.strip() == t for t in entry):
+            return True
+    return False
+
+
+def _name_is_kin(loop, sheet, coord, printed_line):
+    """THE NAME MUST BE KIN, NOT ONLY THE NUMBER (owner 2026-09-17: Aus!AI25
+    'Finance costs' was mapped from 'Lost Days - employees only ... 471' — the
+    number tied and the line was about safety statistics). The brain quoted the
+    line, so checking that it NAMES something kin to the row is verification,
+    not a decision. -> (ok, why)"""
+    from .numerics import kinship, label_of
+    row_label = _label(loop.wb[sheet], _row_of(coord))
+    # the row's OWN name answers first; a row whose name says nothing on its own
+    # ('of which', a dash and a place) is read under its section's heading
+    row_name = row_label if _kin_words(row_label) else \
+        (row_label + " " + _section_label(loop, sheet, _row_of(coord))).strip()
+    line_name = label_of(str(printed_line or "")) or str(printed_line or "")
+    if not str(line_name).strip():
+        return False, "the line you quoted carries no label to check the row's name against"
+    # A MODEL WRITES 'Other gain' WHERE THE STATEMENT PRINTS 'Other gains, net',
+    # and 'Turnover' where it prints 'Revenue'. A word and its plural are the
+    # same word, and the house glossary's names are the same name.
+    if kinship(row_name, line_name) or _kin_words(row_name) & _kin_words(line_name) \
+            or _glossary_kin(row_name, line_name):
+        return True, ""
+    # CODE CHECKS ONLY WHAT IT CAN READ: a model labelled in English against a
+    # statement printed in Chinese share no words by construction, and their
+    # silence is not evidence against the brain's reading (DFE). Where the two
+    # names are written in the same script, the check speaks.
+    import re as _re2
+    cjk_row = bool(_re2.search(r"[\u4e00-\u9fff]", row_name))
+    cjk_line = bool(_re2.search(r"[\u4e00-\u9fff]", str(line_name)))
+    if cjk_row != cjk_line:
+        return True, "the names are in different scripts — code cannot compare them; your reading stands"
+    return False, (f"the number ties but the name does not: your row is '{row_name[:40]}' and the line you "
+                   f"quoted names '{str(line_name)[:40]}'")
 
 
 def _quote_verdict(loop, page_text, sources, pg, printed, line, prior):
@@ -907,6 +999,11 @@ def _quote_verdict(loop, page_text, sources, pg, printed, line, prior):
                 value = -value
             ev = {"doc": doc, "page": pg, "line": hit["text"][:60]}
             if tie:
+                kin, why_k = _name_is_kin(loop, loop.__dict__.get("_map_ref", ("", ""))[0],
+                                          loop.__dict__.get("_map_ref", ("", ""))[1], hit["text"]) \
+                    if loop.__dict__.get("_map_ref") else (True, "")
+                if not kin:
+                    return value, False, f"p{pg} '{hit['text'][:50]}' — {why_k}", ev
                 return value, True, (f"p{pg} '{hit['text'][:60]}' — the comparative ties your prior"
                                      + (f" (the page prints in x{fs:,.0f})" if fs != 1 else "")), ev
             other = None
@@ -944,6 +1041,11 @@ def _quote_verdict(loop, page_text, sources, pg, printed, line, prior):
                     and _ties_full_precision(abs(comp) / fs, abs(prior)):
                 if prior < 0 and value > 0:
                     value = -value
+                kin, why_k = _name_is_kin(loop, loop.__dict__.get("_map_ref", ("", ""))[0],
+                                          loop.__dict__.get("_map_ref", ("", ""))[1], _quote(it)) \
+                    if loop.__dict__.get("_map_ref") else (True, "")
+                if not kin:
+                    return value, False, f"p{pg} '{_quote(it)[:50]}' — {why_k}", ev
                 return value, True, (f"p{pg} '{_quote(it)[:60]}' (the extracted line you quoted) — the "
                                      "comparative ties your prior"), ev
             other = next((g for g in _SCALES if isinstance(comp, (int, float)) and isinstance(prior, (int, float))

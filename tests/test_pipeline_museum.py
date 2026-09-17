@@ -6623,6 +6623,41 @@ def test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17():
     print("PASS test_the_faces_are_mapped_in_one_round_and_a_conflict_is_red_2026_09_17")
 
 
+
+def test_the_name_must_be_kin_to_the_row_2026_09_17():
+    """CLP live 35162933611: Aus!AI25 'Finance costs' was mapped from 'Lost Days
+    - employees only ... 471' — the number tied and the line was about safety
+    statistics. The brain quoted the line, so code checking that the line NAMES
+    something kin to the row is verification, not a decision. Where the two are
+    written in different scripts, code cannot compare them and says so."""
+    from pipeline.ledger import Item
+    loop, pages, census = _map_model()
+    pages[("ar.pdf", 50)] = "SAFETY PERFORMANCE\nLost Days - employees only 471 420\n"
+    loop.ledger.add(Item(doc="ar.pdf", page=50, table_id=0, row_ord=0, label="Lost Days - employees only",
+                         nums=[471.0, 420.0], source_line="Lost Days - employees only 471 420"))
+    turns = [{"calls": [{"tool": "sets", "sets": [
+        {"ref": "Final!C3", "printed": 471, "page": 50, "line": "Lost Days - employees only 471 420",
+         "because": "finance costs"},
+        {"ref": "Final!C2", "printed": 88018, "page": 23, "line": "Revenue 88,018 76,061",
+         "because": "revenue"}]}]}, {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns)
+    assert "Final!C3" in loop.writer.log["flags"], "a safety statistic proved a finance line"
+    assert "the name does not" in " ".join(said), said[-1][-400:]
+    assert "Final!C2" not in loop.writer.log["flags"], "a kin name landed red"
+    # THE HOUSE GLOSSARY IS KINSHIP TOO (reviewer 2026-09-17: 'Turnover' against
+    # a printed 'Revenue' is the mapping the glossary exists for, and the bare
+    # word check called it a name mismatch)
+    loop2, pages2, census2 = _map_model()
+    loop2.wb["Final"]["A2"] = "Turnover"
+    _s2, _said2 = _drive(loop2, pages2, census2,
+                         [{"calls": [{"tool": "set", "ref": "Final!C2", "printed": 88018, "page": 23,
+                                      "line": "Revenue 88,018 76,061", "because": "turnover is revenue"}]},
+                          {"calls": [{"tool": "done"}]}])
+    assert loop2.wb["Final"]["C2"].value == 88018.0, loop2.wb["Final"]["C2"].value
+    assert "Final!C2" not in loop2.writer.log["flags"], "the glossary's own synonym landed red"
+    print("PASS test_the_name_must_be_kin_to_the_row_2026_09_17")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):
