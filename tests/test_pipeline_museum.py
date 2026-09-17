@@ -8244,13 +8244,15 @@ def test_a_model_with_no_check_row_still_has_a_balance_objective_2026_09_17():
     from pipeline.discover import discover
     wb = _cold_model()
     wb["CXMODEL"]["A141"] = "Total liabilities and equity"
-    wb["CXMODEL"]["AO141"] = 248213.0          # 1,787 short of AO140's 250,000... shape
+    wb["CXMODEL"]["AO141"] = 248213.0          # short of AO140: the CX shape
     spec = discover(wb, wb, target_year=2025, period_kind="FY")
-    spec["check_rows"] = []
+    # CX's own 'Total Check' is a FLEET count — a check row that does not read
+    # the balance sheet is not a balance check (reviewer 2026-09-17)
+    spec["check_rows"] = [{"sheet": "Fleet", "row": 5, "expect": 0}]
 
     class _Brain:
         def json(self, _s, _u, _v, **k):
-            return {"checks": [], "because": "this book carries no check row",
+            return {"checks": [], "because": "this book's only check counts aircraft",
                     "keys": [{"name": "total assets", "ref": "CXMODEL!140"},
                              {"name": "total liabilities and equity", "ref": "CXMODEL!141"}]}
     logs = []
@@ -8259,6 +8261,13 @@ def test_a_model_with_no_check_row_still_has_a_balance_objective_2026_09_17():
     cp = spec["check_pairs"][0]
     assert (cp["a_row"], cp["b_row"]) == (140, 141), cp
     assert any("the balance objective is the run's own" in x for x in logs), logs
+    # a check that DOES read a total row is the balance check; no pair is added
+    from pipeline.anatomy import _balance_is_checked
+    wb["CXMODEL"]["AO99"] = "=AO140-AO141"
+    spec2 = dict(spec, check_rows=[{"sheet": "CXMODEL", "row": 99, "expect": 0}])
+    by = {k["name"]: k for k in spec["key_rows"]}
+    assert _balance_is_checked(wb, spec2, by) is True
+    assert _balance_is_checked(wb, dict(spec, check_rows=[{"sheet": "Fleet", "row": 5}]), by) is False
     card = scorecard(wb, spec, 2025)
     bal = [c for c in card["checks"] if "balance" in c["name"] and c["year"] == "2025"]
     assert bal and bal[0]["status"] == "FAIL", bal

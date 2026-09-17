@@ -219,6 +219,34 @@ def sheet_reading(wb, spec, target_year, cap=52000):
     return "\n".join(L)
 
 
+def _balance_is_checked(wb, spec, by_name):
+    """Does a check row this model already declares MEASURE the balance sheet?
+    A check is a row the model works out to zero — but a units total, a fleet
+    count or a segment sum is not the balance (CX declares a 'Total Check' on
+    Fleet and shipped 1,787 out of balance all the same). The evidence is
+    structural: a balance check READS the two total rows. When none does, and
+    the brain has named them, the run measures their difference itself."""
+    a, b = by_name.get("total assets"), (by_name.get("total liabilities and equity")
+                                         or by_name.get("total liabilities & equity"))
+    if not (a and b):
+        return True            # nothing to build a pair from; the caller says so
+    import re as _re
+    want = {int(a["row"]), int(b["row"])}
+    for c in (spec.get("check_rows") or []):
+        sh = c.get("sheet")
+        if sh not in wb.sheetnames:
+            continue
+        cols = year_columns(spec, sh) or {}
+        for col in list(cols.values())[:6]:
+            f = wb[sh][f"{col}{int(c['row'])}"].value
+            if not (isinstance(f, str) and f.startswith("=")):
+                continue
+            rows = {int(m) for m in _re.findall(r"[A-Z]{1,3}(\d+)", f)}
+            if want & rows:
+                return True    # this check already reads a total row: it IS the balance check
+    return False
+
+
 def read(wb, spec, client, target_year, log, period="FY", values_wb=None):
     """The structure turn. Mutates `spec` with what verifies.
     -> (n_checks_taken, n_keys_taken, dropped)."""
@@ -337,8 +365,8 @@ def read(wb, spec, client, target_year, log, period="FY", values_wb=None):
     # 1,787 out of balance with nothing measuring it). If the book declares no
     # check row of its own, the two total rows the brain just named ARE the
     # balance test, and code measures their difference from here on.
-    if not (spec.get("check_rows") or []):
-        by_name = {str(k.get("name") or "").lower(): k for k in (spec.get("key_rows") or [])}
+    by_name = {str(k.get("name") or "").lower(): k for k in (spec.get("key_rows") or [])}
+    if not _balance_is_checked(wb, spec, by_name):
         a = by_name.get("total assets")
         b = (by_name.get("total liabilities and equity")
              or by_name.get("total liabilities & equity"))
@@ -346,16 +374,17 @@ def read(wb, spec, client, target_year, log, period="FY", values_wb=None):
             spec.setdefault("check_pairs", []).append(
                 {"name": "balance", "sheet": a["sheet"], "a_row": int(a["row"]),
                  "b_sheet": b["sheet"], "b_row": int(b["row"])})
-            log(f"[anatomy] this model declares NO check row — the balance objective is the run's own: "
+            log(f"[anatomy] no check row of this model measures the balance sheet — the balance "
+                f"objective is the run's own: "
                 f"{a['sheet']}!{a['row']} (total assets) less {b['sheet']}!{b['row']} "
                 "(total liabilities and equity); measured every year from here on")
             notes.append(f"balance measured by the RUN, not the model: {a['sheet']}!{a['row']} − "
-                         f"{b['sheet']}!{b['row']} (this book declares no check row)")
+                         f"{b['sheet']}!{b['row']} (no check row of this book reads the balance sheet)")
         else:
-            log("[anatomy] this model declares no check row, and the two total rows were not both "
-                "named — BALANCE IS NOT MEASURED on this run")
-            notes.append("balance NOT measured: no check row, and total assets / total liabilities "
-                         "and equity were not both named")
+            log("[anatomy] no check row of this model measures the balance sheet, and the two total "
+                "rows were not both named — BALANCE IS NOT MEASURED on this run")
+            notes.append("balance NOT measured: no check row reads the balance sheet, and total assets "
+                         "/ total liabilities and equity were not both named")
     for d in dropped:
         log(f"[anatomy] dropped {d}")
     log(f"[anatomy] the brain read this model: {took_c} check row(s) and {took_k} key row(s) taken, "
