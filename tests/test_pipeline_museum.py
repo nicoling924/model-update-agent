@@ -6087,6 +6087,89 @@ def test_the_brain_refuses_once_and_remembers_2026_09_17():
     print("PASS test_the_brain_refuses_once_and_remembers_2026_09_17")
 
 
+def _map_model_junk_lead():
+    """THE LIVE SHAPE (run 35200922601): a core row whose prior is ALSO printed,
+    by coincidence, on a page that is no statement face — CLP's D&A under the
+    results presentation p37, its bank loans under the auditor's report p157.
+    The statement face carries the row; the coincidental page does not."""
+    from pipeline.ledger import Item
+    loop, pages, census = _map_model()
+    ws = loop.wb["Final"]
+    ws["A11"], ws["B11"], ws["C11"] = "Development expenditure", 333.0, 333.0
+    census["Final"] = list(census["Final"]) + [11]
+    loop.ledger.add(Item(doc="pres.pdf", page=37, table_id=0, row_ord=0, label="Capex by business",
+                         nums=[410.0, 333.0], source_line="Capex by business 410 333"))
+    pages[("pres.pdf", 37)] = "FY25 RESULTS PRESENTATION — GROUP CAPEX\nCapex by business 410 333\n"
+    pages[("ar.pdf", 23)] += "Development expenditure 350 333\n"
+    return loop, pages, census
+
+
+def test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18():
+    """LIVE 35200922601: a coincidental lead put D&A under the presentation and
+    bank loans under the auditor's report; the brain answered "p37 does not
+    disclose it" — its verdict on the row AGAINST THAT PAGE — and code read it
+    as "this disclosure does not carry the row", retiring 69 rows (55 on the
+    core sheet) the statement faces would have answered. A page-scoped skip
+    drops THAT PAGE'S lead and the row stays open; a skip against a statement
+    face, or with scope "disclosure", closes the row."""
+    from pipeline.mapping import _page_skips, open_queue, status_of, _written
+    loop, pages, census = _map_model_junk_lead()
+    turns = [{"calls": [
+        {"tool": "skip", "ref": "Final!C11",
+         "because": "p37 is the results presentation, it does not disclose development expenditure"},
+        {"tool": "skip", "ref": "Final!C9",
+         "because": "the income statement does not split segment detail", "scope": "disclosure"}]},
+        {"calls": [{"tool": "sets", "sets": [
+            {"ref": "Final!C11", "printed": 350, "page": 23, "line": "Development expenditure 350 333",
+             "because": "the face carries my row after all"}]}]},
+        {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns, deadline_s=8.0)
+    # the coincidental page is closed, the ROW is not
+    assert _page_skips(loop).get("Final!C11") == {("pres.pdf", 37)}, _page_skips(loop)
+    assert "Final!C11" not in loop.__dict__["_map_skipped"], "a page's refusal retired the row"
+    # THE MEASURE IS THAT THE ROW IS PUT IN FRONT OF THE BRAIN AGAIN — lead-less
+    # now, under the statement face the run identified — not that a scripted
+    # brain could still name it
+    import re as _re
+    assert _re.search(r"Final!C11\s+Development expenditure.*unfilled", said[1]), \
+        "the row was not offered again after its page was refused"
+    assert said[1].index("ar.pdf p23") < said[1].index("Final!C11 "), \
+        "the row was not read against the statement face"
+    assert loop.wb["Final"]["C11"].value == 350.0, \
+        f"the row was never mapped off the face that carries it: {loop.wb['Final']['C11'].value}"
+    # the refused page is not offered for that row again, and the brain is told
+    assert "lead: p37 'Capex by business" not in said[1], "the refused page came back as a lead"
+    assert any("Final!C11: refused against pres.pdf p37" in x
+               for x in loop.__dict__["_map_refused"]), loop.__dict__["_map_refused"]
+    assert "Final!C11" in said[1], "the row was not put in front of the brain again"
+    # and a skip the brain scoped to the disclosure is settled, for the run
+    assert loop.__dict__["_map_skipped"].get("Final!C9"), loop.__dict__["_map_skipped"]
+    assert status_of(loop, "Final", "C9", _written(loop), loop.__dict__["_map_skipped"]) == "skipped"
+    assert ("Final", "C9", 9) not in open_queue(loop, [("Final", "C9", 9)], loop.__dict__["_map_skipped"]), \
+        "a row closed against the disclosure came back"
+    print("PASS test_a_skip_is_a_verdict_on_the_page_not_on_the_row_2026_09_18")
+
+
+def test_a_skip_against_a_statement_face_closes_the_row_2026_09_18():
+    """The other half of the same rule: the face IS the print the model's rows
+    live on. When the brain reads a row against one and says the print does not
+    carry it, that is a verdict on the row — red, recorded, never re-served."""
+    from pipeline.mapping import _page_skips, _written, status_of
+    loop, pages, census = _map_model_junk_lead()
+    turns = [{"calls": [{"tool": "skip", "ref": "Final!C8",
+                         "because": "p23 prints perpetual distributions, not minority interests"}]},
+             {"calls": [{"tool": "done"}]}]
+    _s, said = _drive(loop, pages, census, turns, deadline_s=8.0)
+    # C8 has no lead: the run spreads it over its own statement face, ar.pdf p23
+    assert loop.__dict__["_map_read_against"].get("Final!C8") == ("ar.pdf", 23), \
+        loop.__dict__["_map_read_against"]
+    assert loop.__dict__["_map_skipped"].get("Final!C8"), "a refusal on the face left the row open"
+    assert not _page_skips(loop).get("Final!C8"), "a face refusal was recorded as a page refusal"
+    assert status_of(loop, "Final", "C8", _written(loop), loop.__dict__["_map_skipped"]) == "skipped"
+    assert "Final!C8" in loop.writer.log["flags"], "a closed row is not red for the analyst"
+    print("PASS test_a_skip_against_a_statement_face_closes_the_row_2026_09_18")
+
+
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():
     """Owner's standing law: the agent never changes the analyst's history. A
     comparative that disagrees is recorded as a question and the actual-year
