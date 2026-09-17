@@ -6797,6 +6797,19 @@ def test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17():
     print("PASS test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17")
 
 
+def test_the_sequential_pass_gets_what_is_left_of_the_clock_2026_09_17():
+    """CLP live 35162933611: the face round answered in 2.3 minutes of the 23.2
+    it was given and the sequential pass was handed the SPLIT's remainder — 9.9
+    min — so 21 minutes of the run's own clock were thrown away with 217 rows
+    unread. What the faces did not spend is still the mapping's."""
+    from pipeline.mapping import sequential_budget
+    got = sequential_budget(33.0 * 60, 2.3 * 60)
+    assert abs(got - 30.7 * 60) < 1.0, got
+    assert got > (33.0 * 60 - 23.2 * 60), "the sequential pass got no more than the old split gave it"
+    assert sequential_budget(33.0 * 60, 40.0 * 60) == 60.0, "a face round that overran leaves no negative clock"
+    print("PASS test_the_sequential_pass_gets_what_is_left_of_the_clock_2026_09_17")
+
+
 def test_a_plain_write_stands_after_it_is_downgraded_to_red_2026_09_17():
     """Owner 2026-09-17: a cell the parallel faces downgraded to red became
     overwritable again, though its note said "the first stands" — a third

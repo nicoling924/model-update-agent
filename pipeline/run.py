@@ -723,6 +723,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # face, concurrent — then a short sequential pass for what crosses faces.
     from .mapping import map_faces as _map_faces
     _face_budget = _map_budget * 0.7
+    _map_t0 = _time.monotonic()
     if loop.brain:
         try:
             _map_faces(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
@@ -730,8 +731,15 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         except Exception as _e_mf:
             log(f"[map] the face round STAGE LOST: {_e_mf!r}")
             run_log.append(f"[map] the face round STAGE LOST: {_e_mf!r}")
+    # WHAT THE FACES DID NOT SPEND IS STILL THE MAPPING'S (owner 2026-09-17: the
+    # CLP faces answered in 2.3 of their 23.2 minutes and the other 21 were
+    # thrown away)
+    from .mapping import sequential_budget as _seq_left
+    _seq_budget = _seq_left(_map_budget, _time.monotonic() - _map_t0)
+    log(f"[map] the face round took {(_time.monotonic() - _map_t0)/60:.1f} min; "
+        f"{_seq_budget/60:.1f} min of the mapping's clock go to the rows that are left")
     loop_summary = _run_mapping(loop, _pre_wb_sense, hardcode_census, _page_text, log, _ask_map,
-                                deadline_s=max(60.0, _map_budget - _face_budget), brain=loop.brain)
+                                deadline_s=_seq_budget, brain=loop.brain)
     undo_mark2 = len(writer.log.get("writes_all", []))   # end of the mapping's writes
     err_guard("mapping")
     collapse_guard("mapping")

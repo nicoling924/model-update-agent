@@ -1476,6 +1476,16 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
 
 # ── the loop ─────────────────────────────────────────────────────────────
 
+def sequential_budget(map_budget, faces_took, floor=60.0):
+    """WHAT THE FACES DID NOT SPEND IS STILL THE MAPPING'S (owner 2026-09-17:
+    the CLP face round answered in 2.3 minutes of the 23.2 it was given, and the
+    sequential pass was handed the arithmetic remainder of the SPLIT — 9.9 min —
+    so 21 minutes of the run's clock were thrown away with 217 rows unread).
+    The clock is one clock: what is left of the mapping's budget is what is
+    left, measured, not the share the split named."""
+    return max(float(floor), float(map_budget) - float(faces_took))
+
+
 def _face_rows(loop, pre_wb, rows, skipped):
     """{(doc, page): [open rows to put in front of that face]}.
 
