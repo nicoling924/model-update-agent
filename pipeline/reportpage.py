@@ -478,13 +478,15 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     plabel = (f"FY{str(target_year)[-2:]}" if kind == "FY" else f"{kind}{str(target_year)[-2:]}")
     el = extra.get("elapsed_min")
     parts = [f"Updated to {plabel}" + (f" in {el:.0f} min" if isinstance(el, (int, float)) else "")]
+    if not measured:
+        # said WHATEVER else is open: the other findings are not balance, and
+        # an objective nobody measured must never read as one that holds
+        parts.append("balance NOT measured — this model declares no check row")
     if fails or open_checks:
         yrs = sorted({str(c["year"]) for c in fails})
         parts.append(f"CHECKS OPEN: {len(fails)} ({', '.join(yrs[:6])})" if fails
                      else f"CHECKS OPEN: {len(open_checks)}")
-    elif not measured:
-        parts.append("balance NOT measured — this model declares no check row")
-    else:
+    elif measured:
         parts.append("balance and cash checks closed, every year")
     parts.append(f"key numbers tied to the print {n_tied}/{len(kt)}" if kt else "key numbers: no panel")
     parts.append(f"red {n_red} · orange {n_orange} · plugs {len(plugs)}")
