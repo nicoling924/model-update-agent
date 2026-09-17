@@ -68,6 +68,44 @@ def maps_from_log(path):
     return out
 
 
+class RecordedMaps:
+    """Replay each answer against the document/page context that elicited it.
+
+    Concurrent faces must not consume the sequential follow-up turns, nor
+    swap another document's answer into an otherwise identical page number.
+    """
+    def __init__(self, path):
+        import json
+        import threading
+        self.turns = maps_from_log(path)
+        self.faces = {}
+        self.lock = threading.Lock()
+        for line in Path(path).read_text(errors="ignore").splitlines() if path else ():
+            match = re.search(r"\[map\] face (.+) p(\d+) reply (\{.*)$", line)
+            if match:
+                key = (match.group(1), int(match.group(2)))
+                try:
+                    self.faces.setdefault(key, []).append(json.loads(match.group(3)))
+                except ValueError as exc:
+                    raise ValueError(f"Recorded face {key} has invalid JSON") from exc
+
+    def __len__(self):
+        return len(self.turns) + sum(len(v) for v in self.faces.values())
+
+    def __call__(self, system, user):
+        match = re.search(r"^## THIS TURN IS ONE FACE: .*? — (.+) p(\d+)$", user, re.M)
+        with self.lock:
+            if match:
+                key = (match.group(1), int(match.group(2)))
+                answers = self.faces.get(key, [])
+                if not answers:
+                    raise RuntimeError(f"No recorded mapping answer for face {key}")
+                return answers.pop(0)
+            if not self.turns:
+                raise RuntimeError("No further sequential mapping turns recorded")
+            return self.turns.pop(0)
+
+
 def picks_from_log(path):
     picks = {}
     if not path:
@@ -147,7 +185,7 @@ def main(argv):
     from pipeline.run import update
     answerer = make_answerer(picks_from_log(log_path))
     answerer.reviews = reviews_from_log(log_path) or None
-    answerer.maps = maps_from_log(log_path) or None
+    answerer.maps = RecordedMaps(log_path) or None
     if answerer.maps:
         print(f"[replay] {len(answerer.maps)} recorded mapping turn(s) will be replayed")
     else:
@@ -160,7 +198,11 @@ def main(argv):
                  log=print)
     print(f"\nFAITHFUL REPLAY -> {'DELIVERED' if res['ok'] else 'GATE REFUSED'}: "
           f"{res['out']}")
-    return 0 if res["ok"] else 1
+    unused = len(answerer.maps) if answerer.maps is not None else 0
+    if unused:
+        print(f"[replay] INCOMPLETE: {unused} recorded mapping answers were not consumed; "
+              "delivery is not a faithful replay of all recorded decisions")
+    return 0 if (res["ok"] and not unused) else 1
 
 
 if __name__ == "__main__":

@@ -14,6 +14,25 @@ from pipeline.review import _one_call, _metrics
 from pipeline.consequence import snapshot, restore
 
 class Contract(unittest.TestCase):
+    def test_replay_keeps_face_answers_with_their_document_and_sequential_turns(self):
+        import json
+        import tempfile
+        from tools.replay_live import RecordedMaps
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "run.log"
+            path.write_text("\n".join([
+                '[map] face Current Report.pdf p7 reply ' + json.dumps({"calls": [], "identity": "current"}),
+                '[map] face Prior Report.pdf p7 reply ' + json.dumps({"calls": [], "identity": "prior"}),
+                '[map] turn 1 reply ' + json.dumps({"calls": [], "identity": "follow-up"})]))
+            replay = RecordedMaps(path)
+            self.assertEqual(len(replay), 3)
+            with self.assertRaises(RuntimeError):
+                replay("", "## THIS TURN IS ONE FACE: PL — Missing.pdf p7")
+            self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Prior Report.pdf p7")["identity"], "prior")
+            self.assertEqual(replay("", "## THIS TURN IS ONE FACE: PL — Current Report.pdf p7")["identity"], "current")
+            self.assertEqual(replay("", "Sequential context")["identity"], "follow-up")
+            self.assertEqual(len(replay), 0)
+
     def test_key_repair_review_and_acceptance_share_the_printed_tie(self):
         from pipeline.keytie import key_state, matches_print
         from pipeline.review import _broken
