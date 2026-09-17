@@ -8309,6 +8309,11 @@ def test_a_serve_meets_the_evidence_law_like_every_other_write_2026_09_17():
     assert str(ws["AO223"].fill.fgColor.rgb or "").endswith("FFC7CE"), ws["AO223"].fill.fgColor.rgb
     assert served[("CXMODEL", 223)]["conf"] <= 3, served
     assert "CXMODEL!AO223" not in w.locked, w.locked
+    # THE NAME IS IN DOUBT, NOT THE MAGNITUDE: the figure still LANDS. Lowering
+    # conf also turned off `trusted`, the world band refused the write outright,
+    # and DFE lost a 153.50 serve and two keys with it — a flagged figure beats
+    # a silent hole (the deliver-with-flags law).
+    assert ws["AO223"].value == 59101.0, "the write was refused instead of flagged"
     # the SAME figure off a line the brain named lands plain
     wb2 = openpyxl.Workbook()
     ws2 = wb2.active

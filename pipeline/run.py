@@ -146,15 +146,18 @@ def _write_served(wb, spec_d, target_year, served, writer, priors, log, ledger=N
         flag = entry.get("flag") or j_flag
         conf = int(entry.get("conf") or 0)
         if j_flag == "red":
-            # a coincidence is never proven, and never locked (the morning's rule 1)
+            # THE NAME IS IN DOUBT, NOT THE MAGNITUDE (the first cut lowered conf
+            # here, which also turned OFF `trusted` — the world band then refused
+            # the write outright and DFE lost a 153.50 serve, two keys with it).
+            # The tie still proves the number belongs in this world; what nobody
+            # has established is what the row IS. So it lands, red and unproven,
+            # and the analyst decides — a flagged figure beats a silent hole.
             entry["flag"], entry["conf"] = "red", min(conf, 3)
             entry["note"] = (entry.get("note") or "") + j_why
-            conf = min(conf, 3)
         ok = writer.write(
             s_sheet, f"{s_tcol}{s_row}", value,
             prior_coord=f"{s_pcol}{s_row}" if s_pcol else None,
-            note=(entry.get("note") or "") + ("" if j_flag != "red" else ""),
-            flag=flag, trusted=conf >= 4)
+            note=entry.get("note"), flag=flag, trusted=conf >= 4)
         if ok:
             n_written += 1
             entry["homed"] = True
