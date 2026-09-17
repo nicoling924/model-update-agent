@@ -288,17 +288,25 @@ def _stem(w):
     return w
 
 
-def kinship(a, b):
+def kinship(a, b, glossary=False):
     """Non-vacuous label kinship: POSITIVE evidence required.
 
-    THE HOUSE GLOSSARY IS THE FIRST RUNG (owner ruling 2026-09-17): 'turnover'
-    and 'revenue' share no word and are the same line, and CLAUDE.md's cascade
-    says so -- a kinship that does not read the glossary calls the department's
-    own vocabulary a coincidence. Words match on their STEMS, so 'revenues' is
-    'revenue'. And the activity and direction words TELL LINES APART: operating
-    / investing / financing, current / non-current, receivable / payable. Two
-    labels carrying different members of one family are not kin however many
-    other words they share.
+    THE DIRECTION WORDS TELL LINES APART, ALWAYS: operating / investing /
+    financing, current / non-current, receivable / payable. Two labels carrying
+    different members of one family are not kin however many other words they
+    share -- 'net cash from operating activities' and 'net cash from investing
+    activities' share every other word, and this returned True.
+
+    THE HOUSE GLOSSARY IS OPT-IN (`glossary=True`). 'Turnover' and 'revenue'
+    share no word and are the same line, and CLAUDE.md's cascade says so -- but
+    a kinship that says YES more often is not automatically better: on the CLP
+    floor, switching it on everywhere made two printed lines tie 'net profit'
+    where one had, and the key panel lost the row. So the JUDGES that ask "is
+    this line's name unlike the row's?" read the glossary (the coincidence gate,
+    which must not call the department's own vocabulary a coincidence), while
+    the JOINS that ask "which of these lines is the row?" keep the stricter
+    test, where a second candidate costs a key. Words match on their STEMS under
+    the glossary, so 'revenues' is 'revenue'.
 
     Languages with spaces: content-word overlap on stems (stopwords and <=2-char
     tokens carry no identity). CJK / short labels: normalized substring
@@ -313,13 +321,15 @@ def kinship(a, b):
         return False
     if _distinguished(na, nb):
         return False                      # opposite members of one family
-    if synonymous(na, nb):
+    if glossary and synonymous(na, nb):
         return True                       # the house glossary, cascade rung 1
     import re as _re
     cjk = bool(_re.search(r"[\u4e00-\u9fff]", na + nb))
     if not cjk:
-        wa = {_stem(w) for w in na.split() if w not in STOPWORDS and len(w) > 2}
-        wb = {_stem(w) for w in nb.split() if w not in STOPWORDS and len(w) > 2}
+        wa = {_stem(w) for w in na.split() if w not in STOPWORDS and len(w) > 2} if glossary \
+            else {w for w in na.split() if w not in STOPWORDS and len(w) > 2}
+        wb = {_stem(w) for w in nb.split() if w not in STOPWORDS and len(w) > 2} if glossary \
+            else {w for w in nb.split() if w not in STOPWORDS and len(w) > 2}
         if wa and wb:
             return bool(wa & wb)
     sa, sb = na.replace(" ", ""), nb.replace(" ", "")

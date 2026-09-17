@@ -8357,26 +8357,41 @@ def test_a_ranges_end_belongs_to_the_ranges_sheet_2026_09_17():
 
 
 def test_kinship_reads_the_glossary_and_tells_the_directions_apart_2026_09_17():
-    """R1b (owner ruling 2026-09-17): kinship ignored the house glossary —
-    turnover/revenue, revenue/sales, finance costs/interest expense, JCE/joint
-    ventures all False — while 'operating activities' and 'investing activities'
-    came back True. The glossary is the cascade's first rung; the activity and
-    direction words are what tell two lines apart."""
+    """R1b (owner ruling 2026-09-17, as the CLP floor made us scope it): the
+    DIRECTION words tell lines apart everywhere — 'operating activities' and
+    'investing activities' share every other word and came back kin. The house
+    GLOSSARY is opt-in: the judges that ask "is this line's name unlike the
+    row's?" read it, so the department's own vocabulary is never called a
+    coincidence; the joins that ask "WHICH line is the row?" keep the stricter
+    test, because there a second candidate costs a key (switching the glossary
+    on for the joins made two lines tie CLP's 'net profit' and the panel lost
+    the row: keys 8/8 → 6/8)."""
+    from pipeline.ledger import Item as _I
     from pipeline.numerics import kinship as k
-    for a, b in (("Turnover", "Revenue"), ("Revenue", "Sales"),
-                 ("Finance costs", "Interest expense"),
-                 ("Jointly controlled entities", "Joint ventures"),
-                 ("Revenues", "Revenue")):
-        assert k(a, b) is True, (a, b)
+    from pipeline.writegate import name_is_kin
+
+    def _line(lab):
+        return _I(doc="d", page=1, table_id=0, row_ord=0, label=lab, nums=[1.0, 2.0])
+    # the direction families, always, both languages
     for a, b in (("net cash from operating activities", "net cash from investing activities"),
                  ("Trade receivables", "Trade payables"),
                  ("Current liabilities", "Non-current liabilities"),
                  ("经营活动产生的现金流量净额", "投资活动产生的现金流量净额"),
                  ("Lost Days", "Finance costs")):
         assert k(a, b) is False, (a, b)
+        assert name_is_kin(_line(b), a) is False, (a, b)
+    # the glossary: ON for the judge, OFF for the join
+    for row, line in (("Turnover", "Revenue"), ("Revenue", "Sales"),
+                      ("Finance costs", "Interest expense"),
+                      ("Other jointly controlled entities", "Joint ventures"),
+                      ("Revenues", "Revenue")):
+        assert name_is_kin(_line(line), row) is True, (row, line)
+        assert k(row, line) is False, (row, line)
+        assert k(row, line, glossary=True) is True, (row, line)
     # a family one label says nothing about does not block kinship
     assert k("Current assets", "Current liabilities") is True
     assert k("Associates", "Joint ventures") is False
+    assert name_is_kin(_line("Joint ventures"), "Associates") is False
 
 
 if __name__ == "__main__":

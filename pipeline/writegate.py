@@ -328,7 +328,7 @@ def name_is_kin(item, row_label, block=()):
         return True
     line = str(lab)
     names = [str(row_label)] + [str(b) for b in (block or ()) if str(b or "").strip()]
-    return any(kinship(n, line) or synonymous(n, line) for n in names)
+    return any(kinship(n, line, glossary=True) or synonymous(n, line) for n in names)
 
 
 def judge_write(value, prior, was_served, evidence, claimed, holders=None, held_proven=False,
