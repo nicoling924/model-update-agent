@@ -7859,6 +7859,73 @@ def test_a_dead_brain_leaves_the_report_saying_balance_was_not_measured_2026_09_
     assert "balance NOT measured" not in b2, b2[:300]
 
 
+# ── Owner 2026-09-17, ruling 5: CASH CANNOT BE NEGATIVE; A PLUG IS THE LAST ACT ─
+
+def test_a_review_pick_that_drives_cash_negative_is_taken_back_2026_09_17():
+    """Run 35089032559's shape (owner 2026-09-17): a review pick drove 2026 cash
+    to −1,014 and the model went on being edited around it. A company does not
+    hold less than no money: a change that takes a figure which cannot be
+    negative from sound to impossible is TAKEN BACK, whatever else it closed,
+    and the objective table says which figure and by how much."""
+    from pipeline.review import _metrics, _one_call
+    lp, pre, panel, logs = _review_harness()
+    lp.ledger.add(Item(doc="AR.PDF", page=243, table_id=0, row_ord=1, label="Fuel Clause Charge",
+                       nums=[-20.0, 44.3], source_line="Fuel Clause Charge (20.0) 44.3"))
+    lp.__dict__.pop("_review_vindex", None)
+    before = _metrics(lp, panel, None)
+    assert before["Final!AJ57"][3] == 0.0, before["Final!AJ57"]     # 2026 cash is sound to start
+    held = lp.wb["HK Sales"]["AI16"].value
+    out, _res = _one_call(lp, pre, {"tool": "set", "sets": [{"ref": "HK Sales!AI16", "value": -20.0}],
+                                    "because": "p243 'Fuel Clause Charge (20.0) 44.3'"},
+                          panel, None, logs.append, lambda _t: None,
+                          lambda: (True, [], {"checks": []}), None, {})
+    text = "\n".join(out)
+    assert "TAKEN BACK" in text, text
+    assert "cannot be negative negative" in text, text
+    assert "Final!AJ57" in text and "cash 2026 (must not be negative)" in text, text
+    assert "1,300.00 → -800.00" in text, text
+    assert lp.wb["HK Sales"]["AI16"].value == held, "the model was not put back"
+    after = _metrics(lp, panel, None)
+    assert after["Final!AJ57"][3] == 0.0 and after["Final!AJ57"][1] == before["Final!AJ57"][1], after["Final!AJ57"]
+    # an objective ALREADY broken is not this change's doing and blocks nothing
+    from pipeline.review import _broke_sanity
+    was_bad = {"Final!AJ57": ("cash 2026 (must not be negative)", -900.0, "sanity", -900.0)}
+    now_bad = {"Final!AJ57": ("cash 2026 (must not be negative)", -800.0, "sanity", -800.0)}
+    assert _broke_sanity(was_bad, now_bad) == []
+
+
+def test_a_plug_is_the_last_act_and_never_lands_on_a_formula_2026_09_17():
+    """THE PLUG LAW, proven end to end (owner 2026-09-17): while the review is
+    still thinking, the writer refuses a plug outright — it is the LAST resort,
+    not a tool. At the exit the ladder opens plugs and closes the actual-year
+    checks still off, one orange plug each. And the site is never a cell holding
+    the model's own arithmetic: a plug typed over a subtotal would delete the
+    model's thinking to hide a gap."""
+    from pipeline.writer import Writer
+    wb = _wb({"AH57": 5600.0, "AH95": 80000.0, "AI95": 88242.0,
+              "AH60": 1100.0,
+              "AI57": "=AI95-AI60", "AI60": 1200.0})
+    w = Writer(wb)
+    # (a) before the last resort: refused as a plug, and recorded as refused
+    assert w.write("S", "AI60", 999.0, prior_coord="AH60", kind="plug") is False
+    assert w.log["plug_refused"] == ["S!AI60"], w.log.get("plug_refused")
+    # (b) the last resort opens them, and the plug lands orange and is recorded
+    w.plugs_allowed = True
+    assert w.write("S", "AI60", 999.0, prior_coord="AH60", kind="plug", flag="orange") is True
+    assert str(wb["S"]["AI60"].fill.fgColor.rgb or "").endswith("FFC000"), wb["S"]["AI60"].fill.fgColor.rgb
+    # (c) never into the model's own arithmetic, even as the last resort
+    assert w.write("S", "AI57", 87042.0, prior_coord="AH57", kind="plug") is False
+    said = w.log["formula_refused"][-1]
+    assert said.startswith("S!AI57:") and "AI95" in said and "AI60" in said, said
+    assert wb["S"]["AI57"].value == "=AI95-AI60"
+    # and the ladder itself asks for a plug only at the exit
+    import inspect
+    from pipeline import review as _R
+    src = inspect.getsource(_R._exit)
+    assert "writer.plugs_allowed = True" in src, "the exit no longer opens the plugs"
+    assert "actual-year check(s) still off" in src and "terminal_ladder" in src, src[:400]
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

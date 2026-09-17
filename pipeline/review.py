@@ -337,6 +337,22 @@ def _metrics_text(m):
     return [f"  {ref:<20} {what:<46} {_fmt(v):>14}" for ref, (what, v, _k, _o) in m.items()]
 
 
+def _broke_sanity(m0, m1):
+    """THE FIGURES THAT CANNOT BE NEGATIVE (cash, assets — consequence.sanity_rows
+    names them from the model's own roles): the ones this change drove from sound
+    to impossible. A change may close a check; it may not buy the close with a
+    company holding less than no money. -> the lines to say, or []."""
+    out = []
+    for ref, (what, v1, kind, off1) in m1.items():
+        if kind != "sanity" or not off1:
+            continue
+        before = m0.get(ref)
+        if before is None or before[3]:
+            continue                 # it was already broken — this change did not do it
+        out.append(f"{ref} {what}: {_fmt(before[1])} → {_fmt(v1)}")
+    return out
+
+
 def _metric_diff(m0, m1):
     """What a change did to the objectives, line by line — only what moved."""
     out = []
@@ -790,15 +806,35 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         plain, proven, why = _evidence_verdict(loop, sets, call.get("because"))
         note = ((f"Set by the review: {str(call.get('because'))[:200]}") if plain else
                 (f"Set by the review WITHOUT tying evidence — please check: {str(call.get('because') or 'no reason given')[:200]}"))
+        snap = snapshot(loop)
         _applied, refused, said = _apply_sets(loop, sets, plain, proven, note, log)
         if hold_zero:
             hold_zero()
         repair_round("review")
         res = gate_once()
+        m1 = _metrics(loop, key_panel, panel_path)
+        broke = _broke_sanity(m0, m1)
         lines = ["set " + _sets_text(sets) + " → " + ("plain, " + why if plain else "RED: " + why)]
+        if broke:
+            # CASH CANNOT BE NEGATIVE (owner 2026-09-17): a company does not hold
+            # less than no money. A figure that was sound and is now impossible
+            # says the change is wrong, whatever else it closed — so the change
+            # is TAKEN BACK and the objective it broke is named, with the number.
+            # (run 35089032559's shape: a review pick drove 2026 cash to −1,014
+            # and the model went on being edited around it.)
+            restore(loop, snap)
+            if hold_zero:
+                hold_zero()
+            repair_round("review take-back")
+            res = gate_once()
+            lines.append("    TAKEN BACK — this change made a figure that cannot be negative negative:")
+            lines += [f"    {x}" for x in broke]
+            lines.append("    the model is back as it was; the break that sent you here is still open.")
+            lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
+            return lines, res
         if refused:
             lines.append(f"    the writer refused {refused} — {said or 'a guard'} (said out loud, not silently dropped)")
-        lines += _metric_diff(m0, _metrics(loop, key_panel, panel_path))
+        lines += _metric_diff(m0, m1)
         return lines, res
     if tool == "restore":
         sh, co, err = _parse_ref(loop, call.get("ref", ""))
