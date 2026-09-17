@@ -5,6 +5,12 @@ on:
       run_id:
         description: "Actions run id whose artifact to review"
         default: "35066977462"
+      script:
+        description: "The script to run (tools/...)"
+        default: "tools/drytest_review.py"
+      company:
+        description: "Company dir the script reads (when the script takes one)"
+        default: "companies/CX"
 jobs:
   drytest:
     runs-on: ubuntu-latest
@@ -24,8 +30,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - run: gh run download "${{ inputs.run_id }}" -D artifact
-      - run: python tools/drytest_review.py "$(ls -d artifact/*-update | head -1)" | tee drytest.txt
+      - if: inputs.script == 'tools/drytest_review.py'
+        run: gh run download "${{ inputs.run_id }}" -D artifact
+      - run: python "${{ inputs.script }}" "${{ inputs.company }}" | tee drytest.txt
       - uses: actions/upload-artifact@v4
         with:
           name: drytest
