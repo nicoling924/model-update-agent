@@ -5935,6 +5935,45 @@ def _map_model():
     return loop, pages, census
 
 
+def _map_model_wide(n_rows=319, n_faces=6):
+    """A REAL-SHAPED MODEL: CLP's 319 input rows over six printed faces, most of
+    them rows no printed line's comparative points at."""
+    import openpyxl
+    from pipeline.writer import Writer
+    from pipeline.ledger import Ledger, Item
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Model"
+    ws["A1"], ws["B1"], ws["C1"] = "Year", 2024, 2025
+    for r in range(2, n_rows + 2):
+        ws[f"A{r}"] = f"Line item {r}"
+        ws[f"B{r}"] = ws[f"C{r}"] = 1000.0 + r * 7.31
+    spec = {"year_axis": {"Model": {"columns": {"2024": "B", "2025": "C"}, "header_row": 1}},
+            "check_rows": [], "key_rows": []}
+    led, pages = Ledger(), {}
+    for i in range(n_faces):
+        pg = 20 + i
+        led.faces[("ar.pdf", pg)] = ("pl", "bs", "cf")[i % 3]
+        body = [f"Printed line {pg}-{j} {2000 + j:,} {1900 + j:,}" for j in range(12)]
+        if i == 0:                      # one face whose lines DO tie some priors
+            body = [f"Line item {r} {1000 + r * 7.31 + 50:,.2f} {1000 + r * 7.31:,.2f}" for r in range(2, 8)]
+            for r in range(2, 8):
+                led.add(Item(doc="ar.pdf", page=pg, table_id=0, row_ord=r, label=f"Line item {r}",
+                             nums=[1000.0 + r * 7.31 + 50, 1000.0 + r * 7.31],
+                             source_line=f"Line item {r} {1000 + r * 7.31 + 50:,.2f} {1000 + r * 7.31:,.2f}"))
+        pages[("ar.pdf", pg)] = "\n".join(body) + "\n"
+
+    class L:
+        pass
+    loop = L()
+    loop.wb, loop.spec, loop.ty, loop.ledger = wb, spec, 2025, led
+    loop.targets, loop.served, loop.writer = {}, {}, Writer(wb)
+    loop.period = "FY25"
+    loop.__dict__["_map_pages"] = pages
+    census = {"Model": list(range(2, n_rows + 2))}
+    return loop, pages, census
+
+
 def _drive(loop, pages, census, turns, deadline_s=30.0):
     from pipeline.mapping import run_mapping
     said = []
@@ -6375,7 +6414,7 @@ def test_the_context_puts_each_face_beside_its_rows_2026_09_17():
     loop.__dict__.setdefault("_map_refused", []).append("Final!C9: skipped — p207 合计 is a total line")
     ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
     head = ctx.index("===== PL — ar.pdf p23 =====")
-    rows_at = ctx.index("the model rows this face's lines point at", head)
+    rows_at = ctx.index("the model rows of this turn that are read against this face", head)
     assert ctx.index("Revenue 88,018 76,061", head) < rows_at, "the face's text is not above its rows"
     assert "Final!C2" in ctx[rows_at:rows_at + 1200], ctx[rows_at:rows_at + 400]
     assert "合计" in ctx and "ALREADY REFUSED" in ctx, "the brain's own refusals are not carried"
@@ -6658,6 +6697,73 @@ def test_the_name_must_be_kin_to_the_row_2026_09_17():
     print("PASS test_the_name_must_be_kin_to_the_row_2026_09_17")
 
 
+def test_every_open_row_is_put_in_front_of_a_face_2026_09_17():
+    """Owner 2026-09-17: the faces were built only from rows that HAD a lead, so
+    a row with no printed line tying its prior was never shown to anybody and
+    shipped "not reached". Every open row is placed on a face — its own, or the
+    statement pages this run identified — so it is at least read."""
+    from pipeline.mapping import _face_rows, input_rows, spread_over_faces
+    loop, pages, census = _map_model()
+    loop.__dict__["_map_pages"] = pages
+    rows = input_rows(loop, census)
+    placed = {(sh, co) for v in _face_rows(loop, loop.wb, rows, {}).values() for sh, co, _r in v}
+    assert placed, "no row was placed on any face"
+    lead_less = {(sh, co) for sh, co, _r in rows} - placed
+    assert not lead_less, f"rows nobody will ever read: {sorted(lead_less)}"
+    # ON THE REAL SHAPE (reviewer 2026-09-17: a per-face count of 40 dropped 79
+    # of CLP's 319 rows on the floor while this docstring said every open row
+    # gets a face) — every row, on some face, with none lost between them.
+    loopw, pagesw, censusw = _map_model_wide()
+    rowsw = input_rows(loopw, censusw)
+    byw = _face_rows(loopw, loopw.wb, rowsw, {})
+    placedw = {(sh, co) for v in byw.values() for sh, co, _r in v}
+    assert len(placedw) == len(rowsw) == 319, f"{len(rowsw) - len(placedw)} rows were placed nowhere"
+    spread = spread_over_faces([("S", f"C{i}", i) for i in range(319)], [("d", p) for p in range(6)])
+    assert sum(len(v) for v in spread.values()) == 319, "the spread lost rows"
+    print("PASS test_every_open_row_is_put_in_front_of_a_face_2026_09_17")
+
+
+def test_the_open_rows_are_a_queue_the_turns_walk_2026_09_17():
+    """CLP live 35162933611: 217 of 319 input rows shipped "not reached" — every
+    turn rebuilt the context around the same faces and the same rows, so the
+    budget was spent re-serving what was already mapped. The open rows are a
+    queue: a settled cell is never offered again, and each turn starts after the
+    rows the last one showed, so the whole model is walked."""
+    from pipeline.mapping import build_context, input_rows, open_queue, _written
+    loop, pages, census = _map_model()
+    loop.__dict__["_map_pages"] = pages
+    rows = input_rows(loop, census)
+    _written(loop)["Final!C2"] = "filled"          # revenue mapped plain on an earlier turn
+    q = open_queue(loop, rows, {})
+    assert ("Final", "C2") not in {(sh, co) for sh, co, _r in q}, "a settled cell is back in the queue"
+    want = {f"Final!{co}" for _sh, co, _r in q}
+    seen, turns = set(), 0
+    while seen != want and turns < 12:
+        ctx = build_context(loop, loop.wb, rows, pages, {}, size_cap=900)
+        seen |= {ref for ref in want if ref + " " in ctx}
+        assert "Final!C2 " not in ctx, "a plain cell was offered to the brain again"
+        turns += 1
+    assert seen == want, f"rows nobody was ever shown: {sorted(want - seen)}"
+    # AND ON THE REAL SHAPE: CLP's 319 input rows over six printed faces. Every
+    # open row is shown within a handful of turns, and no turn re-serves the
+    # rows of the last one (live: the same 54 rows on all 30 turns, 95 rows
+    # never shown at all).
+    loopw, pagesw, censusw = _map_model_wide()
+    rowsw = input_rows(loopw, censusw)
+    qw = open_queue(loopw, rowsw, {})
+    assert len(qw) == 319, len(qw)
+    wantw, seenw, per_turn, turns = {f"Model!{co}" for _sh, co, _r in qw}, set(), [], 0
+    while seenw != wantw and turns < 12:
+        ctxw = build_context(loopw, loopw.wb, rowsw, pagesw, {})
+        here = {ref for ref in wantw if ref + " " in ctxw}
+        per_turn.append(len(here - seenw))
+        seenw |= here
+        turns += 1
+    assert seenw == wantw, f"{len(wantw - seenw)} of 319 rows were never shown in {turns} turns"
+    assert min(per_turn) > 1, f"a turn moved the queue by {min(per_turn)} row(s): {per_turn}"
+    print("PASS test_the_open_rows_are_a_queue_the_turns_walk_2026_09_17")
+
+
 def test_an_answer_code_cannot_write_leaves_the_row_open_2026_09_17():
     """CLP live: 34 rows answered `printed: 0` with no line printing a nil. A
     zero is a figure only where a nil is printed; the brain's reason is recorded
@@ -6710,6 +6816,54 @@ def test_a_plain_write_stands_after_it_is_downgraded_to_red_2026_09_17():
     assert "Final!C3" in loop.writer.log["flags"], "the disagreement is not red"
     assert "two readings" in " ".join(said), said[-1][-300:]
     print("PASS test_a_plain_write_stands_after_it_is_downgraded_to_red_2026_09_17")
+
+
+def test_progress_is_a_write_not_a_mention_2026_09_17():
+    """A turn is progress when it CHANGES THE MODEL, not when it names rows. A
+    brain whose `set`s land nothing turn after turn ends the mapping (the rows
+    still open go red); a brain that keeps writing — the same row, a better
+    figure each time — is working, and the old measure, which watched only the
+    status of the row, called that "nothing changed" and ended the run."""
+    from pipeline.mapping import run_mapping, _written
+    loop, pages, census = _map_model()
+    n = [0]
+
+    def ask_nothing(_s, _u):
+        n[0] += 1
+        return {"calls": [{"tool": "set", "ref": "Final!C3", "printed": 0, "page": 23,
+                           "line": "Other gains, net 460 420", "because": "nothing this year"}]}
+    run_mapping(loop, loop.wb, census, pages, lambda *a: None, ask_nothing, deadline_s=30.0)
+    assert n[0] <= 5, f"the loop turned {n[0]} times on sets that land nothing"
+    assert loop.wb["Final"]["C3"].value == 420.0, "a refused answer wrote anyway"
+
+    loop2, pages2, census2 = _map_model()
+    m, logs2 = [0], []
+
+    def ask_writing(_s, _u):
+        m[0] += 1
+        return {"calls": [{"tool": "set", "ref": "Final!C9", "printed": 100 + m[0], "page": 23,
+                           "line": "Segment detail", "because": "reading it again"}]}
+    run_mapping(loop2, loop2.wb, census2, pages2, logs2.append, ask_writing, deadline_s=4.0)
+    # the measure, not the machine's speed: the clock may end this loop, the
+    # no-progress measure must not
+    assert not [x for x in logs2 if "changed nothing" in x], \
+        f"a turn that wrote to the model counted as no progress: {[x for x in logs2 if 'changed nothing' in x][:1]}"
+
+    # AND A RED FLAG IS NOT A WRITE (reviewer 2026-09-17: the write journal
+    # carries the flags too, so a brain re-reading one already-mapped row — the
+    # two-readings branch, which only flags — turned 2,226 times in six seconds)
+    loop3, pages3, census3 = _map_model()
+    k = [0]
+
+    def ask_reflagging(_s, _u):
+        k[0] += 1
+        return {"calls": [{"tool": "set", "ref": "Final!C3", "printed": 460 if k[0] == 1 else 500 + k[0],
+                           "page": 23, "line": "Other gains, net 460 420", "because": "reading it again"}]}
+    logs3 = []
+    run_mapping(loop3, loop3.wb, census3, pages3, logs3.append, ask_reflagging, deadline_s=20.0)
+    assert k[0] <= 6, f"the loop turned {k[0]} times on a row it had already mapped"
+    assert [x for x in logs3 if "changed nothing" in x], "re-flagging one row counted as progress"
+    print("PASS test_progress_is_a_write_not_a_mention_2026_09_17")
 
 
 if __name__ == "__main__":

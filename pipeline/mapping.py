@@ -427,6 +427,43 @@ def status_of(loop, sheet, coord, written, skipped):
     return "red" if (st == "red" or ref in (loop.writer.log.get("flags", []) or [])) else "filled"
 
 
+def open_queue(loop, rows, skipped):
+    """THE ROWS STILL TO MAP, as a queue — unfilled before red, each sheet in the
+    model's own order. A cell that is plain, backed out or skipped with a reason
+    is SETTLED and is never offered again (owner 2026-09-17: the context was
+    rebuilt around the same faces every turn, re-showing rows already mapped
+    while 217 of CLP's 319 input rows were never put in front of anybody)."""
+    written = _written(loop)
+    q = []
+    for sheet, coord, r in rows:
+        st = status_of(loop, sheet, coord, written, skipped)
+        if st in ("filled", "backed out", "skipped"):
+            continue
+        q.append((0 if st == "unfilled" else 1, sheet, r, coord))
+    return [(sh, co, r) for _p, sh, r, co in sorted(q)]
+
+
+def spread_over_faces(rows, faces):
+    """{(doc, page): [rows]} — the rows no printed line's comparative points at,
+    placed on the statement faces this run identified. A row with no lead is
+    still a row of this model: it is read against a print so the brain can say
+    what it is, or say why the print does not carry it. EVERY row given is
+    placed (reviewer 2026-09-17: a per-face count dropped 79 of 319 rows on the
+    floor while the docstring said every open row gets a face)."""
+    out = {}
+    if not rows or not faces:
+        return out
+    k = max(1, (len(rows) + len(faces) - 1) // len(faces))
+    for i, (d, p) in enumerate(faces):
+        chunk = rows[i * k:(i + 1) * k]
+        if chunk:
+            out[(d, p)] = list(chunk)
+    left = rows[len(faces) * k:]
+    if left:                      # more rows than the faces' shares hold: the last face takes them
+        out.setdefault(faces[-1], []).extend(left)
+    return out
+
+
 def coverage(loop, rows, skipped):
     """({sheet: {status: n}}, the unfilled rows) — the measure `done` is held to."""
     written, by_sheet, open_rows = _written(loop), {}, []
@@ -694,14 +731,24 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     L.append("## 4. THE PRINTED FACES, each with the model rows it maps onto (history | the analyst's "
              "estimate | status | what the row feeds, then its LEADS — printed lines whose comparative "
              "equals the row's prior: information, not a pick)")
-    order = sorted(rows, key=lambda t: (status_of(loop, t[0], t[1], written, skipped) != "unfilled", t[0], t[2]))
-    lead_pages = {}
+    # THE TURN CONTINUES WHERE THE LAST ONE STOPPED (owner 2026-09-17: every
+    # turn rebuilt the same face order from the same rows, so the top faces
+    # spent the whole budget and the rest of the model was never seen). What is
+    # offered is the OPEN queue, and the next turn starts after the rows this
+    # one showed — so the queue is walked, not the first page of it re-served.
+    queue = open_queue(loop, rows, skipped)
+    cur = int(loop.__dict__.get("_map_cursor") or 0)
+    if cur >= len(queue):
+        cur = 0
+    order = queue[cur:] + queue[:cur]
+    lead_pages, with_lead = {}, set()
     for sheet, coord, r in order:
         pcol = prior_column(loop.spec, sheet, ty)
         prior = _held(pre_wb, ev0, sheet, f"{pcol}{r}") if pcol else None
         for it, _cur in leads_for(loop, prior, k=2):
             lead_pages.setdefault((str(getattr(it, "doc", "")), int(getattr(it, "page", 0) or 0)), []).append(
                 (sheet, coord, r))
+            with_lead.add((sheet, coord))
     placed, room = set(), size_cap
     # THE EARLIER PERIOD'S FACES ARE ON THE SHELF, NOT IN THE CONTEXT (reviewer
     # 2026-09-17: last year's report filled the section with stubs). `page` and
@@ -714,51 +761,62 @@ def build_context(loop, pre_wb, rows, page_text, skipped, answers=(), history=()
     except Exception:  # noqa: BLE001
         old_docs = set()
     faces = [f for f in _faces(loop) if f[1] in here and f[1] not in old_docs]
-    faces = sorted(faces, key=lambda t: -len(lead_pages.get((t[1], t[2]), [])))
-    for face, doc, pg in faces:
-        mine = [x for x in lead_pages.get((doc, pg), []) if x not in placed]
-        txt = (page_text or {}).get((doc, pg))
-        head = f"  ===== {face.upper()} — {doc} p{pg} ====="
-        if not txt and not mine:
-            continue
-        L.append(head if txt else head + " (no text on file — `find` reads its extracted lines)")
-        if txt:
-            # each face is capped to its own statement lines: the face is the
-            # unit of work, not the whole document
-            body = [ln for ln in str(txt).splitlines() if ln.strip()][:45]
-            cost = sum(len(x) for x in body)
-            if room - cost < 0:
-                L.append(f"    (this face's text is not shown here — `page {pg}`)")
-            else:
-                room -= cost
-                L += ["   " + x for x in body]
-        L.append(f"    --- the model rows this face's lines point at ({len(mine)}) ---"
-                 if mine else "    --- no model row's prior is matched by a line of this face ---")
-        for sheet, coord, r in mine:
-            st = status_of(loop, sheet, coord, written, skipped)
-            block = "\n".join(_row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls.get((sheet, coord), "")))
-            if room - len(block) < 0:
-                L.append("    (more rows of this face are not shown here — they come back as these are filled)")
-                break
-            room -= len(block)
-            placed.add((sheet, coord, r))
-            L.append(block)
-    L.append("")
-    L.append("  ----- the model rows no face's line points at (unfilled first) -----")
-    unshown = 0
+    # every open row gets a face: a lead puts it on its own page, and a row no
+    # printed line points at is read against the statement faces of this run
+    for _k, _chunk in spread_over_faces([t for t in order if (t[0], t[1]) not in with_lead],
+                                        [(d, p) for _f, d, p in faces]).items():
+        lead_pages.setdefault(_k, []).extend(_chunk)
+    # THE ROWS COME FIRST, THE FACES FOLLOW THEM (reviewer 2026-09-17: the face
+    # section was built face by face and drained the room before the queue was
+    # reached, so the same 54 rows were served on all 30 turns and 95 rows were
+    # never shown at all). This turn takes the queue in order, for as many rows
+    # as the room holds, and shows each one under the face it is to be read
+    # against — so the cursor moves by exactly the rows the brain saw.
+    face_of = {}
+    for _k, _rws in lead_pages.items():
+        for _t in _rws:
+            face_of.setdefault((_t[0], _t[1]), _k)
+    faces_by_key = {(d, p): f for f, d, p in faces}
+    shown, bodies, order_of_face, room = [], {}, [], size_cap
     for sheet, coord, r in order:
-        if (sheet, coord, r) in placed:
-            continue
+        key = face_of.get((sheet, coord))
+        txt = (page_text or {}).get(key) if key else None
+        cost, body = 0, None
+        if key and key not in bodies:
+            body = [ln for ln in str(txt).splitlines() if ln.strip()] if txt else []
+            cost += sum(len(x) for x in body)
         st = status_of(loop, sheet, coord, written, skipped)
-        text = "\n".join(_row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls.get((sheet, coord), "")))
-        if room - len(text) < 0:
-            unshown += 1
-            continue
-        room -= len(text)
-        L.append(text)
-    L.append(f"  ({len(rows)} input rows in total"
-             + (f"; {unshown} more not shown here — `show` any of them, and they come back "
-                "as the ones above are filled" if unshown else "") + ")")
+        block = "\n".join(_row_block(loop, pre_wb, ev0, sheet, coord, r, st, cls.get((sheet, coord), "")))
+        cost += len(block)
+        if room - cost < 0 and shown:
+            break
+        room -= cost
+        if key and key not in bodies:
+            bodies[key] = body
+            order_of_face.append(key)
+        shown.append((key, block))
+        placed.add((sheet, coord, r))
+    for key in order_of_face:
+        doc, pg = key
+        face = faces_by_key.get(key, "table")
+        L.append(f"  ===== {str(face).upper()} — {doc} p{pg} ====="
+                 + ("" if bodies.get(key) else " (no text on file — `find` reads its extracted lines)"))
+        L += ["   " + x for x in (bodies.get(key) or [])]
+        mine = [b for k2, b in shown if k2 == key]
+        L.append(f"    --- the model rows of this turn that are read against this face ({len(mine)}) ---")
+        L += mine
+    loose = [b for k2, b in shown if k2 is None]
+    if loose:
+        L.append("")
+        L.append("  ----- the open rows this run found no printed face for -----")
+        L += loose
+    unshown = len(queue) - len(shown)
+    L.append(f"  ({len(rows)} input rows in total, {len(queue)} of them still open"
+             + (f"; the {unshown} open rows this turn had no room for are the ones the next turn opens "
+                "with, and `show` reaches any of them now" if unshown > 0 else "") + ")")
+    # the queue moves on by exactly the rows this turn showed
+    if queue:
+        loop.__dict__["_map_cursor"] = (cur + max(1, len(shown))) % len(queue)
     ref_lines = list(loop.__dict__.get("_map_refused") or [])
     if ref_lines:
         L.append("")
@@ -1088,7 +1146,9 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
         sheet, coord = e["sheet"], e["coord"]
         v, plain, why, ev = verdict(loop, e, page_text, sources, log)
         if v is None:
-            out.append(f"  {sheet}!{coord} REFUSED: {why}")
+            # THE ROW STAYS OPEN (owner 2026-09-17): an answer code cannot write
+            # is the brain's reason, kept in front of it, not a row swallowed.
+            out.append(f"  {sheet}!{coord} nothing written: {why}")
             loop.__dict__.setdefault("_map_refused", []).append(f"{sheet}!{coord}: {why[:120]}")
             continue
         colour = None if plain is True else ("orange" if plain == "orange" else "red")
@@ -1145,6 +1205,11 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None):
             out.append(f"  {sheet}!{coord}: the cell would not take it ({why_r}) — red, and not offered again")
             loop.__dict__.setdefault("_map_refused", []).append(f"{sheet}!{coord}: the cell would not take the figure")
             continue
+        # PROGRESS IS A FIGURE LANDING IN A CELL (reviewer 2026-09-17: the write
+        # journal also carries the flags, so a turn that only painted a cell red
+        # read as a write and the loop could turn for ever). This counts the
+        # cells that took a figure, and nothing else.
+        loop.__dict__["_map_cells"] = int(loop.__dict__.get("_map_cells") or 0) + 1
         back = Evaluator(loop.wb).cell(sheet, coord)
         shown = back if isinstance(back, (int, float)) else val
         if isinstance(back, (int, float)) and not isinstance(val, str) \
@@ -1412,9 +1477,16 @@ def _one_call(loop, pre_wb, call, page_text, sources, skipped, log, deadline=Non
 # ── the loop ─────────────────────────────────────────────────────────────
 
 def _face_rows(loop, pre_wb, rows, skipped):
-    """{(doc, page): [rows whose leads point at that face]} — the unit of work."""
+    """{(doc, page): [open rows to put in front of that face]}.
+
+    EVERY OPEN ROW GETS A PAGE (owner 2026-09-17: the faces were built only from
+    rows that had a lead, so a row with no printed line whose comparative ties
+    its prior was never shown to anybody and shipped "not reached"). A lead
+    places a row on its own page; a row with no lead is placed on the faces of
+    its own kind — the statement pages the name judgment identified — so the
+    brain at least reads it against the right print and can say why not."""
     ev0 = Evaluator(pre_wb)
-    written, out = _written(loop), {}
+    written, out, placed = _written(loop), {}, set()
     for sheet, coord, r in rows:
         if status_of(loop, sheet, coord, written, skipped) != "unfilled":
             continue
@@ -1423,10 +1495,21 @@ def _face_rows(loop, pre_wb, rows, skipped):
         for it, _cur in leads_for(loop, prior, k=2):
             out.setdefault((str(getattr(it, "doc", "")), int(getattr(it, "page", 0) or 0)), []).append(
                 (sheet, coord, r))
+            placed.add((sheet, coord))
+    rest = [(sh, co, r) for sh, co, r in rows
+            if (sh, co) not in placed and status_of(loop, sh, co, written, skipped) == "unfilled"]
+    faces = [(d, p) for _f, d, p in _faces(loop) if (page_of_text(loop, d, p))]
+    for key, chunk in spread_over_faces(rest, faces).items():
+        out.setdefault(key, []).extend(chunk)
     return out
 
 
-def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, skipped):
+def page_of_text(loop, doc, pg):
+    pt = loop.__dict__.get("_map_pages") or {}
+    return (pt.get((doc, pg)) if hasattr(pt, "get") else None)
+
+
+def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, skipped, size_cap=14000):
     """ONE FACE, ON ITS OWN: its printed text, the model rows its lines point at,
     and the keys — small enough to answer in one batch, and nothing else."""
     ev0 = Evaluator(pre_wb)
@@ -1447,9 +1530,22 @@ def _face_context(loop, pre_wb, face, doc, pg, rows_here, page_text, rows_all, s
     L.append("")
     L.append("## THE MODEL ROWS THIS FACE'S LINES POINT AT")
     cls = _classes(loop, rows_all)
+    # THE CALL IS BOUNDED BY ITS SIZE, NOT BY A COUNT (reviewer 2026-09-17: a
+    # per-face count dropped rows before anyone read them). What does not fit in
+    # one call stays OPEN — the sequential queue puts it in front of the brain.
+    room, left = size_cap, 0
     for sheet, coord, r in rows_here:
-        L += _row_block(loop, pre_wb, ev0, sheet, coord, r,
-                        status_of(loop, sheet, coord, written, skipped), cls.get((sheet, coord), ""))
+        blk = _row_block(loop, pre_wb, ev0, sheet, coord, r,
+                         status_of(loop, sheet, coord, written, skipped), cls.get((sheet, coord), ""))
+        cost = sum(len(x) for x in blk)
+        if room - cost < 0:
+            left += 1
+            continue
+        room -= cost
+        L += blk
+    if left:
+        L.append(f"  ({left} more open row(s) of this model do not fit in this call — they stay open and "
+                 "come back in the mapping loop)")
     return "\n".join(L)
 
 
@@ -1573,7 +1669,14 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
                 answers = ["    your last reply carried no calls — answer with a JSON list of calls"]
                 continue
             answers, finished = [], False
+            # PROGRESS IS MEASURED FROM BEFORE THE CALLS RUN (2026-09-17: the
+            # write count was read AFTER the turn's writes had landed, so it
+            # always matched itself and no write ever counted as progress).
+            # PROGRESS IS MEASURED FROM BEFORE THE CALLS RUN (2026-09-17: the
+            # count was read AFTER the turn's writes had landed, so it always
+            # matched itself and no write ever counted as progress).
             _before = len(_written(loop)) + len(skipped)
+            _writes_before = int(loop.__dict__.get("_map_cells") or 0)
             for call in calls:
                 if time.monotonic() - t0 > deadline_s:
                     answers.append("    the clock ended the mapping inside this turn; what was already "
@@ -1640,7 +1743,11 @@ def run_mapping(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0
             if _same == state.get("last_reply"):
                 _new_read = False
             state["last_reply"] = _same
-            if len(_written(loop)) + len(skipped) == _before and not _new_read:
+            # PROGRESS IS A WRITE, NOT A MENTION (owner 2026-09-17): a `set`
+            # that lands nothing changes no cell, however many rows it names —
+            # and a red flag is not a write either.
+            _wrote = int(loop.__dict__.get("_map_cells") or 0) != _writes_before
+            if not _wrote and len(_written(loop)) + len(skipped) == _before and not _new_read:
                 stuck += 1
                 answers.append("    that turn changed nothing in the model. Map a row, or `skip` it with "
                                "your reason — another turn that changes nothing ends the mapping and the "
