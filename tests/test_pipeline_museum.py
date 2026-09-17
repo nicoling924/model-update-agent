@@ -6415,7 +6415,7 @@ def test_a_row_the_brain_routes_nowhere_reaches_a_statement_face_2026_09_18():
 
     def ask(_system, user):
         if user.startswith("## ROUTE THE OPEN ROWS"):
-            return {"calls": [{"tool": "route", "routes": [{"ref": "Model!C2", "pages": [21]}]}]}
+            return {"calls": [{"tool": "route", "routes": [{"ref": "Model!C2", "pages": [22]}]}]}
         seen.append(user)
         return {"calls": []}
     map_faces(loop, loop.wb, census, pages, lambda *a: None, ask, deadline_s=30.0, workers=4)
@@ -6426,7 +6426,9 @@ def test_a_row_the_brain_routes_nowhere_reaches_a_statement_face_2026_09_18():
         for r in range(2, 6):
             if f"Model!C{r} " in body:
                 where.setdefault(f"Model!C{r}", []).append(head)
-    assert where.get("Model!C2") == ["ar.pdf p21"], where
+    # p22 is NOT where position deals the first row (four rows over three faces
+    # puts it on p20): the route, not the position, chose the page
+    assert where.get("Model!C2") == ["ar.pdf p22"], where
     faces = {"ar.pdf p20", "ar.pdf p21", "ar.pdf p22"}
     for r in (3, 4, 5):
         got = where.get(f"Model!C{r}")
@@ -6482,10 +6484,78 @@ def test_the_compact_route_shapes_parse_2026_09_18():
     # no row carried a reason, and every one of them landed
     assert len(got) == 6, got
     # the page index says what a page IS, compactly — not what is on it
-    from pipeline.mapping import page_index
+    from pipeline.mapping import page_index, routing_context, input_rows
     idx = [ln for ln in page_index(loop, pages) if not ln.strip().startswith("---")]
     assert idx and max(len(ln) for ln in idx) <= 100, max(idx, key=len)
+    # AND THE QUESTION ITSELF ASKS FOR PAGES ONLY — a reason only to CLOSE a row
+    rows = input_rows(loop, census)
+    lines = {f"{sh}!{co}": f"  {sh}!{co}  a row | prior 1 | feeds " for sh, co, _r in rows}
+    q = routing_context(loop, loop.wb, rows, idx, lines, 1, 1, len(rows))
+    assert "PAGES ONLY" in q, q[:600]
+    head = q.split("SAY WHY ONLY TO CLOSE A ROW")[0]
+    assert "because" not in head, head
+    assert q.count("because") == 1 and "scope" in q.split("SAY WHY ONLY TO CLOSE A ROW")[1][:300], q[:900]
     print("PASS test_the_compact_route_shapes_parse_2026_09_18")
+
+
+def test_a_page_with_no_print_on_file_is_not_a_page_to_route_to_2026_09_18():
+    """REVIEWER 2026-09-18 (adversarial, fresh context): the page index carries
+    every page the ledger quoted a line from, and a document whose text
+    extraction failed keeps all of those pages with no text at all. The fallback
+    deal has always held to "a face with a print on file"; the brain's own pick
+    did not — eight rows were routed to one text-less page, ONE face was read,
+    and the three pages that do print were never opened. A page there is no
+    print of is not a page a row can be read against: code says which page it
+    cannot lay down, the row keeps the pages that do print, and a row left with
+    none falls to the statement faces and is asked again."""
+    from pipeline.ledger import Item
+    from pipeline.mapping import map_faces, _routes
+    loop, pages, census = _map_model_wide(n_rows=6, n_faces=3)
+    # a page the ledger quotes but the reader never got text for
+    loop.ledger.add(Item(doc="ar.pdf", page=99, table_id=0, row_ord=0, label="Scanned appendix",
+                         nums=[1.0, 2.0], source_line="Scanned appendix 1 2"))
+    asked = []
+
+    def ask(_system, user):
+        if user.startswith("## ROUTE THE OPEN ROWS"):
+            assert "p99" in user, "the index hid a page the ledger read lines from"
+            return {"calls": [{"tool": "route", "routes": [
+                {"ref": f"Model!C{r}", "pages": [99]} for r in range(2, 8)]}]}
+        asked.append(user.splitlines()[0].split("\u2014")[-1].strip())
+        return {"calls": []}
+    logs = []
+    map_faces(loop, loop.wb, census, pages, logs.append, ask, deadline_s=30.0, workers=4)
+    assert not _routes(loop), f"a page with no print on file was accepted as a route: {_routes(loop)}"
+    assert [x for x in logs if "no print of ar.pdf p99" in x], [x for x in logs if "p99" in x][:3]
+    # every row still reached a print: the statement faces, as the fallback says
+    assert set(asked) == {"ar.pdf p20", "ar.pdf p21", "ar.pdf p22"}, asked
+    print("PASS test_a_page_with_no_print_on_file_is_not_a_page_to_route_to_2026_09_18")
+
+
+def test_a_routing_batch_the_clock_dropped_is_asked_again_2026_09_18():
+    """REVIEWER 2026-09-18 (adversarial, fresh context): every batch was stamped
+    "asked" while the contexts were being built, before the submit loop dropped
+    the ones past the deadline — so a batch the clock never put was never put
+    again for the rest of the run, and its rows could only ever be read against
+    the statement faces. A question not put is not a question answered."""
+    from pipeline.mapping import route_open_rows, input_rows, needs_route
+    loop, pages, census = _map_model_wide(n_rows=6, n_faces=3)
+    rows = input_rows(loop, census)
+    logs = []
+    placed = route_open_rows(loop, loop.wb, rows, pages, {}, lambda *a: {"calls": []}, logs.append,
+                             deadline=time.monotonic() - 5.0)
+    assert placed == 0, placed
+    assert all(needs_route(loop, sh, co) for sh, co, _r in rows), \
+        "a batch the clock never asked was stamped asked"
+    assert [x for x in logs if "asked again" in x], logs
+    # and a batch that IS put and comes back with nothing is asked — the same
+    # question gets the same answer, and the statement-face deal stands
+    def dead(*_a):
+        raise RuntimeError("the brain answers nothing")
+    route_open_rows(loop, loop.wb, rows, pages, {}, dead, logs.append, deadline=None)
+    assert not any(needs_route(loop, sh, co) for sh, co, _r in rows), \
+        "a batch that was asked and lost is asked again turn after turn"
+    print("PASS test_a_routing_batch_the_clock_dropped_is_asked_again_2026_09_18")
 
 
 def test_a_restatement_is_a_question_not_a_correction_2026_09_17():

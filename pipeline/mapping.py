@@ -711,7 +711,18 @@ def _t_route(loop, call, page_text):
         ref = f"{sheet}!{coord}"
         keys, bad = _named_pages(loop, page_text, s_.get("pages", s_.get("page", [])))
         refused = set(_refused_pages(loop, sheet, coord))
-        keep = [k for k in keys if k not in refused]
+        # A PAGE THERE IS NO PRINT OF IS NOT A PAGE A ROW CAN BE READ AGAINST
+        # (reviewer 2026-09-18: the index carries every page the ledger quoted a
+        # line from, and a document whose text extraction failed keeps all of
+        # those with no text at all — eight rows routed to one such page and the
+        # three pages that DO print were never read). The fallback deal has
+        # always held to this; the brain's own pick is held to it too, and code
+        # says which page it cannot lay down so the brain names another.
+        blind = [k for k in keys if not (page_text or {}).get(k)]
+        keep = [k for k in keys if k not in refused and k not in blind]
+        if blind:
+            bad.append("this run has no print of " + ", ".join(f"{d} p{p}" for d, p in blind)
+                       + " on file — there is nothing to lay beside the row there")
         if bad:
             out.append(f"route {ref}: " + "; ".join(bad[:3]))
         if not keep:
@@ -1951,6 +1962,11 @@ def map_faces(loop, pre_wb, census, page_text, log, ask_json, deadline_s=900.0, 
         except Exception as e:  # noqa: BLE001 — said in the log; the statement-face deal stands
             log(f"[map] routing: the pass was lost ({e!r}) — every open row is read against the "
                 "statement faces")
+        # ONE CLOCK, AND WHO SPENT IT IS SAID (reviewer 2026-09-18: routing can
+        # take the whole of this round's budget and the only line left would be
+        # "0/N face(s) answered", naming nothing)
+        log(f"[map] routing took {(time.monotonic() - t0) / 60:.1f} min of the face round's "
+            f"{deadline_s / 60:.1f} min")
     by_face = _face_rows(loop, pre_wb, rows, skipped)
     faces = {(d, p): f for f, d, p in _faces(loop)}
     work = sorted(by_face.items(), key=lambda kv: -len(kv[1]))
@@ -2122,21 +2138,29 @@ def route_open_rows(loop, pre_wb, rows, page_text, skipped, ask_json, log, deadl
     # again when something about it has changed (it refused a print), never turn
     # after turn — the same question gets the same answer, and a routing call
     # that is lost leaves the statement-face deal standing.
-    ctxs = []
-    for i, chunk in enumerate(chunks, 1):
-        ctxs.append(routing_context(loop, pre_wb, chunk, index_lines, lines, i, len(chunks), len(need)))
-        for sh, co, _r in chunk:
-            loop.__dict__.setdefault("_map_route_asked", {})[f"{sh}!{co}"] = \
-                len(_refused_pages(loop, sh, co))
+    ctxs = [routing_context(loop, pre_wb, chunk, index_lines, lines, i, len(chunks), len(need))
+            for i, chunk in enumerate(chunks, 1)]
     log(f"[map] routing: {len(need)} open row(s) over {len(index_lines)} page(s) in "
         f"{len(chunks)} batch(es), {workers} in flight together")
     replies = [None] * len(chunks)
     with _cf.ThreadPoolExecutor(max_workers=max(1, int(workers))) as pool:
-        futures = [(i, pool.submit(ask_json, MANDATE, ctx)) for i, ctx in enumerate(ctxs)
-                   if deadline is None or time.monotonic() < deadline]
+        futures = []
+        for i, ctx in enumerate(ctxs):
+            if deadline is not None and time.monotonic() >= deadline:
+                break
+            futures.append((i, pool.submit(ask_json, MANDATE, ctx)))
+            # A QUESTION NOT PUT IS NOT A QUESTION ANSWERED (reviewer
+            # 2026-09-18: every chunk was stamped "asked" while the contexts
+            # were being built, so a batch the clock dropped was never asked
+            # again for the rest of the run). The stamp goes on the batch that
+            # is actually sent; a batch that is sent and comes back with
+            # nothing IS asked — the same question gets the same answer.
+            for sh, co, _r in chunks[i]:
+                loop.__dict__.setdefault("_map_route_asked", {})[f"{sh}!{co}"] = \
+                    len(_refused_pages(loop, sh, co))
         if len(futures) < len(ctxs):
             log(f"[map] routing: the clock ended it before {len(ctxs) - len(futures)} batch(es) were "
-                "asked — their rows are read against the statement faces")
+                "asked — their rows are read against the statement faces, and they are asked again")
         for i, fut in futures:
             left = (deadline - time.monotonic()) if deadline is not None else 600.0
             try:
