@@ -824,7 +824,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                 log(f"[run] one-off forecast intent: {len(held)} originally-zero event forecasts preserved")
     preserve_event_forecasts()
     from .teachings import oneoff_watch, probe_watch
-    n_oo = oneoff_watch(wb, spec_d, target_year, writer, log)
+    n_oo = oneoff_watch(wb, spec_d, target_year, writer, log, pre_wb=wb_pre_formulas)
     n_ap = probe_watch(wb, spec_d, target_year, fc_base, writer, log)
     if n_oo or n_ap:
         log(f"[run] forecast watch: {n_oo} forecast link(s) to an actual-year one-off, "
@@ -913,7 +913,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
                                                   ledger, _panel_path, keys_before, panel=_key_panel):
             _msg = (f"KEY {nm} at {ref}: was proven-printed "
                     f"{then:,.1f}, now {now if now is None else f'{now:,.1f}'}"
-                    " — printed nowhere (rule 2)")
+                    " — no matching named key target (rule 2)")
             if _msg not in fails_g:
                 fails_g.append(_msg)
             ok_g = False

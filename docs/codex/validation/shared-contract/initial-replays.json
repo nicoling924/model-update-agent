@@ -1,0 +1,17 @@
+{
+  "DFE-1H25": {
+    "balance_status": "pass",
+    "checks": 84,
+    "artifact": "/private/tmp/codex-shared-contract-results/replays/DFE-1H25/replay/1H25-replay/acceptance.json"
+  },
+  "CLP-FY25": {
+    "balance_status": "pass",
+    "checks": 24,
+    "artifact": "/private/tmp/codex-shared-contract-results/replays/CLP-FY25/replay/FY25-replay/acceptance.json"
+  },
+  "DFE-FY25": {
+    "balance_status": "pass",
+    "checks": 118,
+    "artifact": "/private/tmp/codex-shared-contract-results/replays/DFE-FY25/replay/FY25-replay/acceptance.json"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "scope": "offline replay of exact semantic answer against prior cold output; not cold acceptance",
+  "capacity_future": {
+    "ROAFNA!AJ71": 0.0,
+    "ROAFNA!AK71": 0.0,
+    "ROAFNA!AL71": 0.0,
+    "ROAFNA!AM71": 0.0,
+    "ROAFNA!AN71": 0.0
+  },
+  "held_count": 20,
+  "measured_checks": {
+    "Final!AI99": 0,
+    "Final!AJ99": 2.9103830456733704e-11,
+    "Final!AK99": 0.0,
+    "Final!AL99": 5.820766091346741e-11,
+    "Final!AM99": 0.0,
+    "Final!AN99": 5.820766091346741e-11,
+    "ROAFNA!AI31": 0.0,
+    "ROAFNA!AJ31": 0.0,
+    "ROAFNA!AK31": 0.0,
+    "ROAFNA!AL31": 0.0,
+    "ROAFNA!AM31": 0.0,
+    "ROAFNA!AN31": 0.0,
+    "Driver!AI73": 0,
+    "Driver!AJ73": -2.9103830456733704e-11,
+    "Driver!AK73": -5.820766091346741e-11,
+    "Driver!AL73": -2.9103830456733704e-11,
+    "Driver!AM73": -5.820766091346741e-11,
+    "Driver!AN73": -5.820766091346741e-11
+  },
+  "actuals_unchanged": true
+}

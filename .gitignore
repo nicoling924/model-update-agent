@@ -27,3 +27,7 @@ companies/*/replay/
 !companies/CX/model-archive/*.xlsx
 !companies/CX/disclosures/
 !companies/CX/disclosures/**
+
+# Local diagnosis payloads and unapproved review copies stay out of cold trials.
+/experiments/shared-contract/
+/outputs/cold-review-09dfd1d/

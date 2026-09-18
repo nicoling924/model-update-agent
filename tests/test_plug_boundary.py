@@ -91,6 +91,42 @@ def test_orange_colour_does_not_authorize_plugging_a_pure_formula():
     assert ws['C9'].value=='=C8'
     assert 'not a numeric input' in answer
 
+def test_residual_cannot_erase_mapped_claim_even_when_red_or_forced():
+    from copy import deepcopy
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = 'S'
+    ws['B9'] = 80; ws['C9'] = 100; ws['D9'] = 0
+    writer = _writer(wb)
+    writer.actual_cols = {'S': 'C'}
+    writer.served = {('S', 9): {'value': 100, 'homed': True, 'home': ('S', 'C9'),
+                               'conf': 3, 'flag': 'red', 'note': 'mapping needs definition review'}}
+    writer.flag('S', 'C9', 'red', 'Review mapping scope')
+    before = deepcopy(writer.served)
+    assert not writer.write('S', 'C9', 90, kind='plug', trusted=True, force_lock=True)
+    assert ws['C9'].value == 100 and writer.served == before
+    assert writer.residual_refusal('S', 'D9') is None
+    # Normal evidence correction remains possible; only unsupported residual edits are refused.
+    assert writer.write('S', 'C9', 105, trusted=True)
+    assert ('S', 9) not in writer.served
+
+
+def test_terminal_residual_uses_same_home_contract():
+    from pipeline.orchestrator import ObjectiveLoop
+    from pipeline.ledger import Ledger
+    from unittest.mock import patch
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = 'S'
+    ws['B9'] = 80; ws['C9'] = 100; ws['C1'] = '=110-C9'
+    spec = {'year_axis': {'S': {'columns': {'2024': 'B', '2025': 'C'}}},
+            'check_rows': [{'sheet': 'S', 'row': 1, 'expect': 0}], 'key_rows': []}
+    writer = _writer(wb)
+    writer.served = {('S', 9): {'value': 100, 'homed': True, 'home': ('S', 'C9'),
+                               'conf': 3, 'flag': 'red'}}
+    loop = ObjectiveLoop(wb, spec, 2025, Ledger(), [], writer.served, writer, None)
+    with patch.object(loop, 't_diagnose_balance', return_value='No evidence candidates'):
+        result = loop.t_plug_residual({'check': 'S!1', 'into': 'S!C9', 'why': 'residual'})
+    assert result.startswith('REFUSED:') and ws['C9'].value == 100
+    assert Evaluator(wb).cell('S', 'C1') == 10
+
+
 if __name__ == "__main__":
     import unittest
     suite=unittest.TestSuite(unittest.FunctionTestCase(f) for name,f in list(globals().items()) if name.startswith("test_") and callable(f))

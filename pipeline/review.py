@@ -42,6 +42,7 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"set","sets":[{"ref":"Sheet!AI16","value":46.3}],"because":"p243 'Fuel Cost Adjustment 46.3 46.3'"}
   {"tool":"restore","ref":"Sheet!AI16","why":"..."}   put back what the analyst had, red
   {"tool":"plug","check":"Sheet!AI99","why":"..."}    the model's own residual site takes the gap; orange, reported
+  {"tool":"classify_event","candidate":"exact candidate ID shown","one_off":true,"reason":"economic evidence for a discrete event"}
   {"tool":"done","objectives":{"balance":"holds | cannot be closed because ...","keys":"...","rollforward":"..."}}
 A `sets` list with two entries is applied and measured as ONE change — that is how a compensating
 pair is resolved. A `set` lands plain only when its evidence ties (the quote is on the page and the
@@ -352,6 +353,9 @@ def build_context(loop, pre_wb, key_panel, panel_path, notes=(), answers=(), his
     ev, ev0 = Evaluator(wb), Evaluator(pre_wb)
     L = ["## 1. OBJECTIVES, measured by code"]
     L += _metrics_text(_metrics(loop, key_panel, panel_path))
+    events = loop.event_context()
+    if events:
+        L += ["## FORECAST EVENT CLASSIFICATION — original zero forecasts now carry actuals", *events]
     L.append("")
     L.append("## 2. HEADLINE LINES (history | the analyst's pre-update estimate for the actual year | now | next year before → now)")
     for role, sh, r in _headline_rows(loop):
@@ -703,6 +707,12 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
     """Answer one tool call. -> (lines, result) where result is None, or the
     gate's tuple when the model changed."""
     tool = str(call.get("tool") or "").strip().lower()
+    if tool == "classify_event":
+        result = loop.t_classify_event(call)
+        if not result.startswith("CLASSIFIED"):
+            return [result], None
+        repair_round("event classification")
+        return [result], gate_once()
     if tool == "show":
         return t_show(loop, pre_wb, call.get("ref", "")), None
     if tool == "page":
@@ -799,7 +809,7 @@ def _one_call(loop, pre_wb, call, key_panel, panel_path, log, repair_round, gate
         state.setdefault("plugged", []).append(f"{sh}!{co}")
         return [f"plug {sh}!{co} ({str(call.get('why') or '')[:120]}) — the model's own residual site, orange, reported"] \
             + _metric_diff(m0, _metrics(loop, key_panel, panel_path)), res
-    return [f"'{tool}' is not one of the tools: show, find, try, set, restore, plug, done"], None
+    return [f"'{tool}' is not one of the tools: show, find, try, set, restore, plug, classify_event, done"], None
 
 
 def _finish(loop, pre_wb, log, res, statement):

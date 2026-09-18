@@ -950,11 +950,87 @@ def twin_leads(wb, pre_values_wb, spec, target_year, log=print):
     return out
 
 
-def oneoff_watch(wb, spec, target_year, writer, log=print):
+def oneoff_watch(wb, spec, target_year, writer, log=print, pre_wb=None):
     """THE ONE-OFF, SAID NOT EDITED (owner 2026-09-17): the forecast cells that
     read an actual-year one-off are watch-listed with what the edit would be;
     the review's brain decides. -> how many."""
+    from openpyxl.utils import column_index_from_string
     from .schedules import _Recorder
+    candidates = {}
+    axes = spec.get("year_axis") or {}
+    ev = Evaluator(wb)
+
+    def add_candidate(sheet, coord, note, forecast_refs):
+        m = re.match(r"^([A-Z]{1,3})(\d+)$", str(coord))
+        tcol = (axes.get(sheet) or {}).get("columns", {}).get(str(target_year))
+        if not m or not tcol:
+            return
+        row = int(m.group(2))
+        ref = f"{sheet}!{tcol}{row}"
+        pcol = prior_column(spec, sheet, target_year)
+        try:
+            actual = ev.cell(sheet, f"{tcol}{row}")
+        except Exception:
+            actual = None
+        try:
+            prior = ev.cell(sheet, f"{pcol}{row}") if pcol else None
+        except Exception:
+            prior = None
+        label = next((str(wb[sheet].cell(row, c).value).strip()
+                      for c in range(1, 7)
+                      if wb[sheet].cell(row, c).value not in (None, "")), "")
+        section = ""
+        for above in range(row - 1, 0, -1):
+            if wb[sheet][f"{tcol}{above}"].value not in (None, ""):
+                continue
+            texts = [cell.value for cell in wb[sheet][above]
+                     if cell.column < column_index_from_string(tcol)
+                     and isinstance(cell.value, str) and not cell.value.startswith("=")]
+            if texts:
+                section = " | ".join(texts)
+                break
+        entry = candidates.setdefault(ref, {
+            "id": ref, "sheet": sheet, "row": row,
+            "actual": ref, "forecast": [],
+            "label": label, "section": section, "actual_value": actual, "prior_value": prior,
+            "note": "candidate found by one-off structural detector; analyst classification required",
+        })
+        for fref in forecast_refs:
+            if fref not in entry["forecast"]:
+                entry["forecast"].append(fref)
+        writer.watch(forecast_refs[0].split("!", 1)[0],
+                     forecast_refs[0].split("!", 1)[1],
+                     "this forecast links to an actual-year one-off and would carry it into every "
+                     "forecast year; code has not changed it. " + note[:120])
+
+    if pre_wb is not None:
+        from .freeze import hold_oneoff_forecasts
+        old_ev = Evaluator(pre_wb)
+        for sheet in axes:
+            if sheet not in wb.sheetnames or sheet not in pre_wb.sheetnames:
+                continue
+            tcol = (axes.get(sheet) or {}).get("columns", {}).get(str(target_year))
+            if not tcol:
+                continue
+            for row in range(1, wb[sheet].max_row + 1):
+                try:
+                    now = ev.cell(sheet, f"{tcol}{row}")
+                    old = old_ev.cell(sheet, f"{tcol}{row}")
+                except Exception:
+                    continue
+                if not isinstance(now, (int, float)) or not isinstance(old, (int, float)) \
+                        or abs(now - old) <= row_tol(old):
+                    continue
+                plans = hold_oneoff_forecasts(wb, pre_wb, spec, target_year,
+                                              sheet, row, None, preview=True)
+                if plans:
+                    add_candidate(sheet, f"{tcol}{row}",
+                                   "original forecast input evaluated to zero; explicit classification required",
+                                   [f"{p['sheet']}!{p['coord']}" for p in plans])
+        if candidates:
+            writer.log.setdefault("oneoff_candidates", {}).update(candidates)
+        return len(candidates)
+
     rec = _Recorder()
     try:
         oneoff_no_propagate(wb, spec, target_year, rec, lambda *a, **k: None)
@@ -962,9 +1038,9 @@ def oneoff_watch(wb, spec, target_year, writer, log=print):
         log(f"[run] the one-off index could not be built: {e!r}")
         return 0
     for sheet, coord, _v, note in rec.proposed:
-        writer.watch(sheet, coord,
-                     "this forecast links to an actual-year one-off and would carry it into every "
-                     "forecast year; code has not changed it. " + note[:120])
+        add_candidate(sheet, coord, note, [f"{sheet}!{coord}"])
+    if candidates:
+        writer.log.setdefault("oneoff_candidates", {}).update(candidates)
     return len(rec.proposed)
 
 

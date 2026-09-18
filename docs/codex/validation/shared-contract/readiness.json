@@ -1,0 +1,23 @@
+{
+  "scope": "targeted input delivery on recorded evidence, not a full cold accuracy or rollover result",
+  "CLP": {
+    "ref": "Final!AI95",
+    "expected": 84367,
+    "delivered": 84367,
+    "source_candidates": 1
+  },
+  "DFE": [
+    {
+      "ref": "Raw financials!U219",
+      "expected": -10587.32405432,
+      "delivered": -10587.32405432,
+      "source_candidates": 1
+    },
+    {
+      "ref": "Raw financials!U237",
+      "expected": 5101.68832257,
+      "delivered": 5101.688322569999,
+      "source_candidates": 1
+    }
+  ]
+}

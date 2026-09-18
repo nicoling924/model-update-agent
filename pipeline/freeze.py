@@ -130,7 +130,7 @@ def plan_freezes(wb, pre_wb, sheets, target_col, horizon=8, max_row=300,
 
 
 def hold_oneoff_forecasts(wb, pre_wb, spec, target_year, sheet, row,
-                          writer, because):
+                          writer, because=None, preview=False):
     """Hold explicitly classified one-off zero forecasts at zero.
 
     ``because`` is the brain's one-off classification; code supplies only
@@ -141,7 +141,7 @@ def hold_oneoff_forecasts(wb, pre_wb, spec, target_year, sheet, row,
     rows and accounting wiring.  Missing, cyclic, nonzero, and cross-row
     formulas remain live.
     """
-    if not isinstance(because, str) or not because.strip():
+    if not preview and (not isinstance(because, str) or not because.strip()):
         return []
     if sheet not in wb.sheetnames or sheet not in pre_wb.sheetnames:
         return []
@@ -239,10 +239,12 @@ def hold_oneoff_forecasts(wb, pre_wb, spec, target_year, sheet, row,
             "oldFormula": raw,
             "value": 0.0,
             "reason": "zero_forecast_hold",
-            "proof": (f"explicit one-off classification: {because.strip()}; "
+            "proof": (f"explicit one-off classification: {(because or 'preview candidate').strip()}; "
                       "original forecast evaluates to zero and is an independent "
                       "constant/event-carry input; prior actual is constant-only"),
         })
+    if preview:
+        return plans
     lines = apply_freezes(wb, plans, writer=writer)
     if writer is not None and lines:
         writer.log.setdefault("frozen", []).extend(lines)

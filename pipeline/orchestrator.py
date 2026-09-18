@@ -55,6 +55,10 @@ class ObjectiveLoop:
         self.targets = {t.key: t for t in targets}
         self.served = served
         self.writer = writer
+        # Mapping and residual repair read the same cell-home evidence record.
+        writer.served = served
+        writer.actual_cols = {sh: year_columns(spec, sh).get(str(target_year))
+                              for sh in (spec.get("year_axis") or {})}
         self.client = client
         self.log = log if log is not None else []
         self.budget = budget
@@ -153,12 +157,31 @@ class ObjectiveLoop:
                 out.append((sheet, row, got - expect))
         return out
 
+    def event_context(self):
+        """Shared semantic candidates for both review entry points."""
+        events = []
+        decisions = self.writer.log.get("oneoff_decisions") or {}
+        inputs = self.writer.log.get("oneoff_inputs") or {}
+        for cid, candidate in (self.writer.log.get("oneoff_candidates") or {}).items():
+            if cid in decisions or cid in inputs or f"{candidate['sheet']}!{candidate['row']}" in inputs:
+                continue
+            events.append(
+                f"  {cid}: candidate; classify with classify_event "
+                f"{{\"candidate\": \"{cid}\", \"one_off\": true|false, "
+                f"\"reason\": \"...\"}}; row '{candidate.get('label', '')}', "
+                f"section '{candidate.get('section', '')}'; "
+                f"actual={candidate.get('actual_value')!r}, prior={candidate.get('prior_value')!r}; "
+                f"future links: {', '.join(candidate.get('forecast', []))}. "
+                "Use false for recurring/accounting links; use true only with a cited discrete event reason.")
+        return events
+
     def _state_block(self):
         card = self._card()
         todos = [f"  [{i}] {t}" for i, t in enumerate(self.todos)]
         notes = [f"  - {n}" for n in self.notes[-12:]]
         hist = [f"  {h}" for h in self.history[-MAX_HISTORY_SHOWN:]]
         trips = self._trip_lines()
+        events = self.event_context()
         plugs = []
         done_v = {v.split(":", 1)[0]
                   for v in self.writer.log.get("verdicts", [])}
@@ -209,6 +232,8 @@ class ObjectiveLoop:
             *(["== TRIPWIRES (sign-flip sense check — each needs ONE "
                "verdict: ERROR_FIXED / JUSTIFIED / SUSPICIOUS) =="] + trips
               if trips else []),
+            *( ["== ONE-OFF CANDIDATES (structural evidence; classify explicitly) =="] + events
+               if events else []),
             "== OPEN TODOS ==", *(todos or ["  (none)"]),
             "== YOUR NOTES ==", *(notes or ["  (none)"]),
             "== ACTION HISTORY (newest last) ==", *(hist or ["  (none)"]),
@@ -759,37 +784,9 @@ class ObjectiveLoop:
         c_sheet, c_row = rc
         c_col = self._tcol(c_sheet)
         i_sheet, i_col, i_row = ci
-        pe = (self.served or {}).get((i_sheet, i_row))
-        proven = isinstance(pe, dict)
-        # a PROVEN value is never a plug site (owner 2026-09-08): the plug
-        # goes into the least confident input of the check's chain
-        from .rollover import input_is_proven as _iip
-        if proven and _iip(self.served, i_sheet, f"{i_col}{i_row}",
-                           self.wb[i_sheet][f"{i_col}{i_row}"].value, (), self.wb):
-            return (f"REFUSED: {i_sheet}!{i_col}{i_row} holds a PROVEN value "
-                    f"({pe.get('value')} from {pe.get('doc')} p{pe.get('page')}) — "
-                    "a plug goes into the least confident input of this "
-                    "check's chain (a held-at-prior or red cell), never over "
-                    "a read figure")
-        # THE PROBE-TESTED PLUG (owner regression ruling 2026-09-01:
-        # run-213's share-capital plug was wrong because it BROKE THE
-        # FORECAST YEARS, not because the cell was proven — and the
-        # blanket proven-ban made balance unreachable on a model where
-        # every component is proven, quarantining runs 214-218 that the
-        # earlier era delivered. Balance is the hard objective; the loud
-        # plug is its sanctioned last resort. So: unproven sites first;
-        # a proven site MAY take the plug, but only if the EXPERIMENT
-        # below shows the forecast years do not get worse — and it
-        # lands RED with the provenance in the note, never quietly.)
-        # A PAGE-TIED CELL IS NEVER A PLUG SITE (owner 2026-09-17, DFE live:
-        # "PLUGGED Raw financials!U124 OVER A PROVEN VALUE" many times over —
-        # the last resort was writing over figures read off the print). Sites
-        # are unproven cells; when there is none, the check stays open and red
-        # with the reason, which is the honest outcome.
-        if proven and pe.get("doc") and pe.get("page"):
-            return (f"REFUSED: {i_sheet}!{i_col}{i_row} holds {pe.get('value')} read from "
-                    f"{pe.get('doc')} p{pe.get('page')} — the print is not a plug site. "
-                    "If no unproven input of this check will take it, the check stays open, red.")
+        refusal = self.writer.residual_refusal(i_sheet, f"{i_col}{i_row}")
+        if refusal:
+            return f"REFUSED: {into}: {refusal}"
         ev = Evaluator(self.wb)
         try:
             residual = ev.cell(c_sheet, f"{c_col}{c_row}")
@@ -894,16 +891,6 @@ class ObjectiveLoop:
                     f"{worst[0]}: {worst[1]:,.1f} -> {worst[2]:,.1f}) — the "
                     "run-213 disease. This site rolls into the forecasts; "
                     "pick a site the probe leaves clean")
-        if proven:
-            self.writer.flag(i_sheet, f"{i_col}{i_row}", "red",
-                (f"PLUG OVER PROVEN VALUE — this cell was served "
-                 f"{pe.get('value'):,.2f} from {pe.get('doc')} "
-                 f"p{pe.get('page')} and then absorbed the {check} "
-                 f"residual {residual:,.2f} as the sanctioned last resort "
-                 f"(forecast probe clean). ANALYST MUST RULE. {why[:150]}"))
-            return (f"PLUGGED {into} OVER A PROVEN VALUE: {held:,.2f} -> "
-                    f"{held - residual_eff:,.2f} (RED, forecast-probe clean, "
-                    f"in the report). Check {check} now zero.")
         return (f"PLUGGED {into}: {held:,.2f} -> {held - residual_eff:,.2f} "
                 f"(orange-flagged, in the report). Check {check} now zero.")
 
@@ -1694,6 +1681,32 @@ class ObjectiveLoop:
         self.writer.flag(sheet, coord, "red", str(args.get("why", "flagged for review"))[:400])
         return "FLAGGED"
 
+    def t_classify_event(self, args):
+        """Record an explicit one-off ruling for one detector candidate."""
+        candidate = str(args.get("candidate") or args.get("id") or "").strip()
+        candidates = self.writer.log.get("oneoff_candidates") or {}
+        if candidate not in candidates:
+            return (f"MISS: unknown one-off candidate {candidate!r}; use the exact "
+                    "candidate reference shown in the review context")
+        if not isinstance(args.get("one_off"), bool):
+            return "MISS: one_off must be a boolean true or false"
+        reason = str(args.get("reason") or "").strip()
+        if not reason:
+            return "MISS: one-off classification requires an economic reason"
+        previous = (self.writer.log.get("oneoff_decisions") or {}).get(candidate)
+        if previous and previous["one_off"] != args["one_off"]:
+            return "REFUSED: conflicting event classification; retain the recorded decision for review"
+        self.writer.log.setdefault("oneoff_decisions", {})[candidate] = {
+            "one_off": bool(args["one_off"]), "reason": reason[:300]}
+        if args["one_off"]:
+            c = candidates[candidate]
+            self.writer.log.setdefault("oneoff_inputs", {})[candidate] = {
+                "sheet": c["sheet"], "row": c["row"],
+                "because": reason[:300], "candidate": candidate,
+            }
+            return f"CLASSIFIED ONE-OFF {candidate}; preservation will use the existing hold path"
+        return f"CLASSIFIED RECURRING {candidate}; forecast links remain live"
+
     def t_verdict(self, args):
         """SENSE-CHECK VERDICT (owner ruling 2026-08-31): a tripwire — a
         sign-flipped forecast or other loud anomaly — is a mistake
@@ -1959,6 +1972,7 @@ class ObjectiveLoop:
              "verdict": t_verdict,
              "note": t_note, "todo": t_todo, "list_flags": t_list_flags,
              "derive": t_derive,
+             "classify_event": t_classify_event,
              "finish": t_finish}
 
     def run(self):
@@ -2085,7 +2099,8 @@ def terminal_ladder(loop, log, walk_budget_s=60.0, only=None):
         closed += _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _left)
         if only is not None:
             break
-        if len(loop.writer.log.get("writes_all", []) or []) == _mark:
+        changed = (loop.writer.log.get("writes_all", []) or [])[_mark:]
+        if not any(old != new for _sh, _co, old, new in changed):
             log(f"[run] terminal ladder: nothing left to try — {len(_todo())} check(s) stay open, "
                 "red for the analyst")
             break
@@ -2246,6 +2261,8 @@ def _ladder_round(loop, log, walk_budget_s, only, _ladder_t0, _failing):
                 continue      # run-208: locked high-confidence serves
                               # blocked the ladder's first two tries and
                               # the year was left failing — skip them
+            if loop.writer.residual_refusal(sh, coord):
+                continue
             v = loop.wb[sh][coord].value
             try:
                 rgb = str(loop.wb[sh][coord].fill.fgColor.rgb or "")

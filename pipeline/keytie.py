@@ -806,10 +806,10 @@ def key_snapshot(wb, spec, target_year, ledger, panel_path, panel=None):
 
 def key_violations(wb, spec, target_year, ledger, panel_path, snapshot, panel=None):
     """Keys that were proven-printed at the snapshot and now hold a
-    DIFFERENT value that is printed nowhere. -> [(name, ref, then, now)].
-    A key that moved to another printed figure is a definition
-    question, not a violation; a key never proven is flagged elsewhere,
-    never gated here."""
+    DIFFERENT value without a matching named key target.
+    A number printed for another concept is not replacement evidence.
+    Definition changes must update the named target explicitly; a key
+    never proven is flagged elsewhere, never gated here."""
     if not snapshot:
         return []
     panel = _panel_or(panel, panel_path)
@@ -828,8 +828,6 @@ def key_violations(wb, spec, target_year, ledger, panel_path, snapshot, panel=No
             continue
         want = (panel.get(nm) or {}).get("print")
         if isinstance(want, (int, float)) and matches_print(now, want):
-            continue
-        if _printed(ledger, now):
             continue
         out.append((nm, ref, then, float(now)))
     return out

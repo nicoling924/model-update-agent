@@ -1849,11 +1849,11 @@ def test_plug_experiment_referees_proven_sites():
                                "why": "absorb the residual"})
     # owner ruling 2026-09-08 (DFE 239: the ladder plugged -15,826 over a
     # correctly read cash-flow line): a PROVEN value is never a plug site
-    assert str(r1).startswith("REFUSED") and "PROVEN" in str(r1), r1
+    assert str(r1).startswith("REFUSED") and "mapped input" in str(r1), r1
     assert wb["M"]["U5"].value == 23243.0, "proven site was written"
     r2 = loop.t_plug_residual({"check": "M!10", "into": "M!U8",
                                "why": "absorb the residual"})
-    assert str(r2).startswith("REFUSED") and "PROVEN" in str(r2), r2
+    assert str(r2).startswith("REFUSED") and "mapped input" in str(r2), r2
     assert "M!U8" not in loop.writer.log["flags"], "refused plug must not flag"
 
 
@@ -2256,7 +2256,7 @@ def test_rule2_keys_at_the_gate_owner_2026_09_03():
     and the gate never looked. A key proven-printed before stage 4 that
     moves to a value printed nowhere refuses the run (and feeds the
     take-back loop); a move to ANOTHER printed figure is a definition
-    question, never a refusal; a key never proven is never gated."""
+    question requiring a named target; a key never proven is never gated."""
     import json, tempfile
     import openpyxl
     from pipeline.keytie import key_snapshot, key_violations
@@ -2295,8 +2295,12 @@ def test_rule2_keys_at_the_gate_owner_2026_09_03():
         ws["C15"] = 13500.0
         v = key_violations(wb, spec, 2025, led, panel, snap)
         assert [(x[0], x[2], x[3]) for x in v] == [("operating profit", 14272.0, 13500.0)], v
-        # a move to ANOTHER printed figure (a definition) is not a violation
+        # Another printed figure is not evidence for this key's definition.
         ws["C15"] = 13812.0
+        assert key_violations(wb, spec, 2025, led, panel, snap)
+        # An explicit named definition target may authorize the correction.
+        json.dump({"revenue": {"print": 88018.0},
+                   "operating profit": {"print": 13812.0}}, open(panel, "w"))
         assert key_violations(wb, spec, 2025, led, panel, snap) == []
         # the never-proven key may change freely
         ws["C31"] = 9561.0
@@ -5721,14 +5725,17 @@ def test_the_ladder_walks_when_nobody_named_a_home_2026_09_16():
     logs = []
     closed = terminal_ladder(lp, logs.append)
     body = "\n".join(logs)
-    assert "REFUSED" in body and "S!U2" in body, body
+    assert "into S!U2" not in body, body  # mapped homes are excluded before ranking
     assert wb["S"]["U2"].value == "=100+9", "the refused site was written anyway"
     assert closed == 1 and not lp._failing_target_checks(), body
     assert abs(Evaluator(wb).cell("S", "U9")) < 0.5, "the walk did not close the check"
     assert abs(wb["S"]["U4"].value - 169.0) < 0.5, wb["S"]["U4"].value
     # (b) the brain named that same first site — it is the only home tried
     wb2, lp2 = _ladder_walk_model()
-    lp2.ask = lambda _text, _options, _default: "site:1"
+    def choose_then_lock(_text, _options, _default):
+        lp2.writer.lock('S', 'U4')  # the selected eligible home becomes unwritable
+        return "site:1"
+    lp2.ask = choose_then_lock
     logs2 = []
     closed2 = terminal_ladder(lp2, logs2.append)
     assert closed2 == 0 and lp2._failing_target_checks(), "\n".join(logs2)
@@ -6814,13 +6821,10 @@ def test_the_last_resort_never_plugs_the_print_2026_09_17():
     VALUE (RED)", many times over — the last resort writing over figures read
     off the print. A page-tied cell is not a plug site; if no unproven input
     will take it, the check stays open and red."""
-    import inspect
-    from pipeline.orchestrator import ObjectiveLoop
-    src = inspect.getsource(ObjectiveLoop.t_plug_residual)
-    i = src.index("if proven and pe.get(\"doc\")")
-    assert "REFUSED" in src[i:i + 400] and "the print is not a plug site" in src[i:i + 400], src[i:i + 200]
-    assert src.index("if proven and pe.get(\"doc\")") < src.index("residual = ev.cell"), \
-        "the refusal must come before anything is written"
+    import runpy
+    tests = runpy.run_path(str(Path(__file__).with_name("test_plug_boundary.py")))
+    tests["test_residual_cannot_erase_mapped_claim_even_when_red_or_forced"]()
+    tests["test_terminal_residual_uses_same_home_contract"]()
     print("PASS test_the_last_resort_never_plugs_the_print_2026_09_17")
 
 

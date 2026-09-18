@@ -1,0 +1,20 @@
+{
+  "DFE-1H25": {
+    "balance_status": "pass",
+    "check_count": 84,
+    "artifact": "/private/tmp/codex-contract-release-results/replays/DFE-1H25/replay/1H25-replay/acceptance.json",
+    "scope": "pinned offline engineering replay, not cold accuracy acceptance"
+  },
+  "CLP-FY25": {
+    "balance_status": "pass",
+    "check_count": 24,
+    "artifact": "/private/tmp/codex-contract-release-results/replays/CLP-FY25/replay/FY25-replay/acceptance.json",
+    "scope": "pinned offline engineering replay, not cold accuracy acceptance"
+  },
+  "DFE-FY25": {
+    "balance_status": "pass",
+    "check_count": 118,
+    "artifact": "/private/tmp/codex-contract-release-results/replays/DFE-FY25/replay/FY25-replay/acceptance.json",
+    "scope": "pinned offline engineering replay, not cold accuracy acceptance"
+  }
+}

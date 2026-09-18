@@ -319,6 +319,34 @@ class Writer:
             lst.append((ref, str(why)[:200]))
         return ref
 
+    def residual_refusal(self, sheet, coord):
+        """A residual is not replacement evidence for a mapped input.
+
+        Use the existing home/value record, not flag colour or confidence:
+        uncertainty asks for a better mapping, not an arbitrary adjustment.
+        A row claim applies only to the exact cell that still holds it.
+        """
+        entry = getattr(self, "served", {}).get((sheet, self.wb[sheet][coord].row))
+        if not isinstance(entry, dict) or entry.get("homed", True) is False:
+            return None
+        home = entry.get("home")
+        if home is None:
+            col = getattr(self, "actual_cols", {}).get(sheet)
+            home = (sheet, f"{col}{self.wb[sheet][coord].row}") if col else None
+        if home is None or tuple(home) != (sheet, coord):
+            return None
+        expected = entry.get("value")
+        if not isinstance(expected, (int, float)):
+            return None
+        from .evaluator import Evaluator
+        try:
+            held = Evaluator(self.wb).cell(sheet, coord)
+        except Exception:
+            return "mapped input cannot be evaluated; resolve its evidence before a residual repair"
+        if isinstance(held, (int, float)) and abs(held - expected) <= max(1e-9, abs(expected) * 1e-12):
+            return "mapped input still holds its accepted value; replace it through evidence, not a residual"
+        return None
+
     def write(self, sheet, coord, value, prior_coord=None, note=None,
               flag=None, trusted=False, force_lock=False, allow_empty=False,
               kind=None, over_formula=False, author_brain=False):
@@ -339,6 +367,9 @@ class Writer:
             return False
         if kind == "plug" and not getattr(self, "plugs_allowed", False):
             self.log.setdefault("plug_refused", []).append(ref)
+            return False
+        if kind == "plug" and self.residual_refusal(sheet, coord):
+            self.log.setdefault("mapped_residual_refused", []).append(ref)
             return False
         if ref in self.locked and not force_lock:
             self.log["lock_refused"].append(ref)

@@ -1,0 +1,257 @@
+{
+  "Final!AI16": {
+    "id": "Final!AI16",
+    "sheet": "Final",
+    "row": 16,
+    "actual": "Final!AI16",
+    "forecast": [
+      "Final!AJ16",
+      "Final!AK16",
+      "Final!AL16",
+      "Final!AM16",
+      "Final!AN16"
+    ],
+    "label": "Other Income, net",
+    "actual_value": 460,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Final!AI107": {
+    "id": "Final!AI107",
+    "sheet": "Final",
+    "row": 107,
+    "actual": "Final!AI107",
+    "forecast": [
+      "Final!AJ107",
+      "Final!AK107",
+      "Final!AL107",
+      "Final!AM107",
+      "Final!AN107"
+    ],
+    "label": "Hedging costs",
+    "actual_value": -381,
+    "prior_value": -1297,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Final!AI115": {
+    "id": "Final!AI115",
+    "sheet": "Final",
+    "row": 115,
+    "actual": "Final!AI115",
+    "forecast": [
+      "Final!AJ115",
+      "Final!AK115",
+      "Final!AL115",
+      "Final!AM115",
+      "Final!AN115"
+    ],
+    "label": "- Transfers to rate reduction reserve",
+    "actual_value": -296,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Final!AI134": {
+    "id": "Final!AI134",
+    "sheet": "Final",
+    "row": 134,
+    "actual": "Final!AI134",
+    "forecast": [
+      "Final!AJ134",
+      "Final!AK134",
+      "Final!AL134",
+      "Final!AM134",
+      "Final!AN134"
+    ],
+    "label": "Repayment of lease obligations",
+    "actual_value": -233,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Final!AI139": {
+    "id": "Final!AI139",
+    "sheet": "Final",
+    "row": 139,
+    "actual": "Final!AI139",
+    "forecast": [
+      "Final!AJ139",
+      "Final!AK139",
+      "Final!AL139",
+      "Final!AM139",
+      "Final!AN139"
+    ],
+    "label": "Currency adjustments",
+    "actual_value": 100,
+    "prior_value": -90,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Driver!AI34": {
+    "id": "Driver!AI34",
+    "sheet": "Driver",
+    "row": 34,
+    "actual": "Driver!AI34",
+    "forecast": [
+      "Driver!AJ34",
+      "Driver!AK34",
+      "Driver!AL34",
+      "Driver!AM34",
+      "Driver!AN34"
+    ],
+    "label": "India",
+    "actual_value": 221,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "Driver!AI98": {
+    "id": "Driver!AI98",
+    "sheet": "Driver",
+    "row": 98,
+    "actual": "Driver!AI98",
+    "forecast": [
+      "Driver!AJ98",
+      "Driver!AK98",
+      "Driver!AL98",
+      "Driver!AM98",
+      "Driver!AN98"
+    ],
+    "label": "SEA and Taiwan",
+    "actual_value": 179,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "SOC!AI19": {
+    "id": "SOC!AI19",
+    "sheet": "SOC",
+    "row": 19,
+    "actual": "SOC!AI19",
+    "forecast": [
+      "SOC!AJ19",
+      "SOC!AK19",
+      "SOC!AL19",
+      "SOC!AM19",
+      "SOC!AN19"
+    ],
+    "label": "Increase in customer deposits",
+    "actual_value": 11,
+    "prior_value": 39,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "ROAFNA!AI71": {
+    "id": "ROAFNA!AI71",
+    "sheet": "ROAFNA",
+    "row": 71,
+    "actual": "ROAFNA!AI71",
+    "forecast": [
+      "ROAFNA!AJ71",
+      "ROAFNA!AK71",
+      "ROAFNA!AL71",
+      "ROAFNA!AM71",
+      "ROAFNA!AN71"
+    ],
+    "label": "Coal-fired (CAPCO)",
+    "actual_value": -1050,
+    "prior_value": -1050,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "CN!AI13": {
+    "id": "CN!AI13",
+    "sheet": "CN",
+    "row": 13,
+    "actual": "CN!AI13",
+    "forecast": [
+      "CN!AJ13",
+      "CN!AK13",
+      "CN!AL13",
+      "CN!AM13",
+      "CN!AN13"
+    ],
+    "label": "Fair value adjustment",
+    "actual_value": 224,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "CN!AI19": {
+    "id": "CN!AI19",
+    "sheet": "CN",
+    "row": 19,
+    "actual": "CN!AI19",
+    "forecast": [
+      "CN!AJ19",
+      "CN!AK19",
+      "CN!AL19",
+      "CN!AM19",
+      "CN!AN19"
+    ],
+    "label": "One-off items",
+    "actual_value": -441,
+    "prior_value": 0,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "CN!AI39": {
+    "id": "CN!AI39",
+    "sheet": "CN",
+    "row": 39,
+    "actual": "CN!AI39",
+    "forecast": [
+      "CN!AJ39",
+      "CN!AK39",
+      "CN!AL39",
+      "CN!AM39",
+      "CN!AN39"
+    ],
+    "label": "CLPe",
+    "actual_value": -32,
+    "prior_value": -64,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "India!AI17": {
+    "id": "India!AI17",
+    "sheet": "India",
+    "row": 17,
+    "actual": "India!AI17",
+    "forecast": [
+      "India!AJ17",
+      "India!AK17",
+      "India!AL17",
+      "India!AM17",
+      "India!AN17"
+    ],
+    "label": "Taxation",
+    "actual_value": -18,
+    "prior_value": -18,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "India!AI23": {
+    "id": "India!AI23",
+    "sheet": "India",
+    "row": 23,
+    "actual": "India!AI23",
+    "forecast": [
+      "India!AJ23",
+      "India!AK23",
+      "India!AL23",
+      "India!AM23",
+      "India!AN23"
+    ],
+    "label": "Grid",
+    "actual_value": -56,
+    "prior_value": 77,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  },
+  "India!AI24": {
+    "id": "India!AI24",
+    "sheet": "India",
+    "row": 24,
+    "actual": "India!AI24",
+    "forecast": [
+      "India!AJ24",
+      "India!AK24",
+      "India!AL24",
+      "India!AM24",
+      "India!AN24"
+    ],
+    "label": "One-off items",
+    "actual_value": 105,
+    "prior_value": 105,
+    "note": "candidate found by one-off structural detector; analyst classification required"
+  }
+}
