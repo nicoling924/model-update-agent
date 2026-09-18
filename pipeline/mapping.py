@@ -68,7 +68,7 @@ that feed it. Set those.
 
 You answer in JSON only: {"thinking": "...", "calls": [ ... ]}. Any number of calls per turn,
 executed in the order you write them; their answers come back in the next turn. The calls:
-  {"tool":"anatomy","checks":["Sheet!99"],"keys":[{"name":"revenue","ref":"Sheet!7"}],
+  {"tool":"anatomy","checks":[{"ref":"Sheet!99","identity":"assets less liabilities and equity"}],"keys":[{"name":"revenue","ref":"Sheet!7"}],
       "statements":["Sheet"],"because":"..."}   only when section 0 asks: what this model's rows ARE
   {"tool":"page","doc":"report.pdf","n":23}                                the page's own text
   {"tool":"find","q":"46.3"}   or  {"q":"Fuel Cost"}    printed lines carrying that number or label
@@ -78,6 +78,11 @@ executed in the order you write them; their answers come back in the next turn. 
   {"tool":"set","ref":"Sheet!AI20","value":18,"because":"p23: 12 + 6 — my row is the two lines together"}
   {"tool":"set","ref":"Sheet!AI22","formula":"=100-30-5","because":"p23: the print no longer
       splits this line, so I back it out of the total and the two lines it does print"}
+  For a non-recurring event INPUT (such as a discrete capacity addition/retirement), add
+  "one_off":true and "one_off_reason":"why this is a discrete event, not an ongoing balance"
+  to its set entry. Code will preserve each originally-zero future forecast for that input;
+  originally nonzero forecasts stay as designed. Opening/closing balances, totals and accounting
+  links are NOT one-offs just because they once evaluated to zero. Classify by economic meaning.
   {"tool":"skip","ref":"Sheet!AI31","because":"this page is the auditor's report, it does not carry my row"}
       a skip is about THE PAGE YOU WERE SHOWN, and is never a verdict on the row: that page is taken off
       the row and the row comes back to you against a print it has not refused. Under each row you are
@@ -96,10 +101,13 @@ model holds for last year, the model keeps its history: you still map THIS year,
 the question — row, what the print says, what the model holds, your quote — for the analyst's yes. It
 writes nothing into the prior column, and neither does code.
 
-WHEN A LINE HAS BEEN RECLASSIFIED. Same item, same figure last year: map it as usual. The name or the
-figure has changed and you cannot say confidently which line it is: do not guess — BACK IT OUT of what
-the print does give you, as a `formula` over printed figures (=total-a-b), so the analyst can see how
-it was built. It retains the formula and a review note; arithmetic alone does not prove operand definitions.
+WHEN SEGMENTS HAVE BEEN RECLASSIFIED. Directly map a segment only when BOTH its name and its
+previous-period number match. If either changes, do not replace the analyst's old segment with the
+newly defined segment, even if the overall total is unchanged. Back out a traceable formula using
+the growth of the appropriate total: old segment * current total / prior total. YOU choose the
+economically appropriate total (sales for a sales breakdown, the matching profit total for profit).
+Reconcile the components to that total, retain the model's existing residual structure, and flag
+the estimate and its basis. A changed segment definition is not permission to restate history.
 
 WHEN THE COMPARATIVE NO LONGER MATCHES YOUR MODEL, TRIANGULATE THROUGH LAST YEAR'S REPORT. `find` your
 model's prior figure in the prior-period document (it is indexed for you on first use), read that line
@@ -404,10 +412,42 @@ def literal_template(formula):
     """References, operators and functions are structure; numeric inputs are not."""
     from openpyxl.formula.tokenizer import Tokenizer
     try:
-        return tuple((t.type, t.subtype, "#" if t.type == "OPERAND" and t.subtype == "NUMBER" else t.value)
-                     for t in Tokenizer(formula).items if t.type != "WHITE-SPACE")
+        tokens = [t for t in Tokenizer(formula).items if t.type != "WHITE-SPACE"]
+        out = []
+        for i, token in enumerate(tokens):
+            # A sign immediately prefixed to a numeric literal is part of the
+            # literal's value.  Ignore it in the shape comparison so a source
+            # update may change 94 to -441 (or remove a redundant unary '+'),
+            # while binary operators and signs on references remain structure.
+            if token.type == "OPERATOR-PREFIX" and token.value in "+-":
+                j = i + 1
+                while j < len(tokens) and tokens[j].type == "OPERATOR-PREFIX" and tokens[j].value in "+-":
+                    j += 1
+                if j < len(tokens) and tokens[j].type == "OPERAND" and tokens[j].subtype == "NUMBER":
+                    continue
+            out.append((token.type, token.subtype,
+                        "#" if token.type == "OPERAND" and token.subtype == "NUMBER" else token.value))
+        return tuple(out)
     except Exception:
         return None
+
+
+def _numeric_operands(formula):
+    """Return numeric literals with immediately prefixed signs applied."""
+    from openpyxl.formula.tokenizer import Tokenizer
+    tokens = [t for t in Tokenizer(formula).items if t.type != "WHITE-SPACE"]
+    values = []
+    for i, token in enumerate(tokens):
+        if token.type != "OPERAND" or token.subtype != "NUMBER":
+            continue
+        sign = 1
+        j = i - 1
+        while j >= 0 and tokens[j].type == "OPERATOR-PREFIX" and tokens[j].value in "+-":
+            if tokens[j].value == "-":
+                sign *= -1
+            j -= 1
+        values.append(sign * float(token.value))
+    return values
 
 
 def has_embedded_inputs(formula):
@@ -421,6 +461,22 @@ def has_embedded_inputs(formula):
     from openpyxl.formula.tokenizer import Tokenizer
     try:
         return any(t.type == "OPERAND" and t.subtype == "NUMBER" for t in Tokenizer(formula).items)
+    except Exception:
+        return False
+
+
+def is_constant_expression(formula):
+    """An arithmetic input composition has no references to model wiring."""
+    from openpyxl.formula.tokenizer import Tokenizer
+    if not isinstance(formula, str) or not formula.startswith("="):
+        return False
+    try:
+        tokens = Tokenizer(formula).items
+        return has_embedded_inputs(formula) and all(
+            (t.type == "OPERAND" and t.subtype == "NUMBER") or
+            (t.type == "OPERATOR-INFIX" and t.value in ("+", "-", "*", "/", "^")) or
+            (t.type == "OPERATOR-PREFIX" and t.value in ("+", "-")) or
+            t.type in ("PAREN", "WHITE-SPACE") for t in tokens)
     except Exception:
         return False
 
@@ -937,7 +993,7 @@ def _anatomy_section(loop, cap=6000):
         L.append("  - the model's KEY rows (objective 2, the keys against the print)")
     for note in (loop.spec.get("check_notes") or [])[:4]:
         L.append(f"  code's own note: {note[:200]}")
-    L.append("  Answer with {\"tool\":\"anatomy\", \"checks\":[\"Sheet!row\", ...], "
+    L.append("  Answer with {\"tool\":\"anatomy\", \"checks\":[{\"ref\":\"Sheet!row\",\"identity\":\"explain why these operands must reconcile\"}], "
              "\"keys\":[{\"name\":\"revenue\",\"ref\":\"Sheet!row\"}, ...], \"statements\":[\"Sheet\"], "
              "\"because\":\"...\"} — a check is a row the model works out and expects to be zero "
              "(assets less liabilities and equity, cash less the cash-flow roll); a key is the row the "
@@ -1190,7 +1246,8 @@ def verdict(loop, entry, page_text, sources, log):
     preserves_structure = (has_embedded_inputs(held) and isinstance(proposed, str)
                            and literal_template(held) is not None
                            and literal_template(held) == literal_template(proposed))
-    if isinstance(held, str) and held.startswith("=") and not preserves_structure:
+    input_composition = is_constant_expression(held) and is_constant_expression(proposed)
+    if isinstance(held, str) and held.startswith("=") and not (preserves_structure or input_composition):
         site = ""
         try:
             from .writer import resolve_input_site
@@ -1211,16 +1268,13 @@ def verdict(loop, entry, page_text, sources, log):
     because = str(entry.get("because") or "")
     loop.__dict__["_map_ref"] = (sheet, coord)
     printed, page, line = entry.get("printed"), entry.get("page"), entry.get("line")
-    if preserves_structure:
+    if preserves_structure or input_composition:
         # A formula proposal changes operands, not the calculated output.
         # The comparative and unit proof must refer to those operands too.
-        from openpyxl.formula.tokenizer import Tokenizer
-        old_numbers = [float(t.value) for t in Tokenizer(held).items
-                       if t.type == "OPERAND" and t.subtype == "NUMBER"]
-        new_numbers = [float(t.value) for t in Tokenizer(proposed).items
-                       if t.type == "OPERAND" and t.subtype == "NUMBER"]
+        old_numbers = _numeric_operands(held)
+        new_numbers = _numeric_operands(proposed)
         changed = [(old, new) for old, new in zip(old_numbers,new_numbers) if old != new]
-        if len(changed) == 1 and isinstance(printed,(int,float)) and page is not None:
+        if preserves_structure and len(changed) == 1 and isinstance(printed,(int,float)) and page is not None:
             from .reader import _page_line, _quoted_verdict
             old_operand, new_operand = changed[0]
             docs = {str(entry["doc"])} if entry.get("doc") else set(sources)
@@ -1238,7 +1292,8 @@ def verdict(loop, entry, page_text, sources, log):
             return None, False, "the changed numeric operand does not reconcile to its quoted source and comparative; keep the formula structure and correct the operand evidence", {}
         # A composition may update several operands. Its expression stays
         # traceable; unverified operands remain an analyst-review item.
-        missing = [new for _old,new in changed if not _hits_printed(loop,new,page_text)]
+        amounts = new_numbers if input_composition else [new for _old,new in changed]
+        missing = [new for new in amounts if not _hits_printed(loop,new,page_text)]
         return proposed, False, ("embedded numeric inputs updated with structure preserved; "
                                 + ("source evidence unresolved for " + ", ".join(map(str,missing)) if missing else "verify the operand definitions")), {}
     # A ZERO IS A FIGURE ONLY WHERE A NIL IS PRINTED (CLP live: 34 rows answered
@@ -1265,6 +1320,7 @@ def verdict(loop, entry, page_text, sources, log):
         from .reader import _page_line, _quoted_verdict
         scales = _page_scales(loop)
         hits = []
+        quote_hits = []
         unit_errors = []
         page_available = quote_found = False
         for doc in sorted(docs):
@@ -1276,6 +1332,7 @@ def verdict(loop, entry, page_text, sources, log):
             hit = _page_line({(doc, pg): text}, pg, float(printed), line or "", {doc}) if text else None
             if hit:
                 quote_found = True
+                quote_hits.append(hit)
                 answer = _quoted_verdict(hit, float(hit.get("figure", printed)), prior, pg,
                                          scales, _dominant(scales), log, f"{sheet}!{coord}")
                 if hit.get("unit_error"):
@@ -1284,10 +1341,48 @@ def verdict(loop, entry, page_text, sources, log):
                     kin, why_k = _name_is_kin(loop, sheet, coord, hit["text"])
                     plain = answer.get("conf") == 4 and kin
                     hits.append((answer["value"], plain, (answer.get("note") or answer.get("why", "")) if kin else why_k, answer))
+        explicit = entry.get("value")
+        because_explicit = str(entry.get("because") or "").strip()
+        import math as _math
+        explicit_ok = (isinstance(explicit, (int, float))
+                       and not isinstance(explicit, bool)
+                       and _math.isfinite(float(explicit))
+                       and bool(because_explicit))
         if len({(h[3].get("doc"), h[0]) for h in hits}) == 1:
-            return hits[0]
+            auto = hits[0]
+            if explicit_ok and not _math.isclose(float(explicit), float(auto[0]),
+                                                 rel_tol=1e-9, abs_tol=1e-9):
+                h = quote_hits[0] if quote_hits else {}
+                why = (f"p{pg} '{h.get('text', '')[:50]}' — explicit model-unit value "
+                       f"{float(explicit):,.12g} conflicts with automatic conversion "
+                       f"{float(auto[0]):,.12g}; explicit value retained RED and the "
+                       "comparative remains unresolved")
+                evidence = {"doc": h.get("doc") or auto[3].get("doc"), "page": pg,
+                            "line": h.get("text", "")[:160] or auto[3].get("line", ""),
+                            "printed": h.get("figure", printed),
+                            "automatic_model_value": auto[0],
+                            "explicit_model_value": float(explicit)}
+                return float(explicit), False, why, evidence
+            return auto
         if hits:
             return None, False, "the quote resolves to multiple documents; specify doc", {}
+        # The page has been independently verified, but its document units
+        # cannot be converted from the comparative/ratified scale.  An
+        # explicitly supplied finite model-unit value with a nonempty
+        # explanation is admissible as RED analyst evidence; it never claims
+        # that the comparative reconciled and never becomes a plain serve.
+        if quote_hits and not unit_errors and explicit_ok:
+            docs_seen = {(h.get("doc"), h.get("text")) for h in quote_hits}
+            if len({d for d, _t in docs_seen}) == 1:
+                h = quote_hits[0]
+                why = (f"p{pg} '{h.get('text', '')[:50]}' — explicit model-unit value "
+                       f"{float(explicit):,.12g} accepted RED with the supplied unit explanation; "
+                       "comparative reconciliation remains unresolved")
+                evidence = {"doc": h.get("doc"), "page": pg,
+                            "line": h.get("text", "")[:160],
+                            "printed": h.get("figure", printed),
+                            "unit_error": sorted(set(unit_errors))}
+                return float(explicit), False, why, evidence
         if unit_errors:
             return None, False, "; ".join(sorted(set(unit_errors))), {}
         if quote_found:
@@ -1593,6 +1688,11 @@ def _apply(loop, entries, page_text, sources, log, skipped=None, deadline=None, 
         # read as a write and the loop could turn for ever). This counts the
         # cells that took a figure, and nothing else.
         loop.__dict__["_map_cells"] = int(loop.__dict__.get("_map_cells") or 0) + 1
+        if e.get("one_off") is True and str(e.get("one_off_reason") or "").strip():
+            loop.writer.log.setdefault("oneoff_inputs", {})[f"{sheet}!{_row_of(coord)}"] = {
+                "sheet": sheet, "row": _row_of(coord),
+                "because": str(e["one_off_reason"]).strip()}
+
         back = Evaluator(loop.wb).cell(sheet, coord)
         shown = back if isinstance(back, (int, float)) else val
         if isinstance(back, (int, float)) and not isinstance(val, str) \
@@ -1737,10 +1837,29 @@ def _t_anatomy(loop, call, log):
     draft) and names anything it had to drop."""
     out, took, dropped = [], 0, []
     ev = Evaluator(loop.wb)
-    for ref in (call.get("checks") or []):
+    from .anatomy import check_identity
+    from .checks import year_columns
+    from .discover import zero_difference_rows
+    for declaration in (call.get("checks") or []):
+        ref = declaration.get("ref") if isinstance(declaration, dict) else declaration
         sh, co, err = _parse_ref(loop, ref)
         if err:
             dropped.append(f"{ref}: {err}")
+            continue
+        if any(c.get("sheet") == sh and int(c.get("row")) == _row_of(co)
+               for c in loop.spec.get("check_rows", [])):
+            continue
+        evidence = loop.__dict__.setdefault("_anatomy_check_candidates", {})
+        if sh not in evidence:
+            evidence[sh] = {int(c["row"]) for c in loop.spec.get("candidate_check_rows", [])
+                            if c.get("sheet") == sh}
+            if not evidence[sh]:
+                evidence[sh].update(zero_difference_rows(loop.wb[sh], loop.wb[sh],
+                    year_columns(loop.spec, sh), target_year=int(loop.ty), wb_f=loop.wb))
+        reason = declaration.get("identity") if isinstance(declaration, dict) else None
+        valid, why = check_identity(loop.wb, sh, co, reason, evidence[sh])
+        if not valid:
+            dropped.append(f"{ref}: {why}; this row stays outside balance objectives")
             continue
         try:
             v = ev.cell(sh, co)
@@ -1772,8 +1891,20 @@ def _t_anatomy(loop, call, log):
             continue
         r = _row_of(co)
         nm_k = str(k.get("name") or "key")[:40]
-        loop.spec.setdefault("key_rows", []).append({"name": nm_k, "sheet": sh, "row": r,
-                                                     "source": "the brain's anatomy"})
+        from .docid import KEY_NAMES
+        if nm_k not in KEY_NAMES:
+            dropped.append(f"{nm_k}: identify a financial key role from the displayed model-key vocabulary")
+            continue
+        if any(existing.get("name") == nm_k and
+               (existing.get("sheet"), existing.get("row")) != (sh, r)
+               for existing in loop.spec.get("key_rows", [])):
+            dropped.append(f"{nm_k}: conflicts with the model's existing key identity")
+            continue
+        if not any(existing.get("name") == nm_k and
+                   (existing.get("sheet"), existing.get("row")) == (sh, r)
+                   for existing in loop.spec.get("key_rows", [])):
+            loop.spec.setdefault("key_rows", []).append({"name": nm_k, "sheet": sh, "row": r,
+                                                         "source": "the brain's anatomy"})
         if isinstance(k.get("printed"), (int, float)) and k.get("page") is not None:
             # the print of a key is evidence like any other: the quoted line
             # must be on that page, and code converts it at the page's scale

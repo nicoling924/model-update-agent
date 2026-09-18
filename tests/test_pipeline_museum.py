@@ -3645,14 +3645,14 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
                              "text": "swing traced to Tax", "leaf": "M!D10", "stage": "final"}],
              "open_checks": [], "elapsed_min": 12.0, "period": "FY25", "units": "RMB m"}
     res = build(wb, pre, spec, 2025, "FY25", extra, log=lambda *_a, **_k: None)
-    assert wb.sheetnames[0] == "_REPORT" and "_FLAGS" in wb.sheetnames
+    assert wb.sheetnames[0] == "_REPORT" and "_FLAGS" not in wb.sheetnames
     rp = wb["_REPORT"]
     text = "\n".join(str(c.value) for row in rp.iter_rows() for c in row if c.value is not None)
     assert "FY24A" in text and "FY25A" in text and "FY28E" in text and "FY0" not in text and "FY+1" not in text
     assert "Documents received" not in text and "Why it moved" not in text and "SENSE CHECK" not in text
     assert "Next yr" not in text and "not in this model" in text
     assert "1,200 · p5" in text and "not tied" in text, text                # the printed figure beside the actual
-    assert "12 min" in text and "key numbers tied to the print 1/2" in text
+    assert "12 min" not in text and "key numbers tied to the print" not in text
     # the table's cells are LIVE (formulas) for NEW, the pre model's VALUES for OLD, a change formula, the check
     hdr_row = next(r for r in range(1, 12) if rp.cell(row=r, column=2).value == "FY24A")
     rev_row = next(r for r in range(hdr_row, hdr_row + 6) if str(rp.cell(row=r, column=1).value or "").startswith("=HYPERLINK") and "Revenue" in str(rp.cell(row=r, column=1).value))
@@ -3672,8 +3672,7 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
     assert [rp.cell(row=r, column=1).value for r in g] == ["P&L", "Balance sheet", "Cash flow"], g
     assert all(rp.cell(row=r - 1, column=1).value is None for r in g[1:]), "an empty row before each statement"
     # look here: the sense verdict with the trail's cell as a link
-    assert "red, your ruling" in text and "swing traced to Tax" in text
-    assert any("M'!D10" in str(c.value) for row in rp.iter_rows() for c in row if isinstance(c.value, str)), "leaf link"
+    assert "red, your ruling" not in text and "swing traced to Tax" not in text
     assert res["rows"]["revenue"] == ("M", 4) and res["tied"] == 1 and res["panel"] == 2
     # THE PERIOD FOLLOWS THE RUN: a half-year panel with no forecast columns says so
     assert period_kind("1H25") == "1H" and period_kind("H125") == "1H" and period_kind("3Q25") == "3Q" and period_kind("FY25") == "FY"
@@ -3683,7 +3682,7 @@ def test_report_page_fixed_table_period_follows_the_run_2026_09_13():
     build(wb, pre, spec_h, 2025, "1H25", {"period": "1H25"}, log=lambda *_a, **_k: None)
     text2 = "\n".join(str(c.value) for row in wb["_REPORT"].iter_rows() for c in row if c.value is not None)
     assert "1H24A" in text2 and "1H25A" in text2 and "no half-year forecast found in this model" in text2, text2
-    assert "FY26E" not in text2 and "Updated to 1H25" in text2
+    assert "FY26E" not in text2 and "WHAT'S CHANGED" in text2
     print("PASS test_report_page_fixed_table_period_follows_the_run_2026_09_13")
 
 
@@ -6368,10 +6367,16 @@ def test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17():
     assert anatomy_wanted(loop)
     ctx = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
     assert "THE ANATOMY OF THIS MODEL" in ctx and "CHECK rows" in ctx, ctx[:600]
-    out = _t_anatomy(loop, {"checks": ["Final!10"], "keys": [{"name": "operating profit", "ref": "Final!10"},
+    for col in ("B", "C"):
+        loop.wb["Final"][f"{col}12"] = 100
+        loop.wb["Final"][f"{col}13"] = 60
+        loop.wb["Final"][f"{col}14"] = 40
+        loop.wb["Final"][f"{col}15"] = f"={col}12-{col}13-{col}14"
+    loop.spec["candidate_check_rows"] = [{"sheet":"Final", "row":15}]
+    out = _t_anatomy(loop, {"checks": [{"ref":"Final!15", "identity":"Assets less liabilities and equity"}], "keys": [{"name": "operating profit", "ref": "Final!10"},
                                                              {"name": "revenue", "ref": "Final!2"}],
                             "statements": ["Final"], "because": "row 10 is the model's own sum"}, lambda *a: None)
-    assert loop.spec["check_rows"] == [{"sheet": "Final", "row": 10, "expect": 0}], loop.spec["check_rows"]
+    assert loop.spec["check_rows"] == [{"sheet": "Final", "row": 15, "expect": 0}], loop.spec["check_rows"]
     assert {k["name"] for k in loop.spec["key_rows"]} == {"operating profit", "revenue"}, loop.spec["key_rows"]
     assert not anatomy_wanted(loop)
     bad = _t_anatomy(loop, {"checks": ["Final!999"]}, lambda *a: None)
@@ -6380,15 +6385,15 @@ def test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17():
     # log's count agrees with the table the next turn shows (reviewer 2026-09-17)
     from pipeline.mapping import _key_table, build_context
     loop.__dict__["_map_pages"] = pages
-    said = _t_anatomy(loop, {"keys": [{"name": "revenue2", "ref": "Final!2", "printed": 88018,
+    said = _t_anatomy(loop, {"keys": [{"name": "revenue", "ref": "Final!2", "printed": 88018,
                                        "page": 23, "line": "Revenue 88,018 76,061"}]}, lambda *a: None)
-    assert any("the print for 'revenue2': 88,018" in x for x in said), said
+    assert any("the print for 'revenue': 88,018" in x for x in said), said
     table = " | ".join(_key_table(loop))
-    assert "revenue2" in table and "88,018" in table, table
+    assert "revenue" in table and "88,018" in table, table
     n_said = int(said[0].split("dropped; ")[1].split(" check")[0]) if "dropped; " in said[0] else None
     assert str(len(loop.spec["check_rows"])) == str(n_said), (said[0], loop.spec["check_rows"])
     ctx2 = build_context(loop, loop.wb, input_rows(loop, census), pages, {})
-    assert "revenue2" in ctx2.split("## 2.")[0], "the key the brain named is not in the key table"
+    assert "revenue" in ctx2.split("## 2.")[0], "the key the brain named is not in the key table"
     print("PASS test_the_anatomy_turn_names_the_checks_of_a_cold_model_2026_09_17")
 
 

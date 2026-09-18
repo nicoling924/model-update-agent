@@ -1,0 +1,113 @@
+{
+  "tests": {
+    "rotation": "PASS (no SKIP)",
+    "six_table_kinds": "PASS"
+  },
+  "pdf": {
+    "path": "companies/DFE/disclosures/FY25/DFE 2025 Annual Report (CN).pdf",
+    "pages": {
+      "184": {
+        "rotation": 270,
+        "table": "固定资产情况",
+        "axes": [
+          "土地资产",
+          "房屋及建筑物",
+          "机器设备",
+          "运输工具",
+          "仪器仪表、电子设备及其他",
+          "合计"
+        ],
+        "gross_cost": {
+          "opening": [
+            17915996.06,
+            7375145834.43,
+            9030745014.97,
+            330302283.92,
+            2109448125.97,
+            18863557255.35
+          ],
+          "additions_total": [
+            905010560.18,
+            750551287.1,
+            31930461.01,
+            274309678.09,
+            1961801986.38
+          ],
+          "closing": [
+            17915996.06,
+            7975169220.92,
+            9600753117.94,
+            330111270.12,
+            2294023659.53,
+            20217973264.57
+          ]
+        },
+        "accumulated_depreciation": {
+          "opening": [
+            4491865453.99,
+            7071614618.54,
+            247332789.16,
+            1433631449.35,
+            13244444311.04
+          ],
+          "closing": [
+            4624647728.8,
+            7247773326.88,
+            237578616.6,
+            1553851635.16,
+            13663851307.44
+          ]
+        }
+      },
+      "185": {
+        "rotation": 270,
+        "table_continuation": "fixed asset impairment and carrying value",
+        "impairment": {
+          "opening": [
+            86088944.9,
+            35741754.75,
+            118991.45,
+            6336697.99,
+            128286389.09
+          ],
+          "closing": [
+            72666863.06,
+            22054150.94,
+            118991.45,
+            5841903.26,
+            100681908.71
+          ]
+        },
+        "net_carrying_value": {
+          "closing": [
+            17915996.06,
+            3277854629.06,
+            2330925640.12,
+            92413662.07,
+            734330121.11,
+            6453440048.42
+          ],
+          "opening": [
+            17915996.06,
+            2797191435.54,
+            1923388641.68,
+            82850503.31,
+            669479978.63,
+            5490826555.22
+          ]
+        }
+      }
+    }
+  },
+  "model_input": {
+    "label": "PPE",
+    "model_ref": "Model!U59",
+    "formula": "='Raw financials'!U93",
+    "raw_ref": "Raw financials!U93",
+    "raw_value": 5497.0067,
+    "unit": "Rmb m",
+    "driver_net_ppe_row": "Driver!108 (Net PPE; formula roll-forward, not the FY2025 raw input)",
+    "observed_pdf_net_carrying_closing_rmb_m": 6453.44004842,
+    "unit_note": "Raw financials declares Rmb m; PDF table prints yuan-scale amounts, so 6,453,440,048.42 corresponds to 6,453.440048 Rmb m. Existing original U93 is 5,497.0067 and therefore does not tie this FY2025 table."
+  }
+}

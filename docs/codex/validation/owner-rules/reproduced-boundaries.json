@@ -1,0 +1,18 @@
+{
+  "constant_composition": {
+    "before": null,
+    "after": "=12-4-5+1"
+  },
+  "old_numeric_anatomy_promotions": [
+    {
+      "sheet": "Final",
+      "row": 2,
+      "expect": 0
+    },
+    {
+      "sheet": "Final",
+      "row": 10,
+      "expect": 0
+    }
+  ]
+}

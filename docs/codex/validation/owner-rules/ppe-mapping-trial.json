@@ -1,0 +1,52 @@
+{
+  "scope": "Focused original-workbook/two-page mapping tests; not full cold acceptance",
+  "extraction": "rotation and matrix-kind tests pass without skips",
+  "selected_model_value": 6453.44004842,
+  "delivered": false,
+  "root_cause": "Verified printed branch requests explicit model-unit value when scale is unresolved but refuses before considering that supplied value.",
+  "harness_corrections": [
+    "first attempt cited only first page",
+    "subsequent source_ref list replaced by individual page objects"
+  ],
+  "usage": {
+    "calls": 4,
+    "tokens": 15790
+  },
+  "trial_artifacts": [
+    "/private/tmp/codex-ppe-local-network/result.json",
+    "/private/tmp/codex-ppe-local-multipage/result.json",
+    "/private/tmp/codex-ppe-feedback/result.json",
+    "/private/tmp/codex-ppe-feedback-final/result.json"
+  ],
+  "latest_answer": {
+    "answer": {
+      "thinking": "The model row is total fixed assets at carrying value, not gross cost, accumulated depreciation, or impairment. The source’s “账面价值—期末账面价值—合计” is RMB 6,453,440,048.42, which converts to Rmb m 6,453.44004842. The printed comparative total is RMB 5,490,826,555.22, while the model prior is 5,497.0067, so the current-year mapping is supported but the historical mismatch should be flagged for review without changing model history.",
+      "calls": [
+        {
+          "tool": "sets",
+          "sets": [
+            {
+              "ref": "Raw financials!U93",
+              "value": 6453.44004842,
+              "printed": 6453440048.42,
+              "doc": "DFE 2025 Annual Report (CN).pdf",
+              "page": 185,
+              "line": "（1）期末账面价值 17,915,996.06 3,277,854,629.06 2,330,925,640.12 92,413,662.07 734,330,121.11 6,453,440,048.42",
+              "source_ref": {
+                "doc": "DFE 2025 Annual Report (CN).pdf",
+                "page": 185
+              },
+              "because": "This model row is total fixed assets at carrying value. Use the printed total fixed-asset carrying value, converted from RMB to Rmb m: 6,453,440,048.42 / 1,000,000 = 6,453.44004842."
+            }
+          ]
+        }
+      ]
+    },
+    "feedback": [
+      "set Raw financials!U93:",
+      "  Raw financials!U93 nothing written: the quoted line is verified but its conversion to model units is unresolved; supply the model-unit value and explain the units"
+    ]
+  },
+  "offline_fix_delivery": "passes: exact saved answer writes 6453.44004842 with zero new API calls",
+  "offline_fix_artifact": "docs/codex/validation/owner-rules/ppe-offline-delivery.json"
+}

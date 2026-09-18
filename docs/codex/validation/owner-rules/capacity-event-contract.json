@@ -1,0 +1,11 @@
+{
+  "scope": "In-memory behaviour test on original CLP structure; 1150 is the owner illustrative event, not a sourced production update",
+  "event_input": "ROAFNA!AI71",
+  "illustrative_actual": 1150,
+  "preserved_future_zeros": 5,
+  "first_forecast": "ROAFNA!AJ71 = 0",
+  "second_forecast": "ROAFNA!AK71 = 0",
+  "stock_roll_preserved": "ROAFNA!AJ64 = +AI64+AJ71",
+  "company_specific_production_rules": false,
+  "paid_calls": 0
+}

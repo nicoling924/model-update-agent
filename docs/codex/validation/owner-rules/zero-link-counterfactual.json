@@ -1,0 +1,19 @@
+{
+  "scope": "in-memory historical replay diagnostic, not cold acceptance or approved production change",
+  "baseline": "/private/tmp/codex-owner-rules-results/replays/CLP-FY25",
+  "initial_first_forecast_gap": 529,
+  "restored_original_accounting_formulas": [
+    "SOC Accounts!AJ37",
+    "SOC Accounts!AJ40",
+    "SOC Accounts!AJ41",
+    "SOC Accounts!AJ42"
+  ],
+  "actual_input_backout": {
+    "SOC Accounts!AI40": "=('Final'!AI90-3701)/(1)"
+  },
+  "removed_obsolete_forecast_compensation": {
+    "Final!AK108": "=-2-68-2-AK113"
+  },
+  "result": "All measured Final99 and ROAFNA31 periods zero; actual headlines unchanged",
+  "limitation": "Requires analyst clarification of zero-rule scope; not a claim that pinned historical numbers match FY25 disclosures"
+}

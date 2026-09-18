@@ -1,0 +1,44 @@
+{
+  "scope": "focused component trial, not full-model acceptance",
+  "cold_inputs": {
+    "workbook_sha256": "18b87b593f4941729b00d10860209691c4af47d12b835147d695355e289ea18b",
+    "pdf_sha256": "23502639642536e08428a3662729a87c69490d9ea241ac5373817fe49f2afe55",
+    "source_ref": {
+      "doc": "e_2025 Annual Report.pdf",
+      "page": 167
+    }
+  },
+  "usage": {
+    "model": "openai/gpt-5.6-luna",
+    "calls": 1,
+    "prompt_tokens": 2402,
+    "completion_tokens": 205
+  },
+  "observed": [
+    {
+      "ref": "Final!AI21",
+      "before": "=+-2254+235",
+      "after": "=+-2254+235",
+      "pure_formula": false,
+      "structure_preserved": true
+    }
+  ],
+  "turns": [
+    {
+      "answer": {
+        "thinking": "The page is the consolidated statement of comprehensive income and does not present finance costs, finance income, or net finance costs. No supported update can be made to Final!AI21 from this page. The model row is an embedded formula (=+-2254+235), so it must not be overwritten; its input rows would need the relevant finance cost and finance income disclosure.",
+        "calls": [
+          {
+            "tool": "skip",
+            "ref": "Final!AI21",
+            "because": "Page 167 presents profit and other comprehensive income, but carries no finance cost, finance income, or net finance cost line; no update is supported from this page."
+          }
+        ]
+      },
+      "feedback": [
+        "skip Final!AI21: no print was in front of you for this row, so there is nothing to take off it. `find` or `page` what carries it \u2014 or, if NO print in this disclosure does, skip it again with \"scope\":\"disclosure\" and it is closed."
+      ]
+    }
+  ],
+  "logs": []
+}

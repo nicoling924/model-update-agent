@@ -594,7 +594,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     flag_embedded_hardcodes(wb, sheets_ax, ycols, writer, log)
 
     from openpyxl.utils import column_index_from_string
-    from .freeze import plan_freezes
+    from .freeze import plan_freezes, apply_freezes
     wb_pre_formulas = load(archive)      # manual-calc models cache nothing
     n_fz = 0
     for sheet in (spec_d.get("year_axis") or {}):
@@ -602,19 +602,21 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         if not tcol or sheet not in wb.sheetnames \
                 or sheet not in wb_values.sheetnames:
             continue
-        for pl in plan_freezes(wb, wb_values, [sheet],
-                               column_index_from_string(tcol),
-                               pre_formulas_wb=wb_pre_formulas):
-            _ref_fz = f"{sheet}!{pl.get('coord')}" if isinstance(pl, dict) else str(pl)
-            _co_fz = _ref_fz.split("!", 1)[-1]
-            writer.watch(sheet, _co_fz,
-                         "this forecast assumption reads the column that has just become actual — "
-                         "it rebases onto the actual year unless you hold it; the analyst's own value "
-                         f"was {str((pl.get('value') if isinstance(pl, dict) else ''))[:20]}")
-            n_fz += 1
+        future = sorted((int(y), c) for y, c in year_columns(spec_d, sheet).items()
+                        if str(y).isdigit() and int(y) > target_year)
+        if not future:
+            continue
+        plans = plan_freezes(wb, wb_values, [sheet],
+                            column_index_from_string(tcol),
+                            pre_formulas_wb=wb_pre_formulas,
+                            check_rows=spec_d.get("check_rows", []),
+                            forecast_col=column_index_from_string(future[0][1]))
+        frozen = apply_freezes(wb, plans, writer=writer)
+        writer.log.setdefault("frozen", []).extend(frozen)
+        n_fz += len(frozen)
     if n_fz:
-        log(f"[run] assumption watch: {n_fz} forecast assumptions read the newly actual column "
-            "(watch-listed for the review — nothing frozen by code)")
+        log(f"[run] forecast intent: {n_fz} linked growth assumptions "
+            "held at their pre-update values under the owner's rollover rules")
     err_guard("structure watch")
     collapse_guard("structure watch")
 
@@ -813,6 +815,14 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
     # analyst's own baseline disowns, are FOUND by code and said on the watch
     # list — the review's brain decides whether to hold them, with `set` and
     # `restore` in its hand. Code no longer edits a forecast by rule.
+    def preserve_event_forecasts():
+        from .freeze import hold_oneoff_forecasts
+        for event in writer.log.get("oneoff_inputs", {}).values():
+            held = hold_oneoff_forecasts(wb, wb_pre_formulas, spec_d, target_year,
+                                        event["sheet"], event["row"], writer, event["because"])
+            if held:
+                log(f"[run] one-off forecast intent: {len(held)} originally-zero event forecasts preserved")
+    preserve_event_forecasts()
     from .teachings import oneoff_watch, probe_watch
     n_oo = oneoff_watch(wb, spec_d, target_year, writer, log)
     n_ap = probe_watch(wb, spec_d, target_year, fc_base, writer, log)
@@ -838,6 +848,7 @@ def update(company_dir, period, target_year, client=None, loop_budget=60,
         the sign-flip terminal, the final closer. Idempotent by design
         (anchors re-solve, plugs re-measure, verdicts skip the done),
         so the gate loop can run it again on a corrected state."""
+        preserve_event_forecasts()
         # (the key tie's automatic back-out is gone — owner 2026-09-17: a key
         # that is off the print is measured and said; closing it is the
         # brain's, with evidence, in the review)

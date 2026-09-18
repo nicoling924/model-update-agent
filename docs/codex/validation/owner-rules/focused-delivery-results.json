@@ -1,0 +1,22 @@
+{
+  "scope": "Scripted offline mapping delivery checks on the rejected owner-release candidate; these results validate the named edits only, not release readiness or cold accuracy.",
+  "results": {
+    "CLP-FY25": [
+      "[readiness] Driver!AI103: 1 source-line candidates for the supplied quote",
+      "[readiness] Final!AI21: 1 source-line candidates for the supplied quote",
+      "[readiness] Driver!AI103: card BULK MAPPING PROPOSAL -> value -1860 fill FFC7CE OK | Mapped by the brain WITHOUT tying evidence.",
+      "[readiness] Final!AI21: card BULK MAPPING PROPOSAL -> value -1666 fill FFC7CE OK | Mapped by the brain WITHOUT tying evidence."
+    ],
+    "DFE-FY25": [
+      "[readiness] Raw financials!U68: 1 source-line candidates for the supplied quote",
+      "[readiness] Raw financials!U68: card BULK MAPPING PROPOSAL -> value 26171.15303444 fill FFC7CE OK | Mapped by the brain WITHOUT tying evidence."
+    ],
+    "DFE-EPS": [
+      "[readiness] Raw financials!U50: 1 source-line candidates for the supplied quote",
+      "[readiness] Raw financials!U50: card BULK MAPPING PROPOSAL -> value 1.15 fill FFC7CE OK | Mapped by the brain WITHOUT tying evidence."
+    ]
+  },
+  "release_blocker": "CLP full replay balance regressed to 830 with the experimental roll-base repair, which has been removed. Current zero-preservation scope awaits analyst clarification.",
+  "baseline_gate": "Current pipeline matches original owner-rules-build; full suite and both DFE replays pass, CLP forecast balance remains 529.",
+  "paid_calls_this_check": 0
+}

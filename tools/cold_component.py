@@ -18,7 +18,7 @@ def main():
    if k.strip() in ('LLM_BASE_URL','LLM_API_KEY','LLM_MODEL'):os.environ[k.strip()]=v.strip().strip('"').strip("'")
  from openpyxl import load_workbook
  from pipeline.writer import Writer,rollover_column
- from pipeline.mapping import MANDATE,_one_call,literal_template,has_embedded_inputs
+ from pipeline.mapping import MANDATE,_one_call,literal_template,has_embedded_inputs,is_constant_expression
  from pipeline.ledger import Ledger
  from pipeline.llm import make_client,set_reasoning
  wb=load_workbook(a.workbook)
@@ -26,6 +26,7 @@ def main():
  rows=[int(x) for x in a.rows.split(',')];rollover_column(wb,a.sheet,a.prior,a.actual);before=copy.deepcopy(wb)
  py='/Users/lingling/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
  text=subprocess.check_output([py,'-c','from pypdf import PdfReader; import sys; print(PdfReader(sys.argv[1]).pages[int(sys.argv[2])-1].extract_text(extraction_mode="layout"))',a.pdf,str(a.page)],text=True)
+ text='\n'.join(' '.join(line.split()) for line in text.splitlines() if line.strip())
  doc=Path(a.pdf).name;source={'doc':doc,'page':a.page};pages={(doc,a.page):text}
  spec={'year_axis':{a.sheet:{'columns':{'2024':a.prior,'2025':a.actual}}},'check_rows':[],'key_rows':[]}
  loop=SimpleNamespace(wb=wb,spec=spec,ty=2025,period='FY25',ledger=Ledger(),targets={},served={},writer=Writer(wb));loop.__dict__['_map_pages']=pages
@@ -45,7 +46,7 @@ def main():
  for r in rows:
   ref=f'{a.actual}{r}';old=before[a.sheet][ref].value;new=wb[a.sheet][ref].value
   pure=isinstance(old,str) and old.startswith('=') and not has_embedded_inputs(old)
-  preserved=(new==old if pure else not isinstance(old,str) or not old.startswith('=') or literal_template(old)==literal_template(new))
+  preserved=(new==old if pure else not isinstance(old,str) or not old.startswith('=') or literal_template(old)==literal_template(new) or (is_constant_expression(old) and is_constant_expression(new)))
   observed.append({'ref':f'{a.sheet}!{ref}','before':old,'after':new,'pure_formula':pure,'structure_preserved':preserved})
  result={'scope':'focused component trial, not full-model acceptance','cold_inputs':{'workbook_sha256':hashlib.sha256(Path(a.workbook).read_bytes()).hexdigest(),'pdf_sha256':hashlib.sha256(Path(a.pdf).read_bytes()).hexdigest(),'source_ref':source},'usage':client.usage,'observed':observed,'turns':turns,'logs':logs}
  (output/'result.json').write_text(json.dumps(result,indent=2,default=str));print(json.dumps({'usage':client.usage,'observed':observed,'saved':str(output/'result.json')},indent=2))

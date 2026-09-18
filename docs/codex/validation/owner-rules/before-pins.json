@@ -1,0 +1,49 @@
+[
+  {
+    "test": "test_signed_numeric_literals_keep_formula_shape",
+    "before": "failed",
+    "error": ""
+  },
+  {
+    "test": "test_reference_signs_and_binary_operators_remain_structural",
+    "before": "passed"
+  },
+  {
+    "test": "test_prefix_sign_on_reference_is_not_treated_as_numeric_literal_sign",
+    "before": "passed"
+  },
+  {
+    "test": "test_only_reconciliation_evidence_can_promote_a_check",
+    "before": "failed",
+    "error": "Lists differ: [] != [5]\n\nSecond list contains 1 additional elements.\nFirst extra element 0:\n5\n\n- []\n+ [5]\n?  +\n"
+  },
+  {
+    "test": "test_bare_reference_does_not_supply_identity_evidence",
+    "before": "failed",
+    "error": "Lists differ: [{'sheet': 'Model', 'row': 5, 'expect': 0}] != []\n\nFirst list contains 1 additional elements.\nFirst extra element 0:\n{'sheet': 'Model', 'row': 5, 'expect': 0}\n\n- [{'expect': 0, 'row': 5, 'sheet': 'Model'}]\n+ []"
+  },
+  {
+    "test": "test_only_first_forecast_growth_is_frozen_from_pre_update_value",
+    "before": "passed"
+  },
+  {
+    "test": "test_first_forecast_zero_hardcode_is_held_but_nonzero_is_exempt",
+    "before": "failed",
+    "error": "plan_freezes() got an unexpected keyword argument 'check_rows'"
+  },
+  {
+    "test": "test_check_rows_are_protected_and_authorized_formula_holds_use_over_formula",
+    "before": "failed",
+    "error": "plan_freezes() got an unexpected keyword argument 'check_rows'"
+  },
+  {
+    "test": "test_freeze_survives_later_writes_and_uses_the_actual_next_axis_column",
+    "before": "failed",
+    "error": "plan_freezes() got an unexpected keyword argument 'forecast_col'"
+  },
+  {
+    "test": "test_production_report_contains_only_changed_block",
+    "before": "failed",
+    "error": ""
+  }
+]

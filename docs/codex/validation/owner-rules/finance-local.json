@@ -1,0 +1,61 @@
+{
+  "scope": "focused component trial, not full-model acceptance",
+  "cold_inputs": {
+    "workbook_sha256": "18b87b593f4941729b00d10860209691c4af47d12b835147d695355e289ea18b",
+    "pdf_sha256": "23502639642536e08428a3662729a87c69490d9ea241ac5373817fe49f2afe55",
+    "source_ref": {
+      "doc": "e_2025 Annual Report.pdf",
+      "page": 166
+    }
+  },
+  "usage": {
+    "model": "openai/gpt-5.6-luna",
+    "calls": 1,
+    "prompt_tokens": 2114,
+    "completion_tokens": 357
+  },
+  "observed": [
+    {
+      "ref": "Final!AI21",
+      "before": "=+-2254+235",
+      "after": "=+-1860+194",
+      "pure_formula": false,
+      "structure_preserved": true
+    }
+  ],
+  "turns": [
+    {
+      "answer": {
+        "thinking": "The model row is net finance costs, defined as finance costs plus finance income using the model's signed convention. The source prints finance costs of (1,860) and finance income of 194 for 2025. Update the embedded operands while preserving the formula structure; the 2024 comparative ties the model history (-2,254 + 235).",
+        "calls": [
+          {
+            "tool": "sets",
+            "sets": [
+              {
+                "ref": "Final!AI21",
+                "formula": "=+-1860+194",
+                "doc": "e_2025 Annual Report.pdf",
+                "page": 166,
+                "line": "Finance costs 6 (1,860) (2,254); Finance income 6 194 235",
+                "source_ref": {
+                  "doc": "e_2025 Annual Report.pdf",
+                  "page": 166
+                },
+                "because": "Net finance costs is my model's finance costs plus finance income: -1,860 + 194 = -1,666 HK$M. The 2024 comparative matches the model's prior formula -2,254 + 235, so update the embedded disclosed inputs and preserve the formula structure."
+              }
+            ]
+          }
+        ]
+      },
+      "feedback": [
+        "set Final!AI21:",
+        "  Final!AI21 = -1,666.00 \u2192 RED: embedded numeric inputs updated with structure preserved; verify the operand definitions"
+      ]
+    }
+  ],
+  "logs": [],
+  "source_candidate_counts": {
+    "Finance costs": 1,
+    "Finance income": 1
+  }
+}

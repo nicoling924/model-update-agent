@@ -404,102 +404,35 @@ def _print_text(prov, sheet, row, col, key_tie):
 
 # ---------------------------------------------------------------- render
 
-def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
-    """Render the page. extra: key_ties, open_checks, sense_rows,
-    provenance, elapsed_min, units. -> dict of what was drawn."""
-    from .checks import scorecard
+def _build_changed_only(wb, pre_wb, spec, target_year, period, extra, log):
+    """Render the production report's single old/new delta block.
+
+    Row selection still comes from the model/spec via ``resolve_rows``.  The
+    discarded banner, look-here, verdict, and flag sections are never built.
+    Cell links and NEW formulas remain live against the workbook.
+    """
     extra = extra or {}
-    BANNER = PatternFill("solid", fgColor="FFF2CC")
-    OPEN = PatternFill("solid", fgColor="FADBD8")
-    SECT = PatternFill("solid", fgColor="F2F2F2")
-    HEAD = PatternFill("solid", fgColor="E7E6E6")
     GREY = Font(color="7F7F7F", size=10)
     GREYI = Font(color="7F7F7F", size=10, italic=True)
-    BOLD = Font(bold=True, size=11)
-    SECTF = Font(bold=True, size=12)
-    BANF = Font(bold=True, size=12)
-    BODY = Font(size=11)
     SMALL = Font(size=10)
-    REDF = Font(color="C00000", size=10)
     WARNF = Font(color="9C5700", size=10)
+    HEAD = PatternFill("solid", fgColor="E7E6E6")
     THIN = Border(bottom=Side(style="thin", color="BFBFBF"))
 
     if "_REPORT" in wb.sheetnames:
         del wb["_REPORT"]
     ws = wb.create_sheet("_REPORT", 0)
     ws.sheet_view.showGridLines = False
-    ws.freeze_panes = "B4"
-    r = 1
-
-    def cell(row, col, val, font=None, fill=None, fmt=None, border=None):
-        c = ws.cell(row=row, column=col, value=val)
-        c.font = font if font else BODY
-        if fill:
-            c.fill = fill
-        if fmt:
-            c.number_format = fmt
-        if border:
-            c.border = border
-        return c
-
-    def band(row, fill, h=None, upto=22):
-        for c in range(1, upto):
-            ws.cell(row=row, column=c).fill = fill
-        if h:
-            ws.row_dimensions[row].height = h
-
-    def sect(title):
-        nonlocal r
-        cell(r, 1, title, SECTF, SECT)
-        band(r, SECT, 22)
-        r += 1
-
     rows, primary = resolve_rows(wb, spec, target_year, period)
-    prov = extra.get("provenance") or {}
-    key_ties = {k.get("name"): k for k in (extra.get("key_ties") or []) if isinstance(k, dict)}
-    flags = flags_of(wb)
-    n_red = sum(1 for f in flags if f[2] == "red")
-    n_orange = sum(1 for f in flags if f[2] == "orange")
-    plugs = [f for f in flags if "PLUG" in f[3].upper() and "PLUG METER" not in f[3].upper()]   # a meter flag is a review item, not a plug
-    open_checks = [str(x) for x in (extra.get("open_checks") or [])]
-
-    # ---- 1. verdict strip ----------------------------------------
-    try:
-        card = scorecard(wb, spec, target_year)
-        # the run's objective is the years it wrote: the target and the forecasts
-        fails = [c for c in card["checks"] if c["status"] != "PASS" and str(c["year"]) >= str(target_year)]
-    except Exception:
-        fails = []
-    kt = extra.get("key_ties") or []
-    n_tied = sum(1 for k in kt if isinstance(k, dict) and k.get("tied"))
-    kind = period_kind(period)
-    plabel = (f"FY{str(target_year)[-2:]}" if kind == "FY" else f"{kind}{str(target_year)[-2:]}")
-    el = extra.get("elapsed_min")
-    parts = [f"Updated to {plabel}" + (f" in {el:.0f} min" if isinstance(el, (int, float)) else "")]
-    if fails or open_checks:
-        yrs = sorted({str(c["year"]) for c in fails})
-        parts.append(f"CHECKS OPEN: {len(fails)} ({', '.join(yrs[:6])})" if fails
-                     else f"CHECKS OPEN: {len(open_checks)}")
-    else:
-        parts.append("balance and cash checks closed, every year")
-    parts.append(f"key numbers tied to the print {n_tied}/{len(kt)}" if kt else "key numbers: no panel")
-    parts.append(f"red {n_red} · orange {n_orange} · plugs {len(plugs)}")
-    cell(r, 1, "   ·   ".join(parts), BANF, BANNER)
-    band(r, OPEN if (fails or open_checks) else BANNER, 30)
-    r += 1
-    ws.row_dimensions[r].height = 8
-    r += 1
-
-    # ---- 2. the table -------------------------------------------
-    units = str(extra.get("units") or spec.get("units") or "model units")
     axis = period_axis(spec, primary, target_year, period)
     fcols = [a for a in axis if a[2] == "forecast"]
     hist = [a for a in axis if a[2] != "forecast"]
-    nper = len(hist) + len(fcols)
-    D0 = 2                                   # change block
-    CHK = D0 + nper                          # check column
+    labels = [a[0] for a in hist] + [a[0] for a in fcols]
+    nper = len(labels)
+    D0 = 2
+    CHK = D0 + nper
     NEW0 = CHK + 2
-    PRN = NEW0 + nper                        # print
+    PRN = NEW0 + nper
     YOY = PRN + 1
     OLD0 = YOY + 2
     LAST = OLD0 + nper
@@ -510,37 +443,39 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
     ws.column_dimensions[get_column_letter(PRN)].width = 17
     for c in (CHK + 1, YOY + 1):
         ws.column_dimensions[get_column_letter(c)].width = 2
-    sect(f"1 · What changed, new model vs your model   ({units}; change = new ÷ old − 1; "
-         f"check = next period's change more than {SENSE_GAP*100:.0f} points from the actual's)")
-    cell(r, D0, "WHAT CHANGED — new vs old", GREY)
-    cell(r, NEW0, "NEW — after the update", GREY)
-    cell(r, OLD0, "OLD — before the update", GREY)
-    r += 1
-    labels = [a[0] for a in hist] + [a[0] for a in fcols]
-    for blk in (D0, NEW0, OLD0):
-        for i, lab in enumerate(labels):
-            cell(r, blk + i, lab, GREY, HEAD, None, THIN)
+
+    ws.cell(row=1, column=D0, value="WHAT'S CHANGED — new vs old").font = Font(bold=True, size=12)
+    ws.cell(row=1, column=NEW0, value="NEW — after the update").font = Font(bold=True, size=11)
+    ws.cell(row=1, column=OLD0, value="OLD — before the update").font = Font(bold=True, size=11)
+    r = 2
+    for block in (D0, NEW0, OLD0):
+        for i, label in enumerate(labels):
+            c = ws.cell(row=r, column=block + i, value=label)
+            c.font, c.fill, c.border = GREY, HEAD, THIN
         if not fcols:
-            cell(r, blk + len(labels), no_forecast_text(period), GREYI, HEAD, None, THIN)
-    cell(r, CHK, "check", GREY, HEAD, None, THIN)
-    cell(r, PRN, f"{labels[-len(fcols) - 1] if fcols else labels[-1]} printed", GREY, HEAD, None, THIN)
-    cell(r, YOY, "YoY", GREY, HEAD, None, THIN)
-    r += 1
-    first_table = r
+            c = ws.cell(row=r, column=block + len(labels), value=no_forecast_text(period))
+            c.font, c.fill, c.border = GREYI, HEAD, THIN
+    for col, val in ((CHK, "check"), (PRN, f"{labels[-len(fcols)-1] if fcols else labels[-1]} printed"), (YOY, "YoY")):
+        c = ws.cell(row=r, column=col, value=val)
+        c.font, c.fill, c.border = GREY, HEAD, THIN
+
     drawn = {}
+    key_ties = [k for k in extra.get("key_ties", []) if isinstance(k, dict)]
+    ties_by_ref = {k.get("ref"): k for k in key_ties}
+    r += 1
     group_now = None
     for role in ROLES:
-        key, label, group, kindr, *_ = role
+        key, label, group, kind, *_ = role
         if group != group_now:
             if group_now is not None:
-                r += 1                       # one empty row between statements (owner 2026-09-14)
-            cell(r, 1, group, GREYI)
+                r += 1
+            ws.cell(row=r, column=1, value=group).font = GREYI
             r += 1
             group_now = group
         hit = rows.get(key)
         if not hit:
-            cell(r, 1, label, SMALL)
-            cell(r, D0, "not in this model", GREYI)
+            ws.cell(row=r, column=1, value=label).font = SMALL
+            ws.cell(row=r, column=D0, value="not in this model").font = GREYI
             r += 1
             continue
         sh, mr, mlab = hit
@@ -549,142 +484,47 @@ def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
         af = [a for a in ax if a[2] == "forecast"]
         cols = [a[1] for a in ah] + [a[1] for a in af][:len(fcols)]
         tcol = next((a[1] for a in ax if a[2] == "actual"), None)
-        q = _q(sh)
-        cell(r, 1, _link(sh, f"{tcol or cols[0]}{mr}", f"{label}  ({mlab[:24]})"), SMALL)
-        vfmt = "0.00" if kindr == "pershare" else NUM
+        printed, uncertain = _print_text(extra.get("provenance", {}), sh, mr, tcol,
+                                         ties_by_ref.get(f"{sh}!{tcol}{mr}"))
+        ws.cell(row=r, column=PRN, value=printed).font = WARNF if uncertain else GREYI
+        ws.cell(row=r, column=1, value=_link(sh, f"{tcol or cols[0]}{mr}", f"{label}  ({mlab[:24]})")).font = SMALL
+        vfmt = "0.00" if kind == "pershare" else NUM
         for i, cl in enumerate(cols):
             ov = pre_value(pre_wb, sh, mr, cl)
-            cell(r, OLD0 + i, round(ov, 4) if isinstance(ov, (int, float)) else "", SMALL, None, vfmt)
-            cell(r, NEW0 + i, f"={q}!{cl}{mr}", SMALL, None, vfmt)
+            old = ws.cell(row=r, column=OLD0 + i, value=round(ov, 4) if isinstance(ov, (int, float)) else "")
+            old.font, old.number_format = SMALL, vfmt
+            new = ws.cell(row=r, column=NEW0 + i, value=f"={_q(sh)}!{cl}{mr}")
+            new.font, new.number_format = SMALL, vfmt
             oc, nc = get_column_letter(OLD0 + i), get_column_letter(NEW0 + i)
-            cell(r, D0 + i, f'=IFERROR(IF({oc}{r}=0,"",({nc}{r}-{oc}{r})/ABS({oc}{r})),"")', SMALL, None, PCT)
-        # the check: the owner's ten points between the actual's change and the next period's
+            delta = ws.cell(row=r, column=D0 + i,
+                            value=f'=IFERROR(IF({oc}{r}=0,"",({nc}{r}-{oc}{r})/ABS({oc}{r})),"")')
+            delta.font, delta.number_format = SMALL, PCT
         if fcols and len(cols) >= len(ah) + 1:
             c0 = get_column_letter(D0 + len(ah) - 1)
             c1 = get_column_letter(D0 + len(ah))
-            cell(r, CHK,
-                 f'=IF(COUNT({c0}{r},{c1}{r})<2,"",IF(ABS({c1}{r}-{c0}{r})>{SENSE_GAP},'
-                 f'"⚠ "&TEXT(ABS({c1}{r}-{c0}{r})*100,"0")&" pts",""))',
-                 WARNF)
-        # the printed figure: the key panel's print for a key row, a proven serve otherwise
-        kname = next((k.get("name") for k in (spec.get("key_rows") or [])
-                      if k.get("sheet") == sh and int(k.get("row", -1)) == mr), None)
-        ptxt, bad = _print_text(prov, sh, mr, tcol, key_ties.get(kname) if kname else None)
-        cell(r, PRN, ptxt, REDF if bad else SMALL)
+            ws.cell(row=r, column=CHK,
+                    value=f'=IF(COUNT({c0}{r},{c1}{r})<2,"",IF(ABS({c1}{r}-{c0}{r})>{SENSE_GAP},"⚠ "&TEXT(ABS({c1}{r}-{c0}{r})*100,"0")&" pts",""))').font = WARNF
         if len(ah) == 2:
             pc, ac = get_column_letter(NEW0), get_column_letter(NEW0 + 1)
-            cell(r, YOY, f'=IFERROR(IF({pc}{r}<=0,"n/m",{ac}{r}/{pc}{r}-1),"")', SMALL, None, PCT)
+            ws.cell(row=r, column=YOY,
+                    value=f'=IFERROR(IF({pc}{r}<=0,"n/m",{ac}{r}/{pc}{r}-1),"")').number_format = PCT
         drawn[key] = (sh, mr)
         r += 1
-    from openpyxl.formatting.rule import CellIsRule
-    rng = f"{get_column_letter(D0)}{first_table}:{get_column_letter(D0 + nper - 1)}{r - 1}"
-    for op, v in (("greaterThan", "0.2"), ("lessThan", "-0.2")):
-        ws.conditional_formatting.add(rng, CellIsRule(operator=op, formula=[v],
-                                                      fill=PatternFill("solid", fgColor="FFF2CC")))
-    ws.row_dimensions[r].height = 10
-    r += 1
-
-    # (the key-number section was removed on 2026-09-14: it repeated the table)
-    keys = [k for k in (spec.get("key_rows") or [])
-            if k.get("sheet") in wb.sheetnames and isinstance(k.get("row"), int)]
-    # ---- 4. look here -------------------------------------------
-    restated = list(extra.get("restatements") or [])
-    if restated:
-        sect(f"Restated comparatives ({len(restated)}) — this year's report prints last year differently from your model")
-        for ln in restated[:40]:
-            cell(r, 1, str(ln)[:160]); r += 1
-        r += 1
-    sect("2 · Look here")
-    n_items = 0
-    sense = [s for s in (extra.get("sense_rows") or []) if isinstance(s, dict)]
-    ending = [s for s in sense if s.get("stage") == "ending"]
-    final = [s for s in sense if s.get("stage") == "final"]
-    shown = ending if ending else (final if final else sense)
-    seen = set()
-    for s in shown:
-        if s.get("name") in seen:
-            continue
-        seen.add(s.get("name"))
-        v = str(s.get("verdict") or "")
-        word = {"fixed": "fixed", "genuine": "genuine", "unusual": "genuine but unusual", "inline": "in line",
-                "red": "red, your ruling", "stale": "not found — kept, red"}.get(v, v or "reviewed")
-        leaf = s.get("leaf")
-        cell(r, 1, str(s.get("name") or "")[:30], BOLD)
-        cell(r, 2, (f"actual {s.get('d0', 0)*100:+.1f}% vs your estimate; next period "
-                    f"{s.get('d1', 0)*100:+.1f}% vs old ({abs(s.get('d1', 0)-s.get('d0', 0))*100:.0f} pts) → {word}"),
-             SMALL)
-        if leaf and "!" in str(leaf):
-            lsh, lco = str(leaf).split("!", 1)
-            if lsh in wb.sheetnames:
-                cell(r, PRN, _link(lsh, lco, leaf), SMALL)
-        r += 1
-        if s.get("text"):
-            cell(r, 2, "      " + str(s["text"])[:300], GREYI)
-            r += 1
-        n_items += 1
-    for oc in open_checks[:12]:
-        cell(r, 1, "OPEN CHECK", REDF)
-        cell(r, 2, oc[:200], SMALL)
-        r += 1
-        n_items += 1
-    for sh, co, _c, note in plugs[:12]:
-        cell(r, 1, _link(sh, co, f"PLUG {sh}!{co}"), SMALL)
-        cell(r, 2, f"={_q(sh)}!{co}", SMALL, None, NUM)
-        cell(r, 3, note[:160], SMALL)
-        r += 1
-        n_items += 1
-    # flagged cells that sit on the page's own rows
-    page_rows = {(sh, mr) for sh, mr in drawn.values()} | {(k["sheet"], int(k["row"])) for k in keys}
-    on_page = [f for f in flags if f[2] in ("red", "orange") and "PLUG" not in f[3].upper()
-               and (f[0], int(re.sub(r"[A-Z]+", "", f[1]) or 0)) in page_rows]
-    for sh, co, colour, note in on_page[:20]:
-        cell(r, 1, _link(sh, co, f"{colour.upper()} {sh}!{co}"), REDF if colour == "red" else WARNF)
-        cell(r, 2, f"={_q(sh)}!{co}", SMALL, None, NUM)
-        cell(r, 3, note[:160], SMALL)
-        r += 1
-        n_items += 1
-    rest = [f for f in flags if f[2] in ("red", "orange") and f not in on_page and f not in plugs]
-    by_sheet = {}
-    for f in rest:
-        by_sheet.setdefault(f[0], []).append(f)
-    if by_sheet:
-        cell(r, 1, "Elsewhere (every flagged cell is listed on _FLAGS, with its note):", GREYI)
-        r += 1
-        for sh in sorted(by_sheet):
-            fs = by_sheet[sh]
-            nr = sum(1 for f in fs if f[2] == "red")
-            no = len(fs) - nr
-            cell(r, 1, _link(sh, fs[0][1], f"{sh}: {nr} red, {no} orange"), SMALL)
-            r += 1
-    if n_items == 0 and not by_sheet:
-        cell(r, 1, "Nothing to look at: no line out of line, no check open, no plug.", SMALL)
-        r += 1
-
-    # ---- the complete list on _FLAGS -----------------------------
-    fws = wb.create_sheet("_FLAGS") if "_FLAGS" not in wb.sheetnames else wb["_FLAGS"]
-    for row_ in fws.iter_rows():
-        for c_ in row_:
-            c_.value = None
-    fws.cell(row=1, column=1, value="Every flagged cell (plugs, red rulings, orange derivations)").font = BOLD
-    fr = 3
-    for tier, title in (("plug", "Plugs"), ("red", "Red — unsure, your ruling"),
-                        ("orange", "Orange — derived, not read"), ("blue", "Blue — forecast inputs frozen or held")):
-        items = [f for f in flags if (("PLUG" in f[3].upper()) if tier == "plug"
-                                      else (f[2] == tier and "PLUG" not in f[3].upper()))]
-        if not items:
-            continue
-        fws.cell(row=fr, column=1, value=title).font = BOLD
-        fr += 1
-        for sh, co, _c, note in items:
-            fws.cell(row=fr, column=1, value=_link(sh, co, f"{sh}!{co}")).font = SMALL
-            fws.cell(row=fr, column=2, value=f"={_q(sh)}!{co}").number_format = NUM
-            fws.cell(row=fr, column=3, value=note[:200]).font = SMALL
-            fr += 1
-        fr += 1
-    fws.column_dimensions["A"].width = 26
-    fws.column_dimensions["C"].width = 110
+    if nper:
+        from openpyxl.formatting.rule import CellIsRule
+        rng = f"{get_column_letter(D0)}3:{get_column_letter(D0 + nper - 1)}{r - 1}"
+        for op, value in (("greaterThan", "0.2"), ("lessThan", "-0.2")):
+            ws.conditional_formatting.add(rng, CellIsRule(operator=op, formula=[value], fill=PatternFill("solid", fgColor="FFF2CC")))
+    ws.freeze_panes = "B3"
     wb.active = 0
-    log(f"[report] page: {len(drawn)}/{len(ROLES)} table lines found, {len(keys)} key rows, "
-        f"{n_items} look-here items, period {plabel}" + ("" if fcols else " (no forecast columns)"))
-    return {"rows": drawn, "primary": primary, "keys": len(keys), "look_here": n_items,
-            "tied": n_tied, "panel": len(kt), "red": n_red, "orange": n_orange, "plugs": len(plugs)}
+    log(f"[report] compact page: {len(drawn)}/{len(ROLES)} table lines found, period {period}")
+    flags = flags_of(wb)
+    return {"rows": drawn, "primary": primary, "keys": len(spec.get("key_rows", [])), "look_here": 0,
+            "tied": sum(bool(k.get("tied")) for k in key_ties), "panel": len(key_ties),
+            "red": sum(f[2] == "red" for f in flags), "orange": sum(f[2] == "orange" for f in flags),
+            "plugs": sum("PLUG" in f[3].upper() and "PLUG METER" not in f[3].upper() for f in flags)}
+
+def build(wb, pre_wb, spec, target_year, period, extra=None, log=print):
+    """Render the page. extra: key_ties, open_checks, sense_rows,
+    provenance, elapsed_min, units. -> dict of what was drawn."""
+    return _build_changed_only(wb, pre_wb, spec, target_year, period, extra or {}, log)

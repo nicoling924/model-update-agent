@@ -802,6 +802,12 @@ def identify_key_rows(wb_values, spec, client, log, max_rows=260,
                 if not isinstance(row, int) or isinstance(row, bool) or not any(c.get("row") == row for c in candidates):
                     continue
                 coord = f"{col}{row}"
+                from .anatomy import check_identity
+                valid, why = check_identity(wb_values, sheet, coord, check.get("reason"),
+                                            {c["row"] for c in candidates})
+                if not valid:
+                    log(f"[run] check candidate {sheet}!{row} remains unclassified: {why}")
+                    continue
                 if not (isinstance(ws[coord].value, str) and ws[coord].value.startswith("=")):
                     continue
                 try:

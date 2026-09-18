@@ -1,0 +1,99 @@
+{
+  "scope": "focused component trial, not full-model acceptance",
+  "cold_inputs": {
+    "workbook_sha256": "18b87b593f4941729b00d10860209691c4af47d12b835147d695355e289ea18b",
+    "pdf_sha256": "23502639642536e08428a3662729a87c69490d9ea241ac5373817fe49f2afe55",
+    "source_ref": {
+      "doc": "e_2025 Annual Report.pdf",
+      "page": 170
+    }
+  },
+  "usage": {
+    "model": "openai/gpt-5.6-luna",
+    "calls": 1,
+    "prompt_tokens": 2648,
+    "completion_tokens": 1060
+  },
+  "observed": [
+    {
+      "ref": "Final!AI124",
+      "before": "=-15076-564+45-663+161-14",
+      "after": "=-15539-459+109-756+13-130",
+      "pure_formula": false,
+      "structure_preserved": true
+    },
+    {
+      "ref": "Final!AI125",
+      "before": "=-40+29+0",
+      "after": "=-133+10+0",
+      "pure_formula": false,
+      "structure_preserved": true
+    },
+    {
+      "ref": "Final!AI128",
+      "before": 4,
+      "after": 4,
+      "pure_formula": false,
+      "structure_preserved": true
+    },
+    {
+      "ref": "Final!AI129",
+      "before": "=SUM(AI124:AI128)",
+      "after": "=SUM(AI124:AI128)",
+      "pure_formula": true,
+      "structure_preserved": true
+    },
+    {
+      "ref": "Final!AI136",
+      "before": "=9817-7131+2269-346-648",
+      "after": "=12508-10672-1768-233-381",
+      "pure_formula": false,
+      "structure_preserved": true
+    }
+  ],
+  "turns": [
+    {
+      "answer": {
+        "thinking": "Mapped the disclosed investing and financing inputs whose source lines match the model's existing component structure. Pure formula row AI129 is preserved. AI128 cannot be identified confidently from the page because its prior model value of 4 does not establish which investing line(s) the row represents; the page contains several potentially related investment movements.",
+        "calls": [
+          {
+            "tool": "sets",
+            "sets": [
+              {
+                "ref": "Final!AI124",
+                "formula": "=-15539-459+109-756+13-130",
+                "doc": "e_2025 Annual Report.pdf",
+                "page": 170,
+                "line": "Capital expenditure (15,539) (15,076); Capitalised interest and other finance costs paid (459) (564); Proceeds from disposal of fixed assets 109 45; Additions of other intangible assets (756) (663); Proceeds from disposal of investments at fair value through profit or loss 13 161; Increase in investments at fair value through profit or loss (130) (14)",
+                "because": "This model row is the capital-expenditure basket represented by the six component lines in its existing formula: capital expenditure, capitalised interest and other finance costs, fixed-asset disposals, other intangible additions, proceeds from disposal of investments at FVTPL, and increase in investments at FVTPL. Updated in model units as printed HK$ millions."
+              },
+              {
+                "ref": "Final!AI125",
+                "formula": "=-133+10+0",
+                "doc": "e_2025 Annual Report.pdf",
+                "page": 170,
+                "line": "Increase in investments in and loans to joint ventures (133) (40); Decrease in investments in and loans to joint ventures 10 29",
+                "because": "This is the investment-in-JCEs row: additions/increases less decreases. The existing third zero operand is retained because the source has no additional corresponding current-year component."
+              },
+              {
+                "ref": "Final!AI136",
+                "formula": "=12508-10672-1768-233-381",
+                "doc": "e_2025 Annual Report.pdf",
+                "page": 170,
+                "line": "Proceeds from long-term borrowings 12,508 9,817; Repayment of long-term borrowings (10,672) (7,131); (Decrease) / increase in short-term borrowings (1,768) 2,269; Payment of principal portion of lease liabilities (233) (346); Settlement of derivative financial instruments (381) (648)",
+                "because": "This model row is the change-in-debt basket shown by its existing five-part formula. Perpetual capital securities and finance-cost interest payments are not included because they are absent from the prior formula."
+              }
+            ]
+          }
+        ]
+      },
+      "feedback": [
+        "set Final!AI124, Final!AI125, Final!AI136:",
+        "  Final!AI124 = -16,762 \u2192 RED: embedded numeric inputs updated with structure preserved; verify the operand definitions",
+        "  Final!AI125 = -123.00 \u2192 RED: embedded numeric inputs updated with structure preserved; source evidence unresolved for 0.0",
+        "  Final!AI136 = -546.00 \u2192 RED: embedded numeric inputs updated with structure preserved; verify the operand definitions"
+      ]
+    }
+  ],
+  "logs": []
+}

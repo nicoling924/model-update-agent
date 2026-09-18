@@ -333,6 +333,10 @@ class Writer:
         the checks; a plug that lands is recorded in log["plugs"].
         Returns True on write, False on a guarded refusal."""
         ref = f"{sheet}!{coord}"
+        holds = getattr(self, "forecast_holds", {})
+        if ref in holds and value != holds[ref]:
+            self.log.setdefault("forecast_hold_refused", []).append(ref)
+            return False
         if kind == "plug" and not getattr(self, "plugs_allowed", False):
             self.log.setdefault("plug_refused", []).append(ref)
             return False
